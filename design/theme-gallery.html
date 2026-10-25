@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en" data-theme="vercel">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>cms-learn — theme gallery</title>
+<style>
+  /* ────────────────────────────────────────────────────────────────────────────
+     One markup, twelve themes. Each theme is a token block, not a stylesheet: the
+     layout below never mentions a colour, a radius or a font. That is the point —
+     if a theme can only exist by editing the markup, it is not a theme.
+     ──────────────────────────────────────────────────────────────────────────── */
+
+  html[data-theme="vercel"] {
+    --bg:#ffffff; --surface:#ffffff; --surface-2:#fafafa; --border:#eaeaea;
+    --text:#000000; --muted:#666666; --accent:#000000; --accent-text:#ffffff;
+    --radius:8px; --border-w:1px; --shadow:none; --font:ui-sans-serif,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  html[data-theme="linear"] {
+    --bg:#0b0c0e; --surface:#141518; --surface-2:#1a1c20; --border:#26282d;
+    --text:#e8e9ec; --muted:#8b8f98; --accent:#5e6ad2; --accent-text:#ffffff;
+    --radius:6px; --border-w:1px; --shadow:none; --font:ui-sans-serif,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,Menlo,monospace;
+  }
+  html[data-theme="stripe"] {
+    --bg:#ffffff; --surface:#ffffff; --surface-2:#f6f8fa; --border:#e3e8ee;
+    --text:#0a2540; --muted:#697386; --accent:#635bff; --accent-text:#ffffff;
+    --radius:6px; --border-w:1px; --shadow:0 1px 2px rgba(10,37,64,.08); --font:ui-sans-serif,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,Menlo,monospace;
+  }
+  html[data-theme="primer"] {
+    --bg:#ffffff; --surface:#f6f8fa; --surface-2:#eaeef2; --border:#d0d7de;
+    --text:#1f2328; --muted:#59636e; --accent:#1f883d; --accent-text:#ffffff;
+    --radius:6px; --border-w:1px; --shadow:none; --font:ui-sans-serif,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  html[data-theme="glass"] {
+    --bg:radial-gradient(1200px 600px at 20% -10%, #3b5bdb 0%, transparent 60%),
+         radial-gradient(900px 500px at 90% 10%, #9c36b5 0%, transparent 55%), #0e1014;
+    --surface:rgba(255,255,255,.10); --surface-2:rgba(255,255,255,.06); --border:rgba(255,255,255,.22);
+    --text:#ffffff; --muted:rgba(255,255,255,.70); --accent:rgba(255,255,255,.92); --accent-text:#111318;
+    --radius:20px; --border-w:1px; --shadow:0 8px 32px rgba(0,0,0,.35); --font:ui-sans-serif,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,Menlo,monospace; --blur:blur(18px) saturate(160%);
+  }
+  html[data-theme="carbon"] {
+    --bg:#f4f4f4; --surface:#ffffff; --surface-2:#e8e8e8; --border:#c6c6c6;
+    --text:#161616; --muted:#525252; --accent:#0f62fe; --accent-text:#ffffff;
+    --radius:0px; --border-w:1px; --shadow:none; --font:ui-sans-serif,"IBM Plex Sans",-apple-system,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+  }
+  html[data-theme="material"] {
+    --bg:#fdfbff; --surface:#f3edf7; --surface-2:#e8def8; --border:#cac4d0;
+    --text:#1d1b20; --muted:#49454f; --accent:#6750a4; --accent-text:#ffffff;
+    --radius:16px; --border-w:0px; --shadow:0 2px 6px rgba(0,0,0,.10); --font:ui-sans-serif,Roboto,-apple-system,sans-serif;
+    --mono:ui-monospace,monospace;
+  }
+  html[data-theme="shadcn"] {
+    --bg:#ffffff; --surface:#ffffff; --surface-2:#f4f4f5; --border:#e4e4e7;
+    --text:#09090b; --muted:#71717a; --accent:#18181b; --accent-text:#fafafa;
+    --radius:10px; --border-w:1px; --shadow:none; --font:ui-sans-serif,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,Menlo,monospace;
+  }
+  html[data-theme="notion"] {
+    --bg:#fffefc; --surface:#ffffff; --surface-2:#f7f6f3; --border:#e9e6e1;
+    --text:#37352f; --muted:#787774; --accent:#37352f; --accent-text:#fffefc;
+    --radius:4px; --border-w:1px; --shadow:none;
+    --font:ui-serif,Georgia,"Times New Roman",serif;
+    --mono:ui-monospace,Menlo,monospace;
+  }
+  html[data-theme="brutal"] {
+    --bg:#fffbeb; --surface:#ffffff; --surface-2:#fde68a; --border:#111111;
+    --text:#111111; --muted:#3f3f46; --accent:#facc15; --accent-text:#111111;
+    --radius:0px; --border-w:3px; --shadow:5px 5px 0 #111111; --font:ui-sans-serif,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,Menlo,monospace;
+  }
+  html[data-theme="judge"] {
+    --bg:#12140f; --surface:#1a1d15; --surface-2:#22261b; --border:#39402c;
+    --text:#d8e0c8; --muted:#94a07a; --accent:#9ae600; --accent-text:#12140f;
+    --radius:2px; --border-w:1px; --shadow:none; --font:ui-monospace,SFMono-Regular,Menlo,monospace;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  html[data-theme="warm"] {
+    --bg:#faf9f5; --surface:#ffffff; --surface-2:#f0eee6; --border:#e3ded1;
+    --text:#1f1e1b; --muted:#6f6b5f; --accent:#c15f3c; --accent-text:#ffffff;
+    --radius:12px; --border-w:1px; --shadow:0 1px 3px rgba(31,30,27,.06); --font:ui-sans-serif,-apple-system,sans-serif;
+    --mono:ui-monospace,Menlo,monospace;
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--font);
+    min-height:100vh; transition:background .2s ease, color .2s ease;
+  }
+
+  /* gallery chrome — deliberately outside the theme tokens */
+  .gallery { position:sticky; top:0; z-index:10; background:#0e1014; color:#e8e9ec;
+    padding:10px 14px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;
+    font:12px/1.4 ui-monospace,Menlo,monospace; }
+  .gallery b { font-weight:600; margin-right:6px; color:#fff; }
+  .gallery button { font:inherit; cursor:pointer; background:#1b1e24; color:#c9ccd4;
+    border:1px solid #2b2f38; border-radius:6px; padding:5px 9px; }
+  .gallery button[aria-pressed="true"] { background:#f5f5f7; color:#0e1014; border-color:#f5f5f7; }
+  .gallery .spacer { flex:1; }
+
+  .frame { padding:22px; }
+  .frame[data-width="mobile"] { max-width:390px; margin:0 auto; }
+
+  .topbar { display:flex; align-items:center; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .brand { font-weight:700; letter-spacing:-.02em; font-size:15px; }
+  .brand span { color:var(--muted); font-weight:500; }
+  .seg { display:flex; border:var(--border-w) solid var(--border); border-radius:var(--radius); overflow:hidden; }
+  .seg button { font:inherit; font-size:12px; padding:6px 11px; background:var(--surface); color:var(--muted);
+    border:0; cursor:pointer; }
+  .seg button.on { background:var(--accent); color:var(--accent-text); font-weight:600; }
+  .topbar .grow { flex:1; }
+  .pill { font-size:11px; padding:4px 9px; border:var(--border-w) solid var(--border); border-radius:999px; color:var(--muted); }
+
+  .layout { display:grid; grid-template-columns:190px 1fr 220px; gap:16px; }
+  @media (max-width:1000px) { .layout { grid-template-columns:1fr; } }
+
+  .card { background:var(--surface); border:var(--border-w) solid var(--border);
+    border-radius:var(--radius); box-shadow:var(--shadow); backdrop-filter:var(--blur,none); }
+  .card.pad { padding:14px; }
+  .eyebrow { font-size:10px; letter-spacing:.10em; text-transform:uppercase; color:var(--muted); margin-bottom:8px; }
+  h1 { font-size:20px; margin:0 0 4px; letter-spacing:-.01em; }
+  h2 { font-size:14px; margin:0 0 10px; }
+  .sub { color:var(--muted); font-size:12px; margin:0 0 14px; }
+
+  .stage { display:flex; flex-direction:column; gap:6px; }
+  .stage a { display:flex; align-items:center; gap:8px; text-decoration:none; color:var(--muted);
+    font-size:12px; padding:7px 9px; border-radius:calc(var(--radius) * .7); }
+  .stage a.on { background:var(--surface-2); color:var(--text); font-weight:600; }
+  .dot { width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.45; }
+  .stage a.on .dot { background:var(--accent); opacity:1; }
+  .stage a.done .dot { background:var(--accent); opacity:1; }
+
+  .bar { height:5px; background:var(--surface-2); border-radius:999px; overflow:hidden; }
+  .bar i { display:block; height:100%; width:34%; background:var(--accent); }
+
+  .task { display:flex; align-items:center; gap:12px; padding:12px; border-top:var(--border-w) solid var(--border); }
+  .task:first-of-type { border-top:0; }
+  .task .name { flex:1; font-size:13px; }
+  .task .name small { display:block; color:var(--muted); font-size:11px; margin-top:2px; }
+  .tag { font-size:10px; padding:2px 7px; border:var(--border-w) solid var(--border);
+    border-radius:999px; color:var(--muted); margin-right:4px; }
+  .diff { font-family:var(--mono); font-size:11px; padding:3px 8px; border-radius:calc(var(--radius) * .6);
+    border:var(--border-w) solid var(--border); }
+  .cta { font:inherit; font-size:12px; font-weight:600; padding:8px 13px; cursor:pointer;
+    background:var(--accent); color:var(--accent-text); border:var(--border-w) solid var(--border);
+    border-radius:var(--radius); box-shadow:var(--shadow); }
+  .stat { display:flex; justify-content:space-between; font-size:12px; padding:7px 0;
+    border-bottom:var(--border-w) solid var(--border); }
+  .stat:last-child { border-bottom:0; }
+  .stat b { font-family:var(--mono); font-weight:600; }
+  .foot { margin-top:16px; color:var(--muted); font-size:11px; }
+</style>
+</head>
+<body>
+
+<div class="gallery">
+  <b>theme gallery</b>
+  <button data-theme-btn="vercel" aria-pressed="true">Vercel Geist</button>
+  <button data-theme-btn="linear">Linear</button>
+  <button data-theme-btn="stripe">Stripe</button>
+  <button data-theme-btn="primer">GitHub Primer</button>
+  <button data-theme-btn="glass">Liquid Glass</button>
+  <button data-theme-btn="carbon">IBM Carbon</button>
+  <button data-theme-btn="material">Material 3</button>
+  <button data-theme-btn="shadcn">shadcn neutral</button>
+  <button data-theme-btn="notion">Notion</button>
+  <button data-theme-btn="brutal">Neo-brutalist</button>
+  <button data-theme-btn="judge">Judge mono</button>
+  <button data-theme-btn="warm">Warm editorial</button>
+  <span class="spacer"></span>
+  <button id="width-toggle" aria-pressed="false">mobile 390</button>
+</div>
+
+<div class="frame" id="frame">
+  <div class="topbar">
+    <div class="brand">cms-learn <span>/ USACO · Silver</span></div>
+    <div class="seg" role="group" aria-label="track">
+      <button class="on">USACO ladder</button>
+      <button>IOI path</button>
+    </div>
+    <div class="grow"></div>
+    <div class="seg" role="group" aria-label="language">
+      <button class="on">TH</button>
+      <button>EN</button>
+    </div>
+    <div class="pill">streak 6</div>
+  </div>
+
+  <div class="layout">
+    <aside class="card pad">
+      <div class="eyebrow">stage</div>
+      <nav class="stage">
+        <a class="done" href="#"><span class="dot"></span>Bronze</a>
+        <a class="on" href="#"><span class="dot"></span>Silver</a>
+        <a href="#"><span class="dot"></span>Gold</a>
+        <a href="#"><span class="dot"></span>Platinum</a>
+      </nav>
+      <div style="margin:14px 0 8px" class="eyebrow">silver progress</div>
+      <div class="bar"><i></i></div>
+      <div class="foot">34% · 8 of 23 tasks</div>
+    </aside>
+
+    <main>
+      <div class="card pad" style="margin-bottom:14px">
+        <div class="eyebrow">current module · silver</div>
+        <h1>Prefix sums</h1>
+        <p class="sub">ผลรวมสะสม — answer range queries in O(1) after one O(n) pass.</p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="cta">Open next task →</button>
+          <span class="tag">prefix-sums</span><span class="tag">complexity</span>
+          <span class="diff">900</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="pad" style="padding-bottom:6px">
+          <div class="eyebrow">silver · this week</div>
+          <h2>Modules in your path</h2>
+        </div>
+        <div class="task">
+          <span class="dot" style="background:var(--accent);opacity:1;width:8px;height:8px"></span>
+          <div class="name">Prefix sums<small>3 of 5 tasks solved</small></div>
+          <span class="diff">800–1000</span>
+        </div>
+        <div class="task">
+          <span class="dot" style="width:8px;height:8px"></span>
+          <div class="name">Two pointers and sliding windows<small>next after this module</small></div>
+          <span class="diff">1100–1400</span>
+        </div>
+        <div class="task">
+          <span class="dot" style="width:8px;height:8px"></span>
+          <div class="name">Binary search on answers<small>sorted · 4 tasks</small></div>
+          <span class="diff">1200–1500</span>
+        </div>
+        <div class="task">
+          <span class="dot" style="opacity:.25;width:8px;height:8px"></span>
+          <div class="name">Graphs: BFS and DFS<small>locked — needs two pointers</small></div>
+          <span class="diff">1300–1600</span>
+        </div>
+      </div>
+    </main>
+
+    <aside>
+      <div class="card pad">
+        <div class="eyebrow">your numbers</div>
+        <div class="stat"><span>solved</span><b>23</b></div>
+        <div class="stat"><span>this week</span><b>7</b></div>
+        <div class="stat"><span>streak</span><b>6 days</b></div>
+        <div class="stat"><span>weak topic</span><b>dp</b></div>
+      </div>
+      <div class="card pad" style="margin-top:14px">
+        <div class="eyebrow">because you missed dp</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:10px">
+          Two more <b style="color:var(--text)">dp</b> tasks at your level, drawn from the shared bank — not generated again.
+        </div>
+        <button class="cta" style="width:100%">Practice dp</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+  const frame = document.getElementById("frame");
+  const buttons = [...document.querySelectorAll("[data-theme-btn]")];
+  buttons.forEach((button) => button.addEventListener("click", () => {
+    const theme = button.dataset.themeBtn;
+    document.documentElement.dataset.theme = theme;
+    buttons.forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
+  }));
+
+  const widthToggle = document.getElementById("width-toggle");
+  widthToggle.addEventListener("click", () => {
+    const mobile = frame.dataset.width !== "mobile";
+    frame.dataset.width = mobile ? "mobile" : "desktop";
+    widthToggle.setAttribute("aria-pressed", String(mobile));
+  });
+</script>
+</body>
+</html>
