@@ -1,0 +1,92 @@
+# FEATURES.md — cms-learn
+
+Every feature the project promises, with its real state and the artifact that proves it.
+
+**Legend:** ● shipped · ◐ partial (code exists, gate or coverage missing) · ○ planned (decided, no
+code)
+
+**Rule for this file:** a row moves only when the evidence moves. Adding a feature here is a promise
+an agent can be held to; marking one ● without evidence is the failure this file exists to prevent.
+
+Counts at last update: **13 shipped · 1 partial · 31 planned** (45 features).
+
+---
+
+## Content and curriculum
+
+| ID | Feature | State | Evidence |
+|---|---|---|---|
+| F-001 | Controlled topic vocabulary, TH+EN labels (33 topics) | ● | `content/topics.json` |
+| F-002 | Shared module set with areas and prerequisites (11 areas, 28 modules) | ● | `content/modules.json` |
+| F-003 | Two tracks — USACO ladder and IOI path — over one module set (8 stages, difficulty bands) | ● | `content/tracks.json` |
+| F-004 | Bilingual labels on every module, track and topic | ● | `content/modules.json`, `content/tracks.json` |
+| F-005 | Prerequisite graph validated: dangling refs fail, cycles fail | ● | `tools/validate-content.ts` (cases 4–5) |
+| F-006 | Task schema: topics, difficulty, limits, checker, origin, verification | ● | `content/schema/task.schema.json` |
+| F-007 | Reachability rule — a task no stage can serve fails the gate | ● | `tools/validate-content.ts` (case 11) |
+| F-008 | Publish gate — `published` refused without 3 verification methods and test data | ● | `tools/validate-content.ts` (case 2) |
+| F-009 | Seed tasks with bilingual statements and compiling references | ● | `content/tasks/{range-sum-query,grid-shortest-path}/` |
+| F-010 | Test data with manifests per task | ○ | — (needed by F-012/F-013) |
+| F-011 | AI generation pipeline with content-addressed cache key | ○ | spec: `docs/content-model.md` |
+| F-012 | Brute-force differential verifier | ○ | spec: `docs/content-model.md` |
+| F-013 | Limit measurement (time/memory with margin) | ○ | spec: `docs/content-model.md` |
+| F-014 | Per-account unseen-task serving (topic × difficulty × band) | ○ | spec: `docs/content-model.md` |
+| F-015 | Copy/plagiarism detection between classmates | ○ | — |
+
+## Judge
+
+| ID | Feature | State | Evidence |
+|---|---|---|---|
+| F-020 | `isolate` sandbox in a container with delegated cgroup v2 | ○ | ADR 0001 §1 |
+| F-021 | C++ judge core with `testlib` checkers | ○ | ADR 0001 §2 |
+| F-022 | Language runtimes: C++17, Rust 2021, Python 3 | ◐ | task schema declares them; no runner |
+| F-023 | Interactive problem protocol | ○ | task schema has `checker.kind: interactive` |
+| F-024 | Submission queue with per-submission status | ○ | — |
+| F-025 | Abuse controls: egress disabled, fork bomb, output cap, wall-clock kill | ○ | — |
+
+## Web
+
+| ID | Feature | State | Evidence |
+|---|---|---|---|
+| F-030 | Design tokens, `judge mono` (contrast 15.41:1 body) | ● | `web/tokens.css` |
+| F-031 | Thai-coverage monospace font, shipped with licence, verified by advance-width measurement | ● | `web/public/fonts/` |
+| F-032 | Twelve-direction theme gallery over one markup | ● | `design/theme-gallery.html` |
+| F-033 | Chosen direction preview with working TH/EN switching and font self-check | ● | `design/judge-mono.html` |
+| F-034 | Next.js app shell reading the tokens | ○ | — |
+| F-035 | Path home: stage rail, current module, next task | ○ | designed in `design/judge-mono.html` |
+| F-036 | Task view: statement render, samples, limits, topics | ○ | designed; statements are markdown |
+| F-037 | Code entry: in-page editor + file upload (`.cpp/.rs/.py`) | ○ | ADR 0001 / decision 7 |
+| F-038 | Submission result: verdict, per-test cost, diff of first failure | ○ | — |
+| F-039 | Progress and weak-topic view | ○ | designed in `design/judge-mono.html` |
+| F-040 | Dictionary wiring for TH/EN across every surface | ○ | preview proves the pattern |
+
+## Accounts and security
+
+| ID | Feature | State | Evidence |
+|---|---|---|---|
+| F-050 | Self-signup with email verification | ○ | ADR 0002 §2 |
+| F-051 | School-domain allowlist as config, fail-closed when empty | ○ | ADR 0002 §2 |
+| F-052 | Teacher-approval gate with an on/off switch | ○ | ADR 0002 §2 |
+| F-053 | Account state machine recorded in an audit trail | ○ | ADR 0002 §2 |
+| F-054 | Rate limiting and lockout | ○ | ADR 0002 §2 |
+| F-055 | PII minimisation and retention policy (minors) | ○ | ADR 0002 §2 |
+
+## Operations
+
+| ID | Feature | State | Evidence |
+|---|---|---|---|
+| F-060 | CI running the content gate + falsification on every push | ○ | — |
+| F-061 | Containerised stack (compose), no host installs | ○ | ADR 0001 §1 |
+| F-062 | Ingress and TLS | ○ | — |
+| F-063 | Backups with a restore drill | ○ | — |
+| F-064 | Observability: judge queue depth, submission latency, error rate | ○ | — |
+| F-065 | Image and dependency CVE scanning | ○ | — |
+| F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | ○ | ADR 0001 §1 |
+
+---
+
+## How to update this file
+
+1. Find the row (or add one) — one row per user-visible capability, not per file.
+2. Move the state only with evidence: a commit that landed the code **and** the gate that proves it.
+3. `◐` means exactly what it says: code exists, proof does not. Do not round it up to ●.
+4. Counts at the top are re-counted, not adjusted by hand.
