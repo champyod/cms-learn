@@ -159,6 +159,12 @@ told nobody is worse than an honest skip. Set it yourself:
 gh secret set DISCORD_WEBHOOK_URL     # paste the webhook when prompted; it never enters chat
 ```
 
+To test the notification path without breaking the build, dispatch a run that forces the red path:
+
+```bash
+gh workflow run ci.yml -f simulate_failure=true
+```
+
 **Deployment is not wired.** There is no image to build and no host to deploy to yet, so CI stops at
 green. When the judge host and the compose stack exist, the deploy job lands in the `deployment`
 position and is gated on a tagged release, not on every push.
