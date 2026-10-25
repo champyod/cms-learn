@@ -5,6 +5,11 @@ on:
     branches: [master]
   pull_request:
   workflow_dispatch:
+    inputs:
+      simulate_failure:
+        description: "Force a failure so the Discord notification path can be tested"
+        type: boolean
+        default: false
 
 # One run per ref: a second push supersedes the first rather than racing it.
 concurrency:
@@ -30,6 +35,14 @@ jobs:
 
       - name: content integrity
         run: bun run validate
+
+      # Manual runs can force the red path, so the notification job is exercised on purpose rather
+      # than only ever skipped on green runs.
+      - name: simulated failure (manual runs only)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.simulate_failure == 'true'
+        run: |
+          echo "::error::simulated failure — testing the notification path"
+          exit 1
 
       # Deliberately a separate step, not folded into the one above: a gate that only ever prints OK
       # is a gate nobody has seen fail, and this is the step that keeps it honest.
