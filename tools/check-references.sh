@@ -19,6 +19,10 @@ tasks=0
 
 normalise() { sed -e 's/[[:space:]]*$//' -e '/^[[:space:]]*$/d'; }
 
+# Record the compiler: a local green means nothing if the runner's g++ is a different major, and the
+# warning sets differ (GCC 13 rejects an ignored scanf result that GCC 16 accepts).
+echo "compiler: $(g++ -dumpfullversion 2>/dev/null || echo unknown)"
+
 for task_dir in content/tasks/*/; do
   [ -d "$task_dir" ] || continue
   task="$(basename "$task_dir")"
