@@ -27,8 +27,12 @@ collapse is visible.
 
 ## Recommendation
 
-**shadcn neutral as the token base, Vercel Geist's discipline applied to it, glass reserved for
-overlays.** Reasons, in the order they matter here:
+**Chosen (operator, 2026-10-25): `judge mono`.** Implemented in `judge-mono.html` over
+`web/tokens.css`; decision and its Thai-typography consequences in
+`docs/decisions/0002-theme-and-auth.md`.
+
+For the record, the recommendation was the opposite row — neutral shadcn base, Vercel discipline,
+glass reserved for overlays — for these reasons:
 
 1. The admin panel already ships Radix + CVA + Tailwind 4 with a neutral token set. A second token
    vocabulary beside it is a duplicated design system — the exact defect to avoid — so the base
@@ -42,5 +46,9 @@ overlays.** Reasons, in the order they matter here:
 
 Not chosen, with the reason recorded rather than implied: the panel's theme unchanged (it is an
 admin identity, not a student one), full glass (contrast + mobile GPU), neo-brutalist (no
-production-scale precedent, reading fatigue), serif/editorial (fights code blocks), monospace
-(TH prose).
+production-scale precedent, reading fatigue), serif/editorial (fights code blocks).
+
+The chosen row carries its own two costs, both now handled in the token layer: Thai needs a
+monospace face with Thai coverage (Arundina Sans Mono, shipped) and Thai typography forbids
+uppercase-as-hierarchy and italic synthesis.
+
