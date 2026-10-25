@@ -8,7 +8,10 @@ code)
 **Rule for this file:** a row moves only when the evidence moves. Adding a feature here is a promise
 an agent can be held to; marking one ● without evidence is the failure this file exists to prevent.
 
-Counts at last update: **13 shipped · 1 partial · 31 planned** (45 features).
+IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
+`F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
+
+Counts at last update: **14 shipped · 2 partial · 31 planned** (47 features).
 
 ---
 
@@ -24,7 +27,7 @@ Counts at last update: **13 shipped · 1 partial · 31 planned** (45 features).
 | F-006 | Task schema: topics, difficulty, limits, checker, origin, verification | ● | `content/schema/task.schema.json` |
 | F-007 | Reachability rule — a task no stage can serve fails the gate | ● | `tools/validate-content.ts` (case 11) |
 | F-008 | Publish gate — `published` refused without 3 verification methods and test data | ● | `tools/validate-content.ts` (case 2) |
-| F-009 | Seed tasks with bilingual statements and compiling references | ● | `content/tasks/{range-sum-query,grid-shortest-path}/` |
+| F-009 | Seed tasks with bilingual statements, machine-checked examples and compiling references | ● | `content/tasks/*/examples/`, `tools/check-references.sh` |
 | F-010 | Test data with manifests per task | ○ | — (needed by F-012/F-013) |
 | F-011 | AI generation pipeline with content-addressed cache key | ○ | spec: `docs/content-model.md` |
 | F-012 | Brute-force differential verifier | ○ | spec: `docs/content-model.md` |
@@ -74,13 +77,15 @@ Counts at last update: **13 shipped · 1 partial · 31 planned** (45 features).
 
 | ID | Feature | State | Evidence |
 |---|---|---|---|
-| F-060 | CI running the content gate + falsification on every push | ○ | — |
+| F-060 | CI running both gates and both falsifications on every push | ● | `.github/workflows/ci.yml` |
 | F-061 | Containerised stack (compose), no host installs | ○ | ADR 0001 §1 |
 | F-062 | Ingress and TLS | ○ | — |
 | F-063 | Backups with a restore drill | ○ | — |
 | F-064 | Observability: judge queue depth, submission latency, error rate | ○ | — |
 | F-065 | Image and dependency CVE scanning | ○ | — |
 | F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | ○ | ADR 0001 §1 |
+| F-067 | Discord failure notification from CI (secret set by the operator) | ◐ | `.github/workflows/ci.yml` — wired, `DISCORD_WEBHOOK_URL` not yet set |
+| F-068 | Deploy job, gated on a tag rather than on every push | ○ | needs F-061/F-062; CI reports "no target yet" |
 
 ---
 

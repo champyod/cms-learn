@@ -17,15 +17,19 @@ topic tag, a track order, a limit, or a string that already exists in the conten
 ```bash
 bun install                # once, or after package.json changes
 bun run validate           # content integrity; prints the counts it scanned
-bun run validate:falsify   # proves the gate can fail; must print "N case(s) behaved, 0 did not"
+bun run validate:falsify   # proves the content gate can fail
+bun run check:references   # every reference builds under -Werror and passes its own examples
+bun run check:references:falsify
+bun run gate               # all four, in that order — this is what CI runs
 ```
 
-A green `validate` with no `falsify` run is half the evidence. If you teach the gate a new defect
+A green `validate` with no falsification run is half the evidence. If you teach a gate a new defect
 class, add its falsification case in the same commit — the harness is what proves the rule bites.
 
-For any reference solution you add: `g++ -O2 -std=c++17 -Wall -Wextra`, then run it against the
-example printed in its own statement. A reference that cannot reproduce its statement's example is a
-broken task, not a formatting issue.
+A reference solution needs an example set beside it: `content/tasks/<slug>/examples/N.in` and `N.out`.
+`check:references` builds it under `-Werror` and diffs its output against those files, so "the
+reference reproduces its statement's example" is proven rather than asserted. A task with a reference
+and no examples fails the gate.
 
 ## Adding work
 

@@ -1,5 +1,7 @@
 # cms-learn
 
+[![CI](https://github.com/champyod/cms-learn/actions/workflows/ci.yml/badge.svg)](https://github.com/champyod/cms-learn/actions/workflows/ci.yml)
+
 A competitive-programming learning platform: one shared task bank, two student-chosen paths
 (**USACO ladder** and **IOI path**), and its own sandboxed judge — built beside the contest stack
 (`cms-docker`, `cms.mwit.ac.th`) rather than inside it.
@@ -129,10 +131,38 @@ Static previews open directly in a browser, no server needed:
 | Gate | Command | Proves |
 |---|---|---|
 | Content integrity | `bun run validate` | every reference resolves; no prerequisite cycle; no published task without machine evidence; every task reachable by a track stage |
-| Gate falsifiability | `bun run validate:falsify` | the gate exits non-zero on 11 real defects, including an empty bank |
+| Content gate falsifiability | `bun run validate:falsify` | the gate exits non-zero on 11 real defects, including an empty bank |
+| Reference solutions | `bun run check:references` | every reference builds under `-Werror` and reproduces its task's own examples |
+| Reference gate falsifiability | `bun run check:references:falsify` | the reference gate exits non-zero on a wrong expected output, a missing example set, a non-compiling reference, and an empty bank |
 
-A green run prints the counts it scanned, so an empty or partial bank cannot pass as coverage.
-`falsify` works on a throwaway copy and never mutates the working tree.
+All four, in order: `bun run gate`.
+
+A green run prints the counts it scanned, so an empty or partial bank cannot pass as coverage. Both
+falsification harnesses work on a throwaway copy and never mutate the working tree.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `master`, every pull request, and on demand:
+
+| Job | What it does |
+|---|---|
+| `content` | `bun install --frozen-lockfile`, then the content gate and its falsification |
+| `references` | builds every reference solution and runs it against its own examples, then falsifies the gate |
+| `deployment` | reports that **no deploy target exists yet** (F-061, F-062 are planned) rather than implying a pipeline |
+| `discord` | on failure of `content` or `references`, posts one message with the branch, short SHA, actor and run URL |
+
+**Discord notifications** need `DISCORD_WEBHOOK_URL` set as a repository secret. The workflow never
+echoes it and never fails when it is absent — it prints a notice instead, because a green step that
+told nobody is worse than an honest skip. Set it yourself:
+
+```bash
+gh secret set DISCORD_WEBHOOK_URL     # paste the webhook when prompted; it never enters chat
+```
+
+**Deployment is not wired.** There is no image to build and no host to deploy to yet, so CI stops at
+green. When the judge host and the compose stack exist, the deploy job lands in the `deployment`
+position and is gated on a tagged release, not on every push.
+
 
 ---
 

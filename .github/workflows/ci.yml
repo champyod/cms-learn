@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+# One run per ref: a second push supersedes the first rather than racing it.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  content:
+    name: content gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: install
+        run: bun install --frozen-lockfile
+
+      - name: content integrity
+        run: bun run validate
+
+      # Deliberately a separate step, not folded into the one above: a gate that only ever prints OK
+      # is a gate nobody has seen fail, and this is the step that keeps it honest.
+      - name: gate falsifiability
+        run: bun run validate:falsify
+
+  references:
+    name: reference solutions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: build and run every reference against its own examples
+        run: bash tools/check-references.sh
+
+      - name: reference gate falsifiability
+        run: bash tools/falsify-references-gate.sh
+
+  # CD is not wired yet: there is no image to build and no host to deploy to (F-061/F-062 are
+  # planned). This job exists so a deploy step has one obvious place to land, and so CI says so out
+  # loud instead of implying a pipeline that does not exist.
+  deploy-state:
+    name: deployment
+    runs-on: ubuntu-latest
+    needs: [content, references]
+    steps:
+      - name: report
+        run: |
+          echo "::notice::No deployment target yet — F-061 (containers) and F-062 (ingress/TLS) are planned. CI only."
+
+  notify:
+    name: discord
+    runs-on: ubuntu-latest
+    needs: [content, references]
+    if: failure() && github.event_name != 'pull_request'
+    steps:
+      # The webhook is a credential, so it lives only in repository secrets and is never echoed.
+      # No secret means no notification, reported as a notice rather than a green step pretending to
+      # have told anyone.
+      - name: post failure to Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          ACTOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${WEBHOOK:-}" ]; then
+            echo "::notice title=Discord::DISCORD_WEBHOOK_URL is not set — notification skipped"
+            exit 0
+          fi
+          payload="$(jq -n \
+            --arg repo "$REPO" --arg branch "$BRANCH" --arg sha "${SHA:0:7}" \
+            --arg actor "$ACTOR" --arg url "$RUN_URL" \
+            '{content: ("**CI failed** — `" + $repo + "` @ `" + $branch + "` (" + $sha + ") by " + $actor + "\nNo deploy happened. Run: " + $url)}')"
+          curl -fsS -H "Content-Type: application/json" -d "$payload" "$WEBHOOK" >/dev/null
+          echo "notified Discord"

@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "validate": "bun run tools/validate-content.ts",
-    "validate:falsify": "bash tools/falsify-content-gate.sh"
+    "validate:falsify": "bash tools/falsify-content-gate.sh",
+    "check:references": "bash tools/check-references.sh",
+    "check:references:falsify": "bash tools/falsify-references-gate.sh",
+    "gate": "bun run validate && bun run check:references && bun run validate:falsify && bun run check:references:falsify"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
