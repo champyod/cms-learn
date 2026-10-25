@@ -1,0 +1,64 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cms-learn.local/schema/tracks.schema.json",
+  "title": "Tracks",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "tracks"],
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "note": { "type": "string" },
+    "tracks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "description", "stages"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^t-[a-z0-9-]+$" },
+          "title": { "$ref": "#/definitions/label" },
+          "description": { "$ref": "#/definitions/label" },
+          "stages": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "title", "modules", "difficulty"],
+              "properties": {
+                "id": { "type": "string", "pattern": "^st-[a-z0-9-]+$" },
+                "title": { "$ref": "#/definitions/label" },
+                "modules": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "type": "string", "pattern": "^m-[a-z0-9-]+$" }
+                },
+                "difficulty": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["min", "max"],
+                  "properties": {
+                    "min": { "type": "integer", "minimum": 800, "maximum": 3500, "multipleOf": 100 },
+                    "max": { "type": "integer", "minimum": 800, "maximum": 3500, "multipleOf": 100 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "label": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["en", "th"],
+      "properties": {
+        "en": { "type": "string", "minLength": 1 },
+        "th": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

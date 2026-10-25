@@ -1,0 +1,125 @@
+{
+  "version": 1,
+  "note": "A track is an ordered view over the shared module set: it decides sequence and difficulty band, never content. The same module may appear in two tracks at different points; a task never belongs to a track.",
+  "tracks": [
+    {
+      "id": "t-usaco",
+      "title": { "en": "USACO ladder", "th": "เส้นทางแบบ USACO" },
+      "description": {
+        "en": "Four divisions, the way USACO itself progresses: enough to compete in the school contests and the bronze/silver rounds.",
+        "th": "สี่ระดับตามแนวทางของ USACO เพียงพอสำหรับการแข่งขันในโรงเรียนและรอบบรอนซ์/ซิลเวอร์"
+      },
+      "stages": [
+        {
+          "id": "st-bronze",
+          "title": { "en": "Bronze", "th": "บรอนซ์" },
+          "modules": ["m-io", "m-complexity", "m-simulation", "m-brute-force"],
+          "difficulty": { "min": 800, "max": 1200 }
+        },
+        {
+          "id": "st-silver",
+          "title": { "en": "Silver", "th": "ซิลเวอร์" },
+          "modules": [
+            "m-sorting",
+            "m-binary-search",
+            "m-prefix-sums",
+            "m-two-pointers",
+            "m-recursion",
+            "m-stacks-queues",
+            "m-sets-maps-heaps",
+            "m-graph-traversal",
+            "m-greedy"
+          ],
+          "difficulty": { "min": 1100, "max": 1600 }
+        },
+        {
+          "id": "st-gold",
+          "title": { "en": "Gold", "th": "โกลด์" },
+          "modules": [
+            "m-dsu",
+            "m-dp-intro",
+            "m-dp-knapsack",
+            "m-modular-arithmetic",
+            "m-dijkstra",
+            "m-mst",
+            "m-fenwick",
+            "m-segment-tree"
+          ],
+          "difficulty": { "min": 1500, "max": 2100 }
+        },
+        {
+          "id": "st-platinum",
+          "title": { "en": "Platinum", "th": "แพลตินัม" },
+          "modules": ["m-dp-bitmask", "m-combinatorics", "m-offline-queries", "m-string-hashing", "m-kmp-z"],
+          "difficulty": { "min": 2000, "max": 2800 }
+        }
+      ]
+    },
+    {
+      "id": "t-ioi",
+      "title": { "en": "IOI path", "th": "เส้นทาง IOI" },
+      "description": {
+        "en": "Built around the IOI syllabus: topics that olympiad problems actually test, including geometry and interactive tasks the USACO ladder skips.",
+        "th": "สร้างตามหลักสูตร IOI: หัวข้อที่โจทย์โอลิมปิกออกจริง รวมถึงเรขาคณิตและโจทย์แบบโต้ตอบที่เส้นทาง USACO ไม่มี"
+      },
+      "stages": [
+        {
+          "id": "st-ioi-foundations",
+          "title": { "en": "Foundations", "th": "พื้นฐาน" },
+          "modules": [
+            "m-io",
+            "m-complexity",
+            "m-simulation",
+            "m-brute-force",
+            "m-sorting",
+            "m-binary-search",
+            "m-prefix-sums",
+            "m-two-pointers",
+            "m-recursion"
+          ],
+          "difficulty": { "min": 800, "max": 1400 }
+        },
+        {
+          "id": "st-ioi-core",
+          "title": { "en": "Core", "th": "แกนหลัก" },
+          "modules": [
+            "m-stacks-queues",
+            "m-sets-maps-heaps",
+            "m-graph-traversal",
+            "m-greedy",
+            "m-dp-intro",
+            "m-dsu"
+          ],
+          "difficulty": { "min": 1200, "max": 1800 }
+        },
+        {
+          "id": "st-ioi-advanced",
+          "title": { "en": "Advanced", "th": "ขั้นสูง" },
+          "modules": [
+            "m-dp-knapsack",
+            "m-dp-bitmask",
+            "m-dijkstra",
+            "m-mst",
+            "m-fenwick",
+            "m-segment-tree",
+            "m-offline-queries"
+          ],
+          "difficulty": { "min": 1600, "max": 2400 }
+        },
+        {
+          "id": "st-ioi-olympiad",
+          "title": { "en": "Olympiad", "th": "โอลิมปิก" },
+          "modules": [
+            "m-modular-arithmetic",
+            "m-combinatorics",
+            "m-string-hashing",
+            "m-kmp-z",
+            "m-geometry",
+            "m-interactive"
+          ],
+          "difficulty": { "min": 2000, "max": 3200 }
+        }
+      ]
+    }
+  ]
+}

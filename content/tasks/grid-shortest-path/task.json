@@ -6,7 +6,6 @@
     "en": "Shortest Path in a Grid",
     "th": "เส้นทางสั้นที่สุดในตาราง"
   },
-  "level": "s2-core",
   "topics": ["bfs", "queue"],
   "difficulty": 1200,
   "locales": ["en", "th"],

@@ -2,9 +2,8 @@
 # Falsification for the content gate.
 #
 # A green run proves nothing until the same gate is shown going red on a bank that is actually
-# broken. Each case below is a real defect the bank can acquire (a task published without
-# verification, a renamed prerequisite, a tag the vocabulary dropped, a missing locale, cycle in
-# the path), applied to a throwaway copy so the working tree is never touched.
+# broken. Each case is a real defect the bank can acquire, applied to a throwaway copy so the
+# working tree is never touched.
 #
 # Usage: bash tools/falsify-content-gate.sh
 set -uo pipefail
@@ -36,13 +35,13 @@ expect() { # <name> <expected exit: 0|1>
   fi
 }
 
-edit_json() { # <file> <python expression operating on `task` or `tree`>
+edit_json() { # <file> <python expression; the document is bound to both `task` and `doc`>
   python3 - "$1" "$2" <<'PY'
 import json, sys
 path, expr = sys.argv[1], sys.argv[2]
 with open(path) as fh:
     doc = json.load(fh)
-task = doc; tree = doc
+task = doc
 exec(expr)
 with open(path, "w") as fh:
     json.dump(doc, fh, ensure_ascii=False, indent=2)
@@ -67,12 +66,12 @@ expect "task tagged outside the vocabulary" 1
 
 # 4. a prerequisite pointing at a module that was renamed away
 reset_bank
-edit_json "$work/content/curriculum.tree.json" 'tree["sections"][1]["categories"][1]["modules"][0]["prereqs"].append("m-renamed-away")'
+edit_json "$work/content/modules.json" 'doc["modules"][6]["prereqs"].append("m-renamed-away")'
 expect "prerequisite that does not exist" 1
 
 # 5. a prerequisite cycle: no order a student could follow
 reset_bank
-edit_json "$work/content/curriculum.tree.json" 'tree["sections"][0]["categories"][0]["modules"][0]["prereqs"] = ["m-complexity"]'
+edit_json "$work/content/modules.json" 'doc["modules"][0]["prereqs"] = ["m-complexity"]'
 expect "prerequisite cycle" 1
 
 # 6. a locale the task claims but does not ship
@@ -84,6 +83,26 @@ expect "missing statement locale" 1
 reset_bank
 rm -rf "$work/content/tasks"
 expect "empty task bank" 1
+
+# 8. a stage naming a module that does not exist
+reset_bank
+edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][0]["modules"].append("m-does-not-exist")'
+expect "stage names a missing module" 1
+
+# 9. a module no track places
+reset_bank
+edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][0]["modules"].remove("m-simulation"); doc["tracks"][1]["stages"][0]["modules"].remove("m-simulation")'
+expect "module placed by no track" 1
+
+# 10. a stage whose difficulty band is inverted
+reset_bank
+edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][1]["difficulty"] = {"min": 1600, "max": 1100}'
+expect "inverted difficulty band" 1
+
+# 11. a task no stage can ever serve
+reset_bank
+edit_json "$work/content/tasks/grid-shortest-path/task.json" 'task["difficulty"] = 3500'
+expect "task unreachable by every stage" 1
 
 printf '\n%s case(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

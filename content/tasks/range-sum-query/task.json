@@ -6,7 +6,6 @@
     "en": "Range Sum Queries",
     "th": "ผลรวมของช่วงข้อมูล"
   },
-  "level": "s1-basics",
   "topics": ["prefix-sums", "complexity"],
   "difficulty": 900,
   "locales": ["en", "th"],
