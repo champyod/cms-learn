@@ -1,0 +1,21 @@
+{
+  "id": "grid-shortest-path",
+  "version": 1,
+  "status": "draft",
+  "title": {
+    "en": "Shortest Path in a Grid",
+    "th": "เส้นทางสั้นที่สุดในตาราง"
+  },
+  "level": "s2-core",
+  "topics": ["bfs", "queue"],
+  "difficulty": 1200,
+  "locales": ["en", "th"],
+  "limits": { "time_ms": 1000, "memory_mb": 256 },
+  "checker": { "kind": "standard" },
+  "origin": { "kind": "ai", "pipeline": "gen-v1" },
+  "verification": {
+    "status": "pending",
+    "reference_solution": "solutions/main.cpp",
+    "methods": []
+  }
+}

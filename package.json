@@ -1,0 +1,13 @@
+{
+  "name": "cms-learn",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "bun run tools/validate-content.ts",
+    "validate:falsify": "bash tools/falsify-content-gate.sh"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "ajv": "^8.17.1"
+  }
+}

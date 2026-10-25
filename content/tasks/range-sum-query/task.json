@@ -1,0 +1,21 @@
+{
+  "id": "range-sum-query",
+  "version": 1,
+  "status": "draft",
+  "title": {
+    "en": "Range Sum Queries",
+    "th": "ผลรวมของช่วงข้อมูล"
+  },
+  "level": "s1-basics",
+  "topics": ["prefix-sums", "complexity"],
+  "difficulty": 900,
+  "locales": ["en", "th"],
+  "limits": { "time_ms": 1000, "memory_mb": 256 },
+  "checker": { "kind": "token" },
+  "origin": { "kind": "original" },
+  "verification": {
+    "status": "pending",
+    "reference_solution": "solutions/main.cpp",
+    "methods": []
+  }
+}

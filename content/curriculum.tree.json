@@ -1,0 +1,305 @@
+{
+  "version": 1,
+  "sections": [
+    {
+      "id": "s0-foundations",
+      "order": 0,
+      "title": { "en": "Foundations", "th": "เริ่มต้น" },
+      "categories": [
+        {
+          "id": "c-first-steps",
+          "title": { "en": "First steps", "th": "ก้าวแรก" },
+          "modules": [
+            {
+              "id": "m-io",
+              "title": { "en": "Reading input, writing output", "th": "การอ่านข้อมูลเข้าและแสดงผล" },
+              "topics": ["io"],
+              "prereqs": []
+            },
+            {
+              "id": "m-complexity",
+              "title": { "en": "Why some programs are too slow", "th": "ทำไมบางโปรแกรมจึงช้าเกินไป" },
+              "topics": ["complexity"],
+              "prereqs": ["m-io"]
+            }
+          ]
+        },
+        {
+          "id": "c-trying-everything",
+          "title": { "en": "Trying everything", "th": "การลองทุกทาง" },
+          "modules": [
+            {
+              "id": "m-simulation",
+              "title": { "en": "Simulating the statement", "th": "จำลองตามโจทย์" },
+              "topics": ["simulation"],
+              "prereqs": ["m-io"]
+            },
+            {
+              "id": "m-brute-force",
+              "title": { "en": "Complete search and when it dies", "th": "ค้นหาครบทุกทางและจุดที่มันพัง" },
+              "topics": ["brute-force", "complexity"],
+              "prereqs": ["m-complexity", "m-simulation"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s1-basics",
+      "order": 1,
+      "title": { "en": "Basics", "th": "พื้นฐาน" },
+      "categories": [
+        {
+          "id": "c-sort-search",
+          "title": { "en": "Sorting and searching", "th": "การเรียงลำดับและการค้นหา" },
+          "modules": [
+            {
+              "id": "m-sorting",
+              "title": { "en": "Sorting and sorting by a key", "th": "การเรียงลำดับและการเรียงตามเงื่อนไข" },
+              "topics": ["sorting"],
+              "prereqs": ["m-brute-force"]
+            },
+            {
+              "id": "m-binary-search",
+              "title": { "en": "Binary search on answers", "th": "การค้นหาแบบทวิภาคบนคำตอบ" },
+              "topics": ["binary-search", "sorting"],
+              "prereqs": ["m-sorting"]
+            }
+          ]
+        },
+        {
+          "id": "c-ranges",
+          "title": { "en": "Ranges", "th": "ช่วงข้อมูล" },
+          "modules": [
+            {
+              "id": "m-prefix-sums",
+              "title": { "en": "Prefix sums", "th": "ผลรวมสะสม" },
+              "topics": ["prefix-sums"],
+              "prereqs": ["m-complexity"]
+            },
+            {
+              "id": "m-two-pointers",
+              "title": { "en": "Two pointers and sliding windows", "th": "สองตัวชี้และหน้าต่างเลื่อน" },
+              "topics": ["two-pointers", "prefix-sums"],
+              "prereqs": ["m-prefix-sums", "m-sorting"]
+            }
+          ]
+        },
+        {
+          "id": "c-recursion",
+          "title": { "en": "Recursion", "th": "การเรียกซ้ำ" },
+          "modules": [
+            {
+              "id": "m-recursion",
+              "title": { "en": "Recursion and backtracking", "th": "การเรียกซ้ำและการย้อนกลับ" },
+              "topics": ["recursion", "backtracking"],
+              "prereqs": ["m-brute-force"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s2-core",
+      "order": 2,
+      "title": { "en": "Core techniques", "th": "เทคนิคหลัก" },
+      "categories": [
+        {
+          "id": "c-containers",
+          "title": { "en": "Containers", "th": "โครงสร้างข้อมูลพื้นฐาน" },
+          "modules": [
+            {
+              "id": "m-stacks-queues",
+              "title": { "en": "Stacks and queues", "th": "สแตกและคิว" },
+              "topics": ["stack", "queue"],
+              "prereqs": ["m-recursion"]
+            },
+            {
+              "id": "m-sets-maps-heaps",
+              "title": { "en": "Sets, maps and heaps", "th": "เซต แมป และฮีป" },
+              "topics": ["set-map", "heap"],
+              "prereqs": ["m-sorting"]
+            },
+            {
+              "id": "m-dsu",
+              "title": { "en": "Disjoint set union", "th": "ยูเนียน-ไฟน์" },
+              "topics": ["dsu"],
+              "prereqs": ["m-sets-maps-heaps"]
+            }
+          ]
+        },
+        {
+          "id": "c-graphs",
+          "title": { "en": "Graphs", "th": "กราฟ" },
+          "modules": [
+            {
+              "id": "m-graph-traversal",
+              "title": { "en": "BFS and DFS on graphs and grids", "th": "BFS และ DFS บนกราฟและตาราง" },
+              "topics": ["bfs", "dfs", "queue"],
+              "prereqs": ["m-stacks-queues"]
+            }
+          ]
+        },
+        {
+          "id": "c-greedy-dp",
+          "title": { "en": "Greedy and DP", "th": "ละโมบและโปรแกรมพลวัต" },
+          "modules": [
+            {
+              "id": "m-greedy",
+              "title": { "en": "Greedy and exchange arguments", "th": "การเลือกแบบละโมบและการแลกเปลี่ยน" },
+              "topics": ["greedy", "sorting"],
+              "prereqs": ["m-two-pointers"]
+            },
+            {
+              "id": "m-dp-intro",
+              "title": { "en": "Dynamic programming from scratch", "th": "โปรแกรมพลวัตตั้งแต่ต้น" },
+              "topics": ["dp", "recursion"],
+              "prereqs": ["m-recursion"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s3-advanced",
+      "order": 3,
+      "title": { "en": "Advanced", "th": "ขั้นสูง" },
+      "categories": [
+        {
+          "id": "c-dp-families",
+          "title": { "en": "DP families", "th": "ตระกูลของโปรแกรมพลวัต" },
+          "modules": [
+            {
+              "id": "m-dp-knapsack",
+              "title": { "en": "Knapsack and subset DP", "th": "กระเป๋าเป้และซับเซต DP" },
+              "topics": ["dp"],
+              "prereqs": ["m-dp-intro"]
+            },
+            {
+              "id": "m-dp-bitmask",
+              "title": { "en": "Bitmask DP", "th": "โปรแกรมพลวัตด้วยบิตมาสก์" },
+              "topics": ["bitmask", "dp"],
+              "prereqs": ["m-dp-knapsack"]
+            }
+          ]
+        },
+        {
+          "id": "c-paths-and-trees",
+          "title": { "en": "Paths and trees", "th": "เส้นทางและต้นไม้" },
+          "modules": [
+            {
+              "id": "m-dijkstra",
+              "title": { "en": "Dijkstra and shortest paths", "th": "ไดจ์กสตราและเส้นทางสั้นที่สุด" },
+              "topics": ["dijkstra", "heap"],
+              "prereqs": ["m-graph-traversal", "m-sets-maps-heaps"]
+            },
+            {
+              "id": "m-mst",
+              "title": { "en": "Minimum spanning trees", "th": "ต้นไม้แผ่กิ่งก้านน้อยที่สุด" },
+              "topics": ["mst", "dsu"],
+              "prereqs": ["m-dsu", "m-dijkstra"]
+            }
+          ]
+        },
+        {
+          "id": "c-range-structures",
+          "title": { "en": "Range structures", "th": "โครงสร้างสำหรับช่วงข้อมูล" },
+          "modules": [
+            {
+              "id": "m-fenwick",
+              "title": { "en": "Fenwick trees", "th": "ต้นไม้เฟนวิก" },
+              "topics": ["fenwick"],
+              "prereqs": ["m-prefix-sums"]
+            },
+            {
+              "id": "m-segment-tree",
+              "title": { "en": "Segment trees", "th": "ต้นไม้เซกเมนต์" },
+              "topics": ["segment-tree"],
+              "prereqs": ["m-fenwick"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s4-hard",
+      "order": 4,
+      "title": { "en": "Hard", "th": "ยาก" },
+      "categories": [
+        {
+          "id": "c-number-combinatorics",
+          "title": { "en": "Number theory and counting", "th": "ทฤษฎีจำนวนและการนับ" },
+          "modules": [
+            {
+              "id": "m-modular-arithmetic",
+              "title": { "en": "Modular arithmetic and GCD", "th": "เลขคณิตมอดุลาร์และ ห.ร.ม." },
+              "topics": ["modular-arithmetic", "gcd"],
+              "prereqs": ["m-complexity"]
+            },
+            {
+              "id": "m-combinatorics",
+              "title": { "en": "Counting and combinatorics", "th": "การนับและคอมบินาทอริกส์" },
+              "topics": ["combinatorics", "modular-arithmetic"],
+              "prereqs": ["m-modular-arithmetic", "m-dp-knapsack"]
+            }
+          ]
+        },
+        {
+          "id": "c-offline",
+          "title": { "en": "Offline and amortised", "th": "ออฟไลน์และการเฉลี่ยต้นทุน" },
+          "modules": [
+            {
+              "id": "m-offline-queries",
+              "title": { "en": "Offline queries and sweeps", "th": "การตอบคำถามออฟไลน์และการกวาด" },
+              "topics": ["offline", "segment-tree"],
+              "prereqs": ["m-segment-tree"]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "s5-olympiad",
+      "order": 5,
+      "title": { "en": "Olympiad", "th": "โอลิมปิก" },
+      "categories": [
+        {
+          "id": "c-strings",
+          "title": { "en": "Strings", "th": "สตริง" },
+          "modules": [
+            {
+              "id": "m-string-hashing",
+              "title": { "en": "String hashing", "th": "การแฮชสตริง" },
+              "topics": ["hashing", "prefix-sums"],
+              "prereqs": ["m-prefix-sums"]
+            },
+            {
+              "id": "m-kmp-z",
+              "title": { "en": "KMP and Z-algorithm", "th": "KMP และ Z-algorithm" },
+              "topics": ["kmp", "z-algorithm"],
+              "prereqs": ["m-string-hashing"]
+            }
+          ]
+        },
+        {
+          "id": "c-games-and-numbers",
+          "title": { "en": "Geometry and interaction", "th": "เรขาคณิตและการโต้ตอบ" },
+          "modules": [
+            {
+              "id": "m-geometry",
+              "title": { "en": "Geometry primitives", "th": "พื้นฐานเรขาคณิต" },
+              "topics": ["geometry"],
+              "prereqs": ["m-binary-search"]
+            },
+            {
+              "id": "m-interactive",
+              "title": { "en": "Interactive problems", "th": "โจทย์แบบโต้ตอบ" },
+              "topics": ["interactive", "binary-search"],
+              "prereqs": ["m-binary-search", "m-graph-traversal"]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
