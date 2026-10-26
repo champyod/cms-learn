@@ -1,0 +1,12 @@
+# CrowdSec reads Caddy's JSON access log.
+#
+# The log is shared as a volume rather than through the Docker socket: mounting
+# /var/run/docker.sock into an internet-facing decision engine would hand it the host, and it does not
+# need it. The file is mounted read-only.
+source: file
+
+filenames:
+  - /var/log/caddy/access.log
+
+labels:
+  type: caddy

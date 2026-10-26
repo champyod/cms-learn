@@ -20,7 +20,10 @@ bun run validate           # content integrity; prints the counts it scanned
 bun run validate:falsify   # proves the content gate can fail
 bun run check:references   # every reference builds under -Werror and passes its own examples
 bun run check:references:falsify
-bun run gate               # all four, in that order — this is what CI runs
+bun run check:deploy       # compose contract: exposure, isolation, pinning, Caddyfile, Prometheus
+bun run check:deploy:falsify
+bun run gate               # content + references, in that order — this is what CI runs
+bun run gate:all           # the above plus the deployment contract (needs docker)
 ```
 
 A green `validate` with no falsification run is half the evidence. If you teach a gate a new defect
@@ -77,6 +80,10 @@ and no examples fails the gate.
 | `content/schema/` | JSON Schemas — strict, `additionalProperties: false` |
 | `tools/validate-content.ts` | the content gate |
 | `tools/falsify-content-gate.sh` | proof that the gate can fail |
+| `tools/check-deploy.sh` | the deployment contract: exposure, isolation, pinning, Caddyfile, Prometheus |
+| `tools/falsify-deploy-gate.sh` | proof that the deployment contract can fail (7 cases) |
+| `deploy/` | single-server compose, Caddyfile, CrowdSec, backup + restore drill, runbook |
+| `docs/infra/single-server.md` | sizing, threat table, operator checklist |
 | `web/tokens.css` | design tokens (`judge mono`) |
 | `design/` | static previews: chosen direction, twelve-row gallery |
 | `docs/decisions/` | ADRs |

@@ -1,0 +1,98 @@
+# cms-learn edge: TLS, security headers, rate limits, WAF decisions.
+#
+# Everything here is composed from {$VARS} so the same file serves dev (localhost) and production;
+# nothing about the deployment is hardcoded.
+{
+	email {$ACME_EMAIL}
+	admin 127.0.0.1:2019
+
+	# Third-party directives are not in Caddy's built-in handler order, so they refuse to run at site
+	# level until they are placed. Both must run before anything that serves bytes.
+	order crowdsec first
+	order rate_limit before basicauth
+
+	# The CrowdSec app is configured once, globally: where the LAPI lives, the bouncer's key, and the
+	# AppSec endpoint that evaluates the CRS rules inline. The site-level `crowdsec` directive below
+	# only says "enforce it here".
+	crowdsec {
+		api_url http://crowdsec:8080
+		api_key {$CROWDSEC_API_KEY}
+		appsec_url http://crowdsec:7422
+	}
+
+	# Behind a CDN or tailnet proxy the client IP is in a header; without this list Caddy trusts the
+	# header from anyone and rate limits become forgeable.
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20MiB
+			roll_keep 5
+		}
+		format json
+	}
+
+	# Enforce the CrowdSec decision for everything on this site: AppSec (CRS) inline, plus ban
+	# decisions from the LAPI. Configured globally above.
+	crowdsec
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "geolocation=(), microphone=(), camera=()"
+		-Server
+	}
+
+	# Failure counting is pointless at auth endpoints if the edge lets a password spray through at
+	# full rate: this sheds per-IP bursts before the app sees them.
+	@auth {
+		path /api/auth/*
+	}
+	rate_limit @auth {
+		zone auth {
+			key {remote_host}
+			events 20
+			window 1m
+		}
+	}
+
+	# Submissions are the one endpoint with real cost; cap per client so one student cannot occupy
+	# the judge queue.
+	@submissions {
+		path /api/submissions
+	}
+	rate_limit @submissions {
+		zone submissions {
+			key {remote_host}
+			events 60
+			window 1m
+		}
+	}
+
+	# API and long-lived streams are never cached.
+	@api {
+		path /api/* /healthz
+	}
+	handle @api {
+		reverse_proxy api:8080
+	}
+
+	# Everything else is the Next.js app.
+	handle {
+		reverse_proxy web:3000
+	}
+
+	# Never serve dotfiles that a deploy might leave behind.
+	@hidden {
+		path /.* /wp-login.php /xmlrpc.php
+	}
+	respond @hidden 404
+}

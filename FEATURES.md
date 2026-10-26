@@ -11,7 +11,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **14 shipped · 2 partial · 31 planned** (47 features).
+Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 
 ---
 
@@ -66,26 +66,30 @@ Counts at last update: **14 shipped · 2 partial · 31 planned** (47 features).
 
 | ID | Feature | State | Evidence |
 |---|---|---|---|
-| F-050 | Self-signup with email verification | ○ | ADR 0002 §2 |
+| F-050 | Self-signup gated by an operator switch (registration open/close) | ○ | ADR 0003 §4 — email verification deliberately deferred; env contract in `deploy/.env.example` |
 | F-051 | School-domain allowlist as config, fail-closed when empty | ○ | ADR 0002 §2 |
 | F-052 | Teacher-approval gate with an on/off switch | ○ | ADR 0002 §2 |
 | F-053 | Account state machine recorded in an audit trail | ○ | ADR 0002 §2 |
-| F-054 | Rate limiting and lockout | ○ | ADR 0002 §2 |
+| F-054 | Rate limiting and lockout | ◐ | edge limits shipped in `deploy/Caddyfile` (auth 20/min, submissions 60/min per IP); per-account lockout is app-side and not built |
 | F-055 | PII minimisation and retention policy (minors) | ○ | ADR 0002 §2 |
 
 ## Operations
 
 | ID | Feature | State | Evidence |
 |---|---|---|---|
-| F-060 | CI running both gates and both falsifications on every push | ● | `.github/workflows/ci.yml` |
-| F-061 | Containerised stack (compose), no host installs | ○ | ADR 0001 §1 |
-| F-062 | Ingress and TLS | ○ | — |
-| F-063 | Backups with a restore drill | ○ | — |
-| F-064 | Observability: judge queue depth, submission latency, error rate | ○ | — |
+| F-060 | CI running every gate and every falsification on each push | ● | `.github/workflows/ci.yml` |
+| F-061 | Containerised stack (compose), no host installs | ● | `deploy/docker-compose.yml` — 10 services, contract asserted by `tools/check-deploy.sh` |
+| F-062 | Ingress and TLS | ● | `deploy/Caddyfile` + `deploy/proxy/Dockerfile` — Caddy 2.11.7, auto-ACME, HSTS, per-IP rate limits; `caddy validate` run inside the built image |
+| F-063 | Backups with a restore drill | ● | `deploy/backup/run.sh`, `restore-drill.sh` — verified end to end against Postgres 18.6 (250 users / 1000 submissions restored, live DB untouched) |
+| F-064 | Observability: judge queue depth, submission latency, error rate | ◐ | `deploy/prometheus/prometheus.yml` — scrape targets and Grafana pinned; the api/judge `/metrics` endpoints do not exist yet |
 | F-065 | Image and dependency CVE scanning | ○ | — |
 | F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | ○ | ADR 0001 §1 |
-| F-067 | Discord failure notification from CI (secret set by the operator) | ◐ | `.github/workflows/ci.yml` — wired, `DISCORD_WEBHOOK_URL` not yet set |
-| F-068 | Deploy job, gated on a tag rather than on every push | ○ | needs F-061/F-062; CI reports "no target yet" |
+| F-067 | Discord failure notification from CI (secret set by the operator) | ◐ | `.github/workflows/ci.yml` — wired and exercised via `simulate_failure`, `DISCORD_WEBHOOK_URL` not yet set |
+| F-068 | Deploy job, gated on a tag rather than on every push | ○ | needs the three service images; CI reports "no target yet" |
+| F-069 | Single-server exposure contract: only the proxy is public, db/dashboards loopback, judge has no egress | ● | `tools/check-deploy.sh` + `tools/falsify-deploy-gate.sh` — 7/7 broken stacks rejected |
+| F-070 | WAF + IP reputation at the edge, CRS evaluated **in-band** so the attack itself gets 403 | ● | `deploy/crowdsec/` — verified `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
+| F-071 | Encrypted offsite backups whose private key never touches the server | ● | `deploy/backup/run.sh` — `age` recipient only; refuses to run without a public key |
+| F-072 | Registration and approval as runtime switches (no email dependency) | ○ | ADR 0003 §4 — env contract exists in `deploy/.env.example`, api not built |
 
 ---
 

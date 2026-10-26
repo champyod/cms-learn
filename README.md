@@ -23,11 +23,12 @@ arm of the same family. It never reads or writes contest data.
 | Design tokens | **shipped** — `judge mono`; contrast 15.41:1 body; Thai-mono font verified by measurement | `web/tokens.css` |
 | Design previews | **shipped** — 12-direction gallery, plus the chosen direction with live TH/EN switching | `design/` |
 | API, judge, web app | **not built** — decisions recorded, no code yet | `docs/decisions/` |
-| Auth, pipeline, deploy | **not built** — specified in the epic and ADRs | `../epics/003-cms-learn.md` |
+| Deployment stack | **specified and gated** — 10-service compose, Caddy TLS, CrowdSec in-band CRS, Postgres 18.6, Prometheus/Grafana, encrypted backups with a drill; **verified** by `check:deploy` + 7/7 falsification | `deploy/`, `docs/infra/single-server.md` |
+| Auth, pipeline | **not built** — specified in the epic and ADRs | `../epics/003-cms-learn.md` |
 
-Honest summary: the **data layer and design foundation** are real and gated; the **services are
-decisions, not code**. Any document implying otherwise is wrong. [`FEATURES.md`](FEATURES.md) is the
-per-feature registry.
+Honest summary: the **data layer, design foundation and deployment contract** are real and gated; the
+**services are decisions, not code**. Any document implying otherwise is wrong.
+[`FEATURES.md`](FEATURES.md) is the per-feature registry.
 
 ---
 
@@ -134,8 +135,11 @@ Static previews open directly in a browser, no server needed:
 | Content gate falsifiability | `bun run validate:falsify` | the gate exits non-zero on 11 real defects, including an empty bank |
 | Reference solutions | `bun run check:references` | every reference builds under `-Werror` and reproduces its task's own examples |
 | Reference gate falsifiability | `bun run check:references:falsify` | the reference gate exits non-zero on a wrong expected output, a missing example set, a non-compiling reference, and an empty bank |
+| Deployment contract | `bun run check:deploy` | only the proxy is public, the database and dashboards are loopback-only, the `internal` network has no gateway, the judge cannot reach the internet, every image is pinned, and the Caddyfile + Prometheus config are valid **for the exact versions in compose** |
+| Deploy gate falsifiability | `bun run check:deploy:falsify` | the deploy gate rejects **7** broken stacks, each with its own reason (public database port, judge with egress, unpinned image, dropped `no-new-privileges`, leaked network gateway, unordered Caddy directive, wrong proxy port) |
 
-All four, in order: `bun run gate`.
+All of them, in order: `bun run gate:all`. The first four (`bun run gate`) need no docker; the
+deployment contract does.
 
 A green run prints the counts it scanned, so an empty or partial bank cannot pass as coverage. Both
 falsification harnesses work on a throwaway copy and never mutate the working tree.
@@ -148,8 +152,9 @@ falsification harnesses work on a throwaway copy and never mutate the working tr
 |---|---|
 | `content` | `bun install --frozen-lockfile`, then the content gate and its falsification |
 | `references` | builds every reference solution and runs it against its own examples, then falsifies the gate |
-| `deployment` | reports that **no deploy target exists yet** (F-061, F-062 are planned) rather than implying a pipeline |
-| `discord` | on failure of `content` or `references`, posts one message with the branch, short SHA, actor and run URL |
+| `deployment contract` | asserts the compose contract (exposure, isolation, pinning) and validates the real Caddyfile and Prometheus config, then falsifies the gate with 7 broken stacks |
+| `deployment` | reports that **no deploy target exists yet** (the three service images are not built) rather than implying a pipeline |
+| `discord` | on failure of any gate job, posts one message with the branch, short SHA, actor and run URL |
 
 **Discord notifications** need `DISCORD_WEBHOOK_URL` set as a repository secret. The workflow never
 echoes it and never fails when it is absent — it prints a notice instead, because a green step that
@@ -165,9 +170,12 @@ To test the notification path without breaking the build, dispatch a run that fo
 gh workflow run ci.yml -f simulate_failure=true
 ```
 
-**Deployment is not wired.** There is no image to build and no host to deploy to yet, so CI stops at
-green. When the judge host and the compose stack exist, the deploy job lands in the `deployment`
-position and is gated on a tagged release, not on every push.
+**Deployment** is specified and gated, not running: `deploy/` holds the single-server stack, and
+`docs/infra/single-server.md` + ADR 0003 record why each piece is what it is. `web`, `api` and
+`judge` have no images yet, so `docker compose up` stops at them — CI says that out loud instead of
+implying a pipeline. When the images exist, the deploy job lands in the `deployment` position gated
+on a tagged release, never on every push.
+
 
 
 ---

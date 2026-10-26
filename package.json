@@ -7,7 +7,11 @@
     "validate:falsify": "bash tools/falsify-content-gate.sh",
     "check:references": "bash tools/check-references.sh",
     "check:references:falsify": "bash tools/falsify-references-gate.sh",
-    "gate": "bun run validate && bun run check:references && bun run validate:falsify && bun run check:references:falsify"
+    "check:deploy": "bash tools/check-deploy.sh",
+    "check:deploy:falsify": "bash tools/falsify-deploy-gate.sh",
+    "gate": "bun run validate && bun run check:references && bun run validate:falsify && bun run check:references:falsify",
+    "gate:deploy": "bun run check:deploy && bun run check:deploy:falsify",
+    "gate:all": "bun run gate && bun run gate:deploy"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

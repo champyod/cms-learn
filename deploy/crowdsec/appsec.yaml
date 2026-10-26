@@ -1,0 +1,12 @@
+# AppSec datasource: this is what makes CrowdSec an inline WAF instead of only a log reader.
+#
+# Installing the CRS rules is not enough — without this datasource there is no listener, and the
+# bouncer's appsec_url (http://crowdsec:7422) would hang on every request. That failure mode is why
+# this file exists separately from the log acquisition.
+source: appsec
+
+listen_addr: 0.0.0.0:7422
+appsec_config: cms-learn/inband
+
+labels:
+  type: appsec

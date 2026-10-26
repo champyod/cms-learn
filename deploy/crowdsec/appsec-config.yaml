@@ -1,0 +1,15 @@
+# A custom AppSec config whose whole purpose is one word: `inband_rules`.
+#
+# The stock `crowdsecurity/crs` appsec-config declares its rules as *out-of-band*, which means
+# CrowdSec detects an attack, files a decision, and a later request from that IP is blocked — the
+# request in front of it is already answered. In-band rules are evaluated before the response is
+# sent, so the attack itself gets a 403. (Verified in this repo: the stock config logs
+# "Loaded 0 inband rules".)
+name: cms-learn/inband
+
+inband_rules:
+  - crowdsecurity/crs
+
+default_remediation: ban
+default_pass_action: allow
+blocked_http_code: 403

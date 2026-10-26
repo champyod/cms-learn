@@ -61,13 +61,27 @@ jobs:
       - name: reference gate falsifiability
         run: bash tools/falsify-references-gate.sh
 
+  # The compose file is a security contract: ports, isolation, pinning, the Caddyfile and the
+  # Prometheus config are asserted here, and the assertion is itself proven to fail.
+  deploy-contract:
+    name: deployment contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: deployment invariants
+        run: bash tools/check-deploy.sh
+
+      - name: deploy gate falsifiability
+        run: bash tools/falsify-deploy-gate.sh
+
   # CD is not wired yet: there is no image to build and no host to deploy to (F-061/F-062 are
   # planned). This job exists so a deploy step has one obvious place to land, and so CI says so out
   # loud instead of implying a pipeline that does not exist.
   deploy-state:
     name: deployment
     runs-on: ubuntu-latest
-    needs: [content, references]
+    needs: [content, references, deploy-contract]
     steps:
       - name: report
         run: |
@@ -76,7 +90,7 @@ jobs:
   notify:
     name: discord
     runs-on: ubuntu-latest
-    needs: [content, references]
+    needs: [content, references, deploy-contract]
     if: failure() && github.event_name != 'pull_request'
     steps:
       # The webhook is a credential, so it lives only in repository secrets and is never echoed.
