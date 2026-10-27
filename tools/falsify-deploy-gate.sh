@@ -19,10 +19,20 @@ fail=0
 # case <name> <expected substring> <mutation command>
 case_of() {
   local name="$1" expect="$2" mutate="$3"
-  local dir="$work/$name"
+  local dir="$work/$name" before after
   rm -rf "$dir"
   cp -a "$src" "$dir"
+  before="$(cd "$dir" && find . -type f -exec sha256sum {} + | sort | sha256sum)"
   ( cd "$dir" && eval "$mutate" ) || { printf 'SETUP FAILED  %s\n' "$name"; fail=$((fail+1)); return; }
+  after="$(cd "$dir" && find . -type f -exec sha256sum {} + | sort | sha256sum)"
+
+  # A mutation that silently matched nothing leaves a *healthy* stack behind, and the harness would
+  # then report the gate as broken. Prove the defect was actually planted before judging the gate.
+  if [ "$before" = "$after" ]; then
+    printf 'SETUP FAILED  %s — mutation changed nothing (stale pattern?)\n' "$name"
+    fail=$((fail+1))
+    return
+  fi
 
   local out rc
   out="$(DEPLOY_DIR="$dir" bash "$gate" 2>&1)"; rc=$?
@@ -75,9 +85,9 @@ PY"
 case_of "caddy-directive-unordered" "Caddyfile is not valid" \
   "sed -i '/order crowdsec first/d' Caddyfile"
 
-# 7. a service that no longer sets a pinned proxy image name
+# 7. the proxy publishing a non-web port: the exact pattern that has to track compose, not memory
 case_of "proxy-port-not-https" "unexpected port" \
-  "sed -i 's|      - \"80:80\"|      - \"8080:80\"|' docker-compose.yml"
+  "sed -i 's|      - \"80:8080\".*|      - \"8080:8080\"|' docker-compose.yml"
 
 printf '\n%s case(s) caught, %s missed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ] || exit 1
