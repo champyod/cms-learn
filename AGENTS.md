@@ -82,6 +82,8 @@ and no examples fails the gate.
 | `tools/falsify-content-gate.sh` | proof that the gate can fail |
 | `tools/check-deploy.sh` | the deployment contract: exposure, isolation, pinning, Caddyfile, Prometheus |
 | `tools/falsify-deploy-gate.sh` | proof that the deployment contract can fail (7 cases) |
+| `tools/security-scan.sh` | Trivy: secrets, fixable CVEs, deployment hardening |
+| `tools/falsify-security-gate.sh` | proof the scan catches planted defects (3 red, 1 clean control) |
 | `deploy/` | single-server compose, Caddyfile, CrowdSec, backup + restore drill, runbook |
 | `docs/infra/single-server.md` | sizing, threat table, operator checklist |
 | `web/tokens.css` | design tokens (`judge mono`) |

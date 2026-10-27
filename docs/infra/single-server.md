@@ -36,7 +36,7 @@ Only the proxy is publicly bound. Everything else listens on the internal compos
 
 | Service | Image (pinned) | Public | Volume | Limits | Role |
 |---|---|---|---|---|---|
-| `proxy` | `caddy:2.11.7` | 80/443 | `caddy-data`, `caddy-config` | 0.3 cpu / 256 MB | TLS (ACME), HTTP→HTTPS, HSTS, rate limits, path routing, static caching |
+| `proxy` | `caddy:2.11.7` (uid 10001, ports 8080/8443 inside; host maps 80/443) | 80/443 | `caddy-data`, `caddy-config` | 0.3 cpu / 256 MB | TLS (ACME), HTTP→HTTPS, HSTS, rate limits, path routing, static caching |
 | `web` | `ghcr.io/champyod/cms-learn-web:<sha>` | no | — | 0.5 cpu / 512 MB | Next.js (TypeScript) |
 | `api` | `ghcr.io/champyod/cms-learn-api:<sha>` | no | — | 1 cpu / 512 MB | Rust/axum: auth, sessions, progress, serving |
 | `judge` | `ghcr.io/champyod/cms-learn-judge:<sha>` | no | `judge-work`, `judge-data` | 2 cpu / 2 GB, `cgroup: host`, cgroups rw | C++ core + `isolate`; no network |

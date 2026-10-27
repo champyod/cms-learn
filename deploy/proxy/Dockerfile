@@ -19,5 +19,14 @@ RUN caddy list-modules | grep -q 'http.handlers.crowdsec' \
  && caddy list-modules | grep -q 'http.handlers.rate_limit' \
  && caddy version
 
+# The stock image has no user and runs as root. A process that terminates TLS for the whole site has
+# no business doing it as uid 0: it only needs its own config, certs and log directory.
+# Ports below 1024 are unprivileged-mapped in compose instead (80→8080, 443→8443), precisely so this
+# USER line can exist.
+RUN mkdir -p /data /config /var/log/caddy \
+ && chown -R 10001:10001 /data /config /var/log/caddy
+
+USER 10001:10001
+
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD wget --spider -q http://127.0.0.1:2019/config/ || exit 1

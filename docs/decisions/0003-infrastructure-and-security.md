@@ -20,6 +20,8 @@
 | 8 | Backups | **Nightly `pg_dump -Fc` piped through `age` to an offsite remote**, private key held off-server, retention 7/4/3, monthly restore drill | **Volume snapshots** — provider-specific lock-in and no verification step. **WAL-G/PITR** — right answer for a database with money in it; for a 30–60 student bank, an unverified archive is the bigger risk. |
 | 9 | Observability | **Prometheus 3.15.1 + Grafana 13.2.4 + node-exporter 1.8.2**, 30-day retention, judge queue depth as the key metric | Full LGTM stack — three more services for one box. Nothing — a judge that silently stops dequeuing is the failure this must catch. |
 | 10 | Deploy path | **Images by digest, deploy gated on a tag, `compose pull && up -d`, rollback by digest** | Deploy on every push — a broken commit becomes a broken lesson. Rebuild-on-server — the box stops being immutable. |
+| 11 | **Proxy runs as uid 10001 on unprivileged ports** (80→8080, 443→8443 host-side) | the process terminating TLS for the whole site does not need root; the port map exists precisely so the `USER` line can exist |
+| 12 | **Security scanning is a gate** (Trivy 0.66.0: secrets, fixable CVEs, deployment hardening) | a leak or a root-user image should fail the build, not wait for someone to read a report |
 
 ## Consequences
 
@@ -52,6 +54,9 @@
 | CrowdSec loads in-band CRS and listens on 7422 | `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
 | Prometheus config parses for the pinned version | `promtool check config` → SUCCESS |
 | The Discord notify path executes | manual dispatch with `simulate_failure=true` → job ran, printed the missing-secret notice |
+| The proxy serves as non-root | container ran as `uid=10001`, answered `https 502` (no upstream yet) and `http 308`→HTTPS, bouncer logged `appsec enabled` |
+| The scan finds nothing **and** can fail | `security-scan.sh` green (0 secrets, 0 CVEs, 0 misconfigurations); `falsify-security-gate.sh` caught a planted GitHub token, a planted RSA key and a root-user Dockerfile, and kept a clean Dockerfile green — 4/4 |
+| The scan's hardening findings were real | first run flagged `proxy/Dockerfile` DS002 (root user) and `backup/Dockerfile` DS026 (no healthcheck): both fixed at the source, then 0 findings |
 
 ## Open
 

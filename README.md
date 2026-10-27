@@ -137,6 +137,8 @@ Static previews open directly in a browser, no server needed:
 | Reference gate falsifiability | `bun run check:references:falsify` | the reference gate exits non-zero on a wrong expected output, a missing example set, a non-compiling reference, and an empty bank |
 | Deployment contract | `bun run check:deploy` | only the proxy is public, the database and dashboards are loopback-only, the `internal` network has no gateway, the judge cannot reach the internet, every image is pinned, and the Caddyfile + Prometheus config are valid **for the exact versions in compose** |
 | Deploy gate falsifiability | `bun run check:deploy:falsify` | the deploy gate rejects **7** broken stacks, each with its own reason (public database port, judge with egress, unpinned image, dropped `no-new-privileges`, leaked network gateway, unordered Caddy directive, wrong proxy port) |
+| Security scan | `bun run check:security` | no secret in the tree, no dependency with a **fixed** CVE, and no deployment misconfiguration at MEDIUM+ (root user, missing healthcheck) — Trivy pinned at 0.66.0 |
+| Security scan falsifiability | `bun run check:security:falsify` | a planted GitHub token, a planted private key and a root-user Dockerfile are each caught, and a clean Dockerfile stays green — a scanner that always failed would not pass |
 
 All of them, in order: `bun run gate:all`. The first four (`bun run gate`) need no docker; the
 deployment contract does.
@@ -153,6 +155,7 @@ falsification harnesses work on a throwaway copy and never mutate the working tr
 | `content` | `bun install --frozen-lockfile`, then the content gate and its falsification |
 | `references` | builds every reference solution and runs it against its own examples, then falsifies the gate |
 | `deployment contract` | asserts the compose contract (exposure, isolation, pinning) and validates the real Caddyfile and Prometheus config, then falsifies the gate with 7 broken stacks |
+| `security scan` | Trivy for secrets, fixable dependency CVEs and deployment hardening; then plants three defects and one clean file to prove the scan bites |
 | `deployment` | reports that **no deploy target exists yet** (the three service images are not built) rather than implying a pipeline |
 | `discord` | on failure of any gate job, posts one message with the branch, short SHA, actor and run URL |
 

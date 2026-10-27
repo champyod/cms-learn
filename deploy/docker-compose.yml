@@ -29,9 +29,9 @@ services:
       context: ./proxy
     image: ghcr.io/champyod/cms-learn-proxy:${TAG:-dev}
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"      # HTTP/3
+      - "80:8080"          # container listens unprivileged; the host side keeps the public port
+      - "443:8443"
+      - "443:8443/udp"     # HTTP/3
     environment:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env}
       ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}

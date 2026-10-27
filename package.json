@@ -9,9 +9,11 @@
     "check:references:falsify": "bash tools/falsify-references-gate.sh",
     "check:deploy": "bash tools/check-deploy.sh",
     "check:deploy:falsify": "bash tools/falsify-deploy-gate.sh",
+    "check:security": "bash tools/security-scan.sh",
+    "check:security:falsify": "bash tools/falsify-security-gate.sh",
     "gate": "bun run validate && bun run check:references && bun run validate:falsify && bun run check:references:falsify",
     "gate:deploy": "bun run check:deploy && bun run check:deploy:falsify",
-    "gate:all": "bun run gate && bun run gate:deploy"
+    "gate:all": "bun run gate && bun run gate:deploy && bun run check:security && bun run check:security:falsify"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

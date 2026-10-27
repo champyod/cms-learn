@@ -11,7 +11,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
+Counts at last update: **21 shipped · 4 partial · 26 planned** (51 features).
 
 ---
 
@@ -82,7 +82,7 @@ Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 | F-062 | Ingress and TLS | ● | `deploy/Caddyfile` + `deploy/proxy/Dockerfile` — Caddy 2.11.7, auto-ACME, HSTS, per-IP rate limits; `caddy validate` run inside the built image |
 | F-063 | Backups with a restore drill | ● | `deploy/backup/run.sh`, `restore-drill.sh` — verified end to end against Postgres 18.6 (250 users / 1000 submissions restored, live DB untouched) |
 | F-064 | Observability: judge queue depth, submission latency, error rate | ◐ | `deploy/prometheus/prometheus.yml` — scrape targets and Grafana pinned; the api/judge `/metrics` endpoints do not exist yet |
-| F-065 | Image and dependency CVE scanning | ○ | — |
+| F-065 | Image and dependency CVE scanning | ● | `tools/security-scan.sh` — Trivy 0.66.0 for secrets, fixable CVEs and deployment hardening; `falsify-security-gate.sh` catches 3 planted defects and keeps a clean file green |
 | F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | ○ | ADR 0001 §1 |
 | F-067 | Discord failure notification from CI (secret set by the operator) | ◐ | `.github/workflows/ci.yml` — wired and exercised via `simulate_failure`, `DISCORD_WEBHOOK_URL` not yet set |
 | F-068 | Deploy job, gated on a tag rather than on every push | ○ | needs the three service images; CI reports "no target yet" |
