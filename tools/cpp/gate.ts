@@ -184,6 +184,18 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   return report;
 }
 
+/** The version line of a tool, or "<tool> missing" — a gate that cannot say what it ran is unprovable. */
+function toolVersion(root: string, command: string[]): string {
+  const result = run(command[0], command.slice(1), root);
+  // gcc answers "g++ (GCC) 16.1.1 …", clang "Ubuntu clang version 18.1.3", clang-tidy puts "LLVM
+  // version 23.1.1" on its second line — so take the first line that actually carries a version number.
+  const numbered = result.output
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => /\d+\.\d+/.test(line));
+  return (numbered[0] ?? `${command[0]} missing`).slice(0, 80);
+}
+
 function format(report: GateReport, root: string): string {
   const parts = [
     `${report.targets} target(s) built`,
@@ -191,7 +203,11 @@ function format(report: GateReport, root: string): string {
     `${report.analysed} unit(s) analysed`,
     report.ok ? "0 finding(s)" : `${report.findings.length} finding(s)`,
   ];
-  const head = `cpp gate — ${parts.join(" · ")}`;
+  // Which tools produced the verdict is part of the verdict: clang-tidy's check set grows between major
+  // versions, so "green on 23" and "green on 18" are different claims. Printing the versions makes that
+  // difference visible in the log instead of mysterious.
+  const versions = `${toolVersion(root, ["g++", "--version"])} / ${toolVersion(root, ["clang++", "--version"])} / ${toolVersion(root, ["clang-tidy", "--version"])}`;
+  const head = `cpp gate — ${parts.join(" · ")}\n           ${versions}`;
   if (report.ok) return head;
 
   const lines = [head];
