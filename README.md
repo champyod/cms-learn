@@ -41,11 +41,11 @@ and [`0002-theme-and-auth.md`](docs/decisions/0002-theme-and-auth.md):
   student (TH/EN)
         │
         ▼
-  ┌───────────────────────┐   web/    Next.js, tokens from web/tokens.css   (planned)
+  ┌───────────────────────┐   web/    Drogon + Inja + htmx, tokens from tokens.css  (planned)
   └───────────┬───────────┘
               │ session cookie over HTTP
-  ┌───────────▼───────────┐   api/    Rust + axum 0.8: auth, progress,
-  │                       │           task serving                          (planned)
+  ┌───────────▼───────────┐   api/    C++23 + Drogon: auth, progress, task serving,
+  │                       │           over the shared domain core                 (planned)
   └───┬───────────────┬───┘
       │               │
       │        ┌──────▼──────────────────────┐
@@ -66,11 +66,15 @@ and [`0002-theme-and-auth.md`](docs/decisions/0002-theme-and-auth.md):
 ```
 
 **Why this split.** `testlib` (the CP-standard checker library) and `isolate` semantics are C++, so
-the judge core is C++ and reuses packaged, domain-standard primitives instead of re-implementing
-them; the mitigation is ASan/UBSan, libFuzzer and clang-tidy on every judge build. Services are Rust
-for memory safety on the internet-facing path. The UI is TypeScript because the admin panel already
-ships Next 16.1.1 + Tailwind 4 + Radix — a second component vocabulary beside it would be a
-duplicated design system.
+the judge core is C++ and reuses packaged, domain-standard primitives instead of re-implementing them.
+The api, web and admin surfaces are C++ too, because the curriculum graph, task schema and serving
+rules must be one implementation shared with the judge rather than re-derived per language — see
+[`docs/decisions/0006-language-matrix.md`](docs/decisions/0006-language-matrix.md), which supersedes
+the language row of ADR 0001. That puts C++ on the internet-facing path, so the mitigation is a gate,
+not a promise: every translation unit compiles under ASan + UBSan with `-Werror` and
+`-D_GLIBCXX_ASSERTIONS` and runnable ones are executed (`tools/check-cpp-safety.sh`). Rust keeps the
+privileged judge supervisor and `cmsctl`, the two places that hold foreign bytes or full authority.
+The editor island stays TypeScript because CodeMirror 6 is browser JavaScript.
 
 **Judging model.** `isolate` inside a container with a delegated cgroup v2 path: the same mechanism
 the contest stack operates today. A Firecracker microVM was chosen first and withdrawn — it needs
@@ -82,9 +86,9 @@ only, no host scripts" rule.
 ## Repository layout
 
 ```
-api/        Rust service — HTTP API, auth, progress, task serving            (planned)
-judge/      C++ core — sandbox launcher (isolate), checker (testlib)        (planned)
-web/        TypeScript UI — Next.js; tokens.css is the design source        (tokens only)
+api/        C++23 service (Drogon) + the shared domain core — auth, progress, serving  (planned)
+judge/      C++ checkers (testlib + isolate) with a Rust supervisor                  (planned)
+web/        C++23 views (Drogon + Inja + htmx); tokens.css is the design source      (tokens only)
 content/    topics · modules · tracks · tasks — data, not code              (shipped)
 tools/      repo gates                                                      (shipped)
 design/     static previews: chosen direction, twelve-row gallery           (shipped)
@@ -139,9 +143,12 @@ Static previews open directly in a browser, no server needed:
 | Deploy gate falsifiability | `bun run check:deploy:falsify` | the deploy gate rejects **7** broken stacks, each with its own reason (public database port, judge with egress, unpinned image, dropped `no-new-privileges`, leaked network gateway, unordered Caddy directive, wrong proxy port) |
 | Security scan | `bun run check:security` | no secret in the tree, no dependency with a **fixed** CVE, and no deployment misconfiguration at MEDIUM+ (root user, missing healthcheck) — Trivy pinned at 0.66.0 |
 | Security scan falsifiability | `bun run check:security:falsify` | a planted GitHub token, a planted private key and a root-user Dockerfile are each caught, and a clean Dockerfile stays green — a scanner that always failed would not pass |
+| C++ safety | `bun run check:cpp` | every C++ unit (api, judge, reference solutions) compiles under **ASan + UBSan** with `-Werror` and `_GLIBCXX_ASSERTIONS`, and every runnable one is executed under the sanitizers — ADR 0006 makes this mandatory, not best-effort |
+| C++ safety falsifiability | `bun run check:cpp:falsify` | a use-after-free, a signed overflow, an out-of-bounds read and a warning-as-error are each caught **with the right reason**; a clean file stays green; an empty tree is refused |
 
 All of them, in order: `bun run gate:all`. The first four (`bun run gate`) need no docker; the
-deployment contract does.
+deployment contract does. `bun run gate:cpp` needs only `g++` with sanitizer support and runs on the
+reference solutions today, then on `api/` and `judge/` as they appear.
 
 A green run prints the counts it scanned, so an empty or partial bank cannot pass as coverage. Both
 falsification harnesses work on a throwaway copy and never mutate the working tree.
@@ -156,6 +163,7 @@ falsification harnesses work on a throwaway copy and never mutate the working tr
 | `references` | builds every reference solution and runs it against its own examples, then falsifies the gate |
 | `deployment contract` | asserts the compose contract (exposure, isolation, pinning) and validates the real Caddyfile and Prometheus config, then falsifies the gate with 7 broken stacks |
 | `security scan` | Trivy for secrets, fixable dependency CVEs and deployment hardening; then plants three defects and one clean file to prove the scan bites |
+| `cpp safety` | compiles every C++ unit under ASan + UBSan with `-Werror`, runs the ones that can be run, then proves the gate catches a planted use-after-free, overflow, out-of-bounds read and warning-as-error |
 | `deployment` | reports that **no deploy target exists yet** (the three service images are not built) rather than implying a pipeline |
 | `discord` | on failure of any gate job, posts one message with the branch, short SHA, actor and run URL |
 

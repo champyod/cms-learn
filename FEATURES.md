@@ -11,7 +11,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **21 shipped · 4 partial · 26 planned** (51 features).
+Counts at last update: **22 shipped · 4 partial · 27 planned** (53 features).
 
 ---
 
@@ -54,7 +54,7 @@ Counts at last update: **21 shipped · 4 partial · 26 planned** (51 features).
 | F-031 | Thai-coverage monospace font, shipped with licence, verified by advance-width measurement | ● | `web/public/fonts/` |
 | F-032 | Twelve-direction theme gallery over one markup | ● | `design/theme-gallery.html` |
 | F-033 | Chosen direction preview with working TH/EN switching and font self-check | ● | `design/judge-mono.html` |
-| F-034 | Next.js app shell reading the tokens | ○ | — |
+| F-034 | Drogon + Inja + htmx app shell reading the tokens | ○ | ADR 0006 |
 | F-035 | Path home: stage rail, current module, next task | ○ | designed in `design/judge-mono.html` |
 | F-036 | Task view: statement render, samples, limits, topics | ○ | designed; statements are markdown |
 | F-037 | Code entry: in-page editor + file upload (`.cpp/.rs/.py`) | ○ | ADR 0001 / decision 7 |
@@ -90,6 +90,8 @@ Counts at last update: **21 shipped · 4 partial · 26 planned** (51 features).
 | F-070 | WAF + IP reputation at the edge, CRS evaluated **in-band** so the attack itself gets 403 | ● | `deploy/crowdsec/` — verified `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
 | F-071 | Encrypted offsite backups whose private key never touches the server | ● | `deploy/backup/run.sh` — `age` recipient only; refuses to run without a public key |
 | F-072 | Registration and approval as runtime switches (no email dependency) | ○ | ADR 0003 §4 — env contract exists in `deploy/.env.example`, api not built |
+| F-073 | Every C++ unit compiled and run under ASan + UBSan with `-Werror`, and the safety gate proven to fail | ● | `tools/check-cpp-safety.sh` (2 units, 3 runs) + `falsify-cpp-safety.sh` (use-after-free, signed overflow, out-of-bounds, warning-as-error; 6/6) — mandatory because ADR 0006 puts C++ on the internet-facing path |
+| F-074 | Admin surface on its own listener and container, with its own session scope | ○ | ADR 0006 §3 — the compose contract still describes 10 services; this is the one that will change the count |
 
 ---
 

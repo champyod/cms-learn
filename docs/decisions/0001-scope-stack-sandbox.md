@@ -23,6 +23,11 @@ package, script or environment variable is added beyond what that already requir
 
 ## 2. C++ owns the judge core; Rust owns services; TypeScript owns the UI
 
+> **Superseded 2026-10-27 by [`0006-language-matrix.md`](0006-language-matrix.md)** for the language
+> split: api, web and admin are now C++/Drogon with the shared domain core, Rust keeps the judge
+> supervisor and `cmsctl`, and the C++ safety obligation below is enforced by
+> `tools/check-cpp-safety.sh`. The judge-core reasoning in this section still stands.
+
 Chosen: C++ for the sandbox launcher, resource limits and checker protocol; Rust for the API,
 content/pipeline and task-serving services; TypeScript (Next.js) for the web app.
 

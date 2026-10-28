@@ -11,9 +11,12 @@
     "check:deploy:falsify": "bash tools/falsify-deploy-gate.sh",
     "check:security": "bash tools/security-scan.sh",
     "check:security:falsify": "bash tools/falsify-security-gate.sh",
+    "check:cpp": "bash tools/check-cpp-safety.sh",
+    "check:cpp:falsify": "bash tools/falsify-cpp-safety.sh",
     "gate": "bun run validate && bun run check:references && bun run validate:falsify && bun run check:references:falsify",
     "gate:deploy": "bun run check:deploy && bun run check:deploy:falsify",
-    "gate:all": "bun run gate && bun run gate:deploy && bun run check:security && bun run check:security:falsify"
+    "gate:cpp": "bun run check:cpp && bun run check:cpp:falsify",
+    "gate:all": "bun run gate && bun run gate:deploy && bun run gate:cpp && bun run check:security && bun run check:security:falsify"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

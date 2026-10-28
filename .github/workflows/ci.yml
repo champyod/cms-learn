@@ -89,13 +89,29 @@ jobs:
       - name: scan falsifiability
         run: bash tools/falsify-security-gate.sh
 
+  # C++ sits on the internet-facing path (ADR 0006), so its safety is a gate and not a promise. Every
+  # translation unit is compiled under ASan+UBSan with -Werror, runnable ones are executed, and the
+  # gate is itself proven to catch a use-after-free, a signed overflow, an out-of-bounds read and a
+  # warning-as-error.
+  cpp-safety:
+    name: cpp safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: compile and run under asan + ubsan
+        run: bash tools/check-cpp-safety.sh
+
+      - name: safety gate falsifiability
+        run: bash tools/falsify-cpp-safety.sh
+
   # CD is not wired yet: there is no image to build and no host to deploy to (F-061/F-062 are
   # planned). This job exists so a deploy step has one obvious place to land, and so CI says so out
   # loud instead of implying a pipeline that does not exist.
   deploy-state:
     name: deployment
     runs-on: ubuntu-latest
-    needs: [content, references, deploy-contract, security]
+    needs: [content, references, deploy-contract, security, cpp-safety]
     steps:
       - name: report
         run: |
@@ -104,7 +120,7 @@ jobs:
   notify:
     name: discord
     runs-on: ubuntu-latest
-    needs: [content, references, deploy-contract, security]
+    needs: [content, references, deploy-contract, security, cpp-safety]
     if: failure() && github.event_name != 'pull_request'
     steps:
       # The webhook is a credential, so it lives only in repository secrets and is never echoed.

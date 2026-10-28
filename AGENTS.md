@@ -22,8 +22,10 @@ bun run check:references   # every reference builds under -Werror and passes its
 bun run check:references:falsify
 bun run check:deploy       # compose contract: exposure, isolation, pinning, Caddyfile, Prometheus
 bun run check:deploy:falsify
+bun run check:cpp          # every C++ unit under ASan+UBSan, -Werror, and run where runnable
+bun run check:cpp:falsify  # proves the safety gate catches UAF, overflow, OOB and warning-as-error
 bun run gate               # content + references, in that order — this is what CI runs
-bun run gate:all           # the above plus the deployment contract (needs docker)
+bun run gate:all           # the above plus the deployment contract (needs docker) and C++ safety
 ```
 
 A green `validate` with no falsification run is half the evidence. If you teach a gate a new defect
