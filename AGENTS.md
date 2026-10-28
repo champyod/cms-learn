@@ -22,8 +22,8 @@ bun run check:references   # every reference builds under -Werror and passes its
 bun run check:references:falsify
 bun run check:deploy       # compose contract: exposure, isolation, pinning, Caddyfile, Prometheus
 bun run check:deploy:falsify
-bun run check:cpp          # every C++ unit under ASan+UBSan, -Werror, and run where runnable
-bun run check:cpp:falsify  # proves the safety gate catches UAF, overflow, OOB and warning-as-error
+bun run check:cpp          # CMake presets build under ASan+UBSan, ctest runs the examples, clang-tidy analyses
+bun run check:cpp:falsify  # proves the gate catches a use-after-free, an overflow, a warning and a tidy-only defect
 bun run gate               # content + references, in that order — this is what CI runs
 bun run gate:all           # the above plus the deployment contract (needs docker) and C++ safety
 ```
@@ -32,9 +32,11 @@ A green `validate` with no falsification run is half the evidence. If you teach 
 class, add its falsification case in the same commit — the harness is what proves the rule bites.
 
 A reference solution needs an example set beside it: `content/tasks/<slug>/examples/N.in` and `N.out`.
-`check:references` builds it under `-Werror` and diffs its output against those files, so "the
-reference reproduces its statement's example" is proven rather than asserted. A task with a reference
-and no examples fails the gate.
+`check:references` builds it at `-O2` with no sanitizers and diffs its output against those files — the
+contest-like configuration, where optimisation can expose behaviour a sanitizer build masks. `check:cpp`
+runs the *same* examples again through ctest, but under ASan + UBSan: same evidence, different question
+("does it still compute the right answer when optimised" vs "does it stay inside memory when run").
+Neither replaces the other, and a task with a reference but no examples fails both.
 
 ## Adding work
 

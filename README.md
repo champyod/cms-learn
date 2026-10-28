@@ -71,8 +71,9 @@ The api, web and admin surfaces are C++ too, because the curriculum graph, task 
 rules must be one implementation shared with the judge rather than re-derived per language — see
 [`docs/decisions/0006-language-matrix.md`](docs/decisions/0006-language-matrix.md), which supersedes
 the language row of ADR 0001. That puts C++ on the internet-facing path, so the mitigation is a gate,
-not a promise: every translation unit compiles under ASan + UBSan with `-Werror` and
-`-D_GLIBCXX_ASSERTIONS` and runnable ones are executed (`tools/check-cpp-safety.sh`). Rust keeps the
+not a promise: `cpp/CMakePresets.json` builds every translation unit with ASan + UBSan, `-Werror` and
+`-D_GLIBCXX_ASSERTIONS`, ctest runs every example, and clang-tidy checks what a runtime sanitizer
+cannot see (`bun run check:cpp`). Rust keeps the
 privileged judge supervisor and `cmsctl`, the two places that hold foreign bytes or full authority.
 The editor island stays TypeScript because CodeMirror 6 is browser JavaScript.
 
@@ -143,8 +144,8 @@ Static previews open directly in a browser, no server needed:
 | Deploy gate falsifiability | `bun run check:deploy:falsify` | the deploy gate rejects **7** broken stacks, each with its own reason (public database port, judge with egress, unpinned image, dropped `no-new-privileges`, leaked network gateway, unordered Caddy directive, wrong proxy port) |
 | Security scan | `bun run check:security` | no secret in the tree, no dependency with a **fixed** CVE, and no deployment misconfiguration at MEDIUM+ (root user, missing healthcheck) — Trivy pinned at 0.66.0 |
 | Security scan falsifiability | `bun run check:security:falsify` | a planted GitHub token, a planted private key and a root-user Dockerfile are each caught, and a clean Dockerfile stays green — a scanner that always failed would not pass |
-| C++ safety | `bun run check:cpp` | every C++ unit (api, judge, reference solutions) compiles under **ASan + UBSan** with `-Werror` and `_GLIBCXX_ASSERTIONS`, and every runnable one is executed under the sanitizers — ADR 0006 makes this mandatory, not best-effort |
-| C++ safety falsifiability | `bun run check:cpp:falsify` | a use-after-free, a signed overflow, an out-of-bounds read and a warning-as-error are each caught **with the right reason**; a clean file stays green; an empty tree is refused |
+| C++ safety | `bun run check:cpp` | the CMake presets own the flags (`cpp/CMakePresets.json`, `cpp/cmake/*.cmake`), so the binaries tested are the binaries built: ASan + UBSan + `_GLIBCXX_ASSERTIONS` + `-Werror`, every example run through ctest, every unit through clang-tidy with a curated check set — ADR 0006 makes this mandatory, not best-effort |
+| C++ safety falsifiability | `bun run check:cpp:falsify` | one planted defect per layer must be caught **by name**: ASan use-after-free, UBSan signed overflow, ASan stack overflow, `-Wunused-variable`, and `bugprone-use-after-move` (which only static analysis can see); a correct solution stays green and an empty tree is refused |
 
 All of them, in order: `bun run gate:all`. The first four (`bun run gate`) need no docker; the
 deployment contract does. `bun run gate:cpp` needs only `g++` with sanitizer support and runs on the

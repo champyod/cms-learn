@@ -90,7 +90,7 @@ Counts at last update: **22 shipped · 4 partial · 27 planned** (53 features).
 | F-070 | WAF + IP reputation at the edge, CRS evaluated **in-band** so the attack itself gets 403 | ● | `deploy/crowdsec/` — verified `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
 | F-071 | Encrypted offsite backups whose private key never touches the server | ● | `deploy/backup/run.sh` — `age` recipient only; refuses to run without a public key |
 | F-072 | Registration and approval as runtime switches (no email dependency) | ○ | ADR 0003 §4 — env contract exists in `deploy/.env.example`, api not built |
-| F-073 | Every C++ unit compiled and run under ASan + UBSan with `-Werror`, and the safety gate proven to fail | ● | `tools/check-cpp-safety.sh` (2 units, 3 runs) + `falsify-cpp-safety.sh` (use-after-free, signed overflow, out-of-bounds, warning-as-error; 6/6) — mandatory because ADR 0006 puts C++ on the internet-facing path |
+| F-073 | Every C++ unit built by CMake presets under ASan + UBSan with `-Werror`, run through ctest, and analysed by clang-tidy — with the gate proven to fail | ● | `cpp/` (presets, flags module, per-example ctest cases) + `tools/cpp/gate.ts` (2 targets, 3 cases, 2 units analysed) + `tools/cpp/falsify.ts` **7/7**: use-after-free, signed overflow, stack overflow, `-Wunused-variable`, `bugprone-use-after-move`, a clean control and an empty tree — mandatory because ADR 0006 puts C++ on the internet-facing path |
 | F-074 | Admin surface on its own listener and container, with its own session scope | ○ | ADR 0006 §3 — the compose contract still describes 10 services; this is the one that will change the count |
 
 ---

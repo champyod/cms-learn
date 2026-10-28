@@ -55,8 +55,7 @@ maximises memory safety per process.
    radius; admin gets a separate bind address, its own session scope and its own container.
 4. **Rust never computes a verdict, C++ never parses unstructured foreign output without a fuzzer.**
    The supervisor treats checker output as untrusted data with a hard size cap.
-5. **Every C++ build runs under ASan + UBSan with `-Werror` and `_GLIBCXX_ASSERTIONS`.** Because the
-   internet-facing path is now C++, this gate is mandatory, not best-effort — `tools/check-cpp-safety.sh`.
+5. **Every C++ build runs under ASan + UBSan with `-Werror` and `_GLIBCXX_ASSERTIONS`, and the flags live in the build.** Because the internet-facing path is now C++, this gate is mandatory, not best-effort. `cpp/CMakePresets.json` owns the flags, `ctest` owns pass/fail per example, `clang-tidy` owns the defect classes a runtime sanitizer cannot see, and `tools/cpp/gate.ts` only reports what those tools said. A gate that re-declared its own compiler flags in a script would test a configuration nobody ships — that is why this is not a shell script.
 6. **`atlas migrate validate` and `migrate lint` run in CI.** Without them `atlas.sum` is a file nobody
    checks and the "no hand edits" claim is decoration.
 
@@ -79,7 +78,7 @@ maximises memory safety per process.
 
 | Claim | How it will be proven | State |
 |---|---|---|
-| C++ path is memory-safe enough to be exposed | `tools/check-cpp-safety.sh` + its falsification (planted use-after-free and signed overflow must fail) | gate exists; no api code yet |
+| C++ path is memory-safe enough to be exposed | `bun run check:cpp` — CMake presets + ctest + clang-tidy, falsified per layer (use-after-free, signed overflow, stack overflow, warning-as-error, static-analysis-only) | gate exists and is falsified 7/7; no api code yet |
 | Autoescape on | test that a `<script>` in a user field renders escaped | not built |
 | No sync DB in handlers | grep gate over `api/` sources for `execSqlSync` | not built |
 | Content and runtime agree | gate calls the domain core validator; api calls the same | not built |
