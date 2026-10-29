@@ -23,7 +23,7 @@ A competitive-programming learning platform: one shared task bank, two student-c
 
 | Area | State | Where |
 |---|---|---|
-| Content model | **shipped** — 33 topics, 11 areas, 28 modules, 2 tracks, 8 stages, TH+EN labels | `content/` |
+| Content model | **shipped** — 33 tags, 2 routes, 8 stages of tags with difficulty bands, TH+EN labels | `content/` |
 | Content gate | **shipped** — schema and reference integrity, 11/11 falsification cases | `tools/validate-content.ts` |
 | Seed tasks | **2 drafts**, bilingual, references reproduce their own examples | `content/tasks/` |
 | Design tokens and previews | **shipped** — `judge mono`, 12-direction gallery, live TH/EN switch | `web/tokens.css`, `design/` |
@@ -71,14 +71,14 @@ references/ testlib checkers and reference solutions, built and run by check:cpp
 cmake/      compiler options and sanitizer configuration, declared once
 cmsctl/     Rust crate — the administrative client
 web/        templates, tokens.css, fonts, static assets
-content/    the bank: topics, modules, tracks, tasks — data, not code
+content/    the bank: tags, routes, stages, tasks — data, not code
 deploy/     schema/, compose, Caddyfile, CrowdSec, backup, runbook
 tools/      the gates and their falsification harnesses
 design/     static previews: chosen direction, twelve-row gallery
 docs/       plan, decisions, dependencies, schema, content model, infra
 ```
 
-`content/` is the single source of truth. No module title, topic tag, track order or time limit is
+`content/` is the single source of truth. No tag label, stage order or time limit is
 hardcoded in a service.
 
 ## Getting started
@@ -113,7 +113,7 @@ Static previews open in a browser with no server:
 
 | Gate | Proves |
 |---|---|
-| `bun run validate` | every reference resolves; no prerequisite cycle; no published task without machine evidence; every task is reachable by a track stage |
+| `bun run validate` | every reference resolves; no tag twice in a stage; every tag placed by a stage; no published task without machine evidence; every task reachable by a stage |
 | `bun run validate:falsify` | the gate exits non-zero on 11 real defects, including an empty bank |
 | `bun run check:references` | every reference compiles under `-Werror` and reproduces its own examples |
 | `bun run check:deploy` | only the proxy is public, the judge has no egress, every image is pinned, and the Caddyfile and Prometheus config are valid for the exact versions in compose |
@@ -127,8 +127,8 @@ harness works on a throwaway copy and never mutates the working tree.
 
 ## Authoring content
 
-**Add a module** — append to `content/modules.json` with an `area`, at least one `topics` id, and
-`prereqs` that already exist. Then place it in a track stage; a module no stage places fails the gate.
+**Add a tag** — append it to `content/topics.json`, then name it in a stage of a route. A tag no stage
+names fails the gate, and so does the same tag twice inside one stage.
 
 **Add a task** — create `content/tasks/<slug>/` with `task.json`, one statement per locale,
 `solutions/main.cpp` and `examples/N.in`/`N.out`. A task stays `draft` until verification records all

@@ -64,15 +64,15 @@ reset_bank
 edit_json "$work/content/tasks/grid-shortest-path/task.json" 'task["topics"].append("graph-theory")'
 expect "task tagged outside the vocabulary" 1
 
-# 4. a prerequisite pointing at a module that was renamed away
+# 4. a stage pointing at a tag the vocabulary does not define
 reset_bank
-edit_json "$work/content/modules.json" 'doc["modules"][6]["prereqs"].append("m-renamed-away")'
-expect "prerequisite that does not exist" 1
+edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][0]["tags"].append("tag-that-does-not-exist")'
+expect "stage names a tag outside the vocabulary" 1
 
-# 5. a prerequisite cycle: no order a student could follow
+# 5. the same tag twice in one stage: a band that claims one skill twice
 reset_bank
-edit_json "$work/content/modules.json" 'doc["modules"][0]["prereqs"] = ["m-complexity"]'
-expect "prerequisite cycle" 1
+edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][0]["tags"].append(doc["tracks"][0]["stages"][0]["tags"][0])'
+expect "tag repeated inside one stage" 1
 
 # 6. a locale the task claims but does not ship
 reset_bank
@@ -84,15 +84,25 @@ reset_bank
 rm -rf "$work/content/tasks"
 expect "empty task bank" 1
 
-# 8. a stage naming a module that does not exist
+# 8. a stage that lists no tag at all
 reset_bank
-edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][0]["modules"].append("m-does-not-exist")'
-expect "stage names a missing module" 1
+edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][0]["tags"] = []'
+expect "stage lists no tag" 1
 
-# 9. a module no track places
+# 9. a tag no stage places: a skill nobody can be routed to
 reset_bank
-edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][0]["modules"].remove("m-simulation"); doc["tracks"][1]["stages"][0]["modules"].remove("m-simulation")'
-expect "module placed by no track" 1
+edit_json "$work/content/tracks.json" '[[stage["tags"].remove("simulation") for stage in track["stages"] if "simulation" in stage["tags"]] for track in doc["tracks"]]'
+expect "tag placed by no stage" 1
+
+# 12. a tag placed by one route but not the other: a skill one view silently cannot show
+reset_bank
+edit_json "$work/content/tracks.json" '[[stage["tags"].remove("simulation") for stage in track["stages"] if "simulation" in stage["tags"]] for track in doc["tracks"] if track["id"] == "t-usaco"]'
+expect "tag missing from one route" 1
+
+# 13. a label with no language at all: a name nobody can read
+reset_bank
+edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][0]["title"] = {}'
+expect "label with no language" 1
 
 # 10. a stage whose difficulty band is inverted
 reset_bank

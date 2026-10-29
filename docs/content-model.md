@@ -1,7 +1,7 @@
 # Content model
 
-One task bank, one module set, many tracks. Everything the site renders comes from here; nothing
-about a module, a tag, a track or a limit lives in application code.
+One task bank, one tag vocabulary, two routes over it. Everything the site renders comes from here;
+nothing about a tag, a route, a stage or a limit lives in application code.
 
 ## Why this shape
 
@@ -9,34 +9,42 @@ The operator's serving rule is: *serve tasks this account has not seen; if the b
 in that field, generate more with AI.* And the path is chosen by the student: a **USACO ladder** or
 an **IOI path**.
 
-Three requirements fall out, and they pull in different directions:
+Three requirements fall out:
 
-- **"what do I learn next"** needs a sequence, prerequisites, a path a beginner can walk.
-- **"has this account seen it"** needs orthogonal dimensions — a topic and a difficulty — that are
-  not the path itself: a student stuck on `dp` needs more `dp` at their level, not the next module
-  in the tree.
-- **two paths over one corpus** needs the path to be a *view*, not a copy. If a module or task
-  belonged to a track, the same task would exist twice, once per track, and drift.
+- **"what do I learn next"** needs a sequence: a route, stages inside it, and a difficulty band per stage.
+- **"has this account seen it"** needs dimensions that are not the route: a student stuck on `dp` needs
+  more `dp` at their level, not the next item in the tree.
+- **one corpus, two routes** needs the route to be a *view*. If a task belonged to a route it would
+  exist twice, once per route, and the copies would drift.
 
-So: `modules` are shared and carry no level; `tracks` order them and declare a difficulty band per
-stage; `tasks` are tagged with topics and a difficulty, never with a track. A student picks a track;
-the track decides what "next" means; the tags decide what can be served.
+A tag is the one unit that serves all three: it is what a problem is labelled with, what a student
+picks when they know what they want, and what the generator is asked to write for. A route is then
+only an ordered set of stages, each naming tags and a band.
+
+The two routes are not a property of a student. They are two views of the same bank: the student opens
+whichever tab they want, both tabs place every tag, and only the order differs. Nothing about a student
+records which route they are on, because there is nothing to record.
+
+There are no modules. A module was a second name for a set of tags, and two names for one thing drift
+apart: the module called "Fenwick trees" and the tag called "Fenwick trees" could disagree about what
+they meant, and 17 of the 28 modules already covered two tags each.
 
 ## Files
 
 | File | Holds | Invariant |
 |---|---|---|
-| `content/topics.json` | the controlled topic vocabulary (id + EN/TH labels) | every `topics` value anywhere is a key of this file |
-| `content/modules.json` | areas (for browsing) + modules (`topics`, `prereqs`) | ids unique, prereqs exist, prereq graph acyclic, every module placed by some track |
-| `content/tracks.json` | tracks → stages, each with `modules` and a `difficulty` band | stage module lists resolve, no module twice in one track, bands not inverted, every stage reachable |
+| `content/topics.json` | the tag vocabulary (id + EN/TH labels) | every tag used anywhere is defined here, and every tag is placed by some stage |
+| `content/tracks.json` | routes → stages, each naming `tags` and a `difficulty` band | stage tags resolve, no tag twice inside one stage, bands not inverted, every tag placed |
 | `content/tasks/<slug>/task.json` | one task: metadata, limits, checker, verification, origin | `published` implies verification passed and test data present; the task is reachable by some stage |
 | `content/tasks/<slug>/statement.<lang>.md` | the statement, one file per locale | a task ships a statement for every locale it claims |
 | `content/tasks/<slug>/solutions/` | reference solution(s) used by the verifier | referenced by `verification.reference_solution` |
 
-"Reachable" is checked, not assumed: a task is servable only if some stage's difficulty band
-contains its difficulty **and** that stage's modules carry one of its topics. An unreachable task is
-a defect the gate reports, because a task nobody can be routed to is work that silently does not
-exist.
+A tag may appear in more than one stage of a route: a skill is met again at a harder band, and that
+is teaching, not duplication. What the gate refuses is the same tag twice inside one stage.
+
+"Reachable" is checked, not assumed: a task is servable only if some stage's difficulty band contains
+its difficulty **and** that stage names one of its tags. An unreachable task is a defect the gate
+reports, because a task nobody can be routed to is work that silently does not exist.
 
 ## Task lifecycle
 
@@ -94,7 +102,7 @@ task is unseen for one account and solved by another, and a flag on the task wou
 
 ## What is deliberately absent
 
-- No per-page content: a module page, a task page and a review page all render from the same schema
+- No per-page content: a route page, a task page and a review page all render from the same schema
   through shared components.
 - No second difficulty vocabulary: one integer scale (`800..3500`, step 100), not a level enum plus
   a difficulty enum that can disagree.
