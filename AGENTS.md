@@ -64,10 +64,27 @@ and no examples fails the gate.
 
 - Invent endpoints, commands or screens. If it is not in the tree it does not exist — write "not
   built" instead of a plausible description.
-- Install a host package, add a host script, or introduce a host environment variable. Automation
-  ships as a container service or a CI job; the only permitted host interaction is a read-only mount.
+- Install a host package or introduce a host environment variable in **production**. Production is
+  containers only: every service, including schema apply, is an image pinned by digest, and a host
+  package is a deployment decision to raise rather than an implementation detail to add.
 - Commit a font, model or other vendored binary without its licence text beside it.
 - Delete or weaken a falsification case to reach green.
+
+## Where knowledge lives
+
+| What | Where | Published |
+|---|---|---|
+| What the system does, and the architecture it was chosen for | `docs/` | yes |
+| Why an option was compared, measured and rejected; session memos | `.agents/` | no, untracked |
+| A code trap a reader could trip by simplifying | one short line in that file | yes |
+
+The default is **no comment in code**. If the reason is architectural or behavioural it belongs in
+`docs/`; only a code-level trap — one whose absence causes a defect a reader cannot infer — earns a
+single short line above it, never a block, never a banner, never a narration of what the line does.
+
+Dev tooling is the one place a native install is allowed, and it must work on Arch, Debian, Fedora,
+macOS and Windows: prefer the container, discover `pacman`/`apt`/`dnf`/`brew`/`winget`/`scoop`, and
+fall back to the pinned release binary for the detected OS and architecture.
 
 ## Where things live
 
