@@ -16,6 +16,7 @@ This directory holds the mark, the variants it is drawn in, and the specificatio
 | `logo-white.svg` | dark and photographic | one colour (`#ffffff`) where the mark must sit on an image or a dark field |
 | `logo-tile.svg` | — | 512 app tile: plate with a 96 radius, the mark at 62.5% — inside the maskable safe zone |
 | `logo-apple.svg` | — | 180 Apple touch icon: square opaque plate, no radius, because the platform masks it |
+| `logo-maskable.svg` | — | maskable build: the mark at 57% so a circular crop cannot reach it |
 | `logo-brief.md` | — | the specification: what the product is, what the mark carries, why each element is where it is |
 
 ## Served files
@@ -25,33 +26,41 @@ above; nothing there is drawn by hand.
 
 | File | Size | Declared as |
 |---|---|---|
+| `../favicon.svg` | 64-unit | `<link rel="icon" type="image/svg+xml">` — prefers light or dark from the system |
 | `favicon.ico` | 16, 32, 48 | `/favicon.ico`, requested automatically |
 | `favicon-16.png` | 16×16 | `<link rel="icon" sizes="16x16">` |
 | `favicon-32.png` | 32×32 | `<link rel="icon" sizes="32x32">` |
 | `favicon-48.png` | 48×48 | `<link rel="icon" sizes="48x48">` |
 | `apple-touch-icon-180.png` | 180×180 | `<link rel="apple-touch-icon">` — opaque, no alpha |
 | `icon-192.png` | 192×192 | `manifest.json`, `purpose: "any maskable"` |
-| `icon-512.png` | 512×512 | `manifest.json`, `purpose: "any maskable"` |
+| `icon-512.png` | 512×512 | `manifest.json`, `purpose: "any"` |
+| `icon-maskable-512.png` | 512×512 | `manifest.json`, `purpose: "maskable"` — the mark sits inside the 409 px safe circle |
 | `logo-512.png` | 512×512 | documentation, README, social cards |
 | `logo-mono-512.png` | 512×512 | print and light-ground embeds |
 | `logo-white-512.png` | 512×512 | dark and photographic embeds |
 
 ```html
-<link rel="icon" href="/favicon.ico" sizes="48x48">
-<link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
-<link rel="icon" href="/icons/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="/manifest.webmanifest">
 ```
+
+`sizes="32x32"` on the `.ico` is not decoration: without it Chrome can pick the ICO over the SVG. The
+two PNG favicons stay for browsers that take neither, and are declared after the SVG.
 
 ```json
 {
   "icons": [
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }
 ```
+
+A maskable icon is a separate file, not a flag on the same one: the launcher crops it to its own shape,
+so the artwork must be smaller inside the canvas than the version used at 100%.
 
 ## Which format for which consumer
 
@@ -73,6 +82,16 @@ no raster is ever upscaled into a place that needs vector.
 A statement PDF is the case worth naming: the app renders the statement, so the mark should be placed
 as vector — the SVG embedded in the rendering path, or the `design/pdf/logo.pdf` placed into the
 document. A statement printed from a PNG at 512 px is the one place this set would look wrong.
+
+## Formats deliberately not shipped
+
+| Format | Why not |
+|---|---|
+| `mask-icon.svg` | Safari's pinned-tab mask, obsolete since Safari 12 (2018) — apple.com itself does not use it, and a normal favicon serves the pinned tab |
+| `browserconfig.xml` + `mstile-150x150.png` | Windows Start tiles for IE11 and old Edge; current Windows no longer reads them |
+| `apple-touch-icon-precomposed.png` | a pre-iOS-7 workaround; the plain `apple-touch-icon` is what every current device reads |
+| WebP, AVIF | content-image formats. No browser accepts them as a favicon, and iOS ignores them for a home-screen icon — using them here would be a silent downgrade |
+| `.icns` | a macOS application bundle asset, not a web one |
 
 ## Rules
 
