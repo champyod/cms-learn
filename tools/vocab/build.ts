@@ -87,21 +87,7 @@ const vocabulary = {
 };
 writeFileSync(join(contentDir, "vocab.json"), JSON.stringify(vocabulary, null, 2) + "\n", "utf8");
 
-const untranslated = nodes.filter((node) => node.th === null).map((node) => node.id);
-writeFileSync(
-  join(vocabDir, "review-untranslated.json"),
-  JSON.stringify(
-    {
-      version: 1,
-      note: "Nodes with no Thai name: no source supplied one and inventing one is not allowed.",
-      count: untranslated.length,
-      ids: untranslated,
-    },
-    null,
-    2,
-  ) + "\n",
-  "utf8",
-);
+const untranslated = nodes.filter((node) => node.th === null);
 
 const aliasCount = nodes.reduce((sum, node) => sum + node.aliases.length, 0);
 console.log(

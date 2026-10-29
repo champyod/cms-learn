@@ -193,12 +193,6 @@ for (const node of vocabulary.nodes) {
   }
 }
 
-const review = readJson<{ ids: string[] }>(join(vocabDir, "review-untranslated.json"));
-const expectedReview = vocabulary.nodes.filter((node) => node.th === null).map((node) => node.id).sort();
-if (JSON.stringify(review.ids) !== JSON.stringify(expectedReview)) {
-  fail("content/vocab/review-untranslated.json is out of date — run tools/vocab/build.ts");
-}
-
 // ── stored references still resolve ───────────────────────────────────────────────────────────
 let missingTopics = 0;
 for (const topic of topics) {
@@ -234,4 +228,5 @@ if (vocabulary.nodes.length === 0 || aliasCount === 0) {
   process.exit(1);
 }
 
-console.log(`vocab gate — OK · scanned: ${scanned}`);
+const untranslated = vocabulary.nodes.filter((node) => node.th === null).length;
+console.log(`vocab gate — OK · scanned: ${scanned} · untranslated ${untranslated}/${vocabulary.nodes.length}`);

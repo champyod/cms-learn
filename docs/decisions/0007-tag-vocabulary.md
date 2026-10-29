@@ -36,7 +36,7 @@ here, not a translation of someone else's.
    or module reference breaks and nothing has to be migrated.
 6. **Thai is never invented.** A node's Thai name is either the Thai wording of the POSN row that
    maps to it, or the Thai name the id already had, and `th_source` records which. A node with
-   neither gets `th: null` and is listed in `content/vocab/review-untranslated.json` (132 of 191
+   neither gets `th: null` (132 of 191 nodes today, counted by the gate)
    today) instead of shipping an English label as if it were Thai.
 7. **`tools/vocab/gate.ts` is the checker.** It fails when a raw statement is neither mapped nor
    dropped, when a statement maps to two nodes, when an alias repeats or means two nodes, when the
@@ -70,13 +70,13 @@ pseudo-tag.
 - A syllabus update means replacing one raw file and re-running the gate; the gate names every
   statement that lost its mapping.
 - 132 nodes are English-only today. That number is visible in the gate output, and each id is in
-  `review-untranslated.json` so it can only go down deliberately.
+  the count in the gate output, so the number can only go down deliberately.
 
 ## Thai coverage (decided 2026-10-29)
 
 59 of 191 nodes carry a Thai name from the POSN syllabus or from the 33 original topics. The other
 132 have none, and none was invented. The operator chose to show the English name alone for those
 nodes rather than translate them ahead of use: a Thai label is added when a source supplies one, and
-the interface shows a single name rather than mixing languages mid-list. `review-untranslated.json`
-stays as the record of what is still English-only, and adding a Thai name there is a data change,
-not a code change.
+the interface shows a single name rather than mixing languages mid-list. There is no separate list of untranslated nodes: `th: null` in
+`content/vocab.json` is the record and the gate prints the count, so nothing has to be kept in step.
+Adding a Thai name is a data change in `mapping.json`, not a code change.
