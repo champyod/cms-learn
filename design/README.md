@@ -4,15 +4,65 @@ The visual system is not stored here. Colour, type, spacing and the Thai typogra
 `web/tokens.css`, which is the only token source; the decision and its consequences are in
 `docs/decisions/0002-theme-and-auth.md`.
 
-This directory holds the mark and the specification behind it.
+This directory holds the mark, the variants it is drawn in, and the specification behind them.
 
-| File | What it is |
-|---|---|
-| `logo.svg` | the mark, 64-unit grid, the master artwork |
-| `logo-16.svg` | the favicon build: one unit dropped, silhouette unchanged |
-| `logo-mono.svg` | one colour, for print, embossing and any single-tone surface |
-| `logo-tile.svg` | the app tile: the mark on a plate, for launchers and social previews |
-| `logo-brief.md` | the specification: what the product is, what the mark may carry, what it must survive, and why each element is where it is |
+## Masters
+
+| File | Ground it is drawn for | Use |
+|---|---|---|
+| `logo.svg` | dark | the master artwork, 64-unit grid, three tones |
+| `logo-16.svg` | dark | the favicon build: middle unit dropped, silhouette unchanged |
+| `logo-mono.svg` | light | one colour (`#0f110c`) for print, embossing, invoices, any single-tone surface |
+| `logo-white.svg` | dark and photographic | one colour (`#ffffff`) where the mark must sit on an image or a dark field |
+| `logo-tile.svg` | — | 512 app tile: plate with a 96 radius, the mark at 62.5% — inside the maskable safe zone |
+| `logo-apple.svg` | — | 180 Apple touch icon: square opaque plate, no radius, because the platform masks it |
+| `logo-brief.md` | — | the specification: what the product is, what the mark carries, why each element is where it is |
+
+## Served files
+
+`web/public/icons/` holds what the browser actually requests. Every file is rendered from a master
+above; nothing there is drawn by hand.
+
+| File | Size | Declared as |
+|---|---|---|
+| `favicon.ico` | 16, 32, 48 | `/favicon.ico`, requested automatically |
+| `favicon-16.png` | 16×16 | `<link rel="icon" sizes="16x16">` |
+| `favicon-32.png` | 32×32 | `<link rel="icon" sizes="32x32">` |
+| `favicon-48.png` | 48×48 | `<link rel="icon" sizes="48x48">` |
+| `apple-touch-icon-180.png` | 180×180 | `<link rel="apple-touch-icon">` — opaque, no alpha |
+| `icon-192.png` | 192×192 | `manifest.json`, `purpose: "any maskable"` |
+| `icon-512.png` | 512×512 | `manifest.json`, `purpose: "any maskable"` |
+| `logo-512.png` | 512×512 | documentation, README, social cards |
+| `logo-mono-512.png` | 512×512 | print and light-ground embeds |
+| `logo-white-512.png` | 512×512 | dark and photographic embeds |
+
+```html
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="/icons/favicon-16.png" sizes="16x16" type="image/png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">
+<link rel="manifest" href="/manifest.json">
+```
+
+```json
+{
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
+```
+
+## Rules
+
+- **A master changes, every raster is re-rendered.** No PNG is edited. The render is one command per
+  size, from the SVG that owns the shape.
+- **The Apple icon is opaque.** iOS composites it on a home screen; a transparent PNG becomes black on
+  some devices.
+- **The tile keeps the mark inside 80% of the canvas** so a maskable crop never clips it. At 62.5% it
+  is inside that bound at every corner.
+- **Two tones, never three.** A variant either carries the accent or does not; a half-accent variant is
+  a new ground, not a new file.
 
 The twelve theme directions and the reasoning behind choosing `judge mono` were rendered as static
 previews until 2026-10-29, when the previews were removed; the comparison is recorded in

@@ -3,9 +3,9 @@
   <rect x="0" y="0" width="512" height="512" rx="96" fill="#161a12"/>
   <g transform="translate(96,96) scale(5)">
     <path d="M50 28V16Q50 12 46 12H14Q10 12 10 16V48Q10 52 14 52H46Q50 52 50 48V40"
-          fill="none" stroke="#6d7759" stroke-width="7" stroke-linecap="butt"/>
-    <rect x="15" y="29" width="10" height="10" rx="1" fill="#97a381"/>
-    <rect x="30" y="29" width="10" height="10" rx="1" fill="#97a381"/>
+          fill="none" stroke="#97a381" stroke-width="7" stroke-linecap="butt"/>
+    <rect x="15" y="29" width="10" height="10" rx="1" fill="#e4ead6"/>
+    <rect x="30" y="29" width="10" height="10" rx="1" fill="#e4ead6"/>
     <rect x="45" y="29" width="10" height="10" rx="1" fill="#9ae600"/>
   </g>
 </svg>
