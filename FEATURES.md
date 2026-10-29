@@ -20,10 +20,10 @@ Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 | ID | Feature | State | Evidence |
 |---|---|---|---|
 | F-001 | Controlled topic vocabulary, TH+EN labels (33 topics) | ● | `content/topics.json` |
-| F-002 | Shared module set with areas and prerequisites (11 areas, 28 modules) | ● | `content/modules.json` |
-| F-003 | Two tracks — USACO ladder and IOI path — over one module set (8 stages, difficulty bands) | ● | `content/tracks.json` |
-| F-004 | Bilingual labels on every module, track and topic | ● | `content/modules.json`, `content/tracks.json` |
-| F-005 | Prerequisite graph validated: dangling refs fail, cycles fail | ● | `tools/validate-content.ts` (cases 4–5) |
+| F-002 | Routes are stages of tags with a difficulty band; there is no module layer | ● | `content/tracks.json` |
+| F-003 | Two routes as parallel views of one bank — USACO ladder and IOI path — 4 stages each, every tag placed in both, difficulty shown as a number | ● | `content/tracks.json` |
+| F-004 | Interface in Thai and English; a record made from the panel carries an optional second language, at least one language required, none privileged | ● | `content/schema/tracks.schema.json`, `content/tracks.json` |
+| F-005 | Stage lists validated: unknown tag fails, tag twice in one stage fails, unplaced tag fails | ● | `tools/validate-content.ts` (cases 4, 5, 9) |
 | F-006 | Task schema: topics, difficulty, limits, checker, origin, verification | ● | `content/schema/task.schema.json` |
 | F-007 | Reachability rule — a task no stage can serve fails the gate | ● | `tools/validate-content.ts` (case 11) |
 | F-008 | Publish gate — `published` refused without 3 verification methods and test data | ● | `tools/validate-content.ts` (case 2) |

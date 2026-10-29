@@ -1,0 +1,225 @@
+{
+  "source": "codeforces",
+  "name": "Codeforces problemset tag list",
+  "url": "https://codeforces.com/problemset",
+  "urls": [
+    "https://codeforces.com/problemset",
+    "https://codeforces.com/api/problemset.problems"
+  ],
+  "fetched": "2026-10-29",
+  "total": 38,
+  "grouping": "problemset filter panel (37 selectable tags) plus the *special pseudo-tag that only the API reports",
+  "cross_check": {
+    "panel_tags": 37,
+    "api_tags": 38,
+    "only_in_api": [
+      "*special"
+    ],
+    "only_in_panel": [],
+    "problems_scanned": 11481
+  },
+  "groups": [
+    {
+      "id": "topics",
+      "title": "Tag",
+      "count": 37
+    },
+    {
+      "id": "special",
+      "title": "*special",
+      "count": 1
+    }
+  ],
+  "statements": [
+    {
+      "id": "codeforces:*special",
+      "group": "special",
+      "text": "*special"
+    },
+    {
+      "id": "codeforces:2-sat",
+      "group": "topics",
+      "text": "2-sat"
+    },
+    {
+      "id": "codeforces:binary search",
+      "group": "topics",
+      "text": "binary search"
+    },
+    {
+      "id": "codeforces:bitmasks",
+      "group": "topics",
+      "text": "bitmasks"
+    },
+    {
+      "id": "codeforces:brute force",
+      "group": "topics",
+      "text": "brute force"
+    },
+    {
+      "id": "codeforces:chinese remainder theorem",
+      "group": "topics",
+      "text": "chinese remainder theorem"
+    },
+    {
+      "id": "codeforces:combinatorics",
+      "group": "topics",
+      "text": "combinatorics"
+    },
+    {
+      "id": "codeforces:communication",
+      "group": "topics",
+      "text": "communication"
+    },
+    {
+      "id": "codeforces:constructive algorithms",
+      "group": "topics",
+      "text": "constructive algorithms"
+    },
+    {
+      "id": "codeforces:data structures",
+      "group": "topics",
+      "text": "data structures"
+    },
+    {
+      "id": "codeforces:dfs and similar",
+      "group": "topics",
+      "text": "dfs and similar"
+    },
+    {
+      "id": "codeforces:divide and conquer",
+      "group": "topics",
+      "text": "divide and conquer"
+    },
+    {
+      "id": "codeforces:dp",
+      "group": "topics",
+      "text": "dp"
+    },
+    {
+      "id": "codeforces:dsu",
+      "group": "topics",
+      "text": "dsu"
+    },
+    {
+      "id": "codeforces:expression parsing",
+      "group": "topics",
+      "text": "expression parsing"
+    },
+    {
+      "id": "codeforces:fft",
+      "group": "topics",
+      "text": "fft"
+    },
+    {
+      "id": "codeforces:flows",
+      "group": "topics",
+      "text": "flows"
+    },
+    {
+      "id": "codeforces:games",
+      "group": "topics",
+      "text": "games"
+    },
+    {
+      "id": "codeforces:geometry",
+      "group": "topics",
+      "text": "geometry"
+    },
+    {
+      "id": "codeforces:graph matchings",
+      "group": "topics",
+      "text": "graph matchings"
+    },
+    {
+      "id": "codeforces:graphs",
+      "group": "topics",
+      "text": "graphs"
+    },
+    {
+      "id": "codeforces:greedy",
+      "group": "topics",
+      "text": "greedy"
+    },
+    {
+      "id": "codeforces:hashing",
+      "group": "topics",
+      "text": "hashing"
+    },
+    {
+      "id": "codeforces:implementation",
+      "group": "topics",
+      "text": "implementation"
+    },
+    {
+      "id": "codeforces:interactive",
+      "group": "topics",
+      "text": "interactive"
+    },
+    {
+      "id": "codeforces:math",
+      "group": "topics",
+      "text": "math"
+    },
+    {
+      "id": "codeforces:matrices",
+      "group": "topics",
+      "text": "matrices"
+    },
+    {
+      "id": "codeforces:meet-in-the-middle",
+      "group": "topics",
+      "text": "meet-in-the-middle"
+    },
+    {
+      "id": "codeforces:number theory",
+      "group": "topics",
+      "text": "number theory"
+    },
+    {
+      "id": "codeforces:probabilities",
+      "group": "topics",
+      "text": "probabilities"
+    },
+    {
+      "id": "codeforces:schedules",
+      "group": "topics",
+      "text": "schedules"
+    },
+    {
+      "id": "codeforces:shortest paths",
+      "group": "topics",
+      "text": "shortest paths"
+    },
+    {
+      "id": "codeforces:sortings",
+      "group": "topics",
+      "text": "sortings"
+    },
+    {
+      "id": "codeforces:string suffix structures",
+      "group": "topics",
+      "text": "string suffix structures"
+    },
+    {
+      "id": "codeforces:strings",
+      "group": "topics",
+      "text": "strings"
+    },
+    {
+      "id": "codeforces:ternary search",
+      "group": "topics",
+      "text": "ternary search"
+    },
+    {
+      "id": "codeforces:trees",
+      "group": "topics",
+      "text": "trees"
+    },
+    {
+      "id": "codeforces:two pointers",
+      "group": "topics",
+      "text": "two pointers"
+    }
+  ]
+}

@@ -1,8 +1,8 @@
 // Content gate.
 //
-// The bank is data, so the only thing that can go wrong silently is a broken reference: a module
+// The bank is data, so the only thing that can go wrong silently is a broken reference: a stage
 // whose prerequisite was renamed, a task tagged with a topic the vocabulary dropped, a stage that
-// names a module that no longer exists, a task marked published while its verification never ran.
+// names a tag that no longer exists, a task marked published while its verification never ran.
 // Each of those renders a page that looks correct and teaches something wrong, so this validates
 // structure strictly and prints what it scanned — an empty or partial bank must not pass as
 // coverage.
@@ -47,76 +47,13 @@ if (topicsFile) {
   }
 }
 
-// ── modules ────────────────────────────────────────────────────────────────────────────────────
-interface Module {
-  id: string;
-  area: string;
-  title: { en: string; th: string };
-  topics: string[];
-  prereqs: string[];
-}
-
-const modulesPath = join(contentDir, "modules.json");
-const modulesFile = readJson<{ version: number; areas: { id: string }[]; modules: Module[] }>(modulesPath);
-const moduleIds = new Set<string>();
-const moduleTopics = new Map<string, string[]>();
-const modulePrereqs = new Map<string, string[]>();
-let areaCount = 0;
-let moduleCount = 0;
-
-if (modulesFile) {
-  const validate = ajv.compile(readJson<object>(join(contentDir, "schema/modules.schema.json")) ?? {});
-  if (!validate(modulesFile)) schemaErrors(modulesPath, validate.errors);
-
-  const areaIds = new Set<string>();
-  for (const area of modulesFile.areas ?? []) {
-    if (areaIds.has(area.id)) violations.push(`modules: duplicate area id "${area.id}"`);
-    areaIds.add(area.id);
-    areaCount += 1;
-  }
-
-  for (const module of modulesFile.modules ?? []) {
-    moduleCount += 1;
-    if (moduleIds.has(module.id)) violations.push(`modules: duplicate id "${module.id}"`);
-    moduleIds.add(module.id);
-    moduleTopics.set(module.id, module.topics ?? []);
-    modulePrereqs.set(module.id, module.prereqs ?? []);
-
-    if (!areaIds.has(module.area)) violations.push(`module ${module.id}: area "${module.area}" does not exist`);
-    for (const topic of module.topics ?? []) {
-      if (!vocabulary.has(topic)) violations.push(`module ${module.id}: unknown topic "${topic}"`);
-    }
-  }
-
-  for (const [moduleId, prereqs] of modulePrereqs) {
-    for (const prereq of prereqs) {
-      if (!moduleIds.has(prereq)) violations.push(`module ${moduleId}: prerequisite "${prereq}" does not exist`);
-    }
-  }
-
-  // A prerequisite cycle is an order no student could ever follow.
-  const state = new Map<string, "visiting" | "done">();
-  const walk = (moduleId: string, path: string[]): void => {
-    const current = state.get(moduleId);
-    if (current === "done") return;
-    if (current === "visiting") {
-      violations.push(`modules: prerequisite cycle ${[...path, moduleId].join(" -> ")}`);
-      return;
-    }
-    state.set(moduleId, "visiting");
-    for (const prereq of modulePrereqs.get(moduleId) ?? []) walk(prereq, [...path, moduleId]);
-    state.set(moduleId, "done");
-  };
-  for (const moduleId of moduleIds) walk(moduleId, []);
-}
-
 // ── tracks ────────────────────────────────────────────────────────────────────────────────────
-interface Stage { id: string; title: { en: string; th: string }; modules: string[]; difficulty: { min: number; max: number } }
+interface Stage { id: string; title: { en: string; th: string }; tags: string[]; difficulty: { min: number; max: number } }
 interface Track { id: string; title: { en: string; th: string }; description: { en: string; th: string }; stages: Stage[] }
 
 const tracksPath = join(contentDir, "tracks.json");
 const tracksFile = readJson<{ version: number; tracks: Track[] }>(tracksPath);
-const trackedModules = new Set<string>();
+const trackedTags = new Set<string>();
 let trackCount = 0;
 let stageCount = 0;
 
@@ -132,7 +69,6 @@ if (tracksFile) {
     if (trackIds.has(track.id)) violations.push(`tracks: duplicate track id "${track.id}"`);
     trackIds.add(track.id);
 
-    const inThisTrack = new Set<string>();
     for (const stage of track.stages ?? []) {
       stageCount += 1;
       if (stageIds.has(stage.id)) violations.push(`tracks: duplicate stage id "${stage.id}"`);
@@ -141,18 +77,103 @@ if (tracksFile) {
       if (stage.difficulty.min > stage.difficulty.max) {
         violations.push(`stage ${stage.id}: difficulty band ${stage.difficulty.min}-${stage.difficulty.max} is inverted`);
       }
-      for (const moduleId of stage.modules ?? []) {
-        if (!moduleIds.has(moduleId)) violations.push(`stage ${stage.id}: module "${moduleId}" does not exist`);
-        if (inThisTrack.has(moduleId)) violations.push(`track ${track.id}: module "${moduleId}" appears twice`);
-        inThisTrack.add(moduleId);
-        trackedModules.add(moduleId);
+      // The same skill may be revisited at a harder band, so a tag repeats across a track's stages
+      // and must not repeat inside one stage.
+      const inThisStage = new Set<string>();
+      for (const tag of stage.tags ?? []) {
+        if (!vocabulary.has(tag)) violations.push(`stage ${stage.id}: tag "${tag}" does not exist`);
+        if (inThisStage.has(tag)) violations.push(`stage ${stage.id}: tag "${tag}" appears twice`);
+        inThisStage.add(tag);
+        trackedTags.add(tag);
       }
     }
   }
 
-  // A module no track places is content nobody can be routed to.
-  for (const moduleId of moduleIds) {
-    if (!trackedModules.has(moduleId)) violations.push(`module ${moduleId}: not placed by any track`);
+  // Both routes are views of the same bank, so each one must place every tag: a tag missing from a
+  // route is a skill that route silently cannot show.
+  for (const track of tracksFile.tracks ?? []) {
+    const placed = new Set<string>((track.stages ?? []).flatMap((stage) => stage.tags ?? []));
+    for (const tag of vocabulary) {
+      if (!placed.has(tag)) violations.push(`track ${track.id}: tag "${tag}" is placed by no stage`);
+    }
+  }
+}
+
+// ── tag prerequisites ────────────────────────────────────────────────────────────────────────
+// The graph view draws these edges, so a wrong one teaches a student to learn a topic before the
+// thing it rests on. The failure that hides is structural — a prerequisite id that no longer
+// exists, a tag dropped from the vocabulary, an edge that loops back on itself, or a chain that
+// closes into a cycle and leaves no honest place to start — so the graph is checked as a graph.
+interface PrereqEdge { tag: string; prereqs: string[]; origin: string; evidence: string }
+const prereqsPath = join(contentDir, "prereqs.json");
+const prereqsFile = readJson<{ version: number; edges: PrereqEdge[] }>(prereqsPath);
+const allowedOrigins = new Set(["usaco-guide", "authored"]);
+let prereqUsacoEdges = 0;
+let prereqAuthoredEdges = 0;
+let prereqTagsWithEdges = 0;
+let prereqTagCount = 0;
+
+if (prereqsFile) {
+  const graph = new Map<string, string[]>();
+  for (const edge of prereqsFile.edges ?? []) {
+    if (typeof edge?.tag !== "string") {
+      violations.push(`content/prereqs.json: entry without a tag key`);
+      continue;
+    }
+    const tag = edge.tag;
+    prereqTagCount += 1;
+    if (graph.has(tag)) violations.push(`prereqs: tag "${tag}" appears more than once`);
+    graph.set(tag, edge.prereqs ?? []);
+    if (!vocabulary.has(tag)) violations.push(`prereqs: tag "${tag}" does not exist in the vocabulary`);
+    if (!allowedOrigins.has(edge.origin)) {
+      violations.push(`prereqs ${tag}: origin "${edge.origin}" is neither usaco-guide nor authored`);
+    }
+    // An edge we attribute to USACO Guide must say which module declared it, or the next reader
+    // has to take our word for a claim that came from someone else.
+    if (edge.origin === "usaco-guide" && (edge.evidence ?? "").trim().length === 0) {
+      violations.push(`prereqs ${tag}: usaco-guide edge with no evidence`);
+    }
+    if ((edge.prereqs ?? []).length > 0) prereqTagsWithEdges += 1;
+    if (edge.origin === "usaco-guide") prereqUsacoEdges += (edge.prereqs ?? []).length;
+    if (edge.origin === "authored") prereqAuthoredEdges += (edge.prereqs ?? []).length;
+
+    const inThisTag = new Set<string>();
+    for (const prereq of edge.prereqs ?? []) {
+      if (!vocabulary.has(prereq)) violations.push(`prereqs ${tag}: prerequisite "${prereq}" does not exist`);
+      if (prereq === tag) violations.push(`prereqs ${tag}: lists itself as a prerequisite`);
+      if (inThisTag.has(prereq)) violations.push(`prereqs ${tag}: prerequisite "${prereq}" appears twice`);
+      inThisTag.add(prereq);
+    }
+  }
+
+  // Every tag carries an entry even when it is a root: a tag missing from the file is a tag the
+  // graph cannot draw at all, which looks the same as a topic nobody has to prepare for.
+  for (const tag of vocabulary) {
+    if (!graph.has(tag)) violations.push(`prereqs: tag "${tag}" has no entry`);
+  }
+
+  const reported = new Set<string>();
+  const state = new Map<string, "visiting" | "done">();
+  const walk = (tag: string, trail: string[]): void => {
+    state.set(tag, "visiting");
+    for (const prereq of graph.get(tag) ?? []) {
+      if (!graph.has(prereq)) continue;
+      if (state.get(prereq) === "visiting") {
+        const cycle = [...trail.slice(trail.indexOf(prereq)), tag, prereq];
+        const signature = [...cycle].sort().join(",");
+        if (!reported.has(signature)) {
+          reported.add(signature);
+          violations.push(`prereqs: cycle ${cycle.join(" -> ")}`);
+        }
+        continue;
+      }
+      if (state.get(prereq) === "done") continue;
+      walk(prereq, [...trail, tag]);
+    }
+    state.set(tag, "done");
+  };
+  for (const tag of graph.keys()) {
+    if (!state.has(tag)) walk(tag, []);
   }
 }
 
@@ -178,7 +199,7 @@ const reachable = (task: Task): boolean => {
   for (const track of tracksFile?.tracks ?? []) {
     for (const stage of track.stages ?? []) {
       if (task.difficulty < stage.difficulty.min || task.difficulty > stage.difficulty.max) continue;
-      const stageTopics = new Set(stage.modules.flatMap((moduleId) => moduleTopics.get(moduleId) ?? []));
+      const stageTopics = new Set(stage.tags ?? []);
       if (task.topics.some((topic) => stageTopics.has(topic))) return true;
     }
   }
@@ -248,9 +269,11 @@ if (existsSync(tasksDir)) {
 
 // ── verdict ───────────────────────────────────────────────────────────────────────────────────
 const scanned =
-  `topics ${vocabulary.size} · areas ${areaCount} · modules ${moduleCount} · tracks ${trackCount} · ` +
+  `topics ${vocabulary.size} · tracks ${trackCount} · ` +
   `stages ${stageCount} · tasks ${taskCount} (draft ${taskCounts.draft}, verified ${taskCounts.verified}, ` +
-  `published ${taskCounts.published}, rejected ${taskCounts.rejected})`;
+  `published ${taskCounts.published}, rejected ${taskCounts.rejected}) · ` +
+  `prereqs ${prereqTagCount} tag(s), ${prereqTagsWithEdges} with edges ` +
+  `(${prereqUsacoEdges} usaco-guide, ${prereqAuthoredEdges} authored)`;
 
 if (violations.length > 0) {
   console.error(`content gate — ${violations.length} violation(s)`);
@@ -260,7 +283,7 @@ if (violations.length > 0) {
 }
 
 // An empty bank is a pass over nothing. The gate refuses that rather than reporting a green.
-if (taskCount === 0 || moduleCount === 0 || trackCount === 0) {
+if (taskCount === 0 || trackCount === 0) {
   console.error(`content gate — nothing to validate (scanned: ${scanned})`);
   process.exit(1);
 }

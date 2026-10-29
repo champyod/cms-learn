@@ -1,0 +1,945 @@
+{
+  "source": "usaco",
+  "name": "USACO Guide module titles",
+  "url": "https://usaco.guide/general",
+  "urls": [
+    "https://usaco.guide/general",
+    "https://usaco.guide/bronze",
+    "https://usaco.guide/silver",
+    "https://usaco.guide/gold",
+    "https://usaco.guide/plat",
+    "https://usaco.guide/adv"
+  ],
+  "fetched": "2026-10-29",
+  "total": 149,
+  "grouping": "the six divisions of the guide; titles read from each page's module index",
+  "extraction": "module titles and file paths from the page payload of each division page; division = the page the module is listed on",
+  "groups": [
+    {
+      "id": "general",
+      "title": "General",
+      "count": 29
+    },
+    {
+      "id": "bronze",
+      "title": "Bronze",
+      "count": 13
+    },
+    {
+      "id": "silver",
+      "title": "Silver",
+      "count": 14
+    },
+    {
+      "id": "gold",
+      "title": "Gold",
+      "count": 29
+    },
+    {
+      "id": "plat",
+      "title": "Platinum",
+      "count": 23
+    },
+    {
+      "id": "adv",
+      "title": "Advanced",
+      "count": 41
+    }
+  ],
+  "statements": [
+    {
+      "id": "usaco:general/adding-solution",
+      "group": "general",
+      "text": "Adding Solutions",
+      "path": "content/1_General/Adding_Solution.mdx"
+    },
+    {
+      "id": "usaco:general/basic-debugging",
+      "group": "general",
+      "text": "Basic Debugging",
+      "path": "content/1_General/Basic_Debugging.mdx"
+    },
+    {
+      "id": "usaco:general/choosing-lang",
+      "group": "general",
+      "text": "Choosing a Language",
+      "path": "content/1_General/Choosing_Lang.mdx"
+    },
+    {
+      "id": "usaco:general/contest-strategy",
+      "group": "general",
+      "text": "Contest Strategy",
+      "path": "content/1_General/Contest_Strategy.mdx"
+    },
+    {
+      "id": "usaco:general/contests",
+      "group": "general",
+      "text": "Contests",
+      "path": "content/1_General/Contests.mdx"
+    },
+    {
+      "id": "usaco:general/contributing",
+      "group": "general",
+      "text": "Contributing",
+      "path": "content/1_General/Contributing.mdx"
+    },
+    {
+      "id": "usaco:general/cpp-command",
+      "group": "general",
+      "text": "C++ With the Command Line",
+      "path": "content/1_General/Cpp_Command.mdx"
+    },
+    {
+      "id": "usaco:general/data-types",
+      "group": "general",
+      "text": "Data Types",
+      "path": "content/1_General/Data_Types.mdx"
+    },
+    {
+      "id": "usaco:general/debugging-checklist",
+      "group": "general",
+      "text": "How to Debug",
+      "path": "content/1_General/Debugging_Checklist.mdx"
+    },
+    {
+      "id": "usaco:general/debugging-cpp",
+      "group": "general",
+      "text": "Debugging C++",
+      "path": "content/1_General/Debugging_Cpp.mdx"
+    },
+    {
+      "id": "usaco:general/expected-knowledge",
+      "group": "general",
+      "text": "Expected Knowledge",
+      "path": "content/1_General/Expected_Knowledge.mdx"
+    },
+    {
+      "id": "usaco:general/fast-io",
+      "group": "general",
+      "text": "Fast Input & Output",
+      "path": "content/1_General/Fast_IO.mdx"
+    },
+    {
+      "id": "usaco:general/generic-code",
+      "group": "general",
+      "text": "(Optional) C++ - Writing Generic Code",
+      "path": "content/1_General/Generic_Code.mdx"
+    },
+    {
+      "id": "usaco:general/input-output",
+      "group": "general",
+      "text": "Input & Output",
+      "path": "content/1_General/Input_Output.mdx"
+    },
+    {
+      "id": "usaco:general/intro-cp",
+      "group": "general",
+      "text": "Introduction to Competitive Programming",
+      "path": "content/1_General/Intro_CP.mdx"
+    },
+    {
+      "id": "usaco:general/lambda-funcs",
+      "group": "general",
+      "text": "(Optional) C++ - Lambda Expressions",
+      "path": "content/1_General/Lambda_Funcs.mdx"
+    },
+    {
+      "id": "usaco:general/resources-learning-to-code",
+      "group": "general",
+      "text": "Resources: Learning to Code",
+      "path": "content/1_General/Learning_to_Code.mdx"
+    },
+    {
+      "id": "usaco:general/modules",
+      "group": "general",
+      "text": "Introducing Modules",
+      "path": "content/1_General/Modules.mdx"
+    },
+    {
+      "id": "usaco:general/olympiads",
+      "group": "general",
+      "text": "Olympiads",
+      "path": "content/1_General/Olympiads.mdx"
+    },
+    {
+      "id": "usaco:general/practicing",
+      "group": "general",
+      "text": "How to Practice",
+      "path": "content/1_General/Practicing.mdx"
+    },
+    {
+      "id": "usaco:general/resources-cp",
+      "group": "general",
+      "text": "Resources: Competitive Programming",
+      "path": "content/1_General/Resources_CP.mdx"
+    },
+    {
+      "id": "usaco:general/resources-usa",
+      "group": "general",
+      "text": "Resources: USA-Specific",
+      "path": "content/1_General/Resources_USA-specific.mdx"
+    },
+    {
+      "id": "usaco:general/running-code-locally",
+      "group": "general",
+      "text": "Running Code Locally",
+      "path": "content/1_General/Running_Code_Locally.mdx"
+    },
+    {
+      "id": "usaco:general/running-code-online",
+      "group": "general",
+      "text": "Running Code Online",
+      "path": "content/1_General/Running_Code_Online.mdx"
+    },
+    {
+      "id": "usaco:general/usaco-camp",
+      "group": "general",
+      "text": "USACO Camp",
+      "path": "content/1_General/USACO_Camp.mdx"
+    },
+    {
+      "id": "usaco:general/usaco-faq",
+      "group": "general",
+      "text": "USACO FAQs",
+      "path": "content/1_General/USACO_FAQs.mdx"
+    },
+    {
+      "id": "usaco:general/usaco-monthlies",
+      "group": "general",
+      "text": "USACO Monthlies",
+      "path": "content/1_General/USACO_Monthlies.mdx"
+    },
+    {
+      "id": "usaco:general/using-this-guide",
+      "group": "general",
+      "text": "Using This Guide",
+      "path": "content/1_General/Using_This_Guide.mdx"
+    },
+    {
+      "id": "usaco:general/working-mdx",
+      "group": "general",
+      "text": "Working With MDX",
+      "path": "content/1_General/Working_MDX.mdx"
+    },
+    {
+      "id": "usaco:bronze/ad-hoc",
+      "group": "bronze",
+      "text": "Ad Hoc Problems",
+      "path": "content/2_Bronze/Ad_Hoc.mdx"
+    },
+    {
+      "id": "usaco:bronze/casework",
+      "group": "bronze",
+      "text": "Casework",
+      "path": "content/2_Bronze/Casework.mdx"
+    },
+    {
+      "id": "usaco:bronze/complete-rec",
+      "group": "bronze",
+      "text": "Complete Search with Recursion",
+      "path": "content/2_Bronze/Complete_Rec.mdx"
+    },
+    {
+      "id": "usaco:bronze/bronze-conclusion",
+      "group": "bronze",
+      "text": "Additional Practice for USACO Bronze",
+      "path": "content/2_Bronze/Conclusion.mdx"
+    },
+    {
+      "id": "usaco:bronze/intro-complete",
+      "group": "bronze",
+      "text": "Basic Complete Search",
+      "path": "content/2_Bronze/Intro_Complete.mdx"
+    },
+    {
+      "id": "usaco:bronze/intro-ds",
+      "group": "bronze",
+      "text": "Introduction to Data Structures",
+      "path": "content/2_Bronze/Intro_DS.mdx"
+    },
+    {
+      "id": "usaco:bronze/intro-graphs",
+      "group": "bronze",
+      "text": "Introduction to Graphs",
+      "path": "content/2_Bronze/Intro_Graphs.mdx"
+    },
+    {
+      "id": "usaco:bronze/intro-greedy",
+      "group": "bronze",
+      "text": "Introduction to Greedy Algorithms",
+      "path": "content/2_Bronze/Intro_Greedy.mdx"
+    },
+    {
+      "id": "usaco:bronze/intro-sets",
+      "group": "bronze",
+      "text": "Introduction to Sets & Maps",
+      "path": "content/2_Bronze/Intro_Sets.mdx"
+    },
+    {
+      "id": "usaco:bronze/intro-sorting",
+      "group": "bronze",
+      "text": "Introduction to Sorting",
+      "path": "content/2_Bronze/Intro_Sorting.mdx"
+    },
+    {
+      "id": "usaco:bronze/rect-geo",
+      "group": "bronze",
+      "text": "Rectangle Geometry",
+      "path": "content/2_Bronze/Rect_Geo.mdx"
+    },
+    {
+      "id": "usaco:bronze/simulation",
+      "group": "bronze",
+      "text": "Simulation",
+      "path": "content/2_Bronze/Simulation.mdx"
+    },
+    {
+      "id": "usaco:bronze/time-comp",
+      "group": "bronze",
+      "text": "Time Complexity",
+      "path": "content/2_Bronze/Time_Comp.mdx"
+    },
+    {
+      "id": "usaco:silver/binary-search",
+      "group": "silver",
+      "text": "Binary Search",
+      "path": "content/3_Silver/Binary_Search.mdx"
+    },
+    {
+      "id": "usaco:silver/binary-search-sorted-array",
+      "group": "silver",
+      "text": "Binary Search on a Sorted Array",
+      "path": "content/3_Silver/Binary_Search_Sorted_Array.mdx"
+    },
+    {
+      "id": "usaco:silver/silver-conclusion",
+      "group": "silver",
+      "text": "Additional Practice for USACO Silver",
+      "path": "content/3_Silver/Conclusion.mdx"
+    },
+    {
+      "id": "usaco:silver/flood-fill",
+      "group": "silver",
+      "text": "Flood Fill",
+      "path": "content/3_Silver/Flood_Fill.mdx"
+    },
+    {
+      "id": "usaco:silver/func-graphs",
+      "group": "silver",
+      "text": "Introduction to Functional Graphs",
+      "path": "content/3_Silver/Func_Graphs.mdx"
+    },
+    {
+      "id": "usaco:silver/graph-traversal",
+      "group": "silver",
+      "text": "Graph Traversal",
+      "path": "content/3_Silver/Graph_Traversal.mdx"
+    },
+    {
+      "id": "usaco:silver/greedy-sorting",
+      "group": "silver",
+      "text": "Greedy Algorithms with Sorting",
+      "path": "content/3_Silver/Greedy_Sorting.mdx"
+    },
+    {
+      "id": "usaco:silver/intro-bitwise",
+      "group": "silver",
+      "text": "Intro to Bitwise Operators",
+      "path": "content/3_Silver/Intro_Bitwise.mdx"
+    },
+    {
+      "id": "usaco:silver/intro-tree",
+      "group": "silver",
+      "text": "Introduction to Tree Algorithms",
+      "path": "content/3_Silver/Intro_Tree.mdx"
+    },
+    {
+      "id": "usaco:silver/more-prefix-sums",
+      "group": "silver",
+      "text": "More on Prefix Sums",
+      "path": "content/3_Silver/More_Prefix_Sums.mdx"
+    },
+    {
+      "id": "usaco:silver/prefix-sums",
+      "group": "silver",
+      "text": "Introduction to Prefix Sums",
+      "path": "content/3_Silver/Prefix_Sums.mdx"
+    },
+    {
+      "id": "usaco:silver/priority-queues",
+      "group": "silver",
+      "text": "Priority Queues",
+      "path": "content/3_Silver/Priority_Queues.mdx"
+    },
+    {
+      "id": "usaco:silver/sorting-custom",
+      "group": "silver",
+      "text": "Custom Comparators and Coordinate Compression",
+      "path": "content/3_Silver/Sorting_Custom.mdx"
+    },
+    {
+      "id": "usaco:silver/two-pointers",
+      "group": "silver",
+      "text": "Two Pointers",
+      "path": "content/3_Silver/Two_Pointers.mdx"
+    },
+    {
+      "id": "usaco:gold/all-roots",
+      "group": "gold",
+      "text": "DP on Trees - Solving For All Roots",
+      "path": "content/4_Gold/All_Roots.mdx"
+    },
+    {
+      "id": "usaco:gold/combo",
+      "group": "gold",
+      "text": "Combinatorics",
+      "path": "content/4_Gold/Combinatorics.mdx"
+    },
+    {
+      "id": "usaco:gold/gold-conclusion",
+      "group": "gold",
+      "text": "Additional Practice for USACO Gold",
+      "path": "content/4_Gold/Conclusion.mdx"
+    },
+    {
+      "id": "usaco:gold/custom-cpp-stl",
+      "group": "gold",
+      "text": "(Optional) Sorted Sets with Custom Comparators",
+      "path": "content/4_Gold/Custom_Cpp_STL.mdx"
+    },
+    {
+      "id": "usaco:gold/dp-bitmasks",
+      "group": "gold",
+      "text": "Bitmask DP",
+      "path": "content/4_Gold/DP_Bitmasks.mdx"
+    },
+    {
+      "id": "usaco:gold/dp-ranges",
+      "group": "gold",
+      "text": "Range DP",
+      "path": "content/4_Gold/DP_Ranges.mdx"
+    },
+    {
+      "id": "usaco:gold/dp-trees",
+      "group": "gold",
+      "text": "DP on Trees - Introduction",
+      "path": "content/4_Gold/DP_Trees.mdx"
+    },
+    {
+      "id": "usaco:gold/dsu",
+      "group": "gold",
+      "text": "Disjoint Set Union",
+      "path": "content/4_Gold/DSU.mdx"
+    },
+    {
+      "id": "usaco:gold/digit-dp",
+      "group": "gold",
+      "text": "Digit DP",
+      "path": "content/4_Gold/Digit_DP.mdx"
+    },
+    {
+      "id": "usaco:gold/divisibility",
+      "group": "gold",
+      "text": "Divisibility",
+      "path": "content/4_Gold/Divisibility.mdx"
+    },
+    {
+      "id": "usaco:gold/hashing",
+      "group": "gold",
+      "text": "Hashing",
+      "path": "content/4_Gold/Hashing.mdx"
+    },
+    {
+      "id": "usaco:gold/hashmaps",
+      "group": "gold",
+      "text": "(Optional) Hashmaps",
+      "path": "content/4_Gold/Hashmaps.mdx"
+    },
+    {
+      "id": "usaco:gold/intro-dp",
+      "group": "gold",
+      "text": "Introduction to DP",
+      "path": "content/4_Gold/Intro_DP.mdx"
+    },
+    {
+      "id": "usaco:gold/intro-sorted-sets",
+      "group": "gold",
+      "text": "More Operations on Sorted Sets",
+      "path": "content/4_Gold/Intro_Sorted_Sets.mdx"
+    },
+    {
+      "id": "usaco:gold/knapsack",
+      "group": "gold",
+      "text": "Knapsack DP",
+      "path": "content/4_Gold/Knapsack_DP.mdx"
+    },
+    {
+      "id": "usaco:gold/lca-euler",
+      "group": "gold",
+      "text": "(Optional) LCA with Euler Tour",
+      "path": "content/4_Gold/LCA_Euler.mdx"
+    },
+    {
+      "id": "usaco:gold/lis",
+      "group": "gold",
+      "text": "Longest Increasing Subsequence",
+      "path": "content/4_Gold/LIS.mdx"
+    },
+    {
+      "id": "usaco:gold/mst",
+      "group": "gold",
+      "text": "Minimum Spanning Trees",
+      "path": "content/4_Gold/MST.mdx"
+    },
+    {
+      "id": "usaco:gold/meet-in-the-middle",
+      "group": "gold",
+      "text": "(Optional) Meet In The Middle",
+      "path": "content/4_Gold/Meet_In_The_Middle.mdx"
+    },
+    {
+      "id": "usaco:gold/modular",
+      "group": "gold",
+      "text": "Modular Arithmetic",
+      "path": "content/4_Gold/Modular.mdx"
+    },
+    {
+      "id": "usaco:gold/PURS",
+      "group": "gold",
+      "text": "Point Update Range Sum",
+      "path": "content/4_Gold/PURS.mdx"
+    },
+    {
+      "id": "usaco:gold/paths-grids",
+      "group": "gold",
+      "text": "Paths on Grids",
+      "path": "content/4_Gold/Paths_Grids.mdx"
+    },
+    {
+      "id": "usaco:gold/shortest-paths",
+      "group": "gold",
+      "text": "Shortest Paths with Non-Negative Edge Weights",
+      "path": "content/4_Gold/Shortest_Paths.mdx"
+    },
+    {
+      "id": "usaco:gold/sliding-window",
+      "group": "gold",
+      "text": "Sliding Window",
+      "path": "content/4_Gold/Sliding_Window.mdx"
+    },
+    {
+      "id": "usaco:gold/stacks",
+      "group": "gold",
+      "text": "Stacks",
+      "path": "content/4_Gold/Stacks.mdx"
+    },
+    {
+      "id": "usaco:gold/ternary-search",
+      "group": "gold",
+      "text": "Optimizing Unimodal Functions",
+      "path": "content/4_Gold/Ternary_Search.mdx"
+    },
+    {
+      "id": "usaco:gold/toposort",
+      "group": "gold",
+      "text": "Topological Sort",
+      "path": "content/4_Gold/TopoSort.mdx"
+    },
+    {
+      "id": "usaco:gold/tree-euler",
+      "group": "gold",
+      "text": "(Optional) Euler Tour Technique",
+      "path": "content/4_Gold/Tree_Euler.mdx"
+    },
+    {
+      "id": "usaco:gold/unweighted-shortest-paths",
+      "group": "gold",
+      "text": "Shortest Paths with Unweighted Edges",
+      "path": "content/4_Gold/Unweighted_Shortest_Paths.mdx"
+    },
+    {
+      "id": "usaco:plat/2DRQ",
+      "group": "plat",
+      "text": "2D Range Queries",
+      "path": "content/5_Plat/2DRQ.mdx"
+    },
+    {
+      "id": "usaco:plat/binary-jump",
+      "group": "plat",
+      "text": "Binary Jumping",
+      "path": "content/5_Plat/Binary_Jump.mdx"
+    },
+    {
+      "id": "usaco:plat/bitsets",
+      "group": "plat",
+      "text": "(Optional) Bitsets",
+      "path": "content/5_Plat/Bitsets.mdx"
+    },
+    {
+      "id": "usaco:plat/centroid",
+      "group": "plat",
+      "text": "Centroid Decomposition",
+      "path": "content/5_Plat/Centroid.mdx"
+    },
+    {
+      "id": "usaco:plat/plat-conclusion",
+      "group": "plat",
+      "text": "Additional Practice for USACO Platinum",
+      "path": "content/5_Plat/Conclusion.mdx"
+    },
+    {
+      "id": "usaco:plat/convex-hull",
+      "group": "plat",
+      "text": "Convex Hull",
+      "path": "content/5_Plat/Convex_Hull.mdx"
+    },
+    {
+      "id": "usaco:plat/convex-hull-trick",
+      "group": "plat",
+      "text": "Convex Hull Trick",
+      "path": "content/5_Plat/Convex_Hull_Trick.mdx"
+    },
+    {
+      "id": "usaco:plat/DC-DP",
+      "group": "plat",
+      "text": "Divide & Conquer - DP",
+      "path": "content/5_Plat/DC-DP.mdx"
+    },
+    {
+      "id": "usaco:plat/DC-SRQ",
+      "group": "plat",
+      "text": "Divide & Conquer - SRQ",
+      "path": "content/5_Plat/DC-SRQ.mdx"
+    },
+    {
+      "id": "usaco:plat/dp-sos",
+      "group": "plat",
+      "text": "Sum over Subsets DP",
+      "path": "content/5_Plat/DP_SOS.mdx"
+    },
+    {
+      "id": "usaco:plat/geo-pri",
+      "group": "plat",
+      "text": "Geometry Primitives",
+      "path": "content/5_Plat/Geo_Pri.mdx"
+    },
+    {
+      "id": "usaco:plat/hld",
+      "group": "plat",
+      "text": "Heavy-Light Decomposition",
+      "path": "content/5_Plat/HLD.mdx"
+    },
+    {
+      "id": "usaco:plat/matrix-expo",
+      "group": "plat",
+      "text": "Matrix Exponentiation",
+      "path": "content/5_Plat/Matrix_Expo.mdx"
+    },
+    {
+      "id": "usaco:plat/merging",
+      "group": "plat",
+      "text": "Small-To-Large Merging",
+      "path": "content/5_Plat/Merging.mdx"
+    },
+    {
+      "id": "usaco:plat/PIE",
+      "group": "plat",
+      "text": "Inclusion-Exclusion Principle",
+      "path": "content/5_Plat/PIE.mdx"
+    },
+    {
+      "id": "usaco:plat/RURQ",
+      "group": "plat",
+      "text": "Range Update Range Query",
+      "path": "content/5_Plat/RURQ.mdx"
+    },
+    {
+      "id": "usaco:plat/range-sweep",
+      "group": "plat",
+      "text": "Range Queries with Sweep Line",
+      "path": "content/5_Plat/Range_Sweep.mdx"
+    },
+    {
+      "id": "usaco:plat/segtree-ext",
+      "group": "plat",
+      "text": "More Applications of Segment Tree",
+      "path": "content/5_Plat/Segtree_Ext.mdx"
+    },
+    {
+      "id": "usaco:plat/sparse-segtree",
+      "group": "plat",
+      "text": "Sparse Segment Trees",
+      "path": "content/5_Plat/Sparse_Segtree.mdx"
+    },
+    {
+      "id": "usaco:plat/sqrt",
+      "group": "plat",
+      "text": "Square Root Decomposition",
+      "path": "content/5_Plat/Sqrt.mdx"
+    },
+    {
+      "id": "usaco:plat/sweep-line",
+      "group": "plat",
+      "text": "Sweep Line",
+      "path": "content/5_Plat/Sweep_Line.mdx"
+    },
+    {
+      "id": "usaco:plat/VT",
+      "group": "plat",
+      "text": "Virtual Tree",
+      "path": "content/5_Plat/VTree.mdx"
+    },
+    {
+      "id": "usaco:plat/kruskal-tree",
+      "group": "plat",
+      "text": "Kruskal Reconstruction Tree",
+      "path": "content/5_Plat/kruskal-tree.mdx"
+    },
+    {
+      "id": "usaco:adv/BCC-2CC",
+      "group": "adv",
+      "text": "BCCs and 2CCs",
+      "path": "content/6_Advanced/BCC_2CC.mdx"
+    },
+    {
+      "id": "usaco:adv/catalan",
+      "group": "adv",
+      "text": "Catalan Numbers",
+      "path": "content/6_Advanced/Catalan.mdx"
+    },
+    {
+      "id": "usaco:adv/comb-sub",
+      "group": "adv",
+      "text": "DP on Trees - Combining Subtrees",
+      "path": "content/6_Advanced/Comb_Sub.mdx"
+    },
+    {
+      "id": "usaco:adv/count-min",
+      "group": "adv",
+      "text": "Counting Minimums with Segment Tree",
+      "path": "content/6_Advanced/Count_Min.mdx"
+    },
+    {
+      "id": "usaco:adv/critical",
+      "group": "adv",
+      "text": "Critical",
+      "path": "content/6_Advanced/Critical.mdx"
+    },
+    {
+      "id": "usaco:adv/dp-broken-profile",
+      "group": "adv",
+      "text": "DP on Broken Profile",
+      "path": "content/6_Advanced/DP_Broken-Profile.mdx"
+    },
+    {
+      "id": "usaco:adv/dp-more",
+      "group": "adv",
+      "text": "Additional DP Optimizations and Techniques",
+      "path": "content/6_Advanced/DP_More.mdx"
+    },
+    {
+      "id": "usaco:adv/eulerian-tours",
+      "group": "adv",
+      "text": "Eulerian Tours",
+      "path": "content/6_Advanced/Eulerian_Tours.mdx"
+    },
+    {
+      "id": "usaco:adv/eulers-formula",
+      "group": "adv",
+      "text": "Euler's Formula",
+      "path": "content/6_Advanced/Eulers_Formula.mdx"
+    },
+    {
+      "id": "usaco:adv/extend-euclid",
+      "group": "adv",
+      "text": "Extended Euclidean Algorithm",
+      "path": "content/6_Advanced/Extend_Euclid.mdx"
+    },
+    {
+      "id": "usaco:adv/fft-ext",
+      "group": "adv",
+      "text": "More Complex Operations Using FFT",
+      "path": "content/6_Advanced/FFT-ext.mdx"
+    },
+    {
+      "id": "usaco:adv/fft",
+      "group": "adv",
+      "text": "Introduction to Fast Fourier Transform",
+      "path": "content/6_Advanced/FFT.mdx"
+    },
+    {
+      "id": "usaco:adv/flow-lb",
+      "group": "adv",
+      "text": "Flow with Lower Bounds",
+      "path": "content/6_Advanced/Flow_LB.mdx"
+    },
+    {
+      "id": "usaco:adv/fracturing-search",
+      "group": "adv",
+      "text": "Fracturing Search",
+      "path": "content/6_Advanced/Fracturing_Search.mdx"
+    },
+    {
+      "id": "usaco:adv/game-theory",
+      "group": "adv",
+      "text": "Game Theory",
+      "path": "content/6_Advanced/Game_Theory.mdx"
+    },
+    {
+      "id": "usaco:adv/interactive",
+      "group": "adv",
+      "text": "Interactive and Communication Problems",
+      "path": "content/6_Advanced/Interactive.mdx"
+    },
+    {
+      "id": "usaco:adv/link-cut-tree",
+      "group": "adv",
+      "text": "Link Cut Tree",
+      "path": "content/6_Advanced/LCT.mdx"
+    },
+    {
+      "id": "usaco:adv/lagrange",
+      "group": "adv",
+      "text": "Lagrangian Relaxation",
+      "path": "content/6_Advanced/Lagrange.mdx"
+    },
+    {
+      "id": "usaco:adv/line-container",
+      "group": "adv",
+      "text": "LineContainer",
+      "path": "content/6_Advanced/LineContainer.mdx"
+    },
+    {
+      "id": "usaco:adv/matroid",
+      "group": "adv",
+      "text": "Matroids",
+      "path": "content/6_Advanced/Matroid.mdx"
+    },
+    {
+      "id": "usaco:adv/matroid-isect",
+      "group": "adv",
+      "text": "Matroid Intersection",
+      "path": "content/6_Advanced/Matroid_Isect.mdx"
+    },
+    {
+      "id": "usaco:adv/max-flow",
+      "group": "adv",
+      "text": "Maximum Flow",
+      "path": "content/6_Advanced/Max_Flow.mdx"
+    },
+    {
+      "id": "usaco:adv/min-cost-flow",
+      "group": "adv",
+      "text": "Minimum Cost Flow",
+      "path": "content/6_Advanced/MinCostFlow.mdx"
+    },
+    {
+      "id": "usaco:adv/min-cut",
+      "group": "adv",
+      "text": "Minimum Cut",
+      "path": "content/6_Advanced/Min_Cut.mdx"
+    },
+    {
+      "id": "usaco:adv/offline-del",
+      "group": "adv",
+      "text": "Offline Deletion",
+      "path": "content/6_Advanced/Offline_Del.mdx"
+    },
+    {
+      "id": "usaco:adv/persistent",
+      "group": "adv",
+      "text": "Persistent Data Structures",
+      "path": "content/6_Advanced/Persistent.mdx"
+    },
+    {
+      "id": "usaco:adv/prefix-sums-nt-1",
+      "group": "adv",
+      "text": "Prefix Sums of Number-Theoretic Functions (Part 1)",
+      "path": "content/6_Advanced/PrefixSumsNT1.mdx"
+    },
+    {
+      "id": "usaco:adv/prefix-sums-nt-2",
+      "group": "adv",
+      "text": "Prefix Sums of Number-Theoretic Functions (Part 2)",
+      "path": "content/6_Advanced/PrefixSumsNT2.mdx"
+    },
+    {
+      "id": "usaco:adv/SCC",
+      "group": "adv",
+      "text": "Strongly Connected Components",
+      "path": "content/6_Advanced/SCC.mdx"
+    },
+    {
+      "id": "usaco:adv/sp-neg",
+      "group": "adv",
+      "text": "Shortest Paths with Negative Edge Weights",
+      "path": "content/6_Advanced/SPneg.mdx"
+    },
+    {
+      "id": "usaco:adv/segtree-beats",
+      "group": "adv",
+      "text": "Segment Tree Beats",
+      "path": "content/6_Advanced/Segtree_Beats.mdx"
+    },
+    {
+      "id": "usaco:adv/slope-trick",
+      "group": "adv",
+      "text": "Slope Trick",
+      "path": "content/6_Advanced/Slope_Trick.mdx"
+    },
+    {
+      "id": "usaco:adv/springboards",
+      "group": "adv",
+      "text": "Max Suffix Query with Insertions Only",
+      "path": "content/6_Advanced/Springboards.mdx"
+    },
+    {
+      "id": "usaco:adv/string-search",
+      "group": "adv",
+      "text": "String Searching",
+      "path": "content/6_Advanced/String_Search.mdx"
+    },
+    {
+      "id": "usaco:adv/string-suffix",
+      "group": "adv",
+      "text": "String Suffix Structures",
+      "path": "content/6_Advanced/String_Suffix.mdx"
+    },
+    {
+      "id": "usaco:adv/suffix-array",
+      "group": "adv",
+      "text": "Suffix Array",
+      "path": "content/6_Advanced/Suffix_Array.mdx"
+    },
+    {
+      "id": "usaco:adv/treaps",
+      "group": "adv",
+      "text": "Treaps",
+      "path": "content/6_Advanced/Treaps.mdx"
+    },
+    {
+      "id": "usaco:adv/vectorization",
+      "group": "adv",
+      "text": "Vectorization in C++",
+      "path": "content/6_Advanced/Vectorization.mdx"
+    },
+    {
+      "id": "usaco:adv/wavelet",
+      "group": "adv",
+      "text": "Wavelet Tree",
+      "path": "content/6_Advanced/Wavelet.mdx"
+    },
+    {
+      "id": "usaco:adv/xor-basis",
+      "group": "adv",
+      "text": "XOR Basis",
+      "path": "content/6_Advanced/XOR_Basis.mdx"
+    },
+    {
+      "id": "usaco:adv/random",
+      "group": "adv",
+      "text": "Randomness",
+      "path": "content/6_Advanced/random.mdx"
+    }
+  ]
+}

@@ -5,6 +5,8 @@
   "scripts": {
     "validate": "bun run tools/validate-content.ts",
     "validate:falsify": "bash tools/falsify-content-gate.sh",
+    "vocab:build": "bun run tools/vocab/build.ts",
+    "vocab:gate": "bun run tools/vocab/gate.ts",
     "check:references": "bash tools/check-references.sh",
     "check:references:falsify": "bash tools/falsify-references-gate.sh",
     "check:deploy": "bash tools/check-deploy.sh",
@@ -14,7 +16,7 @@
     "check:scaffold": "bash tools/check-scaffold.sh",
     "check:cpp": "bun run tools/cpp/gate.ts",
     "check:cpp:falsify": "bun run tools/cpp/falsify.ts",
-    "gate": "bun run validate && bun run check:references && bun run validate:falsify && bun run check:references:falsify",
+    "gate": "bun run validate && bun run vocab:build && bun run vocab:gate && bun run check:references && bun run validate:falsify && bun run check:references:falsify",
     "gate:deploy": "bun run check:deploy && bun run check:deploy:falsify",
     "gate:cpp": "bun run check:cpp && bun run check:cpp:falsify",
     "gate:all": "bun run gate && bun run gate:deploy && bun run gate:cpp && bun run check:security && bun run check:security:falsify",
