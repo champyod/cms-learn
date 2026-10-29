@@ -5,6 +5,8 @@
   "scripts": {
     "validate": "bun run tools/validate-content.ts",
     "validate:falsify": "bash tools/falsify-content-gate.sh",
+    "vocab:build": "bun run tools/vocab/build.ts",
+    "vocab:gate": "bun run tools/vocab/gate.ts",
     "check:references": "bash tools/check-references.sh",
     "check:references:falsify": "bash tools/falsify-references-gate.sh",
     "check:deploy": "bash tools/check-deploy.sh",
