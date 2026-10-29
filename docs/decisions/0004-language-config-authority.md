@@ -1,19 +1,12 @@
-# 0004 — Language matrix, configuration as data, authority
+# 0004 — Configuration as data, authority, and the query layer
 
-Status: accepted 2026-10-28 · §1 amends 0001 §2
+Status: accepted 2026-10-28 · the language matrix is 0006
 
-## 1. One language per kind of work
+## 1. The language matrix is 0006
 
-**C++23 is the default.** A part leaves C++ only by naming a package C++ does not have: it goes to
-Rust next, and to TypeScript only where the browser owns the package. "This part is hard" is not a
-reason; a named missing package is.
-
-| Component | Language | Why |
-|---|---|---|
-| api + web | **C++ — Drogon 1.9.14 + Inja + htmx** | one async Postgres pool on the request's event loop; no second type system on the public path |
-| judge | **C++** — supervisor, testlib checkers, isolate v2.7 | `pidfd_open`/`pidfd_send_signal` and a cgroup descriptor held for the run's lifetime remove the race that motivated Rust, and the image already ships a C++ toolchain |
-| `cmsctl` | **Rust** | structurally unable to call a C++ internal, so "admin actions pass through the core" is a linker error rather than a review rule |
-| content gate, editor island | **TypeScript** | `tools/validate-content.ts` already ships with eleven falsification cases, and no non-JavaScript package solves a text editor in a browser |
+Which component is written in which language is recorded once, in
+[`0006`](0006-language-matrix.md), and this record does not restate it. What follows is the part 0006
+does not cover: how the C++ layer reaches the database, and why the browser is not written in C++.
 
 **The browser is HTML.** A browser executes HTML, CSS, JavaScript and WebAssembly, and WebAssembly
 "cannot currently directly access the DOM; it can only call JavaScript" (MDN, modified 2026-10-07).
