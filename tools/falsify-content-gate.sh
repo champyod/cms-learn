@@ -114,5 +114,15 @@ reset_bank
 edit_json "$work/content/tasks/grid-shortest-path/task.json" 'task["difficulty"] = 3500'
 expect "task unreachable by every stage" 1
 
+# 14. a prerequisite that is not a tag at all: an edge drawn to nothing
+reset_bank
+edit_json "$work/content/prereqs.json" 'doc["edges"][0]["prereqs"].append("tag-that-does-not-exist")'
+expect "prerequisite outside the vocabulary" 1
+
+# 15. a prerequisite chain that closes on itself: a graph with no way in
+reset_bank
+edit_json "$work/content/prereqs.json" 'doc["edges"][[i for i, e in enumerate(doc["edges"]) if e["tag"] == "sorting"][0]]["prereqs"].append("segment-tree")'
+expect "prerequisite cycle" 1
+
 printf '\n%s case(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

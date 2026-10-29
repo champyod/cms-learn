@@ -99,6 +99,84 @@ if (tracksFile) {
   }
 }
 
+// ── tag prerequisites ────────────────────────────────────────────────────────────────────────
+// The graph view draws these edges, so a wrong one teaches a student to learn a topic before the
+// thing it rests on. The failure that hides is structural — a prerequisite id that no longer
+// exists, a tag dropped from the vocabulary, an edge that loops back on itself, or a chain that
+// closes into a cycle and leaves no honest place to start — so the graph is checked as a graph.
+interface PrereqEdge { tag: string; prereqs: string[]; origin: string; evidence: string }
+const prereqsPath = join(contentDir, "prereqs.json");
+const prereqsFile = readJson<{ version: number; edges: PrereqEdge[] }>(prereqsPath);
+const allowedOrigins = new Set(["usaco-guide", "authored"]);
+let prereqUsacoEdges = 0;
+let prereqAuthoredEdges = 0;
+let prereqTagsWithEdges = 0;
+let prereqTagCount = 0;
+
+if (prereqsFile) {
+  const graph = new Map<string, string[]>();
+  for (const edge of prereqsFile.edges ?? []) {
+    if (typeof edge?.tag !== "string") {
+      violations.push(`content/prereqs.json: entry without a tag key`);
+      continue;
+    }
+    const tag = edge.tag;
+    prereqTagCount += 1;
+    if (graph.has(tag)) violations.push(`prereqs: tag "${tag}" appears more than once`);
+    graph.set(tag, edge.prereqs ?? []);
+    if (!vocabulary.has(tag)) violations.push(`prereqs: tag "${tag}" does not exist in the vocabulary`);
+    if (!allowedOrigins.has(edge.origin)) {
+      violations.push(`prereqs ${tag}: origin "${edge.origin}" is neither usaco-guide nor authored`);
+    }
+    // An edge we attribute to USACO Guide must say which module declared it, or the next reader
+    // has to take our word for a claim that came from someone else.
+    if (edge.origin === "usaco-guide" && (edge.evidence ?? "").trim().length === 0) {
+      violations.push(`prereqs ${tag}: usaco-guide edge with no evidence`);
+    }
+    if ((edge.prereqs ?? []).length > 0) prereqTagsWithEdges += 1;
+    if (edge.origin === "usaco-guide") prereqUsacoEdges += (edge.prereqs ?? []).length;
+    if (edge.origin === "authored") prereqAuthoredEdges += (edge.prereqs ?? []).length;
+
+    const inThisTag = new Set<string>();
+    for (const prereq of edge.prereqs ?? []) {
+      if (!vocabulary.has(prereq)) violations.push(`prereqs ${tag}: prerequisite "${prereq}" does not exist`);
+      if (prereq === tag) violations.push(`prereqs ${tag}: lists itself as a prerequisite`);
+      if (inThisTag.has(prereq)) violations.push(`prereqs ${tag}: prerequisite "${prereq}" appears twice`);
+      inThisTag.add(prereq);
+    }
+  }
+
+  // Every tag carries an entry even when it is a root: a tag missing from the file is a tag the
+  // graph cannot draw at all, which looks the same as a topic nobody has to prepare for.
+  for (const tag of vocabulary) {
+    if (!graph.has(tag)) violations.push(`prereqs: tag "${tag}" has no entry`);
+  }
+
+  const reported = new Set<string>();
+  const state = new Map<string, "visiting" | "done">();
+  const walk = (tag: string, trail: string[]): void => {
+    state.set(tag, "visiting");
+    for (const prereq of graph.get(tag) ?? []) {
+      if (!graph.has(prereq)) continue;
+      if (state.get(prereq) === "visiting") {
+        const cycle = [...trail.slice(trail.indexOf(prereq)), tag, prereq];
+        const signature = [...cycle].sort().join(",");
+        if (!reported.has(signature)) {
+          reported.add(signature);
+          violations.push(`prereqs: cycle ${cycle.join(" -> ")}`);
+        }
+        continue;
+      }
+      if (state.get(prereq) === "done") continue;
+      walk(prereq, [...trail, tag]);
+    }
+    state.set(tag, "done");
+  };
+  for (const tag of graph.keys()) {
+    if (!state.has(tag)) walk(tag, []);
+  }
+}
+
 // ── tasks ────────────────────────────────────────────────────────────────────────────────────
 interface Task {
   id: string;
@@ -193,7 +271,9 @@ if (existsSync(tasksDir)) {
 const scanned =
   `topics ${vocabulary.size} · tracks ${trackCount} · ` +
   `stages ${stageCount} · tasks ${taskCount} (draft ${taskCounts.draft}, verified ${taskCounts.verified}, ` +
-  `published ${taskCounts.published}, rejected ${taskCounts.rejected})`;
+  `published ${taskCounts.published}, rejected ${taskCounts.rejected}) · ` +
+  `prereqs ${prereqTagCount} tag(s), ${prereqTagsWithEdges} with edges ` +
+  `(${prereqUsacoEdges} usaco-guide, ${prereqAuthoredEdges} authored)`;
 
 if (violations.length > 0) {
   console.error(`content gate — ${violations.length} violation(s)`);
