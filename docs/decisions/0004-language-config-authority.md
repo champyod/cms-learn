@@ -4,7 +4,7 @@ Status: accepted · 2026-10-28
 
 Decided with the operator over three rounds of comparison. Each section records the shape chosen, why
 it wins, and what was rejected, because a later reader cannot reconstruct a decision from a diff.
-Section 1 amends 0001 §2 on one point and supersedes it there.
+Section 1 keeps 0001 §2's judge core and amends that section's service language.
 
 ## 1. One language per kind of work
 
@@ -21,14 +21,18 @@ blocking libpq, so every query would need a hop onto a worker thread and the poo
 the request's pool. Sessions come from `drogon::plugin::Session`; nothing about the account model is
 reimplemented.
 
-**Rust owns exactly two artifacts, both in the judge.** The first is the supervisor: child reaping,
-cgroup teardown, `SIGKILL` escalation and output-cap enforcement under adversarial cancellation. That
-combination is the one place in this system where C++ becomes a race rather than a design, so the
-supervisor is Rust and the untrusted child it manages does not care what language its parent is
-written in. The second is the verification binary, which links the same crate: the code that proves a
-task is verified must be the code that runs in the judge, or the proof is about a different program.
+**C++ owns the judge.** The supervisor reaps children, tears down the cgroup, escalates to `SIGKILL`
+and enforces the output cap; the checkers are C++ on testlib 0.9.41; the sandbox is isolate v2.7. The
+case for Rust here was memory safety under adversarial cancellation, and on a current kernel that case
+does not survive contact with the mechanism: `pidfd_open` and `pidfd_send_signal` (Linux 5.1 and 5.3)
+replace the `waitpid`/`kill` pair that made the pid-reuse race possible, the cgroup descriptor is held
+for the run's lifetime, and every resource is released by a destructor. The supervisor reads no
+untrusted structured data — it counts bytes and signals a process — so the parser surface that would
+justify a second language never appears. The second argument is size: the judge image must already
+ship a C++ compiler to build submissions, so a Rust supervisor adds a second toolchain and a second
+lockfile inside the one container that executes hostile code.
 
-**Rust also owns `cmsctl`, the full-permission administrative CLI**, as a crate with no database
+**Rust owns `cmsctl`, the full-permission administrative CLI**, as a crate with no database
 dependency. It is Rust for a structural reason rather than an ergonomic one: two languages cannot
 share symbols, so the CLI is physically unable to call a C++ internal function. "Administrative
 actions must pass through the core" stops being a review rule and becomes a linker error.
@@ -51,10 +55,11 @@ Rejected for the web layer, in the order they were considered:
 - **Next 16.4.3.** The best-documented path, and the only one that puts a Node runtime and a second
   type system on the public path.
 
-**Judge binaries.** Checkers are C++ on testlib 0.9.41 and run as separate executables; the sandbox is
-isolate v2.7. This amends 0001 §2, where the supervisor was C++. The mitigations that made that
-section acceptable stay where C++ remains: ASan, UBSan and libFuzzer on the checker path, and no
-untrusted bytes on the control plane.
+**Judge binaries.** Checkers run as separate executables under isolate; the supervisor links the same
+shared verifier the judge runs, so the code that proves a task is verified is the code that runs when
+it is graded. ASan, UBSan and libFuzzer stay on the checker path, and the supervisor inherits the same
+build: a fork bomb and an output flood are falsification cases in the judge tests, because the failure
+this design accepts is a bug in the supervisor itself rather than a race it cannot see.
 
 ## 2. Configuration is data
 
