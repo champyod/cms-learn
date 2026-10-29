@@ -1,0 +1,1552 @@
+{
+  "source": "ioi",
+  "name": "IOI Syllabus 2025",
+  "url": "https://ioinformatics.org/files/ioi-syllabus-2025.pdf",
+  "urls": [
+    "https://ioinformatics.org/files/ioi-syllabus-2025.pdf",
+    "https://algo.sk/ioi-syllabus/ioi-syllabus.pdf",
+    "https://algo.sk/ioi-syllabus/ioi-syllabus.tex"
+  ],
+  "fetched": "2026-10-29",
+  "total": 233,
+  "grouping": "the syllabus sections and sub-sections that hold the topic statements (5.1, DS1..DS6, 5.3, PF1..PF5, AL1..AL11, 6.3, SE1..SE12, 8)",
+  "extraction": "the syllabus' own LaTeX source, one statement per \\I<category> macro. The two published PDFs carry the same 246 marked statements (157 check, 28 question, 89 cross glyphs), so the count is the document's, not a parse artefact.",
+  "count_note": "The published document holds 233 marked topic statements in 27 sections. Two independent parses agree: this file (one statement per \\I<category> item macro of the syllabus' own LaTeX source) and the PDF text layer, which carries the same statements (274 category glyphs, some of them inside prose). The LaTeX holds 246 \\I<category> occurrences; six are the macro definitions, six are the section-4 definitions of the categories themselves and one is commented out, leaving 233. The other 16 section headings (5.2, 6.1, 6.2, 6.3, 8, DS6, PF5, AL4, AL5, AL6, AL9, AL11, SE9, SE11, SE12) carry prose only, so there is no statement string to map; they are recorded as sections without statements, not as missing rows. A count of 262 statements in 74 groups does not match either build of the document.",
+  "statements": [
+    {
+      "text": "Integers, operations (incl. exponentiation), comparison",
+      "category": "included, unlimited",
+      "group": "5.1",
+      "id": "ioi:5.1/1"
+    },
+    {
+      "text": "Basic properties of integers (sign, parity, divisibility)",
+      "category": "included, unlimited",
+      "group": "5.1",
+      "id": "ioi:5.1/2"
+    },
+    {
+      "text": "Basic modular arithmetic: addition, subtraction, multiplication",
+      "category": "included, unlimited",
+      "group": "5.1",
+      "id": "ioi:5.1/3"
+    },
+    {
+      "text": "Prime numbers",
+      "category": "included, not for task description",
+      "group": "5.1",
+      "id": "ioi:5.1/4"
+    },
+    {
+      "text": "Fractions, percentages",
+      "category": "included, unlimited",
+      "group": "5.1",
+      "id": "ioi:5.1/5"
+    },
+    {
+      "text": "Line, line segment, angle, triangle, rectangle, square, circle",
+      "category": "included, unlimited",
+      "group": "5.1",
+      "id": "ioi:5.1/6"
+    },
+    {
+      "text": "Point, vector, coordinates in the plane",
+      "category": "included, unlimited",
+      "group": "5.1",
+      "id": "ioi:5.1/7"
+    },
+    {
+      "text": "Polygon (vertex, side/edge, simple, convex, inside, area)",
+      "category": "included, unlimited",
+      "group": "5.1",
+      "id": "ioi:5.1/8"
+    },
+    {
+      "text": "Euclidean distances",
+      "category": "included, to be defined",
+      "group": "5.1",
+      "id": "ioi:5.1/9"
+    },
+    {
+      "text": "Pythagorean theorem",
+      "category": "included, not for task description",
+      "group": "5.1",
+      "id": "ioi:5.1/10"
+    },
+    {
+      "text": "Geometry in three or more dimensions",
+      "category": "explicitly excluded",
+      "group": "5.1",
+      "id": "ioi:5.1/11"
+    },
+    {
+      "text": "Analyzing and increasing precision of floating-point computations",
+      "category": "explicitly excluded",
+      "group": "5.1",
+      "id": "ioi:5.1/12"
+    },
+    {
+      "text": "Modular division and inverse elements",
+      "category": "explicitly excluded",
+      "group": "5.1",
+      "id": "ioi:5.1/13"
+    },
+    {
+      "text": "Complex numbers",
+      "category": "explicitly excluded",
+      "group": "5.1",
+      "id": "ioi:5.1/14"
+    },
+    {
+      "text": "General conics (parabolas, hyperbolas, ellipses)",
+      "category": "explicitly excluded",
+      "group": "5.1",
+      "id": "ioi:5.1/15"
+    },
+    {
+      "text": "Trigonometric functions",
+      "category": "explicitly excluded",
+      "group": "5.1",
+      "id": "ioi:5.1/16"
+    },
+    {
+      "text": "Functions (surjections, injections, inverses, composition)",
+      "category": "included, to be defined",
+      "group": "DS1",
+      "id": "ioi:DS1/1"
+    },
+    {
+      "text": "Relations (reflexivity, symmetry, transitivity, equivalence relations, total/linear order relations, lexicographic order)",
+      "category": "included, to be defined",
+      "group": "DS1",
+      "id": "ioi:DS1/2"
+    },
+    {
+      "text": "Sets (inclusion/exclusion, complements, Cartesian products, power sets)",
+      "category": "included, to be defined",
+      "group": "DS1",
+      "id": "ioi:DS1/3"
+    },
+    {
+      "text": "Cardinality and countability (of infinite sets)",
+      "category": "explicitly excluded",
+      "group": "DS1",
+      "id": "ioi:DS1/4"
+    },
+    {
+      "text": "First-order logic",
+      "category": "included, unlimited",
+      "group": "DS2",
+      "id": "ioi:DS2/1"
+    },
+    {
+      "text": "Logical connectives (incl. their basic properties)",
+      "category": "included, unlimited",
+      "group": "DS2",
+      "id": "ioi:DS2/2"
+    },
+    {
+      "text": "Truth tables",
+      "category": "included, unlimited",
+      "group": "DS2",
+      "id": "ioi:DS2/3"
+    },
+    {
+      "text": "Universal and existential quantification (Note: statements should avoid definitions with nested quantifiers whenever possible.)",
+      "category": "included, unlimited",
+      "group": "DS2",
+      "id": "ioi:DS2/4"
+    },
+    {
+      "text": "Modus ponens and modus tollens",
+      "category": "included, not for task description",
+      "group": "DS2",
+      "id": "ioi:DS2/5"
+    },
+    {
+      "text": "Normal forms",
+      "category": "outside of focus",
+      "group": "DS2",
+      "id": "ioi:DS2/6"
+    },
+    {
+      "text": "Validity",
+      "category": "explicitly excluded",
+      "group": "DS2",
+      "id": "ioi:DS2/7"
+    },
+    {
+      "text": "Limitations of predicate logic",
+      "category": "explicitly excluded",
+      "group": "DS2",
+      "id": "ioi:DS2/8"
+    },
+    {
+      "text": "Notions of implication, converse, inverse, contrapositive, negation, and contradiction",
+      "category": "included, to be defined",
+      "group": "DS3",
+      "id": "ioi:DS3/1"
+    },
+    {
+      "text": "Direct proofs, proofs by: counterexample, contraposition, contradiction",
+      "category": "included, not for task description",
+      "group": "DS3",
+      "id": "ioi:DS3/2"
+    },
+    {
+      "text": "Mathematical induction",
+      "category": "included, not for task description",
+      "group": "DS3",
+      "id": "ioi:DS3/3"
+    },
+    {
+      "text": "Strong induction (also known as complete induction)",
+      "category": "included, not for task description",
+      "group": "DS3",
+      "id": "ioi:DS3/4"
+    },
+    {
+      "text": "Recursive mathematical definitions (incl. mutually recursive definitions)",
+      "category": "included, unlimited",
+      "group": "DS3",
+      "id": "ioi:DS3/5"
+    },
+    {
+      "text": "Counting arguments (sum and product rule, arithmetic and geometric progressions, Fibonacci numbers)",
+      "category": "included, unlimited",
+      "group": "DS4",
+      "id": "ioi:DS4/1"
+    },
+    {
+      "text": "Permutations and combinations (basic definitions)",
+      "category": "included, to be defined",
+      "group": "DS4",
+      "id": "ioi:DS4/2"
+    },
+    {
+      "text": "Factorial function, binomial coefficients",
+      "category": "included, to be defined",
+      "group": "DS4",
+      "id": "ioi:DS4/3"
+    },
+    {
+      "text": "Inclusion-exclusion principle",
+      "category": "included, not for task description",
+      "group": "DS4",
+      "id": "ioi:DS4/4"
+    },
+    {
+      "text": "Pigeonhole principle",
+      "category": "included, not for task description",
+      "group": "DS4",
+      "id": "ioi:DS4/5"
+    },
+    {
+      "text": "Pascal's identity, Binomial theorem",
+      "category": "included, not for task description",
+      "group": "DS4",
+      "id": "ioi:DS4/6"
+    },
+    {
+      "text": "Solving of recurrence relations",
+      "category": "explicitly excluded",
+      "group": "DS4",
+      "id": "ioi:DS4/7"
+    },
+    {
+      "text": "Burnside lemma",
+      "category": "explicitly excluded",
+      "group": "DS4",
+      "id": "ioi:DS4/8"
+    },
+    {
+      "text": "Undirected graphs (vertex/node, edge, degree, adjacency, vertex and edge labels)",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/1"
+    },
+    {
+      "text": "Directed graphs (in-degree, out-degree)",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/2"
+    },
+    {
+      "text": "Multigraphs, graphs with self-loops",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/3"
+    },
+    {
+      "text": "Paths in graphs (undirected and directed path, cycle, tour, walk; Euler tour; Hamiltonian path/cycle)",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/4"
+    },
+    {
+      "text": "Reachability (connected component, shortest distance)",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/5"
+    },
+    {
+      "text": "Trees (leaf, diameter, forest)",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/6"
+    },
+    {
+      "text": "Rooted trees (root, parent, child, ancestor, subtree, binary tree)",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/7"
+    },
+    {
+      "text": "Spanning trees (and general subgraphs)",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/8"
+    },
+    {
+      "text": "Traversal strategies",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/9"
+    },
+    {
+      "text": "Bipartite graphs",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/10"
+    },
+    {
+      "text": "Directed acyclic graphs",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/11"
+    },
+    {
+      "text": "Simple specific graph shapes (complete, complete bipartite, star)",
+      "category": "included, to be defined",
+      "group": "DS5",
+      "id": "ioi:DS5/12"
+    },
+    {
+      "text": "More general connectivity (biconnected undirected and strongly connected directed graphs)",
+      "category": "included, not for task description",
+      "group": "DS5",
+      "id": "ioi:DS5/13"
+    },
+    {
+      "text": "Structure of trees (center, centroid)",
+      "category": "included, not for task description",
+      "group": "DS5",
+      "id": "ioi:DS5/14"
+    },
+    {
+      "text": "Planar graphs",
+      "category": "included, not for task description",
+      "group": "DS5",
+      "id": "ioi:DS5/15"
+    },
+    {
+      "text": "Basic combinatorial properties of graphs",
+      "category": "included, not for task description",
+      "group": "DS5",
+      "id": "ioi:DS5/16"
+    },
+    {
+      "text": "Hypergraphs",
+      "category": "explicitly excluded",
+      "group": "DS5",
+      "id": "ioi:DS5/17"
+    },
+    {
+      "text": "Specific graph classes such as perfect graphs",
+      "category": "explicitly excluded",
+      "group": "DS5",
+      "id": "ioi:DS5/18"
+    },
+    {
+      "text": "Structural parameters such as treewidth and expansion",
+      "category": "explicitly excluded",
+      "group": "DS5",
+      "id": "ioi:DS5/19"
+    },
+    {
+      "text": "Planarity testing",
+      "category": "explicitly excluded",
+      "group": "DS5",
+      "id": "ioi:DS5/20"
+    },
+    {
+      "text": "Finding separators for planar graphs",
+      "category": "explicitly excluded",
+      "group": "DS5",
+      "id": "ioi:DS5/21"
+    },
+    {
+      "text": "Linear algebra, including (but not limited to):",
+      "category": "explicitly excluded",
+      "group": "5.3",
+      "id": "ioi:5.3/1"
+    },
+    {
+      "text": "Calculus",
+      "category": "explicitly excluded",
+      "group": "5.3",
+      "id": "ioi:5.3/2"
+    },
+    {
+      "text": "Theory of combinatorial games, e.g., bitwise xor solution to the general NIM game, Sprague-Grundy theory",
+      "category": "explicitly excluded",
+      "group": "5.3",
+      "id": "ioi:5.3/3"
+    },
+    {
+      "text": "Statistics",
+      "category": "explicitly excluded",
+      "group": "5.3",
+      "id": "ioi:5.3/4"
+    },
+    {
+      "text": "Basic syntax and semantics of a higher-level language (at least one of the specific languages available at an IOI, as announced in the Competition Rules/ for that IOI)",
+      "category": "included, unlimited",
+      "group": "PF1",
+      "id": "ioi:PF1/1"
+    },
+    {
+      "text": "Variables, types, expressions, and assignment",
+      "category": "included, unlimited",
+      "group": "PF1",
+      "id": "ioi:PF1/2"
+    },
+    {
+      "text": "Simple I/O",
+      "category": "included, unlimited",
+      "group": "PF1",
+      "id": "ioi:PF1/3"
+    },
+    {
+      "text": "Conditional and iterative control structures",
+      "category": "included, unlimited",
+      "group": "PF1",
+      "id": "ioi:PF1/4"
+    },
+    {
+      "text": "Functions and parameter passing",
+      "category": "included, unlimited",
+      "group": "PF1",
+      "id": "ioi:PF1/5"
+    },
+    {
+      "text": "Structured decomposition",
+      "category": "included, not for task description",
+      "group": "PF1",
+      "id": "ioi:PF1/6"
+    },
+    {
+      "text": "Problem-solving strategies (understand–plan–do–check, separation of concerns, generalization, specialization, case distinction, working backwards, etc.)",
+      "category": "included, not for task description",
+      "group": "PF2",
+      "id": "ioi:PF2/1"
+    },
+    {
+      "text": "The role of algorithms in the problem-solving process",
+      "category": "included, not for task description",
+      "group": "PF2",
+      "id": "ioi:PF2/2"
+    },
+    {
+      "text": "Implementation strategies for algorithms (also see § SE1)",
+      "category": "included, not for task description",
+      "group": "PF2",
+      "id": "ioi:PF2/3"
+    },
+    {
+      "text": "Debugging strategies (also see § SE3)",
+      "category": "included, not for task description",
+      "group": "PF2",
+      "id": "ioi:PF2/4"
+    },
+    {
+      "text": "The concept and properties of algorithms (correctness, efficiency)",
+      "category": "included, to be defined",
+      "group": "PF2",
+      "id": "ioi:PF2/5"
+    },
+    {
+      "text": "Primitive types (boolean, signed/unsigned integer, character)",
+      "category": "included, unlimited",
+      "group": "PF3",
+      "id": "ioi:PF3/1"
+    },
+    {
+      "text": "Arrays (incl. multicolumn dimensional arrays)",
+      "category": "included, unlimited",
+      "group": "PF3",
+      "id": "ioi:PF3/2"
+    },
+    {
+      "text": "Strings and string processing",
+      "category": "included, unlimited",
+      "group": "PF3",
+      "id": "ioi:PF3/3"
+    },
+    {
+      "text": "Static and stack allocation (elementary automatic memory management)",
+      "category": "included, to be defined",
+      "group": "PF3",
+      "id": "ioi:PF3/4"
+    },
+    {
+      "text": "Linked structures",
+      "category": "included, to be defined",
+      "group": "PF3",
+      "id": "ioi:PF3/5"
+    },
+    {
+      "text": "Implementation strategies for graphs and trees",
+      "category": "included, to be defined",
+      "group": "PF3",
+      "id": "ioi:PF3/6"
+    },
+    {
+      "text": "Strategies for choosing the right data structure",
+      "category": "included, to be defined",
+      "group": "PF3",
+      "id": "ioi:PF3/7"
+    },
+    {
+      "text": "Elementary use of real numbers in numerically stable tasks",
+      "category": "included, not for task description",
+      "group": "PF3",
+      "id": "ioi:PF3/8"
+    },
+    {
+      "text": "The floating-point representation of real numbers, the existence of precision issues",
+      "category": "included, not for task description",
+      "group": "PF3",
+      "id": "ioi:PF3/9"
+    },
+    {
+      "text": "Pointers and references",
+      "category": "included, not for task description",
+      "group": "PF3",
+      "id": "ioi:PF3/10"
+    },
+    {
+      "text": "Data representation in memory",
+      "category": "outside of focus",
+      "group": "PF3",
+      "id": "ioi:PF3/11"
+    },
+    {
+      "text": "Heap allocation",
+      "category": "outside of focus",
+      "group": "PF3",
+      "id": "ioi:PF3/12"
+    },
+    {
+      "text": "Runtime storage management",
+      "category": "outside of focus",
+      "group": "PF3",
+      "id": "ioi:PF3/13"
+    },
+    {
+      "text": "Using fractions to perform exact calculations",
+      "category": "outside of focus",
+      "group": "PF3",
+      "id": "ioi:PF3/14"
+    },
+    {
+      "text": "Non-trivial calculations on floating point numbers, manipulating precision errors",
+      "category": "explicitly excluded",
+      "group": "PF3",
+      "id": "ioi:PF3/15"
+    },
+    {
+      "text": "The concept of recursion",
+      "category": "included, unlimited",
+      "group": "PF4",
+      "id": "ioi:PF4/1"
+    },
+    {
+      "text": "Recursive mathematical functions",
+      "category": "included, unlimited",
+      "group": "PF4",
+      "id": "ioi:PF4/2"
+    },
+    {
+      "text": "Simple recursive procedures (incl. mutual recursion)",
+      "category": "included, unlimited",
+      "group": "PF4",
+      "id": "ioi:PF4/3"
+    },
+    {
+      "text": "Divide-and-conquer strategies",
+      "category": "included, not for task description",
+      "group": "PF4",
+      "id": "ioi:PF4/4"
+    },
+    {
+      "text": "Implementation of recursion",
+      "category": "included, not for task description",
+      "group": "PF4",
+      "id": "ioi:PF4/5"
+    },
+    {
+      "text": "Recursive backtracking",
+      "category": "included, not for task description",
+      "group": "PF4",
+      "id": "ioi:PF4/6"
+    },
+    {
+      "text": "Algorithm specification, precondition, postcondition, correctness, invariants",
+      "category": "included, to be defined",
+      "group": "AL1",
+      "id": "ioi:AL1/1"
+    },
+    {
+      "text": "Asymptotic analysis of upper complexity bounds (informally if possible)",
+      "category": "included, not for task description",
+      "group": "AL1",
+      "id": "ioi:AL1/2"
+    },
+    {
+      "text": "Big O notation",
+      "category": "included, not for task description",
+      "group": "AL1",
+      "id": "ioi:AL1/3"
+    },
+    {
+      "text": "Standard complexity classes: constant, logarithmic, linear, O(n log n), quadratic, cubic, exponential, etc",
+      "category": "included, not for task description",
+      "group": "AL1",
+      "id": "ioi:AL1/4"
+    },
+    {
+      "text": "Time and space tradeoffs in algorithms",
+      "category": "included, not for task description",
+      "group": "AL1",
+      "id": "ioi:AL1/5"
+    },
+    {
+      "text": "Empirical performance measurements",
+      "category": "included, not for task description",
+      "group": "AL1",
+      "id": "ioi:AL1/6"
+    },
+    {
+      "text": "Identifying differences among best, average, and worst case behaviors",
+      "category": "outside of focus",
+      "group": "AL1",
+      "id": "ioi:AL1/7"
+    },
+    {
+      "text": "Little o, Omega, and Theta notation",
+      "category": "outside of focus",
+      "group": "AL1",
+      "id": "ioi:AL1/8"
+    },
+    {
+      "text": "Tuning parameters to reduce running time, memory consumption or other measures of performance",
+      "category": "outside of focus",
+      "group": "AL1",
+      "id": "ioi:AL1/9"
+    },
+    {
+      "text": "Asymptotic analysis of average complexity bounds",
+      "category": "explicitly excluded",
+      "group": "AL1",
+      "id": "ioi:AL1/10"
+    },
+    {
+      "text": "Using recurrence relations to analyze recursive algorithms",
+      "category": "explicitly excluded",
+      "group": "AL1",
+      "id": "ioi:AL1/11"
+    },
+    {
+      "text": "Simple loop design strategies",
+      "category": "included, not for task description",
+      "group": "AL2",
+      "id": "ioi:AL2/1"
+    },
+    {
+      "text": "Brute-force algorithms (exhaustive search)",
+      "category": "included, not for task description",
+      "group": "AL2",
+      "id": "ioi:AL2/2"
+    },
+    {
+      "text": "Greedy algorithms",
+      "category": "included, not for task description",
+      "group": "AL2",
+      "id": "ioi:AL2/3"
+    },
+    {
+      "text": "Divide-and-conquer",
+      "category": "included, not for task description",
+      "group": "AL2",
+      "id": "ioi:AL2/4"
+    },
+    {
+      "text": "Backtracking (recursive and non-recursive), Branch-and-bound",
+      "category": "included, not for task description",
+      "group": "AL2",
+      "id": "ioi:AL2/5"
+    },
+    {
+      "text": "Dynamic programming",
+      "category": "included, not for task description",
+      "group": "AL2",
+      "id": "ioi:AL2/6"
+    },
+    {
+      "text": "Heuristics",
+      "category": "outside of focus",
+      "group": "AL2",
+      "id": "ioi:AL2/7"
+    },
+    {
+      "text": "Finding good features for machine learning tasks",
+      "category": "outside of focus",
+      "group": "AL2",
+      "id": "ioi:AL2/8"
+    },
+    {
+      "text": "Discrete approximation algorithms",
+      "category": "outside of focus",
+      "group": "AL2",
+      "id": "ioi:AL2/9"
+    },
+    {
+      "text": "Randomized algorithms",
+      "category": "outside of focus",
+      "group": "AL2",
+      "id": "ioi:AL2/10"
+    },
+    {
+      "text": "Clustering algorithms (e.g. k-means, k-nearest neighbor)",
+      "category": "explicitly excluded",
+      "group": "AL2",
+      "id": "ioi:AL2/11"
+    },
+    {
+      "text": "Minimizing multi-variate functions using numerical approaches",
+      "category": "explicitly excluded",
+      "group": "AL2",
+      "id": "ioi:AL2/12"
+    },
+    {
+      "text": "Simple algorithms on integers: radix conversion, Euclid's algorithm, primality test by O(sqrtn) trial division, Sieve of Eratosthenes, factorization (by trial division or a sieve), efficient exponentiation",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/1"
+    },
+    {
+      "text": "Simple operations on arbitrary precision integers (addition, subtraction, simple multiplication)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/2"
+    },
+    {
+      "text": "Simple array manipulation (filling, shifting, rotating, reversal, resizing, minimum/maximum, prefix sums, histogram, bucket sort)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/3"
+    },
+    {
+      "text": "Simple string algorithms (e.g., naive substring search)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/4"
+    },
+    {
+      "text": "sequential processing/search and binary search",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/5"
+    },
+    {
+      "text": "Quicksort and Quickselect to find the k-th smallest element",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/6"
+    },
+    {
+      "text": "O(n log n) worst-case sorting algorithms (heap sort, merge sort)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/7"
+    },
+    {
+      "text": "Traversals of ordered trees (pre-, in-, and post-order)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/8"
+    },
+    {
+      "text": "Depth- and breadth-first traversals",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/9"
+    },
+    {
+      "text": "Applications of the depth-first traversal tree, such as topological ordering and Euler paths/cycles",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/10"
+    },
+    {
+      "text": "Finding connected components and transitive closures",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/11"
+    },
+    {
+      "text": "Shortest-path algorithms (Dijkstra, Bellman-Ford, Floyd-Warshall)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/12"
+    },
+    {
+      "text": "Minimum spanning tree (Jarn'i k-Prim and Kruskal algorithms)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/13"
+    },
+    {
+      "text": "Maximum bipartite matching (O(VE) algorithm based on augmenting paths)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/14"
+    },
+    {
+      "text": "Maximum network flow (Ford-Fulkerson O(| flow|· E) algorithm based on augmenting paths) Duality between maximum flows and minimum cuts",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/15"
+    },
+    {
+      "text": "Biconnectivity in undirected graphs (bridges, articulation points)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/16"
+    },
+    {
+      "text": "Connectivity in directed graphs (strongly connected components)",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/17"
+    },
+    {
+      "text": "Basics of combinatorial game theory, winning and losing positions, minimax algorithm for optimal game playing",
+      "category": "included, not for task description",
+      "group": "AL3a",
+      "id": "ioi:AL3a/18"
+    },
+    {
+      "text": "Optimization problems that are easiest to analyze using matroid theory, problems based on matroid intersecions (except for bipartite matching)",
+      "category": "explicitly excluded",
+      "group": "AL3a",
+      "id": "ioi:AL3a/19"
+    },
+    {
+      "text": "Lexicographical BFS, maximum adjacency search and their properties",
+      "category": "explicitly excluded",
+      "group": "AL3a",
+      "id": "ioi:AL3a/20"
+    },
+    {
+      "text": "More efficient implementations of bipartite matching and network flow algorithms",
+      "category": "explicitly excluded",
+      "group": "AL3a",
+      "id": "ioi:AL3a/21"
+    },
+    {
+      "text": "Maximum matching in polynomial time on general graphs",
+      "category": "explicitly excluded",
+      "group": "AL3a",
+      "id": "ioi:AL3a/22"
+    },
+    {
+      "text": "Minimum cost versions of maximum matchings and network flows",
+      "category": "explicitly excluded",
+      "group": "AL3a",
+      "id": "ioi:AL3a/23"
+    },
+    {
+      "text": "Alpha-beta pruning",
+      "category": "explicitly excluded",
+      "group": "AL3a",
+      "id": "ioi:AL3a/24"
+    },
+    {
+      "text": "Stacks and queues",
+      "category": "included, to be defined",
+      "group": "AL3b",
+      "id": "ioi:AL3b/1"
+    },
+    {
+      "text": "Representations of graphs (adjacency lists, adjacency matrix)",
+      "category": "included, not for task description",
+      "group": "AL3b",
+      "id": "ioi:AL3b/2"
+    },
+    {
+      "text": "Binary heap data structures",
+      "category": "included, to be defined",
+      "group": "AL3b",
+      "id": "ioi:AL3b/3"
+    },
+    {
+      "text": "Representation of disjoint sets: the Union-Find data structure",
+      "category": "included, not for task description",
+      "group": "AL3b",
+      "id": "ioi:AL3b/4"
+    },
+    {
+      "text": "Statically balanced binary search trees. Instances of this include binary index trees (also known as Fenwick trees) and segment trees (also known as interval trees and tournament trees)",
+      "category": "included, to be defined",
+      "group": "AL3b",
+      "id": "ioi:AL3b/5"
+    },
+    {
+      "text": "Balanced binary search trees",
+      "category": "included, not for task description",
+      "group": "AL3b",
+      "id": "ioi:AL3b/6"
+    },
+    {
+      "text": "Augmented binary search trees",
+      "category": "included, to be defined",
+      "group": "AL3b",
+      "id": "ioi:AL3b/7"
+    },
+    {
+      "text": "O(log n) time algorithms for answering lowest common ancestor queries in a static rooted tree",
+      "category": "included, not for task description",
+      "group": "AL3b",
+      "id": "ioi:AL3b/8"
+    },
+    {
+      "text": "Decomposition of static trees (heavy-light decomposition, separator structures such as centroid decomposition)",
+      "category": "included, not for task description",
+      "group": "AL3b",
+      "id": "ioi:AL3b/9"
+    },
+    {
+      "text": "Persistent data structures",
+      "category": "included, not for task description",
+      "group": "AL3b",
+      "id": "ioi:AL3b/10"
+    },
+    {
+      "text": "Nesting of data structures, such as having a sequence of sets",
+      "category": "included, not for task description",
+      "group": "AL3b",
+      "id": "ioi:AL3b/11"
+    },
+    {
+      "text": "Tries",
+      "category": "included, to be defined",
+      "group": "AL3b",
+      "id": "ioi:AL3b/12"
+    },
+    {
+      "text": "String algorithms and data structures (KMP, Rabin-Karp hashing, suffix arrays/trees, suffix automata, Aho-Corasick)",
+      "category": "explicitly excluded",
+      "group": "AL3b",
+      "id": "ioi:AL3b/13"
+    },
+    {
+      "text": "Complex heap variants such as binomial and Fibonacci heaps",
+      "category": "explicitly excluded",
+      "group": "AL3b",
+      "id": "ioi:AL3b/14"
+    },
+    {
+      "text": "Using and implementing hash tables (incl. strategies to resolve collisions)",
+      "category": "explicitly excluded",
+      "group": "AL3b",
+      "id": "ioi:AL3b/15"
+    },
+    {
+      "text": "Two-dimensional tree-like data structures (such as a 2D statically balanced binary tree or a treap of treaps) used for 2D queries",
+      "category": "explicitly excluded",
+      "group": "AL3b",
+      "id": "ioi:AL3b/16"
+    },
+    {
+      "text": "Fat nodes and other more complicated ways of implementing persistent data structures",
+      "category": "explicitly excluded",
+      "group": "AL3b",
+      "id": "ioi:AL3b/17"
+    },
+    {
+      "text": "Data structures for dynamically changing trees (e.g., link/cut trees) and their use in graph algorithms",
+      "category": "explicitly excluded",
+      "group": "AL3b",
+      "id": "ioi:AL3b/18"
+    },
+    {
+      "text": "Understanding a simple grammar in Backus-Naur form",
+      "category": "included, to be defined",
+      "group": "AL7",
+      "id": "ioi:AL7/1"
+    },
+    {
+      "text": "Formal definition and properties of finite-state machines",
+      "category": "outside of focus",
+      "group": "AL7",
+      "id": "ioi:AL7/2"
+    },
+    {
+      "text": "Context-free grammars and related rewriting systems",
+      "category": "outside of focus",
+      "group": "AL7",
+      "id": "ioi:AL7/3"
+    },
+    {
+      "text": "Regular expressions",
+      "category": "outside of focus",
+      "group": "AL7",
+      "id": "ioi:AL7/4"
+    },
+    {
+      "text": "Properties other than the fact that automata are graphs and that grammars have parse trees",
+      "category": "explicitly excluded",
+      "group": "AL7",
+      "id": "ioi:AL7/5"
+    },
+    {
+      "text": "Amortized analysis",
+      "category": "included, not for task description",
+      "group": "AL8",
+      "id": "ioi:AL8/1"
+    },
+    {
+      "text": "Analysis of online algorithms, including competitive analysis",
+      "category": "outside of focus",
+      "group": "AL8",
+      "id": "ioi:AL8/2"
+    },
+    {
+      "text": "Analysis of randomized algorithms",
+      "category": "outside of focus",
+      "group": "AL8",
+      "id": "ioi:AL8/3"
+    },
+    {
+      "text": "Representing points, vectors, lines, line segments",
+      "category": "included, not for task description",
+      "group": "AL10",
+      "id": "ioi:AL10/1"
+    },
+    {
+      "text": "Checking for collinear points, parallel/orthogonal vectors and clockwise turns (for example, by using dot products and cross products)",
+      "category": "included, not for task description",
+      "group": "AL10",
+      "id": "ioi:AL10/2"
+    },
+    {
+      "text": "Intersection of two lines",
+      "category": "included, not for task description",
+      "group": "AL10",
+      "id": "ioi:AL10/3"
+    },
+    {
+      "text": "Computing the area of a polygon from the coordinates of its vertices",
+      "category": "included, not for task description",
+      "group": "AL10",
+      "id": "ioi:AL10/4"
+    },
+    {
+      "text": "Checking whether a (general/convex) polygon contains a point",
+      "category": "included, not for task description",
+      "group": "AL10",
+      "id": "ioi:AL10/5"
+    },
+    {
+      "text": "Coordinate compression",
+      "category": "included, not for task description",
+      "group": "AL10",
+      "id": "ioi:AL10/6"
+    },
+    {
+      "text": "O(nlogn) time algorithms for convex hull",
+      "category": "included, not for task description",
+      "group": "AL10",
+      "id": "ioi:AL10/7"
+    },
+    {
+      "text": "Sweeping line method",
+      "category": "included, not for task description",
+      "group": "AL10",
+      "id": "ioi:AL10/8"
+    },
+    {
+      "text": "Point-line duality",
+      "category": "explicitly excluded",
+      "group": "AL10",
+      "id": "ioi:AL10/9"
+    },
+    {
+      "text": "Halfspace intersection, Voronoi diagrams, Delaunay triangulations",
+      "category": "explicitly excluded",
+      "group": "AL10",
+      "id": "ioi:AL10/10"
+    },
+    {
+      "text": "Computing coordinates of circle intersections against lines and circles",
+      "category": "explicitly excluded",
+      "group": "AL10",
+      "id": "ioi:AL10/11"
+    },
+    {
+      "text": "Linear programming in 3 or more dimensions and its geometric interpretations",
+      "category": "explicitly excluded",
+      "group": "AL10",
+      "id": "ioi:AL10/12"
+    },
+    {
+      "text": "Center of mass of a 2D object",
+      "category": "explicitly excluded",
+      "group": "AL10",
+      "id": "ioi:AL10/13"
+    },
+    {
+      "text": "Computing and representing the composition of geometric transformations if the knowledge of linear algebra gives an advantage",
+      "category": "explicitly excluded",
+      "group": "AL10",
+      "id": "ioi:AL10/14"
+    },
+    {
+      "text": "Fundamental design concepts and principles",
+      "category": "included, not for task description",
+      "group": "SE1",
+      "id": "ioi:SE1/1"
+    },
+    {
+      "text": "Design patterns",
+      "category": "included, not for task description",
+      "group": "SE1",
+      "id": "ioi:SE1/2"
+    },
+    {
+      "text": "Structured design",
+      "category": "included, not for task description",
+      "group": "SE1",
+      "id": "ioi:SE1/3"
+    },
+    {
+      "text": "Software architecture",
+      "category": "explicitly excluded",
+      "group": "SE1",
+      "id": "ioi:SE1/4"
+    },
+    {
+      "text": "Design for reuse",
+      "category": "explicitly excluded",
+      "group": "SE1",
+      "id": "ioi:SE1/5"
+    },
+    {
+      "text": "Object-Oriented analysis and design",
+      "category": "explicitly excluded",
+      "group": "SE1",
+      "id": "ioi:SE1/6"
+    },
+    {
+      "text": "Component-level design",
+      "category": "explicitly excluded",
+      "group": "SE1",
+      "id": "ioi:SE1/7"
+    },
+    {
+      "text": "API (Application Programming Interface) programming",
+      "category": "included, not for task description",
+      "group": "SE2",
+      "id": "ioi:SE2/1"
+    },
+    {
+      "text": "Programming by example",
+      "category": "explicitly excluded",
+      "group": "SE2",
+      "id": "ioi:SE2/2"
+    },
+    {
+      "text": "Debugging in the API environment",
+      "category": "explicitly excluded",
+      "group": "SE2",
+      "id": "ioi:SE2/3"
+    },
+    {
+      "text": "Class browsers and related tools",
+      "category": "explicitly excluded",
+      "group": "SE2",
+      "id": "ioi:SE2/4"
+    },
+    {
+      "text": "Introduction to component-based computing",
+      "category": "explicitly excluded",
+      "group": "SE2",
+      "id": "ioi:SE2/5"
+    },
+    {
+      "text": "Programming environments, incl. IDE (Integrated Development Environment)",
+      "category": "included, not for task description",
+      "group": "SE3",
+      "id": "ioi:SE3/1"
+    },
+    {
+      "text": "Testing tools",
+      "category": "explicitly excluded",
+      "group": "SE3",
+      "id": "ioi:SE3/2"
+    },
+    {
+      "text": "Configuration management tools",
+      "category": "explicitly excluded",
+      "group": "SE3",
+      "id": "ioi:SE3/3"
+    },
+    {
+      "text": "Requirements analysis and design modeling tools",
+      "category": "explicitly excluded",
+      "group": "SE3",
+      "id": "ioi:SE3/4"
+    },
+    {
+      "text": "Tool integration mechanisms",
+      "category": "explicitly excluded",
+      "group": "SE3",
+      "id": "ioi:SE3/5"
+    },
+    {
+      "text": "Software life-cycle and process models",
+      "category": "included, not for task description",
+      "group": "SE4",
+      "id": "ioi:SE4/1"
+    },
+    {
+      "text": "Process assessment models",
+      "category": "explicitly excluded",
+      "group": "SE4",
+      "id": "ioi:SE4/2"
+    },
+    {
+      "text": "Software process metrics",
+      "category": "explicitly excluded",
+      "group": "SE4",
+      "id": "ioi:SE4/3"
+    },
+    {
+      "text": "Functional and nonfunctional requirements",
+      "category": "included, not for task description",
+      "group": "SE5",
+      "id": "ioi:SE5/1"
+    },
+    {
+      "text": "Basic concepts of formal specification techniques",
+      "category": "included, not for task description",
+      "group": "SE5",
+      "id": "ioi:SE5/2"
+    },
+    {
+      "text": "Prototyping",
+      "category": "explicitly excluded",
+      "group": "SE5",
+      "id": "ioi:SE5/3"
+    },
+    {
+      "text": "Requirements elicitation",
+      "category": "explicitly excluded",
+      "group": "SE5",
+      "id": "ioi:SE5/4"
+    },
+    {
+      "text": "Requirements analysis modeling techniques",
+      "category": "explicitly excluded",
+      "group": "SE5",
+      "id": "ioi:SE5/5"
+    },
+    {
+      "text": "Testing fundamentals, including test plan creation and test case generation",
+      "category": "included, not for task description",
+      "group": "SE6",
+      "id": "ioi:SE6/1"
+    },
+    {
+      "text": "Black-box and white-box testing techniques",
+      "category": "included, not for task description",
+      "group": "SE6",
+      "id": "ioi:SE6/2"
+    },
+    {
+      "text": "Unit, integration, validation, and system testing",
+      "category": "included, not for task description",
+      "group": "SE6",
+      "id": "ioi:SE6/3"
+    },
+    {
+      "text": "Inspections",
+      "category": "included, not for task description",
+      "group": "SE6",
+      "id": "ioi:SE6/4"
+    },
+    {
+      "text": "Validation planning",
+      "category": "explicitly excluded",
+      "group": "SE6",
+      "id": "ioi:SE6/5"
+    },
+    {
+      "text": "Object-oriented testing",
+      "category": "explicitly excluded",
+      "group": "SE6",
+      "id": "ioi:SE6/6"
+    },
+    {
+      "text": "Software maintenance",
+      "category": "explicitly excluded",
+      "group": "SE7",
+      "id": "ioi:SE7/1"
+    },
+    {
+      "text": "Characteristics of maintainable software",
+      "category": "explicitly excluded",
+      "group": "SE7",
+      "id": "ioi:SE7/2"
+    },
+    {
+      "text": "Re-engineering",
+      "category": "explicitly excluded",
+      "group": "SE7",
+      "id": "ioi:SE7/3"
+    },
+    {
+      "text": "Legacy systems",
+      "category": "explicitly excluded",
+      "group": "SE7",
+      "id": "ioi:SE7/4"
+    },
+    {
+      "text": "Software reuse",
+      "category": "explicitly excluded",
+      "group": "SE7",
+      "id": "ioi:SE7/5"
+    },
+    {
+      "text": "Project scheduling (especially time management)",
+      "category": "included, not for task description",
+      "group": "SE8",
+      "id": "ioi:SE8/1"
+    },
+    {
+      "text": "Risk analysis",
+      "category": "included, not for task description",
+      "group": "SE8",
+      "id": "ioi:SE8/2"
+    },
+    {
+      "text": "Software configuration management",
+      "category": "included, not for task description",
+      "group": "SE8",
+      "id": "ioi:SE8/3"
+    },
+    {
+      "text": "Software quality assurance",
+      "category": "explicitly excluded",
+      "group": "SE8",
+      "id": "ioi:SE8/4"
+    },
+    {
+      "text": "Team management",
+      "category": "explicitly excluded",
+      "group": "SE8",
+      "id": "ioi:SE8/5"
+    },
+    {
+      "text": "Software measurement and estimation techniques",
+      "category": "explicitly excluded",
+      "group": "SE8",
+      "id": "ioi:SE8/6"
+    },
+    {
+      "text": "Project management tools",
+      "category": "explicitly excluded",
+      "group": "SE8",
+      "id": "ioi:SE8/7"
+    },
+    {
+      "text": "Formal methods concepts (notion of correctness proof, invariant)",
+      "category": "included, not for task description",
+      "group": "SE10",
+      "id": "ioi:SE10/1"
+    },
+    {
+      "text": "Pre and post assertions",
+      "category": "included, not for task description",
+      "group": "SE10",
+      "id": "ioi:SE10/2"
+    },
+    {
+      "text": "Formal verification",
+      "category": "explicitly excluded",
+      "group": "SE10",
+      "id": "ioi:SE10/3"
+    },
+    {
+      "text": "Formal specification languages",
+      "category": "explicitly excluded",
+      "group": "SE10",
+      "id": "ioi:SE10/4"
+    },
+    {
+      "text": "Executable and non-executable specifications",
+      "category": "explicitly excluded",
+      "group": "SE10",
+      "id": "ioi:SE10/5"
+    }
+  ],
+  "groups": [
+    {
+      "id": "5.1",
+      "title": "Arithmetics and Geometry",
+      "count": 16
+    },
+    {
+      "id": "DS1",
+      "title": "DS1. Functions, relations, and sets",
+      "count": 4
+    },
+    {
+      "id": "DS2",
+      "title": "DS2. Basic logic",
+      "count": 8
+    },
+    {
+      "id": "DS3",
+      "title": "DS3. Proof techniques",
+      "count": 5
+    },
+    {
+      "id": "DS4",
+      "title": "DS4. Basics of counting",
+      "count": 8
+    },
+    {
+      "id": "DS5",
+      "title": "DS5. Graphs and trees",
+      "count": 21
+    },
+    {
+      "id": "5.3",
+      "title": "Other Areas in Mathematics",
+      "count": 4
+    },
+    {
+      "id": "PF1",
+      "title": "PF1. Fundamental programming constructs (for abstract machines)",
+      "count": 6
+    },
+    {
+      "id": "PF2",
+      "title": "PF2. Algorithms and problem-solving",
+      "count": 5
+    },
+    {
+      "id": "PF3",
+      "title": "PF3. Fundamental data structures",
+      "count": 15
+    },
+    {
+      "id": "PF4",
+      "title": "PF4. Recursion",
+      "count": 6
+    },
+    {
+      "id": "AL1",
+      "title": "AL1. Basic algorithmic analysis",
+      "count": 11
+    },
+    {
+      "id": "AL2",
+      "title": "AL2. Algorithmic strategies",
+      "count": 12
+    },
+    {
+      "id": "AL3a",
+      "title": "AL3a. Algorithms",
+      "count": 24
+    },
+    {
+      "id": "AL3b",
+      "title": "AL3b. Data structures",
+      "count": 18
+    },
+    {
+      "id": "AL7",
+      "title": "AL7. Automata and grammars",
+      "count": 5
+    },
+    {
+      "id": "AL8",
+      "title": "AL8. Advanced algorithmic analysis",
+      "count": 3
+    },
+    {
+      "id": "AL10",
+      "title": "AL10. Geometric algorithms",
+      "count": 14
+    },
+    {
+      "id": "SE1",
+      "title": "SE1. Software design",
+      "count": 7
+    },
+    {
+      "id": "SE2",
+      "title": "SE2. Using APIs",
+      "count": 5
+    },
+    {
+      "id": "SE3",
+      "title": "SE3. Software tools and environments",
+      "count": 5
+    },
+    {
+      "id": "SE4",
+      "title": "SE4. Software processes",
+      "count": 3
+    },
+    {
+      "id": "SE5",
+      "title": "SE5. Software requirements and specification",
+      "count": 5
+    },
+    {
+      "id": "SE6",
+      "title": "SE6. Software validation",
+      "count": 6
+    },
+    {
+      "id": "SE7",
+      "title": "SE7. Software evolution",
+      "count": 5
+    },
+    {
+      "id": "SE8",
+      "title": "SE8. Software project management",
+      "count": 7
+    },
+    {
+      "id": "SE10",
+      "title": "SE10. Formal methods",
+      "count": 5
+    }
+  ]
+}

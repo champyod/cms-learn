@@ -1,0 +1,1061 @@
+{
+  "source": "posn",
+  "name": "Thai POSN (สอวน.) computer olympiad syllabus, 2569",
+  "url": "https://www.posn.or.th/wp-content/uploads/2026/09/syllabus-toi-2569.pdf",
+  "fetched": "2026-10-29",
+  "total": 108,
+  "grouping": "the nine IOI-reference sections of table 3 (เนื้อหาการอบรมวิชาคอมพิวเตอร์)",
+  "extraction": "pdftotext -layout; text normalised to NFC, font ligature glyphs mapped to ASCII (+ - ( ) :), spaces the text layer inserted inside Thai combining sequences removed. No wording changed. levels = the stage columns the row is ticked in.",
+  "groups": [
+    {
+      "id": "g1",
+      "title": "5.1 — Arithmetic and Geometry"
+    },
+    {
+      "id": "g2",
+      "title": "5.2 — Discrete Structures"
+    },
+    {
+      "id": "g3",
+      "title": "6.1 — Programming Fundamentals"
+    },
+    {
+      "id": "g4",
+      "title": "6.1 PF3 / 6.2 AL3b — Fundamental Data Structures"
+    },
+    {
+      "id": "g5",
+      "title": "6.1 PF2 / 6.2 — Problem Solving, Algorithms, and Complexity"
+    },
+    {
+      "id": "g6",
+      "title": "6.2 AL10 — Geometric Algorithms"
+    },
+    {
+      "id": "g7",
+      "title": "7 SE3 / 8 — Development Tools and Environments"
+    },
+    {
+      "id": "g8",
+      "title": "TOI-Zero / 7 SE6 — Grader and Validation"
+    },
+    {
+      "id": "g9",
+      "title": "7 — Software Engineering Practices"
+    }
+  ],
+  "statements": [
+    {
+      "id": "posn:g1/r1",
+      "group": "g1",
+      "text": "จำนวนเต็ม การดำเนินการ การยกกำลัง และการเปรียบเทียบ",
+      "levels": []
+    },
+    {
+      "id": "posn:g1/r2",
+      "group": "g1",
+      "text": "สมบัติพื้นฐานของจำนวนเต็ม เช่น เครื่องหมาย ความเป็นคู่/คี่ และการหารลงตัว",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r3",
+      "group": "g1",
+      "text": "เลขคณิตมอดูลาร์พื้นฐาน: การบวก การลบ และการคูณ",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r4",
+      "group": "g1",
+      "text": "จำนวนเฉพาะ",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r5",
+      "group": "g1",
+      "text": "เศษส่วนและร้อยละ",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r6",
+      "group": "g1",
+      "text": "เส้นตรง ส่วนของเส้นตรง มุม สามเหลี่ยม สี่เหลี่ยมผืนผ้า สี่เหลี่ยมจัตุรัส และวงกลม",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r7",
+      "group": "g1",
+      "text": "ระยะทางแบบยุคลิด",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r8",
+      "group": "g1",
+      "text": "ทฤษฎีบทพีทาโกรัส",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r9",
+      "group": "g1",
+      "text": "จุด เวกเตอร์ และพิกัดบนระนาบ",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r10",
+      "group": "g1",
+      "text": "รูปหลายเหลี่ยม: จุดยอด ด้าน ความเป็นรูปอย่างง่าย ความนูน ภายใน และพื้นที่",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r11",
+      "group": "g1",
+      "text": "ลำดับ",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r12",
+      "group": "g1",
+      "text": "อนุกรม",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r13",
+      "group": "g1",
+      "text": "สมการและอสมการ",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g1/r14",
+      "group": "g1",
+      "text": "เมทริกซ์เบื้องต้น",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r1",
+      "group": "g2",
+      "text": "ตรรกศาสตร์พื้นฐาน ตัวเชื่อมทางตรรกะ และตารางค่าความจริง",
+      "levels": []
+    },
+    {
+      "id": "posn:g2/r2",
+      "group": "g2",
+      "text": "ตรรกศาสตร์อันดับหนึ่ง ตัวบ่งปริมาณ forall/exists และ modus ponens/modus tollens",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r3",
+      "group": "g2",
+      "text": "เซต การเป็นสับเซต คอมพลีเมนต์ ผลคูณคาร์ทีเซียน และ power set",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r4",
+      "group": "g2",
+      "text": "ฟังก์ชันและความสัมพันธ์ รวมถึง inverse, composition, equivalence และ order relations",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r5",
+      "group": "g2",
+      "text": "implication, converse, inverse, contrapositive, negation และ contradiction",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r6",
+      "group": "g2",
+      "text": "การพิสูจน์โดยตรง counterexample contraposition contradiction และอุปนัย เชิงคณิตศาสตร์",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r7",
+      "group": "g2",
+      "text": "strong induction และนิยามเชิงเรียกซ้ำทางคณิตศาสตร์",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r8",
+      "group": "g2",
+      "text": "หลักการนับ: rule of sum/product, ลำดับเลขคณิต/เรขาคณิต และ Fibonacci",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r9",
+      "group": "g2",
+      "text": "permutations, combinations, factorial และ binomial coefficients",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r10",
+      "group": "g2",
+      "text": "หลักบวก-ลบ หลักรังนกพิราบ Pascal identity และ Binomial theorem",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r11",
+      "group": "g2",
+      "text": "กราฟไม่มีทิศทาง กราฟมีทิศทาง กราฟถ่วงน้ำหนัก degree adjacency และ labels",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r12",
+      "group": "g2",
+      "text": "multigraph และกราฟที่มี self-loop",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r13",
+      "group": "g2",
+      "text": "path, cycle, tour, walk, Euler tour, Hamiltonian path/cycle และ reachability",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r14",
+      "group": "g2",
+      "text": "connected component, shortest distance, biconnected graph และ strongly connected graph",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r15",
+      "group": "g2",
+      "text": "tree, rooted tree, binary tree, forest, spanning tree และ subgraph",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r16",
+      "group": "g2",
+      "text": "traversal strategies, bipartite graph, DAG, complete graph และ star",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r17",
+      "group": "g2",
+      "text": "center/centroid ของ tree และสมบัติพื้นฐานเชิงจัดหมู่ของกราฟ เช่น handshaking lemma",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g2/r18",
+      "group": "g2",
+      "text": "planar graph และ Euler characteristic เบื้องต้น",
+      "levels": [
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r1",
+      "group": "g3",
+      "text": "องค์ประกอบของคอมพิวเตอร์ โปรแกรมคอมพิวเตอร์ และประเภทของภาษา คอมพิวเตอร์",
+      "levels": []
+    },
+    {
+      "id": "posn:g3/r2",
+      "group": "g3",
+      "text": "โครงสร้างภาษาและการเขียนโปรแกรมด้วย Python",
+      "levels": [
+        "toi-zero"
+      ]
+    },
+    {
+      "id": "posn:g3/r3",
+      "group": "g3",
+      "text": "โครงสร้างภาษาและการเขียนโปรแกรมด้วย C/C++",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r4",
+      "group": "g3",
+      "text": "syntax และ semantics พื้นฐานของภาษาโปรแกรมระดับสูงอย่างน้อยหนึ่งภาษา",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r5",
+      "group": "g3",
+      "text": "ข้อมูล ชนิดข้อมูล ตัวแปร ค่าคงที่ ตัวดำเนินการ นิพจน์ assignment และคำสั่ง",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r6",
+      "group": "g3",
+      "text": "primitive types: boolean, integer, character",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r7",
+      "group": "g3",
+      "text": "simple I/O การรับข้อมูลนำเข้า และการแสดงผลข้อมูลส่งออก",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r8",
+      "group": "g3",
+      "text": "โครงสร้างควบคุมของโปรแกรม เช่น if/else, while และ for",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r9",
+      "group": "g3",
+      "text": "การเขียนโปรแกรมแบบมีโครงสร้าง การวางแผนโปรแกรม การออกแบบด้วยผังงาน และรหัสเทียม",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r10",
+      "group": "g3",
+      "text": "ฟังก์ชัน parameter passing การคืนค่าจากฟังก์ชัน และ structured decomposition",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r11",
+      "group": "g3",
+      "text": "ขอบเขตของตัวแปร การแยกงานที่ทำซ้ำ และการจัดโครงสร้างโปรแกรม",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r12",
+      "group": "g3",
+      "text": "recursion: แนวคิด ฟังก์ชันเรียกซ้ำ mutual recursion และการ implement recursion",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r13",
+      "group": "g3",
+      "text": "recursive backtracking และ divide-and-conquer strategies",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r14",
+      "group": "g3",
+      "text": "พอยน์เตอร์ references คลาส และ struct",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g3/r15",
+      "group": "g3",
+      "text": "การใช้ real numbers ในโจทย์ที่เสถียรเชิงตัวเลข และ precision issues",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r1",
+      "group": "g4",
+      "text": "อาร์เรย์หนึ่งมิติ และการประมวลผลรายการข้อมูลพื้นฐาน",
+      "levels": []
+    },
+    {
+      "id": "posn:g4/r2",
+      "group": "g4",
+      "text": "อาร์เรย์หลายมิติ",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r3",
+      "group": "g4",
+      "text": "strings และ string processing พื้นฐาน",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r4",
+      "group": "g4",
+      "text": "static allocation, stack allocation และ linked structures",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r5",
+      "group": "g4",
+      "text": "กองซ้อนและแถวคอย (stack and queue)",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r6",
+      "group": "g4",
+      "text": "รายการโยง (linked list)",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r7",
+      "group": "g4",
+      "text": "การแทนกราฟและต้นไม้ เช่น adjacency list และ adjacency matrix",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r8",
+      "group": "g4",
+      "text": "กลยุทธ์เลือกใช้โครงสร้างข้อมูลที่เหมาะสม",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r9",
+      "group": "g4",
+      "text": "การใช้โครงสร้างข้อมูลแบบ associative เช่น map และ unordered_map",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r10",
+      "group": "g4",
+      "text": "การใช้แถวคอยลำดับความสำคัญ (priority queue) และ binary heap",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r11",
+      "group": "g4",
+      "text": "disjoint set union / Union-Find",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r12",
+      "group": "g4",
+      "text": "Fenwick tree และ segment tree",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r13",
+      "group": "g4",
+      "text": "tries",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r14",
+      "group": "g4",
+      "text": "balanced/augmented binary search trees",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r15",
+      "group": "g4",
+      "text": "LCA สำหรับ static rooted tree",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r16",
+      "group": "g4",
+      "text": "heavy-light decomposition และ centroid decomposition สำหรับ static trees",
+      "levels": [
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r17",
+      "group": "g4",
+      "text": "persistent data structures แบบพื้นฐาน",
+      "levels": [
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g4/r18",
+      "group": "g4",
+      "text": "nesting data structures เช่น sequence of sets",
+      "levels": [
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r1",
+      "group": "g5",
+      "text": "ตัวอย่างโจทย์และการทดลองแก้โจทย์ด้วยการเขียนโปรแกรม",
+      "levels": []
+    },
+    {
+      "id": "posn:g5/r2",
+      "group": "g5",
+      "text": "กลยุทธ์การแก้ปัญหา: understand-plan-do-check, separation of concerns, generalization, specialization, case distinction, working backwards",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r3",
+      "group": "g5",
+      "text": "บทบาทของอัลกอริทึม กลยุทธ์การ implement และกลยุทธ์การ debug ใน กระบวนการแก้ปัญหา",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r4",
+      "group": "g5",
+      "text": "algorithm specification, precondition, postcondition, correctness และ invariants",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r5",
+      "group": "g5",
+      "text": "การวิเคราะห์ประสิทธิภาพเบื้องต้น asymptotic analysis และ Big O notation",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r6",
+      "group": "g5",
+      "text": "standard complexity classes และ time-space tradeoffs",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r7",
+      "group": "g5",
+      "text": "empirical performance measurements",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r8",
+      "group": "g5",
+      "text": "simple loop design strategies และ brute force / exhaustive search",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r9",
+      "group": "g5",
+      "text": "การเรียงข้อมูล และการเรียงลำดับอย่างง่าย เช่น bubble/selection/insertion sort",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r10",
+      "group": "g5",
+      "text": "การประมวลผลอาร์เรย์พื้นฐาน เช่น อ่านข้อมูลซ้ำ นับ รวม ค่าเฉลี่ย และหา min/ max",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r11",
+      "group": "g5",
+      "text": "simple array manipulation เช่น fill, shift, rotate, reverse, prefix sums, histogram, bucket sort",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r12",
+      "group": "g5",
+      "text": "การค้นหาข้อมูลแบบลำดับ simple string algorithms และ naive substring search",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r13",
+      "group": "g5",
+      "text": "binary search และ sequential search",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r14",
+      "group": "g5",
+      "text": "simple integer algorithms: radix conversion, Euclid algorithm, primality test, sieve, factorization, fast exponentiation",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r15",
+      "group": "g5",
+      "text": "quicksort, quickselect, heap sort และ merge sort",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r16",
+      "group": "g5",
+      "text": "tree traversals: preorder, inorder, postorder, DFS และ BFS",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r17",
+      "group": "g5",
+      "text": "applications of DFS tree เช่น topological ordering, Euler paths/cycles, connected components และ transitive closures",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r18",
+      "group": "g5",
+      "text": "shortest path algorithms: Dijkstra, Bellman-Ford, Floyd-Warshall",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r19",
+      "group": "g5",
+      "text": "minimum spanning tree: Prim/Jarnik และ Kruskal",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r20",
+      "group": "g5",
+      "text": "bridges, articulation points และ strongly connected components",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r21",
+      "group": "g5",
+      "text": "greedy algorithms, divide and conquer, backtracking, branch-and-bound และ dynamic programming",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r22",
+      "group": "g5",
+      "text": "simple arbitrary precision integer operations",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r23",
+      "group": "g5",
+      "text": "maximum bipartite matching และ maximum network flow",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r24",
+      "group": "g5",
+      "text": "combinatorial game basics, winning/losing positions และ minimax",
+      "levels": [
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r25",
+      "group": "g5",
+      "text": "simple grammar in Backus-Naur Form",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g5/r26",
+      "group": "g5",
+      "text": "amortized analysis เบื้องต้น",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g6/r1",
+      "group": "g6",
+      "text": "representing points, vectors, lines และ line segments",
+      "levels": []
+    },
+    {
+      "id": "posn:g6/r2",
+      "group": "g6",
+      "text": "area of polygon from coordinates และ coordinate compression",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g6/r3",
+      "group": "g6",
+      "text": "collinearity, parallel/orthogonal vectors และ clockwise turns ด้วย dot/ cross products",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g6/r4",
+      "group": "g6",
+      "text": "intersection of two lines และ point in polygon / convex polygon",
+      "levels": [
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g6/r5",
+      "group": "g6",
+      "text": "O(n log n) convex hull และ sweeping line method",
+      "levels": [
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g7/r1",
+      "group": "g7",
+      "text": "การเริ่มต้นเขียนโปรแกรม การใช้งานคอมไพเลอร์ และเครื่องมือสำหรับพัฒนา โปรแกรม เช่น IDE หรือตัวแก้ไขโค้ด",
+      "levels": []
+    },
+    {
+      "id": "posn:g7/r2",
+      "group": "g7",
+      "text": "การใช้ไลบรารีมาตรฐานของ C++ (C++ STL)",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g7/r3",
+      "group": "g7",
+      "text": "write/edit code, compile and execute programs, debug own programs",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g7/r4",
+      "group": "g7",
+      "text": "use GUI, OS, supporting applications, program development tools, web browser and file management",
+      "levels": [
+        "toi-zero",
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g8/r1",
+      "group": "g8",
+      "text": "การใช้งาน TOI National Grader: การสมัคร การเข้าสู่ระบบ การเลือกโจทย์ การส่ง คำตอบ และการอ่านผลตรวจ",
+      "levels": []
+    },
+    {
+      "id": "posn:g8/r2",
+      "group": "g8",
+      "text": "การแปลผลจาก Grader และการปรับแก้โปรแกรมจากผลตรวจ",
+      "levels": [
+        "toi-zero"
+      ]
+    },
+    {
+      "id": "posn:g8/r3",
+      "group": "g8",
+      "text": "การเขียนโปรแกรมเพื่อแก้ปัญหา การตรวจสอบโปรแกรม การวัดผล การใช้ระบบ ตรวจอัตโนมัติ และสภาพแวดล้อมของการแข่งขัน",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g8/r4",
+      "group": "g8",
+      "text": "testing fundamentals, test plan and test case generation",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g8/r5",
+      "group": "g8",
+      "text": "black-box/white-box testing, unit/integration/validation/system testing",
+      "levels": [
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g8/r6",
+      "group": "g8",
+      "text": "inspections / code review / built-in tests",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    },
+    {
+      "id": "posn:g9/r1",
+      "group": "g9",
+      "text": "fundamental design concepts, structured design และ transform abstract algorithm into efficient program",
+      "levels": []
+    },
+    {
+      "id": "posn:g9/r2",
+      "group": "g9",
+      "text": "read/write text files in prescribed simple format",
+      "levels": [
+        "camp-1",
+        "camp-2",
+        "toi-ioi"
+      ]
+    }
+  ]
+}
