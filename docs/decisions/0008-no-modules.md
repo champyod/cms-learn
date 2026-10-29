@@ -34,3 +34,10 @@ band contains its difficulty and names one of its tags.
 - Four falsification cases that planted module defects were rewritten as their tag equivalents rather
   than deleted: unknown tag, tag twice in a stage, stage with no tag, and unplaced tag. Eleven cases
   behave on the new model.
+
+## Routes are views, not a student property (decided 2026-10-29)
+
+A student is never assigned a route. The USACO ladder and the IOI path are two tabs over the same bank:
+both place every tag, only the order differs, and no account field records a choice. The gate enforces
+this per route rather than globally, so a tag that one view omits fails, and case 12 of the
+falsification harness proves that failure.

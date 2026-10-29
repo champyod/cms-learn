@@ -21,6 +21,10 @@ A tag is the one unit that serves all three: it is what a problem is labelled wi
 picks when they know what they want, and what the generator is asked to write for. A route is then
 only an ordered set of stages, each naming tags and a band.
 
+The two routes are not a property of a student. They are two views of the same bank: the student opens
+whichever tab they want, both tabs place every tag, and only the order differs. Nothing about a student
+records which route they are on, because there is nothing to record.
+
 There are no modules. A module was a second name for a set of tags, and two names for one thing drift
 apart: the module called "Fenwick trees" and the tag called "Fenwick trees" could disagree about what
 they meant, and 17 of the 28 modules already covered two tags each.

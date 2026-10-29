@@ -91,14 +91,16 @@
           },
           "tags": [
             "bitmask",
-            "dp",
             "combinatorics",
+            "dp",
+            "geometry",
+            "hashing",
+            "interactive",
+            "kmp",
             "modular-arithmetic",
             "offline",
-            "segment-tree",
-            "hashing",
             "prefix-sums",
-            "kmp",
+            "segment-tree",
             "z-algorithm"
           ]
         }

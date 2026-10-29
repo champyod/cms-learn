@@ -94,6 +94,11 @@ reset_bank
 edit_json "$work/content/tracks.json" '[[stage["tags"].remove("simulation") for stage in track["stages"] if "simulation" in stage["tags"]] for track in doc["tracks"]]'
 expect "tag placed by no stage" 1
 
+# 12. a tag placed by one route but not the other: a skill one view silently cannot show
+reset_bank
+edit_json "$work/content/tracks.json" '[[stage["tags"].remove("simulation") for stage in track["stages"] if "simulation" in stage["tags"]] for track in doc["tracks"] if track["id"] == "t-usaco"]'
+expect "tag missing from one route" 1
+
 # 10. a stage whose difficulty band is inverted
 reset_bank
 edit_json "$work/content/tracks.json" 'doc["tracks"][0]["stages"][1]["difficulty"] = {"min": 1600, "max": 1100}'

@@ -89,9 +89,13 @@ if (tracksFile) {
     }
   }
 
-  // A tag no stage names is a skill nobody can be routed to.
-  for (const tag of vocabulary) {
-    if (!trackedTags.has(tag)) violations.push(`topic ${tag}: not placed by any stage`);
+  // Both routes are views of the same bank, so each one must place every tag: a tag missing from a
+  // route is a skill that route silently cannot show.
+  for (const track of tracksFile.tracks ?? []) {
+    const placed = new Set<string>((track.stages ?? []).flatMap((stage) => stage.tags ?? []));
+    for (const tag of vocabulary) {
+      if (!placed.has(tag)) violations.push(`track ${track.id}: tag "${tag}" is placed by no stage`);
+    }
   }
 }
 

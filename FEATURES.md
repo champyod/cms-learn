@@ -21,7 +21,7 @@ Counts at last update: **22 shipped · 4 partial · 27 planned** (53 features).
 |---|---|---|---|
 | F-001 | Controlled topic vocabulary, TH+EN labels (33 topics) | ● | `content/topics.json` |
 | F-002 | Routes are stages of tags with a difficulty band; there is no module layer | ● | `content/tracks.json` |
-| F-003 | Two tracks — USACO ladder and IOI path — over one module set (8 stages, difficulty bands) | ● | `content/tracks.json` |
+| F-003 | Two routes as parallel views of one bank — USACO ladder and IOI path — 4 stages each, every tag placed in both, difficulty shown as a number | ● | `content/tracks.json` |
 | F-004 | Bilingual labels on every module, track and topic | ● | `content/modules.json`, `content/tracks.json` |
 | F-005 | Stage lists validated: unknown tag fails, tag twice in one stage fails, unplaced tag fails | ● | `tools/validate-content.ts` (cases 4, 5, 9) |
 | F-006 | Task schema: topics, difficulty, limits, checker, origin, verification | ● | `content/schema/task.schema.json` |
