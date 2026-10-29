@@ -16,3 +16,6 @@ target/
 
 # Rendered print assets: each run embeds a timestamp, so they are generated, never committed.
 design/pdf/
+
+# generated stylesheet
+web/public/app.css

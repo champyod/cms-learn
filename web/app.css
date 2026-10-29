@@ -1,0 +1,73 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+@plugin "daisyui" {
+  themes: false;
+}
+
+@plugin "daisyui/theme" {
+  name: "cms";
+  default: true;
+  prefersdark: false;
+  color-scheme: dark;
+
+  --color-base-100: var(--bg);
+  --color-base-200: var(--surface);
+  --color-base-300: var(--surface-2);
+  --color-base-content: var(--text);
+
+  --color-primary: var(--accent);
+  --color-primary-content: var(--accent-ink);
+  --color-secondary: var(--info);
+  --color-secondary-content: var(--bg);
+  --color-accent: var(--warn);
+  --color-accent-content: var(--bg);
+  --color-neutral: var(--surface-3);
+  --color-neutral-content: var(--text);
+
+  --color-info: var(--info);
+  --color-info-content: var(--bg);
+  --color-success: var(--ok);
+  --color-success-content: var(--bg);
+  --color-warning: var(--warn);
+  --color-warning-content: var(--bg);
+  --color-error: var(--bad);
+  --color-error-content: var(--bg);
+
+  --radius-selector: var(--radius);
+  --radius-field: var(--radius);
+  --radius-box: var(--radius);
+  --border: var(--border-w);
+  --depth: 0;
+  --noise: 0;
+}
+
+@theme inline {
+  --font-mono: var(--font-mono);
+
+  --text-xs: var(--font-size-xs);
+  --text-sm: var(--font-size-sm);
+  --text-base: var(--font-size);
+  --text-lg: var(--font-size-lg);
+  --text-xl: var(--font-size-xl);
+
+  --leading-tight: var(--lh-tight);
+  --leading-normal: var(--lh);
+  --tracking-label: var(--tracking-label);
+
+  --radius-sm: var(--radius);
+  --spacing: var(--s-1);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+}

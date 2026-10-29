@@ -38,6 +38,7 @@ added.
 | ajv | ^8.17.1 | MIT | JSON Schema validation in the content gate |
 | @types/node | ^22.10.2 | MIT | types for the gate scripts |
 | tailwindcss | 4.3.3 | MIT | build-time CSS generation |
+| @tailwindcss/cli | 4.3.3 | MIT | the `build:css` command |
 | daisyui | 5.7.50 | MIT | component classes, CSS only |
 | htmx | 4.0.0, vendored | 0BSD | partial page updates; no build step |
 | CodeMirror | 6 | MIT | the editor island |
