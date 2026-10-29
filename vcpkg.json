@@ -12,6 +12,13 @@
     },
     "inja",
     "libsodium",
+    {
+      "name": "simdjson",
+      "default-features": false,
+      "features": [
+        "utf8-validation"
+      ]
+    },
     "spdlog"
   ],
   "features": {
