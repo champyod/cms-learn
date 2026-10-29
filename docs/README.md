@@ -10,6 +10,7 @@ lives in `.agents/` on the machine that made the decision.
 | Which packages and images are used, at which version and licence | [`dependencies.md`](dependencies.md) |
 | What was decided, and what it costs | [`decisions/`](decisions/) |
 | The domain: topics, modules, tracks, tasks, lifecycle | [`content-model.md`](content-model.md) |
+| How a task is generated, and what makes a brief stay out of the statement | [`task-generation.md`](task-generation.md) |
 | The database: tables, and the invariants it enforces | [`schema.md`](schema.md) |
 | The server: sizing, exposure, threat table, operator checklist | [`infra/single-server.md`](infra/single-server.md) |
 | Which features are shipped versus planned | [`../FEATURES.md`](../FEATURES.md) |

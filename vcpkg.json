@@ -20,7 +20,13 @@
       ]
     },
     "spdlog",
-    "sqlpp23"
+    "sqlpp23",
+    {
+      "name": "aws-sdk-cpp",
+      "features": [
+        "s3"
+      ]
+    }
   ],
   "features": {
     "tests": {

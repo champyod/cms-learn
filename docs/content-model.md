@@ -29,7 +29,7 @@ the track decides what "next" means; the tags decide what can be served.
 | `content/topics.json` | the controlled topic vocabulary (id + EN/TH labels) | every `topics` value anywhere is a key of this file |
 | `content/modules.json` | areas (for browsing) + modules (`topics`, `prereqs`) | ids unique, prereqs exist, prereq graph acyclic, every module placed by some track |
 | `content/tracks.json` | tracks → stages, each with `modules` and a `difficulty` band | stage module lists resolve, no module twice in one track, bands not inverted, every stage reachable |
-| `content/tasks/<slug>/task.json` | one task: metadata, limits, checker, verification, origin | `published` implies verification passed and test data present; the task is reachable by some stage |
+| `content/tasks/<slug>/task.json` | one task: metadata, limits, checker, verification, origin, visibility | `published` implies verification passed and test data present; the task is reachable by some stage |
 | `content/tasks/<slug>/statement.<lang>.md` | the statement, one file per locale | a task ships a statement for every locale it claims |
 | `content/tasks/<slug>/solutions/` | reference solution(s) used by the verifier | referenced by `verification.reference_solution` |
 
@@ -85,9 +85,13 @@ key = sha256(
 
 For an account on track `T`, stage `S`, asking for work:
 
-1. unseen + published + topics of `S` + difficulty inside `S`'s band, nearest difficulty
-2. unseen + published + topics of `S`, widen the band by one step
+1. unseen + published + **shared** + topics of `S` + difficulty inside `S`'s band, nearest difficulty
+2. unseen + published + **shared** + topics of `S`, widen the band by one step
 3. nothing left → generate for `(topic, band, locale)` → verify → publish → serve
+
+`shared` is the eligibility half of visibility; `published` is the quality half, and a task needs both.
+Admin-generated tasks start `hidden`, so they are invisible to this query until an admin marks them
+shared. See `docs/task-generation.md`.
 
 "Seen" is a per-account row set (`account_id, task_id, task_version`), never a flag on the task: one
 task is unseen for one account and solved by another, and a flag on the task would corrupt both.
