@@ -19,7 +19,8 @@
         "utf8-validation"
       ]
     },
-    "spdlog"
+    "spdlog",
+    "sqlpp23"
   ],
   "features": {
     "tests": {

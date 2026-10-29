@@ -17,19 +17,38 @@ CXX="${CXX:-g++}"
 python="${PYTHON:-python3}"
 include_dir="$repo/core/include"
 
+# A third-party header is self-contained only with the dependency tree on the include path.
+vcpkg_include=""
+for candidate in "$repo"/build/vcpkg_installed/*/include "$repo"/vcpkg_installed/*/include; do
+  if [ -d "$candidate" ]; then
+    vcpkg_include="$candidate"
+    break
+  fi
+done
+extra_includes=()
+if [ -n "$vcpkg_include" ]; then
+  extra_includes=(-I"$vcpkg_include")
+fi
+
 fail() { printf 'scaffold gate FAILED: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
 
 compile_header() {
   printf '#include "%s"\n' "$1" > "$work/header.cpp"
-  "$CXX" -std=c++23 -fsyntax-only -I"$include_dir" "$work/header.cpp"
+  "$CXX" -std=c++23 -fsyntax-only -I"$include_dir" "${extra_includes[@]}" "$work/header.cpp"
 }
 
 note "every header compiles without a prior include"
 [ -d "$include_dir" ] || fail "no core/include directory"
+note "dependencies: ${vcpkg_include:-not installed}"
 header_count=0
 while IFS= read -r header; do
-  compile_header "$header" || fail "$header does not compile on its own"
+  if ! compile_header "$header"; then
+    if [ -z "$vcpkg_include" ]; then
+      fail "$header needs a third-party header and no vcpkg tree exists; run vcpkg install --triplet x64-linux"
+    fi
+    fail "$header does not compile on its own"
+  fi
   header_count=$((header_count + 1))
 done < <(find "$include_dir" -name '*.hpp' | sort)
 [ "$header_count" -gt 0 ] || fail "no headers were compiled"
