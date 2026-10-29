@@ -1,0 +1,1500 @@
+{
+  "version": 1,
+  "note": "Hand-authored mapping from each raw syllabus statement to one vocabulary node. Nodes are the vocabulary; mapped/dropped is one entry per raw statement id, so a source update is a rebuild and never a hand-edit of content/vocab.json. Umbrella statements that name several techniques land on the area node.",
+  "nodes": [
+    {
+      "id": "programming",
+      "en": "Programming fundamentals",
+      "parent": null
+    },
+    {
+      "id": "io",
+      "en": "Input / output",
+      "parent": "programming"
+    },
+    {
+      "id": "simulation",
+      "en": "Simulation",
+      "parent": "programming"
+    },
+    {
+      "id": "implementation",
+      "en": "Implementation",
+      "parent": "programming"
+    },
+    {
+      "id": "ad-hoc",
+      "en": "Ad hoc problems",
+      "parent": "programming"
+    },
+    {
+      "id": "casework",
+      "en": "Casework",
+      "parent": "programming"
+    },
+    {
+      "id": "constructive-algorithms",
+      "en": "Constructive algorithms",
+      "parent": "programming"
+    },
+    {
+      "id": "expression-parsing",
+      "en": "Expression parsing",
+      "parent": "programming"
+    },
+    {
+      "id": "data-types",
+      "en": "Data types and variables",
+      "parent": "programming"
+    },
+    {
+      "id": "control-flow",
+      "en": "Conditional and iterative control",
+      "parent": "programming"
+    },
+    {
+      "id": "functions-and-decomposition",
+      "en": "Functions and structured decomposition",
+      "parent": "programming"
+    },
+    {
+      "id": "language-basics",
+      "en": "Syntax and semantics of a programming language",
+      "parent": "programming"
+    },
+    {
+      "id": "bitwise-operators",
+      "en": "Bitwise operators",
+      "parent": "programming"
+    },
+    {
+      "id": "pointers-and-references",
+      "en": "Pointers and references",
+      "parent": "programming"
+    },
+    {
+      "id": "memory-management",
+      "en": "Memory allocation and linked structures",
+      "parent": "programming"
+    },
+    {
+      "id": "floating-point",
+      "en": "Floating-point numbers and precision",
+      "parent": "programming"
+    },
+    {
+      "id": "fast-io",
+      "en": "Fast input and output",
+      "parent": "programming"
+    },
+    {
+      "id": "recursion",
+      "en": "Recursion",
+      "parent": "programming"
+    },
+    {
+      "id": "backtracking",
+      "en": "Backtracking",
+      "parent": "programming"
+    },
+    {
+      "id": "bookkeeping",
+      "en": "Problem-solving strategies",
+      "parent": "programming"
+    },
+    {
+      "id": "debugging",
+      "en": "Debugging strategies",
+      "parent": "programming"
+    },
+    {
+      "id": "interactive",
+      "en": "Interactive problems",
+      "parent": "programming"
+    },
+    {
+      "id": "math",
+      "en": "Mathematics",
+      "parent": null
+    },
+    {
+      "id": "arithmetic",
+      "en": "Integers and arithmetic",
+      "parent": "math"
+    },
+    {
+      "id": "divisibility",
+      "en": "Divisibility and parity",
+      "parent": "math"
+    },
+    {
+      "id": "fractions",
+      "en": "Fractions and percentages",
+      "parent": "math"
+    },
+    {
+      "id": "sequences-and-series",
+      "en": "Sequences and series",
+      "parent": "math"
+    },
+    {
+      "id": "equations-and-inequalities",
+      "en": "Equations and inequalities",
+      "parent": "math"
+    },
+    {
+      "id": "modular-arithmetic",
+      "en": "Modular arithmetic",
+      "parent": "math"
+    },
+    {
+      "id": "modular-inverse",
+      "en": "Modular division and inverse elements",
+      "parent": "math"
+    },
+    {
+      "id": "gcd",
+      "en": "GCD / number theory",
+      "parent": "math"
+    },
+    {
+      "id": "primes",
+      "en": "Prime numbers",
+      "parent": "gcd"
+    },
+    {
+      "id": "sieve",
+      "en": "Sieve of Eratosthenes",
+      "parent": "gcd"
+    },
+    {
+      "id": "factorization",
+      "en": "Integer factorization",
+      "parent": "gcd"
+    },
+    {
+      "id": "extended-euclid",
+      "en": "Extended Euclidean algorithm",
+      "parent": "gcd"
+    },
+    {
+      "id": "fast-exponentiation",
+      "en": "Fast exponentiation",
+      "parent": "gcd"
+    },
+    {
+      "id": "chinese-remainder",
+      "en": "Chinese remainder theorem",
+      "parent": "gcd"
+    },
+    {
+      "id": "number-theoretic-prefix-sums",
+      "en": "Prefix sums of number-theoretic functions",
+      "parent": "gcd"
+    },
+    {
+      "id": "arbitrary-precision",
+      "en": "Arbitrary precision integers",
+      "parent": "arithmetic"
+    },
+    {
+      "id": "combinatorics",
+      "en": "Combinatorics",
+      "parent": "math"
+    },
+    {
+      "id": "permutations-combinations",
+      "en": "Permutations and combinations",
+      "parent": "combinatorics"
+    },
+    {
+      "id": "binomial-coefficients",
+      "en": "Binomial coefficients and Pascal's identity",
+      "parent": "combinatorics"
+    },
+    {
+      "id": "inclusion-exclusion",
+      "en": "Inclusion-exclusion principle",
+      "parent": "combinatorics"
+    },
+    {
+      "id": "pigeonhole",
+      "en": "Pigeonhole principle",
+      "parent": "combinatorics"
+    },
+    {
+      "id": "catalan-numbers",
+      "en": "Catalan numbers",
+      "parent": "combinatorics"
+    },
+    {
+      "id": "probability",
+      "en": "Probabilities",
+      "parent": "math"
+    },
+    {
+      "id": "linear-algebra",
+      "en": "Linear algebra",
+      "parent": "math"
+    },
+    {
+      "id": "matrices",
+      "en": "Matrices",
+      "parent": "linear-algebra"
+    },
+    {
+      "id": "matrix-exponentiation",
+      "en": "Matrix exponentiation",
+      "parent": "matrices"
+    },
+    {
+      "id": "calculus",
+      "en": "Calculus",
+      "parent": "math"
+    },
+    {
+      "id": "statistics",
+      "en": "Statistics",
+      "parent": "math"
+    },
+    {
+      "id": "complex-numbers",
+      "en": "Complex numbers",
+      "parent": "math"
+    },
+    {
+      "id": "trigonometry",
+      "en": "Trigonometric functions",
+      "parent": "math"
+    },
+    {
+      "id": "conic-sections",
+      "en": "Conic sections",
+      "parent": "math"
+    },
+    {
+      "id": "sets-and-functions",
+      "en": "Sets, functions and relations",
+      "parent": "math"
+    },
+    {
+      "id": "logic",
+      "en": "Mathematical logic",
+      "parent": "math"
+    },
+    {
+      "id": "proof-techniques",
+      "en": "Proof techniques",
+      "parent": "math"
+    },
+    {
+      "id": "induction",
+      "en": "Mathematical induction",
+      "parent": "proof-techniques"
+    },
+    {
+      "id": "game-theory",
+      "en": "Game theory",
+      "parent": "math"
+    },
+    {
+      "id": "automata-and-grammars",
+      "en": "Automata and grammars",
+      "parent": "math"
+    },
+    {
+      "id": "regular-expressions",
+      "en": "Regular expressions",
+      "parent": "automata-and-grammars"
+    },
+    {
+      "id": "heuristics",
+      "en": "Heuristics",
+      "parent": "math"
+    },
+    {
+      "id": "approximation-algorithms",
+      "en": "Discrete approximation algorithms",
+      "parent": "heuristics"
+    },
+    {
+      "id": "randomized",
+      "en": "Randomized algorithms",
+      "parent": "heuristics"
+    },
+    {
+      "id": "clustering",
+      "en": "Clustering algorithms",
+      "parent": "heuristics"
+    },
+    {
+      "id": "numerical-optimization",
+      "en": "Numerical function minimization",
+      "parent": "heuristics"
+    },
+    {
+      "id": "machine-learning",
+      "en": "Machine learning features",
+      "parent": "heuristics"
+    },
+    {
+      "id": "complexity",
+      "en": "Time & memory complexity",
+      "parent": null
+    },
+    {
+      "id": "amortized-analysis",
+      "en": "Amortized analysis",
+      "parent": "complexity"
+    },
+    {
+      "id": "recurrence-relations",
+      "en": "Recurrence relations",
+      "parent": "complexity"
+    },
+    {
+      "id": "correctness",
+      "en": "Correctness and invariants",
+      "parent": "complexity"
+    },
+    {
+      "id": "online-algorithms",
+      "en": "Online algorithm analysis",
+      "parent": "complexity"
+    },
+    {
+      "id": "data-structures",
+      "en": "Data structures",
+      "parent": null
+    },
+    {
+      "id": "array",
+      "en": "Arrays",
+      "parent": "data-structures"
+    },
+    {
+      "id": "stack",
+      "en": "Stack",
+      "parent": "data-structures"
+    },
+    {
+      "id": "queue",
+      "en": "Queue / deque",
+      "parent": "data-structures"
+    },
+    {
+      "id": "linked-list",
+      "en": "Linked list",
+      "parent": "data-structures"
+    },
+    {
+      "id": "set-map",
+      "en": "Sets & maps",
+      "parent": "data-structures"
+    },
+    {
+      "id": "hash-table",
+      "en": "Hash tables",
+      "parent": "data-structures"
+    },
+    {
+      "id": "heap",
+      "en": "Priority queue / heap",
+      "parent": "data-structures"
+    },
+    {
+      "id": "dsu",
+      "en": "Disjoint set union",
+      "parent": "data-structures"
+    },
+    {
+      "id": "fenwick",
+      "en": "Fenwick tree",
+      "parent": "data-structures"
+    },
+    {
+      "id": "segment-tree",
+      "en": "Segment tree",
+      "parent": "data-structures"
+    },
+    {
+      "id": "segment-tree-advanced",
+      "en": "Advanced segment tree techniques",
+      "parent": "segment-tree"
+    },
+    {
+      "id": "2d-range-queries",
+      "en": "2D range queries",
+      "parent": "segment-tree"
+    },
+    {
+      "id": "sparse-table",
+      "en": "Sparse table",
+      "parent": "data-structures"
+    },
+    {
+      "id": "sqrt-decomposition",
+      "en": "Square root decomposition",
+      "parent": "data-structures"
+    },
+    {
+      "id": "trie",
+      "en": "Tries",
+      "parent": "data-structures"
+    },
+    {
+      "id": "bst",
+      "en": "Balanced binary search trees",
+      "parent": "data-structures"
+    },
+    {
+      "id": "persistent-structures",
+      "en": "Persistent data structures",
+      "parent": "data-structures"
+    },
+    {
+      "id": "bitset",
+      "en": "Bitsets",
+      "parent": "data-structures"
+    },
+    {
+      "id": "wavelet-tree",
+      "en": "Wavelet tree",
+      "parent": "data-structures"
+    },
+    {
+      "id": "xor-basis",
+      "en": "XOR basis",
+      "parent": "data-structures"
+    },
+    {
+      "id": "small-to-large",
+      "en": "Small-to-large merging",
+      "parent": "data-structures"
+    },
+    {
+      "id": "graph-representation",
+      "en": "Graph representations",
+      "parent": "data-structures"
+    },
+    {
+      "id": "algorithms",
+      "en": "Algorithms",
+      "parent": null
+    },
+    {
+      "id": "brute-force",
+      "en": "Brute force",
+      "parent": "algorithms"
+    },
+    {
+      "id": "greedy",
+      "en": "Greedy",
+      "parent": "algorithms"
+    },
+    {
+      "id": "sorting",
+      "en": "Sorting",
+      "parent": "algorithms"
+    },
+    {
+      "id": "sorting-elementary",
+      "en": "Elementary sorting algorithms",
+      "parent": "sorting"
+    },
+    {
+      "id": "sorting-comparators",
+      "en": "Custom comparators and coordinate compression",
+      "parent": "sorting"
+    },
+    {
+      "id": "divide-and-conquer",
+      "en": "Divide and conquer",
+      "parent": "algorithms"
+    },
+    {
+      "id": "binary-search",
+      "en": "Binary search",
+      "parent": "divide-and-conquer"
+    },
+    {
+      "id": "ternary-search",
+      "en": "Ternary search",
+      "parent": "divide-and-conquer"
+    },
+    {
+      "id": "quickselect",
+      "en": "Quickselect",
+      "parent": "divide-and-conquer"
+    },
+    {
+      "id": "merge-sort",
+      "en": "Merge sort",
+      "parent": "divide-and-conquer"
+    },
+    {
+      "id": "dc-dp",
+      "en": "Divide and conquer DP",
+      "parent": "divide-and-conquer"
+    },
+    {
+      "id": "dc-srq",
+      "en": "Divide and conquer on static range queries",
+      "parent": "divide-and-conquer"
+    },
+    {
+      "id": "dp",
+      "en": "Dynamic programming",
+      "parent": "algorithms"
+    },
+    {
+      "id": "knapsack",
+      "en": "Knapsack",
+      "parent": "dp"
+    },
+    {
+      "id": "bitmask",
+      "en": "Bitmask DP",
+      "parent": "dp"
+    },
+    {
+      "id": "digit-dp",
+      "en": "Digit DP",
+      "parent": "dp"
+    },
+    {
+      "id": "range-dp",
+      "en": "Range DP",
+      "parent": "dp"
+    },
+    {
+      "id": "tree-dp",
+      "en": "DP on trees",
+      "parent": "dp"
+    },
+    {
+      "id": "sos-dp",
+      "en": "Sum over subsets DP",
+      "parent": "dp"
+    },
+    {
+      "id": "broken-profile-dp",
+      "en": "DP on broken profile",
+      "parent": "dp"
+    },
+    {
+      "id": "lis",
+      "en": "Longest increasing subsequence",
+      "parent": "dp"
+    },
+    {
+      "id": "dp-optimization",
+      "en": "DP optimizations",
+      "parent": "dp"
+    },
+    {
+      "id": "two-pointers",
+      "en": "Two pointers",
+      "parent": "algorithms"
+    },
+    {
+      "id": "sliding-window",
+      "en": "Sliding window",
+      "parent": "algorithms"
+    },
+    {
+      "id": "prefix-sums",
+      "en": "Prefix sums",
+      "parent": "algorithms"
+    },
+    {
+      "id": "meet-in-the-middle",
+      "en": "Meet in the middle",
+      "parent": "algorithms"
+    },
+    {
+      "id": "coordinate-compression",
+      "en": "Coordinate compression",
+      "parent": "algorithms"
+    },
+    {
+      "id": "offline",
+      "en": "Offline queries",
+      "parent": "algorithms"
+    },
+    {
+      "id": "offline-deletion",
+      "en": "Offline deletion",
+      "parent": "algorithms"
+    },
+    {
+      "id": "scheduling",
+      "en": "Scheduling",
+      "parent": "algorithms"
+    },
+    {
+      "id": "fracturing-search",
+      "en": "Fracturing search",
+      "parent": "algorithms"
+    },
+    {
+      "id": "fft",
+      "en": "Fast Fourier transform",
+      "parent": "algorithms"
+    },
+    {
+      "id": "2-sat",
+      "en": "2-SAT",
+      "parent": "algorithms"
+    },
+    {
+      "id": "graphs",
+      "en": "Graphs",
+      "parent": null
+    },
+    {
+      "id": "graph-basics",
+      "en": "Graph basics",
+      "parent": "graphs"
+    },
+    {
+      "id": "graph-traversal",
+      "en": "Graph traversal",
+      "parent": "graphs"
+    },
+    {
+      "id": "bfs",
+      "en": "Breadth-first search",
+      "parent": "graph-traversal"
+    },
+    {
+      "id": "dfs",
+      "en": "Depth-first search",
+      "parent": "graph-traversal"
+    },
+    {
+      "id": "flood-fill",
+      "en": "Flood fill",
+      "parent": "graph-traversal"
+    },
+    {
+      "id": "tree-traversal",
+      "en": "Tree traversal",
+      "parent": "graph-traversal"
+    },
+    {
+      "id": "connectivity",
+      "en": "Connectivity",
+      "parent": "graphs"
+    },
+    {
+      "id": "bcc-2cc",
+      "en": "Biconnected and 2-connected components",
+      "parent": "connectivity"
+    },
+    {
+      "id": "bridges",
+      "en": "Bridges and articulation points",
+      "parent": "connectivity"
+    },
+    {
+      "id": "scc",
+      "en": "Strongly connected components",
+      "parent": "connectivity"
+    },
+    {
+      "id": "topological-sort",
+      "en": "Topological sort",
+      "parent": "graphs"
+    },
+    {
+      "id": "eulerian-tour",
+      "en": "Eulerian tours",
+      "parent": "graphs"
+    },
+    {
+      "id": "functional-graph",
+      "en": "Functional graphs",
+      "parent": "graphs"
+    },
+    {
+      "id": "tree-basics",
+      "en": "Tree algorithms",
+      "parent": "graphs"
+    },
+    {
+      "id": "lca",
+      "en": "Lowest common ancestor",
+      "parent": "tree-basics"
+    },
+    {
+      "id": "binary-lifting",
+      "en": "Binary lifting",
+      "parent": "tree-basics"
+    },
+    {
+      "id": "tree-euler",
+      "en": "Euler tour technique",
+      "parent": "tree-basics"
+    },
+    {
+      "id": "hld",
+      "en": "Heavy-light decomposition",
+      "parent": "tree-basics"
+    },
+    {
+      "id": "centroid-decomposition",
+      "en": "Centroid decomposition",
+      "parent": "tree-basics"
+    },
+    {
+      "id": "virtual-tree",
+      "en": "Virtual tree",
+      "parent": "tree-basics"
+    },
+    {
+      "id": "kruskal-tree",
+      "en": "Kruskal reconstruction tree",
+      "parent": "tree-basics"
+    },
+    {
+      "id": "dijkstra",
+      "en": "Shortest paths",
+      "parent": "graphs"
+    },
+    {
+      "id": "bellman-ford",
+      "en": "Bellman-Ford",
+      "parent": "dijkstra"
+    },
+    {
+      "id": "floyd-warshall",
+      "en": "Floyd-Warshall",
+      "parent": "dijkstra"
+    },
+    {
+      "id": "mst",
+      "en": "Minimum spanning tree",
+      "parent": "graphs"
+    },
+    {
+      "id": "graph-matchings",
+      "en": "Graph matchings",
+      "parent": "graphs"
+    },
+    {
+      "id": "bipartite-matching",
+      "en": "Maximum bipartite matching",
+      "parent": "graph-matchings"
+    },
+    {
+      "id": "max-flow",
+      "en": "Maximum flow",
+      "parent": "graphs"
+    },
+    {
+      "id": "min-cut",
+      "en": "Minimum cut",
+      "parent": "max-flow"
+    },
+    {
+      "id": "min-cost-flow",
+      "en": "Minimum cost flow",
+      "parent": "max-flow"
+    },
+    {
+      "id": "link-cut-tree",
+      "en": "Link-cut tree",
+      "parent": "graphs"
+    },
+    {
+      "id": "matroid",
+      "en": "Matroids",
+      "parent": "graphs"
+    },
+    {
+      "id": "matroid-intersection",
+      "en": "Matroid intersection",
+      "parent": "matroid"
+    },
+    {
+      "id": "planar-graphs",
+      "en": "Planar graphs",
+      "parent": "graphs"
+    },
+    {
+      "id": "hypergraph",
+      "en": "Hypergraphs",
+      "parent": "graphs"
+    },
+    {
+      "id": "graph-classes",
+      "en": "Specific graph classes",
+      "parent": "graphs"
+    },
+    {
+      "id": "treewidth",
+      "en": "Structural graph parameters",
+      "parent": "graphs"
+    },
+    {
+      "id": "strings",
+      "en": "Strings",
+      "parent": null
+    },
+    {
+      "id": "string-basics",
+      "en": "Strings and string processing",
+      "parent": "strings"
+    },
+    {
+      "id": "string-search",
+      "en": "String searching",
+      "parent": "strings"
+    },
+    {
+      "id": "hashing",
+      "en": "String hashing",
+      "parent": "strings"
+    },
+    {
+      "id": "kmp",
+      "en": "KMP",
+      "parent": "string-search"
+    },
+    {
+      "id": "z-algorithm",
+      "en": "Z-algorithm",
+      "parent": "string-search"
+    },
+    {
+      "id": "aho-corasick",
+      "en": "Aho-Corasick",
+      "parent": "string-search"
+    },
+    {
+      "id": "string-suffix-structures",
+      "en": "String suffix structures",
+      "parent": "strings"
+    },
+    {
+      "id": "suffix-array",
+      "en": "Suffix array",
+      "parent": "string-suffix-structures"
+    },
+    {
+      "id": "geometry",
+      "en": "Computational geometry",
+      "parent": null
+    },
+    {
+      "id": "geometry-primitives",
+      "en": "Points, vectors and lines",
+      "parent": "geometry"
+    },
+    {
+      "id": "polygons",
+      "en": "Polygons",
+      "parent": "geometry"
+    },
+    {
+      "id": "polygon-area",
+      "en": "Polygon area",
+      "parent": "polygons"
+    },
+    {
+      "id": "point-in-polygon",
+      "en": "Point in polygon",
+      "parent": "polygons"
+    },
+    {
+      "id": "rectangle-geometry",
+      "en": "Rectangle geometry",
+      "parent": "polygons"
+    },
+    {
+      "id": "convex-hull",
+      "en": "Convex hull",
+      "parent": "geometry"
+    },
+    {
+      "id": "sweep-line",
+      "en": "Sweep line",
+      "parent": "geometry"
+    },
+    {
+      "id": "circle-intersections",
+      "en": "Circle intersections",
+      "parent": "geometry"
+    },
+    {
+      "id": "point-line-duality",
+      "en": "Point-line duality",
+      "parent": "geometry"
+    },
+    {
+      "id": "voronoi-diagrams",
+      "en": "Voronoi diagrams and Delaunay triangulations",
+      "parent": "geometry"
+    },
+    {
+      "id": "linear-programming",
+      "en": "Linear programming",
+      "parent": "geometry"
+    },
+    {
+      "id": "center-of-mass",
+      "en": "Center of mass",
+      "parent": "geometry"
+    },
+    {
+      "id": "geometric-transformations",
+      "en": "Geometric transformations",
+      "parent": "geometry"
+    },
+    {
+      "id": "three-d-geometry",
+      "en": "Geometry in three or more dimensions",
+      "parent": "geometry"
+    }
+  ],
+  "th_overrides": {
+    "array": "posn:g4/r1",
+    "bookkeeping": "posn:g5/r2",
+    "data-structures": null,
+    "geometry-primitives": "posn:g1/r9",
+    "functions-and-decomposition": "posn:g3/r10"
+  },
+  "mapped": {
+    "codeforces:2-sat": "2-sat",
+    "codeforces:binary search": "binary-search",
+    "codeforces:bitmasks": "bitmask",
+    "codeforces:brute force": "brute-force",
+    "codeforces:chinese remainder theorem": "chinese-remainder",
+    "codeforces:combinatorics": "combinatorics",
+    "codeforces:communication": "interactive",
+    "codeforces:constructive algorithms": "constructive-algorithms",
+    "codeforces:data structures": "data-structures",
+    "codeforces:dfs and similar": "dfs",
+    "codeforces:divide and conquer": "divide-and-conquer",
+    "codeforces:dp": "dp",
+    "codeforces:dsu": "dsu",
+    "codeforces:expression parsing": "expression-parsing",
+    "codeforces:fft": "fft",
+    "codeforces:flows": "max-flow",
+    "codeforces:games": "game-theory",
+    "codeforces:geometry": "geometry",
+    "codeforces:graph matchings": "graph-matchings",
+    "codeforces:graphs": "graphs",
+    "codeforces:greedy": "greedy",
+    "codeforces:hashing": "hashing",
+    "codeforces:implementation": "implementation",
+    "codeforces:interactive": "interactive",
+    "codeforces:math": "math",
+    "codeforces:matrices": "matrices",
+    "codeforces:meet-in-the-middle": "meet-in-the-middle",
+    "codeforces:number theory": "gcd",
+    "codeforces:probabilities": "probability",
+    "codeforces:schedules": "scheduling",
+    "codeforces:shortest paths": "dijkstra",
+    "codeforces:sortings": "sorting",
+    "codeforces:string suffix structures": "string-suffix-structures",
+    "codeforces:strings": "strings",
+    "codeforces:ternary search": "ternary-search",
+    "codeforces:trees": "tree-basics",
+    "codeforces:two pointers": "two-pointers",
+    "ioi:5.1/1": "arithmetic",
+    "ioi:5.1/10": "geometry-primitives",
+    "ioi:5.1/11": "three-d-geometry",
+    "ioi:5.1/12": "floating-point",
+    "ioi:5.1/13": "modular-inverse",
+    "ioi:5.1/14": "complex-numbers",
+    "ioi:5.1/15": "conic-sections",
+    "ioi:5.1/16": "trigonometry",
+    "ioi:5.1/2": "divisibility",
+    "ioi:5.1/3": "modular-arithmetic",
+    "ioi:5.1/4": "primes",
+    "ioi:5.1/5": "fractions",
+    "ioi:5.1/6": "geometry-primitives",
+    "ioi:5.1/7": "geometry-primitives",
+    "ioi:5.1/8": "polygons",
+    "ioi:5.1/9": "geometry-primitives",
+    "ioi:5.3/1": "linear-algebra",
+    "ioi:5.3/2": "calculus",
+    "ioi:5.3/3": "game-theory",
+    "ioi:5.3/4": "statistics",
+    "ioi:AL1/1": "correctness",
+    "ioi:AL1/10": "complexity",
+    "ioi:AL1/11": "recurrence-relations",
+    "ioi:AL1/2": "complexity",
+    "ioi:AL1/3": "complexity",
+    "ioi:AL1/4": "complexity",
+    "ioi:AL1/5": "complexity",
+    "ioi:AL1/6": "complexity",
+    "ioi:AL1/7": "complexity",
+    "ioi:AL1/8": "complexity",
+    "ioi:AL1/9": "complexity",
+    "ioi:AL10/1": "geometry-primitives",
+    "ioi:AL10/10": "voronoi-diagrams",
+    "ioi:AL10/11": "circle-intersections",
+    "ioi:AL10/12": "linear-programming",
+    "ioi:AL10/13": "center-of-mass",
+    "ioi:AL10/14": "geometric-transformations",
+    "ioi:AL10/2": "geometry-primitives",
+    "ioi:AL10/3": "geometry-primitives",
+    "ioi:AL10/4": "polygon-area",
+    "ioi:AL10/5": "point-in-polygon",
+    "ioi:AL10/6": "coordinate-compression",
+    "ioi:AL10/7": "convex-hull",
+    "ioi:AL10/8": "sweep-line",
+    "ioi:AL10/9": "point-line-duality",
+    "ioi:AL2/1": "implementation",
+    "ioi:AL2/10": "randomized",
+    "ioi:AL2/11": "clustering",
+    "ioi:AL2/12": "numerical-optimization",
+    "ioi:AL2/2": "brute-force",
+    "ioi:AL2/3": "greedy",
+    "ioi:AL2/4": "divide-and-conquer",
+    "ioi:AL2/5": "backtracking",
+    "ioi:AL2/6": "dp",
+    "ioi:AL2/7": "heuristics",
+    "ioi:AL2/8": "machine-learning",
+    "ioi:AL2/9": "approximation-algorithms",
+    "ioi:AL3a/1": "gcd",
+    "ioi:AL3a/10": "graph-traversal",
+    "ioi:AL3a/11": "connectivity",
+    "ioi:AL3a/12": "dijkstra",
+    "ioi:AL3a/13": "mst",
+    "ioi:AL3a/14": "bipartite-matching",
+    "ioi:AL3a/15": "max-flow",
+    "ioi:AL3a/16": "bridges",
+    "ioi:AL3a/17": "scc",
+    "ioi:AL3a/18": "game-theory",
+    "ioi:AL3a/19": "matroid",
+    "ioi:AL3a/2": "arbitrary-precision",
+    "ioi:AL3a/20": "graph-traversal",
+    "ioi:AL3a/21": "max-flow",
+    "ioi:AL3a/22": "graph-matchings",
+    "ioi:AL3a/23": "min-cost-flow",
+    "ioi:AL3a/24": "game-theory",
+    "ioi:AL3a/3": "array",
+    "ioi:AL3a/4": "string-search",
+    "ioi:AL3a/5": "binary-search",
+    "ioi:AL3a/6": "quickselect",
+    "ioi:AL3a/7": "merge-sort",
+    "ioi:AL3a/8": "tree-traversal",
+    "ioi:AL3a/9": "graph-traversal",
+    "ioi:AL3b/1": "stack",
+    "ioi:AL3b/10": "persistent-structures",
+    "ioi:AL3b/11": "data-structures",
+    "ioi:AL3b/12": "trie",
+    "ioi:AL3b/13": "strings",
+    "ioi:AL3b/14": "heap",
+    "ioi:AL3b/15": "hash-table",
+    "ioi:AL3b/16": "2d-range-queries",
+    "ioi:AL3b/17": "persistent-structures",
+    "ioi:AL3b/18": "link-cut-tree",
+    "ioi:AL3b/2": "graph-representation",
+    "ioi:AL3b/3": "heap",
+    "ioi:AL3b/4": "dsu",
+    "ioi:AL3b/5": "segment-tree",
+    "ioi:AL3b/6": "bst",
+    "ioi:AL3b/7": "bst",
+    "ioi:AL3b/8": "lca",
+    "ioi:AL3b/9": "hld",
+    "ioi:AL7/1": "automata-and-grammars",
+    "ioi:AL7/2": "automata-and-grammars",
+    "ioi:AL7/3": "automata-and-grammars",
+    "ioi:AL7/4": "regular-expressions",
+    "ioi:AL7/5": "automata-and-grammars",
+    "ioi:AL8/1": "amortized-analysis",
+    "ioi:AL8/2": "online-algorithms",
+    "ioi:AL8/3": "randomized",
+    "ioi:DS1/1": "sets-and-functions",
+    "ioi:DS1/2": "sets-and-functions",
+    "ioi:DS1/3": "sets-and-functions",
+    "ioi:DS1/4": "sets-and-functions",
+    "ioi:DS2/1": "logic",
+    "ioi:DS2/2": "logic",
+    "ioi:DS2/3": "logic",
+    "ioi:DS2/4": "logic",
+    "ioi:DS2/5": "logic",
+    "ioi:DS2/6": "logic",
+    "ioi:DS2/7": "logic",
+    "ioi:DS2/8": "logic",
+    "ioi:DS3/1": "proof-techniques",
+    "ioi:DS3/2": "proof-techniques",
+    "ioi:DS3/3": "induction",
+    "ioi:DS3/4": "induction",
+    "ioi:DS3/5": "proof-techniques",
+    "ioi:DS4/1": "combinatorics",
+    "ioi:DS4/2": "permutations-combinations",
+    "ioi:DS4/3": "binomial-coefficients",
+    "ioi:DS4/4": "inclusion-exclusion",
+    "ioi:DS4/5": "pigeonhole",
+    "ioi:DS4/6": "binomial-coefficients",
+    "ioi:DS4/7": "recurrence-relations",
+    "ioi:DS4/8": "combinatorics",
+    "ioi:DS5/1": "graph-basics",
+    "ioi:DS5/10": "graph-basics",
+    "ioi:DS5/11": "graph-basics",
+    "ioi:DS5/12": "graph-basics",
+    "ioi:DS5/13": "connectivity",
+    "ioi:DS5/14": "tree-basics",
+    "ioi:DS5/15": "planar-graphs",
+    "ioi:DS5/16": "graph-basics",
+    "ioi:DS5/17": "hypergraph",
+    "ioi:DS5/18": "graph-classes",
+    "ioi:DS5/19": "treewidth",
+    "ioi:DS5/2": "graph-basics",
+    "ioi:DS5/20": "planar-graphs",
+    "ioi:DS5/21": "planar-graphs",
+    "ioi:DS5/3": "graph-basics",
+    "ioi:DS5/4": "graph-basics",
+    "ioi:DS5/5": "connectivity",
+    "ioi:DS5/6": "tree-basics",
+    "ioi:DS5/7": "tree-basics",
+    "ioi:DS5/8": "tree-basics",
+    "ioi:DS5/9": "graph-traversal",
+    "ioi:PF1/1": "language-basics",
+    "ioi:PF1/2": "data-types",
+    "ioi:PF1/3": "io",
+    "ioi:PF1/4": "control-flow",
+    "ioi:PF1/5": "functions-and-decomposition",
+    "ioi:PF1/6": "functions-and-decomposition",
+    "ioi:PF2/1": "bookkeeping",
+    "ioi:PF2/2": "bookkeeping",
+    "ioi:PF2/3": "implementation",
+    "ioi:PF2/4": "debugging",
+    "ioi:PF2/5": "bookkeeping",
+    "ioi:PF3/1": "data-types",
+    "ioi:PF3/10": "pointers-and-references",
+    "ioi:PF3/11": "memory-management",
+    "ioi:PF3/12": "memory-management",
+    "ioi:PF3/13": "memory-management",
+    "ioi:PF3/14": "fractions",
+    "ioi:PF3/15": "floating-point",
+    "ioi:PF3/2": "array",
+    "ioi:PF3/3": "string-basics",
+    "ioi:PF3/4": "memory-management",
+    "ioi:PF3/5": "linked-list",
+    "ioi:PF3/6": "graph-representation",
+    "ioi:PF3/7": "data-structures",
+    "ioi:PF3/8": "floating-point",
+    "ioi:PF3/9": "floating-point",
+    "ioi:PF4/1": "recursion",
+    "ioi:PF4/2": "recursion",
+    "ioi:PF4/3": "recursion",
+    "ioi:PF4/4": "divide-and-conquer",
+    "ioi:PF4/5": "recursion",
+    "ioi:PF4/6": "backtracking",
+    "posn:g1/r1": "arithmetic",
+    "posn:g1/r10": "polygons",
+    "posn:g1/r11": "sequences-and-series",
+    "posn:g1/r12": "sequences-and-series",
+    "posn:g1/r13": "equations-and-inequalities",
+    "posn:g1/r14": "matrices",
+    "posn:g1/r2": "divisibility",
+    "posn:g1/r3": "modular-arithmetic",
+    "posn:g1/r4": "primes",
+    "posn:g1/r5": "fractions",
+    "posn:g1/r6": "geometry-primitives",
+    "posn:g1/r7": "geometry-primitives",
+    "posn:g1/r8": "geometry-primitives",
+    "posn:g1/r9": "geometry-primitives",
+    "posn:g2/r1": "logic",
+    "posn:g2/r10": "binomial-coefficients",
+    "posn:g2/r11": "graph-basics",
+    "posn:g2/r12": "graph-basics",
+    "posn:g2/r13": "graph-basics",
+    "posn:g2/r14": "connectivity",
+    "posn:g2/r15": "tree-basics",
+    "posn:g2/r16": "graph-basics",
+    "posn:g2/r17": "tree-basics",
+    "posn:g2/r18": "planar-graphs",
+    "posn:g2/r2": "logic",
+    "posn:g2/r3": "sets-and-functions",
+    "posn:g2/r4": "sets-and-functions",
+    "posn:g2/r5": "logic",
+    "posn:g2/r6": "proof-techniques",
+    "posn:g2/r7": "induction",
+    "posn:g2/r8": "combinatorics",
+    "posn:g2/r9": "permutations-combinations",
+    "posn:g3/r10": "functions-and-decomposition",
+    "posn:g3/r11": "functions-and-decomposition",
+    "posn:g3/r12": "recursion",
+    "posn:g3/r13": "backtracking",
+    "posn:g3/r14": "pointers-and-references",
+    "posn:g3/r15": "floating-point",
+    "posn:g3/r2": "language-basics",
+    "posn:g3/r3": "language-basics",
+    "posn:g3/r4": "language-basics",
+    "posn:g3/r5": "data-types",
+    "posn:g3/r6": "data-types",
+    "posn:g3/r7": "io",
+    "posn:g3/r8": "control-flow",
+    "posn:g3/r9": "functions-and-decomposition",
+    "posn:g4/r1": "array",
+    "posn:g4/r10": "heap",
+    "posn:g4/r11": "dsu",
+    "posn:g4/r12": "fenwick",
+    "posn:g4/r13": "trie",
+    "posn:g4/r14": "bst",
+    "posn:g4/r15": "lca",
+    "posn:g4/r16": "hld",
+    "posn:g4/r17": "persistent-structures",
+    "posn:g4/r18": "data-structures",
+    "posn:g4/r2": "array",
+    "posn:g4/r3": "string-basics",
+    "posn:g4/r4": "memory-management",
+    "posn:g4/r5": "stack",
+    "posn:g4/r6": "linked-list",
+    "posn:g4/r7": "graph-representation",
+    "posn:g4/r8": "data-structures",
+    "posn:g4/r9": "set-map",
+    "posn:g5/r1": "bookkeeping",
+    "posn:g5/r10": "array",
+    "posn:g5/r11": "array",
+    "posn:g5/r12": "string-search",
+    "posn:g5/r13": "binary-search",
+    "posn:g5/r14": "gcd",
+    "posn:g5/r15": "sorting",
+    "posn:g5/r16": "tree-traversal",
+    "posn:g5/r17": "graph-traversal",
+    "posn:g5/r18": "dijkstra",
+    "posn:g5/r19": "mst",
+    "posn:g5/r2": "bookkeeping",
+    "posn:g5/r20": "connectivity",
+    "posn:g5/r21": "algorithms",
+    "posn:g5/r22": "arbitrary-precision",
+    "posn:g5/r23": "graph-matchings",
+    "posn:g5/r24": "game-theory",
+    "posn:g5/r25": "automata-and-grammars",
+    "posn:g5/r26": "amortized-analysis",
+    "posn:g5/r3": "bookkeeping",
+    "posn:g5/r4": "correctness",
+    "posn:g5/r5": "complexity",
+    "posn:g5/r6": "complexity",
+    "posn:g5/r7": "complexity",
+    "posn:g5/r8": "brute-force",
+    "posn:g5/r9": "sorting-elementary",
+    "posn:g6/r1": "geometry-primitives",
+    "posn:g6/r2": "polygon-area",
+    "posn:g6/r3": "geometry-primitives",
+    "posn:g6/r4": "point-in-polygon",
+    "posn:g6/r5": "convex-hull",
+    "usaco:adv/BCC-2CC": "bcc-2cc",
+    "usaco:adv/SCC": "scc",
+    "usaco:adv/catalan": "catalan-numbers",
+    "usaco:adv/comb-sub": "tree-dp",
+    "usaco:adv/count-min": "segment-tree-advanced",
+    "usaco:adv/critical": "bcc-2cc",
+    "usaco:adv/dp-broken-profile": "broken-profile-dp",
+    "usaco:adv/dp-more": "dp-optimization",
+    "usaco:adv/eulerian-tours": "eulerian-tour",
+    "usaco:adv/eulers-formula": "planar-graphs",
+    "usaco:adv/extend-euclid": "extended-euclid",
+    "usaco:adv/fft": "fft",
+    "usaco:adv/fft-ext": "fft",
+    "usaco:adv/flow-lb": "max-flow",
+    "usaco:adv/fracturing-search": "fracturing-search",
+    "usaco:adv/game-theory": "game-theory",
+    "usaco:adv/interactive": "interactive",
+    "usaco:adv/lagrange": "dp-optimization",
+    "usaco:adv/line-container": "dp-optimization",
+    "usaco:adv/link-cut-tree": "link-cut-tree",
+    "usaco:adv/matroid": "matroid",
+    "usaco:adv/matroid-isect": "matroid-intersection",
+    "usaco:adv/max-flow": "max-flow",
+    "usaco:adv/min-cost-flow": "min-cost-flow",
+    "usaco:adv/min-cut": "min-cut",
+    "usaco:adv/offline-del": "offline-deletion",
+    "usaco:adv/persistent": "persistent-structures",
+    "usaco:adv/prefix-sums-nt-1": "number-theoretic-prefix-sums",
+    "usaco:adv/prefix-sums-nt-2": "number-theoretic-prefix-sums",
+    "usaco:adv/random": "randomized",
+    "usaco:adv/segtree-beats": "segment-tree-advanced",
+    "usaco:adv/slope-trick": "dp-optimization",
+    "usaco:adv/sp-neg": "bellman-ford",
+    "usaco:adv/springboards": "segment-tree-advanced",
+    "usaco:adv/string-search": "string-search",
+    "usaco:adv/string-suffix": "string-suffix-structures",
+    "usaco:adv/suffix-array": "suffix-array",
+    "usaco:adv/treaps": "bst",
+    "usaco:adv/wavelet": "wavelet-tree",
+    "usaco:adv/xor-basis": "xor-basis",
+    "usaco:bronze/ad-hoc": "ad-hoc",
+    "usaco:bronze/casework": "casework",
+    "usaco:bronze/complete-rec": "backtracking",
+    "usaco:bronze/intro-complete": "brute-force",
+    "usaco:bronze/intro-ds": "data-structures",
+    "usaco:bronze/intro-graphs": "graph-basics",
+    "usaco:bronze/intro-greedy": "greedy",
+    "usaco:bronze/intro-sets": "set-map",
+    "usaco:bronze/intro-sorting": "sorting",
+    "usaco:bronze/rect-geo": "rectangle-geometry",
+    "usaco:bronze/simulation": "simulation",
+    "usaco:bronze/time-comp": "complexity",
+    "usaco:general/data-types": "data-types",
+    "usaco:general/fast-io": "fast-io",
+    "usaco:general/input-output": "io",
+    "usaco:gold/PURS": "fenwick",
+    "usaco:gold/all-roots": "tree-dp",
+    "usaco:gold/combo": "combinatorics",
+    "usaco:gold/custom-cpp-stl": "sorting-comparators",
+    "usaco:gold/digit-dp": "digit-dp",
+    "usaco:gold/divisibility": "divisibility",
+    "usaco:gold/dp-bitmasks": "bitmask",
+    "usaco:gold/dp-ranges": "range-dp",
+    "usaco:gold/dp-trees": "tree-dp",
+    "usaco:gold/dsu": "dsu",
+    "usaco:gold/hashing": "hashing",
+    "usaco:gold/hashmaps": "hash-table",
+    "usaco:gold/intro-dp": "dp",
+    "usaco:gold/intro-sorted-sets": "set-map",
+    "usaco:gold/knapsack": "knapsack",
+    "usaco:gold/lca-euler": "lca",
+    "usaco:gold/lis": "lis",
+    "usaco:gold/meet-in-the-middle": "meet-in-the-middle",
+    "usaco:gold/modular": "modular-arithmetic",
+    "usaco:gold/mst": "mst",
+    "usaco:gold/paths-grids": "dp",
+    "usaco:gold/shortest-paths": "dijkstra",
+    "usaco:gold/sliding-window": "sliding-window",
+    "usaco:gold/stacks": "stack",
+    "usaco:gold/ternary-search": "ternary-search",
+    "usaco:gold/toposort": "topological-sort",
+    "usaco:gold/tree-euler": "tree-euler",
+    "usaco:gold/unweighted-shortest-paths": "bfs",
+    "usaco:plat/2DRQ": "2d-range-queries",
+    "usaco:plat/DC-DP": "dc-dp",
+    "usaco:plat/DC-SRQ": "dc-srq",
+    "usaco:plat/PIE": "inclusion-exclusion",
+    "usaco:plat/RURQ": "segment-tree",
+    "usaco:plat/VT": "virtual-tree",
+    "usaco:plat/binary-jump": "binary-lifting",
+    "usaco:plat/bitsets": "bitset",
+    "usaco:plat/centroid": "centroid-decomposition",
+    "usaco:plat/convex-hull": "convex-hull",
+    "usaco:plat/convex-hull-trick": "dp-optimization",
+    "usaco:plat/dp-sos": "sos-dp",
+    "usaco:plat/geo-pri": "geometry-primitives",
+    "usaco:plat/hld": "hld",
+    "usaco:plat/kruskal-tree": "kruskal-tree",
+    "usaco:plat/matrix-expo": "matrix-exponentiation",
+    "usaco:plat/merging": "small-to-large",
+    "usaco:plat/range-sweep": "sweep-line",
+    "usaco:plat/segtree-ext": "segment-tree-advanced",
+    "usaco:plat/sparse-segtree": "segment-tree-advanced",
+    "usaco:plat/sqrt": "sqrt-decomposition",
+    "usaco:plat/sweep-line": "sweep-line",
+    "usaco:silver/binary-search": "binary-search",
+    "usaco:silver/binary-search-sorted-array": "binary-search",
+    "usaco:silver/flood-fill": "flood-fill",
+    "usaco:silver/func-graphs": "functional-graph",
+    "usaco:silver/graph-traversal": "graph-traversal",
+    "usaco:silver/greedy-sorting": "greedy",
+    "usaco:silver/intro-bitwise": "bitwise-operators",
+    "usaco:silver/intro-tree": "tree-basics",
+    "usaco:silver/more-prefix-sums": "prefix-sums",
+    "usaco:silver/prefix-sums": "prefix-sums",
+    "usaco:silver/priority-queues": "heap",
+    "usaco:silver/sorting-custom": "sorting-comparators",
+    "usaco:silver/two-pointers": "two-pointers"
+  },
+  "dropped": {
+    "codeforces:*special": "pseudo-tag for special-check problems, not a skill",
+    "ioi:SE1/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE1/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE1/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE1/4": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE1/5": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE1/6": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE1/7": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE10/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE10/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE10/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE10/4": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE10/5": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE2/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE2/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE2/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE2/4": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE2/5": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE3/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE3/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE3/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE3/4": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE3/5": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE4/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE4/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE4/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE5/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE5/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE5/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE5/4": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE5/5": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE6/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE6/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE6/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE6/4": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE6/5": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE6/6": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE7/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE7/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE7/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE7/4": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE7/5": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE8/1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE8/2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE8/3": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE8/4": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE8/5": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE8/6": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "ioi:SE8/7": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "posn:g3/r1": "computer literacy, not a taggable problem skill",
+    "posn:g7/r1": "tool or environment usage, not a problem skill",
+    "posn:g7/r2": "tool or environment usage, not a problem skill",
+    "posn:g7/r3": "tool or environment usage, not a problem skill",
+    "posn:g7/r4": "tool or environment usage, not a problem skill",
+    "posn:g8/r1": "grader usage, not a taggable problem skill",
+    "posn:g8/r2": "grader usage, not a taggable problem skill",
+    "posn:g8/r3": "grader usage, not a taggable problem skill",
+    "posn:g8/r4": "grader usage, not a taggable problem skill",
+    "posn:g8/r5": "grader usage, not a taggable problem skill",
+    "posn:g8/r6": "grader usage, not a taggable problem skill",
+    "posn:g9/r1": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "posn:g9/r2": "software engineering practice (IOI SE1..SE12), not a taggable problem skill",
+    "usaco:adv/vectorization": "C++ language plumbing, not a problem skill",
+    "usaco:bronze/bronze-conclusion": "practice set or division recap, not a subject",
+    "usaco:general/adding-solution": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/basic-debugging": "debugging walkthrough, not a taggable subject",
+    "usaco:general/choosing-lang": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/contest-strategy": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/contests": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/contributing": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/cpp-command": "C++ language plumbing, not a problem skill",
+    "usaco:general/debugging-checklist": "debugging walkthrough, not a taggable subject",
+    "usaco:general/debugging-cpp": "debugging walkthrough, not a taggable subject",
+    "usaco:general/expected-knowledge": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/generic-code": "C++ language plumbing, not a problem skill",
+    "usaco:general/intro-cp": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/lambda-funcs": "C++ language plumbing, not a problem skill",
+    "usaco:general/modules": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/olympiads": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/practicing": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/resources-cp": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/resources-learning-to-code": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/resources-usa": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/running-code-locally": "tool or environment usage, not a problem skill",
+    "usaco:general/running-code-online": "tool or environment usage, not a problem skill",
+    "usaco:general/usaco-camp": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/usaco-faq": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/usaco-monthlies": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/using-this-guide": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:general/working-mdx": "guide or meta page about the site, not a subject a problem can require",
+    "usaco:gold/gold-conclusion": "practice set or division recap, not a subject",
+    "usaco:plat/plat-conclusion": "practice set or division recap, not a subject",
+    "usaco:silver/silver-conclusion": "practice set or division recap, not a subject"
+  }
+}
