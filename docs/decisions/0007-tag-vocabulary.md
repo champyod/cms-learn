@@ -80,3 +80,14 @@ nodes rather than translate them ahead of use: a Thai label is added when a sour
 the interface shows a single name rather than mixing languages mid-list. There is no separate list of untranslated nodes: `th: null` in
 `seed/vocab.json` is the record and the gate prints the count, so nothing has to be kept in step.
 Adding a Thai name is a data change in `mapping.json`, not a code change.
+
+## How the seed meets the database (decided 2026-10-29)
+
+The seed is applied on every deploy, insert-only: a node whose id is not in the database is added,
+and an existing row is never overwritten. The database therefore owns every name an admin has
+edited, while a term added to the seed later still arrives without an admin recreating it by hand.
+The key is the node id, which the mapping owns and which is never renamed; a node removed from the
+mapping is not deleted from a live database, because problems already carry it.
+
+The apply step itself is not built yet: it belongs with the deploy path, whose migration runner is
+outside this lane.
