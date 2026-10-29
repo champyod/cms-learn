@@ -54,7 +54,7 @@ Counts at last update: **21 shipped · 4 partial · 26 planned** (51 features).
 | F-031 | Thai-coverage monospace font, shipped with licence, verified by advance-width measurement | ● | `web/public/fonts/` |
 | F-032 | Twelve-direction theme gallery over one markup | ● | `design/theme-gallery.html` |
 | F-033 | Chosen direction preview with working TH/EN switching and font self-check | ● | `design/judge-mono.html` |
-| F-034 | Next.js app shell reading the tokens | ○ | — |
+| F-034 | Server-rendered app shell reading the tokens (Drogon + Inja) | ○ | — |
 | F-035 | Path home: stage rail, current module, next task | ○ | designed in `design/judge-mono.html` |
 | F-036 | Task view: statement render, samples, limits, topics | ○ | designed; statements are markdown |
 | F-037 | Code entry: in-page editor + file upload (`.cpp/.rs/.py`) | ○ | ADR 0001 / decision 7 |

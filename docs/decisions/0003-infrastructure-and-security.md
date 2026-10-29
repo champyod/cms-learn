@@ -1,65 +1,52 @@
-# ADR 0003 — single-server deployment, and the security stack it needs
+# 0003 — single-server deployment and the security stack
 
-- Status: accepted (2026-10-26)
-- Supersedes: nothing. Extends ADR 0001 (scope/stack/sandbox) and ADR 0002 (theme/auth).
-- Context: the platform has to run on **one server** for 30–60 students, be operated by one person,
-  and be defensible in a school setting where the users are minors. The contest stack (`cms-docker`)
-  stays exactly as it is; nothing here shares a database, network or volume with it.
+Status: accepted 2026-10-26 · extends 0001 and 0002 · the contest stack is untouched and shares no
+database, network or volume
 
-## Decisions
-
-| # | Decision | Chosen | Rejected, and why |
+| # | Decision | Chosen | Why |
 |---|---|---|---|
-| 1 | Database | **PostgreSQL 18.6** (`postgres:18.6`) | **15** — the contest stack's version, but nearing the end of its support window for a new project. **SQLite** — zero ops, but one writer: a judge writing verdicts while students write progress contends on one lock. |
-| 2 | Reverse proxy | **Caddy 2.11.7** | **nginx + certbot** — proven here, but renewal timers and templated configs are two things the operator must own. **Traefik** — most config surface for no gain at this size. |
-| 3 | Edge protection | **CrowdSec 1.8.1 + CRS as *in-band* AppSec rules + IP reputation, decided at the proxy** | **ModSecurity behind nginx** — the bouncer path is Caddy-only. **Rate limits alone** — no WAF, and no IP bans without a host-level fail2ban, which the hub forbids. |
-| 4 | Email verification | **Deferred.** Registration is an operator switch (`REGISTRATION_OPEN`); approval is a second switch (`APPROVAL_REQUIRED`). | **School SMTP / transactional API** — both need credentials and a deliverability story before launch; neither is needed to enrol one class. The auth model (ADR 0002) keeps the domain allowlist, so this is a deferral, not a removal. |
-| 5 | Hosting | **A VPS the operator controls** (Hetzner-class, 4 vCPU / 8 GB / 80 GB), joined to the tailnet | **School machine** — procurement and an unknown patch cadence. **Managed cloud** — more surface and cost for the same box. Recorded as an assumption, not a purchase: the compose stack does not depend on the provider. |
-| 6 | Sessions | **Rows in Postgres**, opaque id in an `HttpOnly; Secure; SameSite=Lax` cookie | **Redis** — one more service to patch and monitor for sub-millisecond reads. **Stateless cookies** — cannot be revoked when a student's device is lost. |
-| 7 | Judge placement | **Same box**, in a container with `cgroup: host`, `seccomp:unconfined`, cgroup tree mounted, and **no network gateway** | A second host — not with one server. Shared kernel is the accepted cost of `isolate` (ADR 0001) and is mitigated by the absence of a network namespace and any writable host mount. |
-| 8 | Backups | **Nightly `pg_dump -Fc` piped through `age` to an offsite remote**, private key held off-server, retention 7/4/3, monthly restore drill | **Volume snapshots** — provider-specific lock-in and no verification step. **WAL-G/PITR** — right answer for a database with money in it; for a 30–60 student bank, an unverified archive is the bigger risk. |
-| 9 | Observability | **Prometheus 3.15.1 + Grafana 13.2.4 + node-exporter 1.8.2**, 30-day retention, judge queue depth as the key metric | Full LGTM stack — three more services for one box. Nothing — a judge that silently stops dequeuing is the failure this must catch. |
-| 10 | Deploy path | **Images by digest, deploy gated on a tag, `compose pull && up -d`, rollback by digest** | Deploy on every push — a broken commit becomes a broken lesson. Rebuild-on-server — the box stops being immutable. |
-| 11 | **Proxy runs as uid 10001 on unprivileged ports** (80→8080, 443→8443 host-side) | the process terminating TLS for the whole site does not need root; the port map exists precisely so the `USER` line can exist |
-| 12 | **Security scanning is a gate** (Trivy 0.66.0: secrets, fixable CVEs, deployment hardening) | a leak or a root-user image should fail the build, not wait for someone to read a report |
+| 1 | Database | **PostgreSQL 18.6** | three processes write concurrently; the settings path needs server-side notification and row-level security |
+| 2 | Reverse proxy | **Caddy 2.11.7** | certificates and reloads are configuration, not timers to own |
+| 3 | Edge protection | **CrowdSec 1.8.1**, CRS as *in-band* AppSec rules, IP reputation decided at the proxy | a WAF that only bans for later requests is not a WAF |
+| 4 | Email verification | **Deferred**; `REGISTRATION_OPEN` and `APPROVAL_REQUIRED` are settings rows | neither credential nor deliverability is needed to enrol one class, and the domain allowlist stays |
+| 5 | Hosting | **A VPS the operator controls**, 4 vCPU / 8 GB, joined to the tailnet | the compose stack does not depend on the provider |
+| 6 | Sessions | **Rows in Postgres**, opaque id in an `HttpOnly; Secure; SameSite=Lax` cookie | a lost device must be revocable |
+| 7 | Judge placement | **Same box**, container with `cgroup: host`, `seccomp:unconfined`, cgroup tree mounted, **no network gateway** | one server; the judge is reachable by the database and nothing else |
+| 8 | Backups | **Nightly `pg_dump -Fc` through `age` to an offsite remote**, key held off-server, 7/4/3, monthly restore drill | an unverified archive is the bigger risk at this size |
+| 9 | Observability | **Prometheus 3.15.1 + Grafana 13.2.4 + node-exporter 1.8.2**, 30-day retention, judge queue depth as the key metric | a judge that silently stops dequeuing is the failure to catch |
+| 10 | Deploy path | **Images by digest**, `up -d --wait`, rollback by digest | a broken commit must not become a broken lesson |
+| 11 | Proxy privilege | **uid 10001 on unprivileged ports** (80→8080, 443→8443) | the process terminating TLS does not need root |
+| 12 | Security scanning | **Trivy 0.66.0 as a gate**: secrets, fixable CVEs, deployment hardening | a leak fails the build instead of waiting to be read |
 
 ## Consequences
 
-- **The judge is reachable by the database and nothing else.** It cannot fetch a payload; a submission
-  that needs the network fails by design.
-- **A stolen dump is not a stolen lesson plan._ The archive is encrypted with a public key, and the
-  private key is never on the server, so host compromise does not hand over history.
-- **The WAF blocks in-band.** Verified: the stock `crowdsecurity/crs` appsec-config reports
-  `Loaded 0 inband rules`, which only bans the IP for later requests. `deploy/crowdsec/appsec-config.yaml`
-  declares CRS as in-band and logs `Loaded 1 inband rules` with `Appsec listening on 0.0.0.0:7422`.
-- **No email means the domain allowlist matters more**, not less: it is the only thing tying an account
-  to the school. `ALLOWED_EMAIL_DOMAINS` empty is acceptable only while approval is on.
-- **Host hardening stays manual.** Firewall, SSH, kernel patching, cgroup delegation and time sync are
-  an operator checklist. Automating them would mean a container with host write access to the kernel
-  that also serves a live contest.
+- The judge has no network gateway; a submission that needs the network fails by design.
+- A stolen dump is not a stolen lesson plan: the private key is never on the server.
+- The WAF blocks in-band — the stock CRS config reports `Loaded 0 inband rules`, which only bans for
+  later requests, so `deploy/crowdsec/appsec-config.yaml` declares CRS in-band and logs
+  `Loaded 1 inband rules`.
+- With no email, the domain allowlist matters more: it is the only thing tying an account to the
+  school. An empty allowlist is acceptable only while approval is on.
+- Host hardening stays manual — firewall, SSH, kernel patching, cgroup delegation, time sync. It is an
+  operator checklist, not a container with write access to the kernel.
 
-## Evidence this ADR relies on (all run in this repo, not asserted)
+## Verified
 
-| Claim | How it was checked |
+| Claim | Check |
 |---|---|
-| The proxy image builds and contains both modules | `docker build deploy/proxy` → the Dockerfile's own `caddy list-modules` guard passes |
-| The Caddyfile is valid for that binary | `caddy validate` inside the built image → `Valid configuration` |
-| Compose interpolates and structures | `docker compose config -q` → OK; 10 services |
-| Only the proxy is public; db/grafana loopback | `docker compose config --format json` → asserted in `tools/check-deploy.sh` |
-| The deploy contract can fail | `tools/falsify-deploy-gate.sh` → **7/7** cases caught, each with its own reason |
-| Backups restore, not just dump | `pg_dump \| age` against Postgres 18.6, then `restore-drill.sh` → 250 users / 1000 submissions restored into a scratch DB, live DB untouched |
-| A corrupt archive fails the drill | random-bytes archive → drill exits 1 |
-| A dump cannot be written unencrypted | `run.sh` without `AGE_PUBLIC_KEY` → exits 1 |
-| The drill refuses to target the live DB | `SCRATCH_DB=cmslearn` → refuses, exit 1 |
-| CrowdSec loads in-band CRS and listens on 7422 | `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
-| Prometheus config parses for the pinned version | `promtool check config` → SUCCESS |
-| The Discord notify path executes | manual dispatch with `simulate_failure=true` → job ran, printed the missing-secret notice |
-| The proxy serves as non-root | container ran as `uid=10001`, answered `https 502` (no upstream yet) and `http 308`→HTTPS, bouncer logged `appsec enabled` |
-| The scan finds nothing **and** can fail | `security-scan.sh` green (0 secrets, 0 CVEs, 0 misconfigurations); `falsify-security-gate.sh` caught a planted GitHub token, a planted RSA key and a root-user Dockerfile, and kept a clean Dockerfile green — 4/4 |
-| The scan's hardening findings were real | first run flagged `proxy/Dockerfile` DS002 (root user) and `backup/Dockerfile` DS026 (no healthcheck): both fixed at the source, then 0 findings |
+| The proxy image builds with both modules | `docker build deploy/proxy`, whose `caddy list-modules` guard passes |
+| The Caddyfile is valid for that binary | `caddy validate` → `Valid configuration` |
+| Only the proxy is public | `docker compose config --format json`, asserted in `tools/check-deploy.sh` |
+| The deploy contract can fail | `tools/falsify-deploy-gate.sh` → 7/7 caught |
+| Backups restore, not just dump | `pg_dump \| age` then `restore-drill.sh` → 250 users / 1000 submissions into a scratch DB |
+| A corrupt archive and an unencrypted dump both fail | random bytes → exit 1; no `AGE_PUBLIC_KEY` → exit 1 |
+| The drill refuses the live database | `SCRATCH_DB=cmslearn` → exit 1 |
+| CrowdSec loads in-band CRS | `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
+| Prometheus config parses | `promtool check config` → SUCCESS |
+| The scan finds nothing and can fail | `security-scan.sh` green; `falsify-security-gate.sh` caught 4/4 planted defects |
 
 ## Open
 
-- `web`, `api`, `judge` images do not exist yet; the compose file references them and `up` stops there.
+- `web`, `api` and `judge` images do not exist yet; compose references them and `up` stops there.
 - The hosting provider is an assumption until a box exists.
-- WAL archiving/PITR is the upgrade path when the data becomes worth losing an hour of.
+- WAL archiving and PITR replace the nightly dump when the data is worth an hour of loss.

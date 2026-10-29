@@ -1,241 +1,152 @@
 # cms-learn
 
-[![CI](https://github.com/champyod/cms-learn/actions/workflows/ci.yml/badge.svg)](https://github.com/champyod/cms-learn/actions/workflows/ci.yml)
-
 A competitive-programming learning platform: one shared task bank, two student-chosen paths
-(**USACO ladder** and **IOI path**), and its own sandboxed judge — built beside the contest stack
-(`cms-docker`, `cms.mwit.ac.th`) rather than inside it.
-
-Sibling naming is deliberate: `cms-learn` sorts next to `cms-*` in the hub and reads as the learning
-arm of the same family. It never reads or writes contest data.
+(**USACO ladder** and **IOI path**), and its own sandboxed judge. It runs beside the contest stack
+(`cms-docker`) and never reads or writes contest data.
 
 **Audience:** 30–60 students at launch, desktop and mobile, Thai and English.
 
----
+## Start here
+
+| You want | Read |
+|---|---|
+| What is being built, in what order, with what proof | [`docs/plan.md`](docs/plan.md) |
+| What was decided and what it costs | [`docs/decisions/`](docs/decisions/) |
+| Packages, images and tools, with versions and licences | [`docs/dependencies.md`](docs/dependencies.md) |
+| The database and the invariants it enforces | [`docs/schema.md`](docs/schema.md) |
+| The domain model | [`docs/content-model.md`](docs/content-model.md) |
+| Server sizing, exposure and the operator checklist | [`docs/infra/single-server.md`](docs/infra/single-server.md) |
+| Feature-by-feature state | [`FEATURES.md`](FEATURES.md) |
+| Rules a contributor or agent must follow | [`AGENTS.md`](AGENTS.md) |
 
 ## What exists today
 
-| Area | State | Evidence |
+| Area | State | Where |
 |---|---|---|
 | Content model | **shipped** — 33 topics, 11 areas, 28 modules, 2 tracks, 8 stages, TH+EN labels | `content/` |
-| Content gate | **shipped** — schema + reference integrity, **11/11** falsification cases | `tools/validate-content.ts` |
-| Seed tasks | **2 drafts** with bilingual statements and reference solutions that reproduce their examples | `content/tasks/` |
-| Design tokens | **shipped** — `judge mono`; contrast 15.41:1 body; Thai-mono font verified by measurement | `web/tokens.css` |
-| Design previews | **shipped** — 12-direction gallery, plus the chosen direction with live TH/EN switching | `design/` |
-| API, judge, web app | **not built** — decisions recorded, no code yet | `docs/decisions/` |
-| Deployment stack | **specified and gated** — 10-service compose, Caddy TLS, CrowdSec in-band CRS, Postgres 18.6, Prometheus/Grafana, encrypted backups with a drill; **verified** by `check:deploy` + 7/7 falsification | `deploy/`, `docs/infra/single-server.md` |
-| Auth, pipeline | **not built** — specified in the epic and ADRs | `../epics/003-cms-learn.md` |
+| Content gate | **shipped** — schema and reference integrity, 11/11 falsification cases | `tools/validate-content.ts` |
+| Seed tasks | **2 drafts**, bilingual, references reproduce their own examples | `content/tasks/` |
+| Design tokens and previews | **shipped** — `judge mono`, 12-direction gallery, live TH/EN switch | `web/tokens.css`, `design/` |
+| Database schema | **written and exercised** — authority, audit, settings; applies clean on PostgreSQL 18.6 and every invariant is proven by a query | `deploy/schema/` |
+| C++ workspace | **configured** — CMake project, vcpkg manifest with two overlay ports, capability and settings-snapshot headers, core tests | `CMakeLists.txt`, `core/` |
+| `cmsctl` | **skeleton** — crate builds, no commands yet | `cmsctl/` |
+| Deployment stack | **specified and gated** — 10 services, Caddy TLS, CrowdSec in-band CRS, encrypted backup with a drill | `deploy/`, `docs/infra/` |
+| Web, api, judge binaries | **not built** — decisions recorded, no code | `docs/decisions/0004` |
+| Schema *tooling* | **pending** — `pgschema` is not installed, so `plan` and `apply --plan` are unproven | `deploy/schema/` |
 
-Honest summary: the **data layer, design foundation and deployment contract** are real and gated; the
-**services are decisions, not code**. Any document implying otherwise is wrong.
-[`FEATURES.md`](FEATURES.md) is the per-feature registry.
-
----
+The data layer, the design foundation and the deployment contract are real and gated. The services
+are decisions, not code. A document claiming otherwise is wrong.
 
 ## Architecture
 
-Decided in [`docs/decisions/0001-scope-stack-sandbox.md`](docs/decisions/0001-scope-stack-sandbox.md)
-and [`0002-theme-and-auth.md`](docs/decisions/0002-theme-and-auth.md):
-
 ```
-  student (TH/EN)
-        │
-        ▼
-  ┌───────────────────────┐   web/    Next.js, tokens from web/tokens.css   (planned)
-  └───────────┬───────────┘
-              │ session cookie over HTTP
-  ┌───────────▼───────────┐   api/    Rust + axum 0.8: auth, progress,
-  │                       │           task serving                          (planned)
-  └───┬───────────────┬───┘
-      │               │
-      │        ┌──────▼──────────────────────┐
-      │        │ content pipeline            │   generate → verify → cache
-      │        │ content-addressed artifacts │   → publish                  (planned)
-      │        └──────┬──────────────────────┘
-      │               │
-  ┌───▼───────────┐   │
-  │ judge/        │   │
-  │ isolate +     │   │
-  │ testlib (C++) │   │
-  └───────┬───────┘   │
-          ▼           ▼
-  ┌─────────────────────────────────────────┐
-  │ content/  topics · modules · tracks ·    │   the single source of truth
-  │           tasks                          │   (shipped)
-  └─────────────────────────────────────────┘
+  student · teacher (TH/EN)
+        │  HTTPS
+  ┌─────▼──────────────┐  proxy   Caddy 2.11.7 — TLS, rate limits, CrowdSec bouncer
+  └─────┬──────────────┘
+        │  internal network, no gateway
+  ┌─────▼──────────────┐  web + api   C++23 · Drogon 1.9.14 · Inja · htmx
+  └──┬──────────────┬──┘
+     │              │
+     │   ┌──────────▼─────────────┐  judge   C++ supervisor · isolate v2.7 · testlib
+     │   │  no egress, cgroup v2  │          reached by the database and nothing else
+     │   └──────────▲─────────────┘
+  ┌──▼──────────────▼──┐  database   PostgreSQL 18.6 — settings, content, progress, verdicts
+  └────────────────────┘
+        ▲
+        │  /run/cmslearn/admin.sock  (SO_PEERCRED, never public)
+  cmsctl — Rust, no DATABASE_URL
 ```
 
-**Why this split.** `testlib` (the CP-standard checker library) and `isolate` semantics are C++, so
-the judge core is C++ and reuses packaged, domain-standard primitives instead of re-implementing
-them; the mitigation is ASan/UBSan, libFuzzer and clang-tidy on every judge build. Services are Rust
-for memory safety on the internet-facing path. The UI is TypeScript because the admin panel already
-ships Next 16.1.1 + Tailwind 4 + Radix — a second component vocabulary beside it would be a
-duplicated design system.
-
-**Judging model.** `isolate` inside a container with a delegated cgroup v2 path: the same mechanism
-the contest stack operates today. A Firecracker microVM was chosen first and withdrawn — it needs
-KVM plus host-level kernel, microcode and jailer setup, which conflicts with the hub's "containers
-only, no host scripts" rule.
-
----
+Three languages, each for a reason it earns: **C++** for the api, the web layer and the judge;
+**Rust** for `cmsctl`, which is structurally unable to call a C++ internal; **TypeScript** for the
+content gate and the CodeMirror island. The browser is HTML and CSS, because that is what browsers
+execute — the full comparison is in `docs/decisions/0004`.
 
 ## Repository layout
 
 ```
-api/        Rust service — HTTP API, auth, progress, task serving            (planned)
-judge/      C++ core — sandbox launcher (isolate), checker (testlib)        (planned)
-web/        TypeScript UI — Next.js; tokens.css is the design source        (tokens only)
-content/    topics · modules · tracks · tasks — data, not code              (shipped)
-tools/      repo gates                                                      (shipped)
-design/     static previews: chosen direction, twelve-row gallery           (shipped)
-docs/       ADRs and the content model                                      (shipped)
+core/       C++ library: capabilities, settings snapshot, errors, tests
+cmsctl/     Rust crate — the administrative client
+web/        templates, tokens.css, fonts, static assets
+content/    the bank: topics, modules, tracks, tasks — data, not code
+deploy/     schema/, compose, Caddyfile, CrowdSec, backup, runbook
+tools/      the gates and their falsification harnesses
+design/     static previews: chosen direction, twelve-row gallery
+docs/       plan, decisions, dependencies, schema, content model, infra
 ```
 
 `content/` is the single source of truth. No module title, topic tag, track order or time limit is
-ever hardcoded in a service.
-
----
+hardcoded in a service.
 
 ## Getting started
 
-Requirements: **Bun ≥ 1.4** (the gate is a Bun script), `python3` (falsification harness), `g++` if
-you want to build the seed reference solutions.
+Requirements: **Bun 1.3.14** (the gates are TypeScript), `python3` for the falsification harness,
+`g++` to build seed references, plus `cmake`, `ninja` and `vcpkg` for the C++ workspace.
 
 ```bash
 git clone https://github.com/champyod/cms-learn.git
 cd cms-learn
 bun install
+bun run gate:all        # everything the CI runs, including the deployment contract
 ```
 
-There is no dev server yet — the app does not exist. What runs today is the content gate:
+What runs today:
 
 ```bash
-bun run validate           # schemas, references, cycles, reachability, verification status
-bun run validate:falsify   # proves the gate can fail (11 deliberate defects)
+bun run validate            # content integrity, with the counts it scanned
+bun run check:references    # every reference builds under -Werror and reproduces its examples
+bun run check:deploy        # exposure, isolation, pinning, Caddyfile, Prometheus
+bun run check:security      # secrets, fixable CVEs, deployment hardening
+bun run check:scaffold      # the C++ workspace and the pinned dependency set
 ```
 
-Expected output:
+Static previews open in a browser with no server:
 
-```
-content gate — OK · scanned: topics 33 · areas 11 · modules 28 · tracks 2 · stages 8 · tasks 2 (draft 2, verified 0, published 0, rejected 0)
-```
-
-Static previews open directly in a browser, no server needed:
-
-- `design/judge-mono.html` — the chosen direction, TH/EN switch, live Thai rendering measurements
-- `design/theme-gallery.html` — all twelve directions over the same markup
-
----
+- `design/judge-mono.html` — the chosen direction, TH/EN switch, live Thai measurements
+- `design/theme-gallery.html` — twelve directions over the same markup
 
 ## Gates
 
-| Gate | Command | Proves |
-|---|---|---|
-| Content integrity | `bun run validate` | every reference resolves; no prerequisite cycle; no published task without machine evidence; every task reachable by a track stage |
-| Content gate falsifiability | `bun run validate:falsify` | the gate exits non-zero on 11 real defects, including an empty bank |
-| Reference solutions | `bun run check:references` | every reference builds under `-Werror` and reproduces its task's own examples |
-| Reference gate falsifiability | `bun run check:references:falsify` | the reference gate exits non-zero on a wrong expected output, a missing example set, a non-compiling reference, and an empty bank |
-| Deployment contract | `bun run check:deploy` | only the proxy is public, the database and dashboards are loopback-only, the `internal` network has no gateway, the judge cannot reach the internet, every image is pinned, and the Caddyfile + Prometheus config are valid **for the exact versions in compose** |
-| Deploy gate falsifiability | `bun run check:deploy:falsify` | the deploy gate rejects **7** broken stacks, each with its own reason (public database port, judge with egress, unpinned image, dropped `no-new-privileges`, leaked network gateway, unordered Caddy directive, wrong proxy port) |
-| Security scan | `bun run check:security` | no secret in the tree, no dependency with a **fixed** CVE, and no deployment misconfiguration at MEDIUM+ (root user, missing healthcheck) — Trivy pinned at 0.66.0 |
-| Security scan falsifiability | `bun run check:security:falsify` | a planted GitHub token, a planted private key and a root-user Dockerfile are each caught, and a clean Dockerfile stays green — a scanner that always failed would not pass |
-
-All of them, in order: `bun run gate:all`. The first four (`bun run gate`) need no docker; the
-deployment contract does.
-
-A green run prints the counts it scanned, so an empty or partial bank cannot pass as coverage. Both
-falsification harnesses work on a throwaway copy and never mutate the working tree.
-
-## Continuous integration
-
-`.github/workflows/ci.yml` runs on every push to `master`, every pull request, and on demand:
-
-| Job | What it does |
+| Gate | Proves |
 |---|---|
-| `content` | `bun install --frozen-lockfile`, then the content gate and its falsification |
-| `references` | builds every reference solution and runs it against its own examples, then falsifies the gate |
-| `deployment contract` | asserts the compose contract (exposure, isolation, pinning) and validates the real Caddyfile and Prometheus config, then falsifies the gate with 7 broken stacks |
-| `security scan` | Trivy for secrets, fixable dependency CVEs and deployment hardening; then plants three defects and one clean file to prove the scan bites |
-| `deployment` | reports that **no deploy target exists yet** (the three service images are not built) rather than implying a pipeline |
-| `discord` | on failure of any gate job, posts one message with the branch, short SHA, actor and run URL |
+| `bun run validate` | every reference resolves; no prerequisite cycle; no published task without machine evidence; every task is reachable by a track stage |
+| `bun run validate:falsify` | the gate exits non-zero on 11 real defects, including an empty bank |
+| `bun run check:references` | every reference compiles under `-Werror` and reproduces its own examples |
+| `bun run check:deploy` | only the proxy is public, the judge has no egress, every image is pinned, and the Caddyfile and Prometheus config are valid for the exact versions in compose |
+| `bun run check:security` | no secret in the tree, no dependency with a fixed CVE, no deployment misconfiguration at MEDIUM+ |
+| `bun run check:scaffold` | the C++ workspace configures, the two overlay ports are present, and the CLI crate is well formed |
 
-**Discord notifications** need `DISCORD_WEBHOOK_URL` set as a repository secret. The workflow never
-echoes it and never fails when it is absent — it prints a notice instead, because a green step that
-told nobody is worse than an honest skip. Set it yourself:
-
-```bash
-gh secret set DISCORD_WEBHOOK_URL     # paste the webhook when prompted; it never enters chat
-```
-
-To test the notification path without breaking the build, dispatch a run that forces the red path:
-
-```bash
-gh workflow run ci.yml -f simulate_failure=true
-```
-
-**Deployment** is specified and gated, not running: `deploy/` holds the single-server stack, and
-`docs/infra/single-server.md` + ADR 0003 record why each piece is what it is. `web`, `api` and
-`judge` have no images yet, so `docker compose up` stops at them — CI says that out loud instead of
-implying a pipeline. When the images exist, the deploy job lands in the `deployment` position gated
-on a tagged release, never on every push.
-
-
-
----
+A green run prints what it scanned, so an empty bank cannot pass as coverage. Every falsification
+harness works on a throwaway copy and never mutates the working tree.
 
 ## Authoring content
 
-**Add a module** — append to `content/modules.json` with an `area`, at least one `topics` id from
-`content/topics.json`, and `prereqs` that already exist. Then place it in at least one track stage in
-`content/tracks.json`; a module no track places fails the gate.
+**Add a module** — append to `content/modules.json` with an `area`, at least one `topics` id, and
+`prereqs` that already exist. Then place it in a track stage; a module no stage places fails the gate.
 
-**Add a task** — create `content/tasks/<slug>/` containing:
-
-```
-task.json            # id == directory name; topics; difficulty 800–3500 (step 100);
-                     # limits; checker; origin; verification
-statement.en.md
-statement.th.md      # one file per locale claimed in task.json
-solutions/main.cpp   # the reference the verifier runs
-```
-
-Then run the gate. A task may sit at `status: draft` indefinitely; it becomes servable only at
-`published`, which the gate refuses unless verification records all three methods
-(`reference-pass`, `bruteforce-differential`, `limits-measured`) and test data exists.
+**Add a task** — create `content/tasks/<slug>/` with `task.json`, one statement per locale,
+`solutions/main.cpp` and `examples/N.in`/`N.out`. A task stays `draft` until verification records all
+three methods (`reference-pass`, `bruteforce-differential`, `limits-measured`) and test data exists.
 
 Model, cache key and serving policy: [`docs/content-model.md`](docs/content-model.md).
 
----
-
 ## Design constraints that are not negotiable
 
-Each of these cost a release the first time it was missed, so they live in the token layer:
-
-1. **Thai has no uppercase.** `text-transform: uppercase` is a no-op on Thai, so hierarchy comes from
-   size, weight and spacing. Only Latin labels get `--tracking-label`.
-2. **Thai marks stack.** Body line-height 1.7; never below 1.45, or vowels and tone marks clip.
-3. **Monospace Thai is rare.** Five open families exist. This build ships Arundina Sans Mono
-   (GPL-2+) and deliberately does not subset it: subsetting hands Latin to the system mono
-   (5.91 px/char) while Thai advances 8.44 px/char, and mixed columns drift.
+1. **Thai has no uppercase.** `text-transform: uppercase` is a no-op on Thai; hierarchy comes from
+   size, weight and spacing, and only Latin labels get `--tracking-label`.
+2. **Thai marks stack.** Body line-height 1.7, never below 1.45, or vowels and tone marks clip.
+3. **Monospace Thai is rare.** Five open families exist. This build ships Arundina Sans Mono (GPL-2+)
+   and deliberately does not subset it.
 4. **One token source.** `web/tokens.css`; Tailwind maps to those variables instead of redefining
    them.
 
----
+## Status
 
-## Decisions and status
-
-- ADRs: [`0001`](docs/decisions/0001-scope-stack-sandbox.md) scope, stack, sandbox ·
-  [`0002`](docs/decisions/0002-theme-and-auth.md) theme and account model
-- Epic and step ledger: `../epics/003-cms-learn.md` (hub root)
-- Feature registry: [`FEATURES.md`](FEATURES.md)
-- Agent rules for this repo: `AGENTS.md`
-
-Open decisions: judge host provider · whether teacher approval is on for the pilot cohort · project
-licence.
-
----
+Open decisions: the judge host provider, whether teacher approval is on for the pilot cohort, and the
+project licence.
 
 ## Licence
 
-Source licence not yet chosen — the operator decides, and nothing is relicensed implicitly. The
-vendored font `web/public/fonts/ArundinaSansMono.ttf` is **GPL-2+**, with its licence text beside it.
+Not yet chosen — the operator decides, and nothing is relicensed implicitly. The vendored font
+`web/public/fonts/ArundinaSansMono.ttf` is **GPL-2+**, with its licence text beside it.
