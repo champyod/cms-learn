@@ -44,7 +44,7 @@ const raw: RawSource[] = sourceNames.map((name) => readJson<RawSource>(join(voca
 const mapping = readJson<Mapping>(join(vocabDir, "mapping.json"));
 const vocabulary = readJson<{ nodes: VocabNode[] }>(join(vocabDir, "vocabulary.json"));
 const topics = readJson<{ topics: Topic[] }>(join(contentDir, "topics.json")).topics;
-const modules = readJson<{ modules: { id: string; topics: string[] }[] }>(join(contentDir, "modules.json"));
+const tracks = readJson<{ tracks: { id: string; stages: { id: string; tags: string[] }[] }[] }>(join(contentDir, "tracks.json"));
 
 const nodes = new Map(vocabulary.nodes.map((node) => [node.id, node]));
 const statements = new Map<string, { source: string; text: string; section: string }>();
@@ -201,9 +201,12 @@ for (const topic of topics) {
     fail(`topics.json: id "${topic.id}" no longer resolves in the vocabulary`);
   }
 }
-for (const module of modules.modules) {
-  for (const topic of module.topics ?? []) {
-    if (!nodes.has(topic)) fail(`module ${module.id}: topic "${topic}" does not resolve`);
+// The module layer was removed, so what has to keep resolving is every tag a stage names.
+for (const track of tracks.tracks) {
+  for (const stage of track.stages ?? []) {
+    for (const tag of stage.tags ?? []) {
+      if (!nodes.has(tag)) fail(`stage ${stage.id} (${track.id}): tag "${tag}" does not resolve`);
+    }
   }
 }
 
