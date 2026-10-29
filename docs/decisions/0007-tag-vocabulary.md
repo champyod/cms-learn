@@ -71,3 +71,12 @@ pseudo-tag.
   statement that lost its mapping.
 - 132 nodes are English-only today. That number is visible in the gate output, and each id is in
   `review-untranslated.json` so it can only go down deliberately.
+
+## Thai coverage (decided 2026-10-29)
+
+59 of 191 nodes carry a Thai name from the POSN syllabus or from the 33 original topics. The other
+132 have none, and none was invented. The operator chose to show the English name alone for those
+nodes rather than translate them ahead of use: a Thai label is added when a source supplies one, and
+the interface shows a single name rather than mixing languages mid-list. `review-untranslated.json`
+stays as the record of what is still English-only, and adding a Thai name there is a data change,
+not a code change.
