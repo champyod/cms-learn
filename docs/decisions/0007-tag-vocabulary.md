@@ -17,7 +17,7 @@ here, not a translation of someone else's.
 
 ## Decision
 
-1. **The four syllabuses are recorded verbatim first.** `content/vocab/raw/{ioi,usaco,posn,codeforces}.json`
+1. **The four syllabuses are recorded verbatim first.** `seed/vocab/raw/{ioi,usaco,posn,codeforces}.json`
    hold every statement as the source published it, with the URL, the fetch date, the source's own
    grouping and the source's own total (233 / 149 / 108 / 38). They are evidence; they are never read
    by a service.
@@ -29,8 +29,8 @@ here, not a translation of someone else's.
    `binary-search`, `ternary-search`, `quickselect`, `merge-sort`, `dc-dp` and `dc-srq` under it;
    `dp` has nine DP variants; `graph-traversal` has `bfs`, `dfs`, `flood-fill`, `tree-traversal`. A
    problem may be tagged at either level.
-4. **`content/vocab.json` is generated, never edited.** `tools/vocab/build.ts` rebuilds it from the
-   raw files plus `content/vocab/mapping.json` (a data file: one target or one drop reason per raw
+4. **`seed/vocab.json` is generated, never edited.** `tools/vocab/build.ts` rebuilds it from the
+   raw files plus `seed/vocab/mapping.json` (a data file: one target or one drop reason per raw
    statement). Running it twice produces a byte-identical file, so a source update is a rebuild.
 5. **The 33 existing ids are node ids.** Every id in `topics.json` still resolves, so no stored task
    or module reference breaks and nothing has to be migrated.
@@ -66,7 +66,7 @@ pseudo-tag.
 
 ## Consequences
 
-- Adding a tag means editing `content/vocab/mapping.json` and rebuilding, not editing JSON output.
+- Adding a tag means editing `seed/vocab/mapping.json` and rebuilding, not editing JSON output.
 - A syllabus update means replacing one raw file and re-running the gate; the gate names every
   statement that lost its mapping.
 - 132 nodes are English-only today. That number is visible in the gate output, and each id is in
@@ -78,5 +78,5 @@ pseudo-tag.
 132 have none, and none was invented. The operator chose to show the English name alone for those
 nodes rather than translate them ahead of use: a Thai label is added when a source supplies one, and
 the interface shows a single name rather than mixing languages mid-list. There is no separate list of untranslated nodes: `th: null` in
-`content/vocab.json` is the record and the gate prints the count, so nothing has to be kept in step.
+`seed/vocab.json` is the record and the gate prints the count, so nothing has to be kept in step.
 Adding a Thai name is a data change in `mapping.json`, not a code change.

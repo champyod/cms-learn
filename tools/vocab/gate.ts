@@ -10,7 +10,7 @@ import { join } from "node:path";
 
 const repoRoot = join(import.meta.dir, "..", "..");
 const contentDir = join(repoRoot, "content");
-const vocabDir = join(contentDir, "vocab");
+const vocabDir = join(repoRoot, "seed", "vocab");
 
 const violations: string[] = [];
 const fail = (message: string): void => {
@@ -42,7 +42,7 @@ interface Topic { id: string; en: string; th: string }
 const sourceNames = ["ioi", "usaco", "posn", "codeforces"];
 const raw: RawSource[] = sourceNames.map((name) => readJson<RawSource>(join(vocabDir, "raw", `${name}.json`)));
 const mapping = readJson<Mapping>(join(vocabDir, "mapping.json"));
-const vocabulary = readJson<{ nodes: VocabNode[] }>(join(contentDir, "vocab.json"));
+const vocabulary = readJson<{ nodes: VocabNode[] }>(join(vocabDir, "vocabulary.json"));
 const topics = readJson<{ topics: Topic[] }>(join(contentDir, "topics.json")).topics;
 const modules = readJson<{ modules: { id: string; topics: string[] }[] }>(join(contentDir, "modules.json"));
 
