@@ -14,7 +14,6 @@ This directory holds the mark, the variants it is drawn in, and the specificatio
 | `logo-16.svg` | dark | the favicon build: middle unit dropped, silhouette unchanged |
 | `logo-mono.svg` | light | one colour (`#0f110c`) for print, embossing, invoices, any single-tone surface |
 | `logo-white.svg` | dark and photographic | one colour (`#ffffff`) where the mark must sit on an image or a dark field |
-| `logo-tile.svg` | — | 512 app tile: plate with a 96 radius, the mark at 62.5% — inside the maskable safe zone |
 | `logo-apple.svg` | — | 180 Apple touch icon: square opaque plate, no radius, because the platform masks it |
 | `logo-maskable.svg` | — | maskable build: the mark at 57% so a circular crop cannot reach it |
 | `logo-favicon.svg` | both | serves as `/favicon.svg`, with a `prefers-color-scheme` rule for light and dark tab bars |
@@ -76,8 +75,8 @@ nothing invents a new drawing.
 | Site header, navigation | `../logo.svg` | SVG, inline |
 | Footer, sign-in, sign-up, 404, empty state | `../logo.svg`, or `../logo-white.svg` on a dark or photographic ground | SVG |
 | **Statement page for a generated task** | `../logo.svg` | SVG, inline at 20–24 px |
-| **Statement PDF for a generated task** | `../pdf/logo.pdf` | vector PDF — a raster would be visible on paper |
-| Printed statement, handout, poster | `../pdf/logo.pdf`, or `../pdf/logo-mono.pdf` for one colour | vector PDF |
+| **Statement PDF for a generated task** | `../pdf/logo.pdf` (generated) | vector PDF — a raster would be visible on paper |
+| Printed statement, handout, poster | `../pdf/logo.pdf`, or `../pdf/logo-mono.pdf` for one colour (both generated) | vector PDF |
 | Verification and approval email | `icons/logo-512.png` | PNG — most clients strip SVG |
 | README, docs, changelog | `../logo.svg` | SVG |
 | Slide deck | `icons/logo-1024.png`, or `../pdf/logo.pdf` | PNG or vector |
@@ -95,8 +94,10 @@ is printed and a 512 px PNG is visibly soft at A4.
 committed file no longer matches its master. A mark is changed by editing the SVG and running the
 script; no raster is edited directly.
 
-The PDFs embed a creation timestamp, so they differ byte-for-byte on every run even when nothing
-changed. That is expected, and why `--check` covers the rasters rather than the PDFs.
+The PDFs are **not committed**. A render embeds its own timestamp, so the same master produces
+different bytes on two runs; committing them would mean a permanent churn of binary diffs. They are
+generated into `design/pdf/` (git-ignored) whenever a print or statement build needs them, and
+`--check` covers the rasters, which are deterministic.
 
 ## Which format for which consumer
 

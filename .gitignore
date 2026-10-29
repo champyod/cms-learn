@@ -13,3 +13,6 @@ target/
 
 # C++ build tree (cpp/CMakePresets.json puts it here)
 /build/
+
+# Rendered print assets: each run embeds a timestamp, so they are generated, never committed.
+design/pdf/
