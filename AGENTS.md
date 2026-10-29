@@ -38,6 +38,15 @@ runs the *same* examples again through ctest, but under ASan + UBSan: same evide
 ("does it still compute the right answer when optimised" vs "does it stay inside memory when run").
 Neither replaces the other, and a task with a reference but no examples fails both.
 
+## Lanes in this repo
+
+- A lane branch is `learn/<area>/<topic>` — `learn/judge/grading`, `learn/content/pipeline` — and its
+  worktree lives at `<hub>/.worktrees/learn-<area>-<topic>`.
+- Never use a bare `feat/` or `docs/` prefix here. This hub holds another project whose lanes are named
+  that way, and a branch called `feat/task-view` in a shared listing says nothing about which project it
+  belongs to.
+- Cut a lane from `main`, and say the base in the lane's first commit.
+
 ## Adding work
 
 - One intent per commit. The message carries the **why** and, on a branch's first commit, the base it
@@ -50,7 +59,7 @@ Neither replaces the other, and a task with a reference but no examples fails bo
 
 ## Invariants (do not "fix" these)
 
-1. **No level on a task or a module.** Tracks rank modules; tasks carry `topics` + `difficulty`.
+1. **No level on a task or a tag.** A route is stages of tags with a difficulty band; a task carries `topics` + `difficulty`.
    Putting a level back makes one task rank differently per track and duplicates the corpus.
 2. **Reachability is checked.** A task no track stage can serve fails the gate. That is the point,
    not a bug to work around.
