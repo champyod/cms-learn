@@ -1,54 +1,19 @@
-# Design directions
+# Design assets
 
-`theme-gallery.html` renders the **same markup** in twelve directions, switchable in place. Each
-theme is a token block (`--bg`, `--surface`, `--border`, `--radius`, `--shadow`, `--font`), never a
-separate stylesheet — the layout file mentions no colour, radius or font, so a theme that needs a
-markup edit is not a theme.
-
-Open it and click through; `mobile 390` constrains the frame to a phone width so the responsive
-collapse is visible.
-
-## The twelve, and what each is actually copying
-
-| Theme | Real reference | Optimises for | Where it fails a learning site |
-|---|---|---|---|
-| Vercel Geist | Vercel dashboard / Geist+Ink | monochrome discipline, one accent, hairline borders | reads "empty" for content-dense pages without art |
-| Linear | Linear app | dense dark UI, subtle borders, motion | dark code reading is polarising for long statements |
-| Stripe | Stripe dashboard & docs | dense data tables, one confident accent | the accent is the brand's, not ours |
-| GitHub Primer | Primer / GitHub | utility, status semantics, familiar affordances | green accent reads as "success" everywhere |
-| Liquid Glass | Apple HIG *Materials* / Liquid Glass | layered chrome, translucency on the chrome layer only | `backdrop-filter` on content = contrast + GPU cost; Apple keeps content opaque |
-| IBM Carbon | Carbon Design System | data-dense, 0 radius, strict grid | zero radius + grey surfaces reads dated to students |
-| Material 3 | Material You | tonal surfaces, rounded, dynamic colour | large radii waste vertical space on mobile |
-| shadcn neutral | shadcn/ui default | border-led neutral, zero shadow | generic without a brand accent; the panel already uses this family |
-| Notion | Notion | warm paper, serif headings, calm reading | serif + code blocks fight each other |
-| Neo-brutalist | Gumroad-era web, indie products | thick borders, offset shadows, high contrast | no large-scale production system; fatigues over a 40-minute reading session |
-| Judge mono | terminal / AtCoder-style tooling | monospace everywhere, status-green accent | unreadable for TH prose at length |
-| Warm editorial | Anthropic-style warm neutrals | long-form reading, low glare | needs a type system to not look like a blog |
-
-## Recommendation
-
-**Chosen (operator, 2026-10-25): `judge mono`.** Implemented in `judge-mono.html` over
-`web/tokens.css`; decision and its Thai-typography consequences in
+The visual system is not stored here. Colour, type, spacing and the Thai typography rules live in
+`web/tokens.css`, which is the only token source; the decision and its consequences are in
 `docs/decisions/0002-theme-and-auth.md`.
 
-For the record, the recommendation was the opposite row — neutral shadcn base, Vercel discipline,
-glass reserved for overlays — for these reasons:
+This directory holds the mark and the specification behind it.
 
-1. The admin panel already ships Radix + CVA + Tailwind 4 with a neutral token set. A second token
-   vocabulary beside it is a duplicated design system — the exact defect to avoid — so the base
-   should be the one already in the hub.
-2. The site's content is long TH/EN prose plus code plus tables. Borders and one accent carry that
-   shape without art; glass and brutalism both spend legibility on identity.
-3. Glass stays available where Apple actually uses it — sheets, sticky headers, the command palette
-   — as `--blur` on a chrome layer, not as the page background.
-4. A single accent colour is the only brand surface needed: one hue for "next action", everything
-   else neutral. Two accents is how a learning tool starts looking like a dashboard.
+| File | What it is |
+|---|---|
+| `logo.svg` | the mark, 64-unit grid, the master artwork |
+| `logo-16.svg` | the favicon build: one unit dropped, silhouette unchanged |
+| `logo-mono.svg` | one colour, for print, embossing and any single-tone surface |
+| `logo-tile.svg` | the app tile: the mark on a plate, for launchers and social previews |
+| `logo-brief.md` | the specification: what the product is, what the mark may carry, what it must survive, and why each element is where it is |
 
-Not chosen, with the reason recorded rather than implied: the panel's theme unchanged (it is an
-admin identity, not a student one), full glass (contrast + mobile GPU), neo-brutalist (no
-production-scale precedent, reading fatigue), serif/editorial (fights code blocks).
-
-The chosen row carries its own two costs, both now handled in the token layer: Thai needs a
-monospace face with Thai coverage (Arundina Sans Mono, shipped) and Thai typography forbids
-uppercase-as-hierarchy and italic synthesis.
-
+The twelve theme directions and the reasoning behind choosing `judge mono` were rendered as static
+previews until 2026-10-29, when the previews were removed; the comparison is recorded in
+`.agents/memos/2026-10-29-decisions.md`, and the direction itself is fully expressed by the token file.

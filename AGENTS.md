@@ -116,7 +116,7 @@ fall back to the pinned release binary for the detected OS and architecture.
 | `deploy/` | single-server compose, Caddyfile, CrowdSec, backup + restore drill, runbook |
 | `docs/infra/single-server.md` | sizing, threat table, operator checklist |
 | `web/tokens.css` | design tokens (`judge mono`) |
-| `design/` | static previews: chosen direction, twelve-row gallery |
+| `design/` | the mark and its variants; `logo-brief.md` states what it carries |
 | `docs/decisions/` | ADRs |
 | `docs/content-model.md` | the model, the cache key, the serving policy |
 | `FEATURES.md` | per-feature registry, shipped vs planned |

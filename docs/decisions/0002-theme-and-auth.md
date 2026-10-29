@@ -20,7 +20,9 @@ places:
 
 `font-synthesis: none` — italic is not a Thai tradition; emphasis uses weight or the accent.
 
-Tokens live in `web/tokens.css`, which is the single source. Contrast, advance widths and the rejected
+Tokens live in `web/tokens.css`, which is the single source. The static previews that were used to
+choose the direction were removed on 2026-10-29; the comparison behind the choice is in
+`.agents/memos/2026-10-29-decisions.md`, and the direction itself is expressed by the token file. Contrast, advance widths and the rejected
 subsetting measurement are in `.agents/memos/`.
 
 ## 2. Accounts: self-signup, school domain, teacher approval

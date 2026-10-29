@@ -11,7 +11,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **22 shipped · 4 partial · 27 planned** (53 features).
+Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 
 ---
 
@@ -52,14 +52,12 @@ Counts at last update: **22 shipped · 4 partial · 27 planned** (53 features).
 |---|---|---|---|
 | F-030 | Design tokens, `judge mono` (contrast 15.41:1 body) | ● | `web/tokens.css` |
 | F-031 | Thai-coverage monospace font, shipped with licence, verified by advance-width measurement | ● | `web/public/fonts/` |
-| F-032 | Twelve-direction theme gallery over one markup | ● | `design/theme-gallery.html` |
-| F-033 | Chosen direction preview with working TH/EN switching and font self-check | ● | `design/judge-mono.html` |
 | F-034 | Drogon + Inja + htmx app shell reading the tokens | ○ | ADR 0006 |
-| F-035 | Path home: stage rail, current module, next task | ○ | designed in `design/judge-mono.html` |
+| F-035 | Path home: stage rail, current module, next task | ○ | layout decided in ADR 0002 |
 | F-036 | Task view: statement render, samples, limits, topics | ○ | designed; statements are markdown |
 | F-037 | Code entry: in-page editor + file upload (`.cpp/.rs/.py`) | ○ | ADR 0001 / decision 7 |
 | F-038 | Submission result: verdict, per-test cost, diff of first failure | ○ | — |
-| F-039 | Progress and weak-topic view | ○ | designed in `design/judge-mono.html` |
+| F-039 | Progress and weak-topic view | ○ | layout decided in ADR 0002 |
 | F-040 | Dictionary wiring for TH/EN across every surface | ○ | preview proves the pattern |
 
 ## Accounts and security

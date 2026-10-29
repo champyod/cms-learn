@@ -26,7 +26,8 @@ A competitive-programming learning platform: one shared task bank, two student-c
 | Content model | **shipped** — 33 topics, 11 areas, 28 modules, 2 tracks, 8 stages, TH+EN labels | `content/` |
 | Content gate | **shipped** — schema and reference integrity, 11/11 falsification cases | `tools/validate-content.ts` |
 | Seed tasks | **2 drafts**, bilingual, references reproduce their own examples | `content/tasks/` |
-| Design tokens and previews | **shipped** — `judge mono`, 12-direction gallery, live TH/EN switch | `web/tokens.css`, `design/` |
+| Design tokens | **shipped** — `judge mono`, contrast measured, Thai rules in the token layer | `web/tokens.css` |
+| Identity | **shipped** — the mark, its favicon, mono and tile builds | `design/logo.svg` |
 | Database schema | **written and exercised** — authority, audit, settings; applies clean on PostgreSQL 18.6 and every invariant is proven by a query | `deploy/schema/` |
 | C++ workspace | **configured** — CMake project, vcpkg manifest with two overlay ports, capability and settings-snapshot headers, core tests | `CMakeLists.txt`, `core/` |
 | `cmsctl` | **skeleton** — crate builds, no commands yet | `cmsctl/` |
@@ -74,7 +75,7 @@ web/        templates, tokens.css, fonts, static assets
 content/    the bank: topics, modules, tracks, tasks — data, not code
 deploy/     schema/, compose, Caddyfile, CrowdSec, backup, runbook
 tools/      the gates and their falsification harnesses
-design/     static previews: chosen direction, twelve-row gallery
+design/     the mark, its usage variants, and the brief behind them
 docs/       plan, decisions, dependencies, schema, content model, infra
 ```
 
@@ -104,10 +105,9 @@ bun run check:cpp           # every C++ unit under ASan + UBSan, warnings fatal,
 bun run check:scaffold      # the C++ workspace and the pinned dependency set
 ```
 
-Static previews open in a browser with no server:
-
-- `design/judge-mono.html` — the chosen direction, TH/EN switch, live Thai measurements
-- `design/theme-gallery.html` — twelve directions over the same markup
+The identity is `design/logo.svg` — a frame with one edge interrupted, and a unit already past it —
+with `logo-16`, `logo-mono` and `logo-tile` beside it for the favicon, single-colour and app-tile uses.
+`design/logo-brief.md` states what the mark carries and why each element is where it is.
 
 ## Gates
 
