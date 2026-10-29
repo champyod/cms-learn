@@ -58,15 +58,17 @@ are decisions, not code. A document claiming otherwise is wrong.
   cmsctl — Rust, no DATABASE_URL
 ```
 
-Three languages, each for a reason it earns: **C++** for the api, the web layer and the judge;
-**Rust** for `cmsctl`, which is structurally unable to call a C++ internal; **TypeScript** for the
-content gate and the CodeMirror island. The browser is HTML and CSS, because that is what browsers
+Three languages, each for a reason it earns: **C++** for the api, the web layer, the shared domain
+core and the judge, supervisor included; **Rust** for `cmsctl`, which is structurally unable to call a
+C++ internal; **TypeScript** for the content gate and the CodeMirror island. The browser is HTML and CSS, because that is what browsers
 execute — the full comparison is in `docs/decisions/0004`.
 
 ## Repository layout
 
 ```
-core/       C++ library: capabilities, settings snapshot, errors, tests
+core/       the shared C++ library: capabilities, settings, schema access, errors
+references/ testlib checkers and reference solutions, built and run by check:cpp
+cmake/      compiler options and sanitizer configuration, declared once
 cmsctl/     Rust crate — the administrative client
 web/        templates, tokens.css, fonts, static assets
 content/    the bank: topics, modules, tracks, tasks — data, not code
@@ -98,6 +100,7 @@ bun run validate            # content integrity, with the counts it scanned
 bun run check:references    # every reference builds under -Werror and reproduces its examples
 bun run check:deploy        # exposure, isolation, pinning, Caddyfile, Prometheus
 bun run check:security      # secrets, fixable CVEs, deployment hardening
+bun run check:cpp           # every C++ unit under ASan + UBSan, warnings fatal, runnable ones executed
 bun run check:scaffold      # the C++ workspace and the pinned dependency set
 ```
 
@@ -115,7 +118,9 @@ Static previews open in a browser with no server:
 | `bun run check:references` | every reference compiles under `-Werror` and reproduces its own examples |
 | `bun run check:deploy` | only the proxy is public, the judge has no egress, every image is pinned, and the Caddyfile and Prometheus config are valid for the exact versions in compose |
 | `bun run check:security` | no secret in the tree, no dependency with a fixed CVE, no deployment misconfiguration at MEDIUM+ |
-| `bun run check:scaffold` | the C++ workspace configures, the two overlay ports are present, and the CLI crate is well formed |
+| `bun run check:cpp` | every C++ unit compiles under ASan + UBSan with `-Werror` and `_GLIBCXX_ASSERTIONS`, and every runnable one is executed |
+| `bun run check:cpp:falsify` | a use-after-free, a signed overflow, an out-of-bounds read and a warning each fail with the right reason; a clean file stays green |
+| `bun run check:scaffold` | the C++ workspace configures, the overlay ports are present, the dependency manifest resolves, and the CLI crate is well formed |
 
 A green run prints what it scanned, so an empty bank cannot pass as coverage. Every falsification
 harness works on a throwaway copy and never mutates the working tree.

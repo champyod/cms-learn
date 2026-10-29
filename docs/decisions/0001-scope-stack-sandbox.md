@@ -14,10 +14,15 @@ school's control, and borrowing contest capacity violates the contest-live zero-
 Consequence: the judge host delegates cgroups exactly as the CMS worker does, and nothing else is
 added to the host.
 
-## 2. One language per kind of work — superseded by 0004
+## 2. One language per kind of work — superseded by [`0006`](0006-language-matrix.md)
 
-C++ owns the judge core, and 0004 extends that to the api and the web layer, leaving Rust with
-`cmsctl` and TypeScript with the content gate and the editor island.
+C++ owns the api, the web layer, the shared domain core and the judge, supervisor included (0004 §1).
+Rust keeps `cmsctl`; TypeScript keeps the content gate and the CodeMirror island.
+
+C++ on the internet-facing path is a build obligation, not a preference: ASan and UBSan on every
+unit, `-Werror`, `_GLIBCXX_ASSERTIONS`, `libFuzzer` on the sandbox launcher and the checker protocol
+parser, `clang-tidy` clean, no raw owning pointers, no exceptions across the sandbox boundary, and no
+untrusted structured data on the control plane. `bun run check:cpp` enforces it and falsifies itself.
 
 The judge core is the most exposed code path, so its safety is a build configuration rather than a
 hope: ASan and UBSan on every judge build, `libFuzzer` on the sandbox launcher and the checker

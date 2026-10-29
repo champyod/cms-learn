@@ -10,3 +10,6 @@ target/
 .env.*
 !.env.example
 !deploy/.env.example
+
+# C++ build tree (cpp/CMakePresets.json puts it here)
+/build/

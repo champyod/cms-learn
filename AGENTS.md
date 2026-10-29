@@ -22,17 +22,21 @@ bun run check:references   # every reference builds under -Werror and passes its
 bun run check:references:falsify
 bun run check:deploy       # compose contract: exposure, isolation, pinning, Caddyfile, Prometheus
 bun run check:deploy:falsify
+bun run check:cpp          # CMake presets build under ASan+UBSan, ctest runs the examples, clang-tidy analyses
+bun run check:cpp:falsify  # proves the gate catches a use-after-free, an overflow, a warning and a tidy-only defect
 bun run gate               # content + references, in that order — this is what CI runs
-bun run gate:all           # the above plus the deployment contract (needs docker)
+bun run gate:all           # the above plus the deployment contract (needs docker) and C++ safety
 ```
 
 A green `validate` with no falsification run is half the evidence. If you teach a gate a new defect
 class, add its falsification case in the same commit — the harness is what proves the rule bites.
 
 A reference solution needs an example set beside it: `content/tasks/<slug>/examples/N.in` and `N.out`.
-`check:references` builds it under `-Werror` and diffs its output against those files, so "the
-reference reproduces its statement's example" is proven rather than asserted. A task with a reference
-and no examples fails the gate.
+`check:references` builds it at `-O2` with no sanitizers and diffs its output against those files — the
+contest-like configuration, where optimisation can expose behaviour a sanitizer build masks. `check:cpp`
+runs the *same* examples again through ctest, but under ASan + UBSan: same evidence, different question
+("does it still compute the right answer when optimised" vs "does it stay inside memory when run").
+Neither replaces the other, and a task with a reference but no examples fails both.
 
 ## Adding work
 
@@ -101,6 +105,14 @@ fall back to the pinned release binary for the detected OS and architecture.
 | `tools/falsify-deploy-gate.sh` | proof that the deployment contract can fail (7 cases) |
 | `tools/security-scan.sh` | Trivy: secrets, fixable CVEs, deployment hardening |
 | `tools/falsify-security-gate.sh` | proof the scan catches planted defects (3 red, 1 clean control) |
+| `core/` | the shared C++ library: capabilities, settings, schema access, errors |
+| `references/` | testlib checkers and reference solutions, built and run by `check:cpp` |
+| `cmake/` | compiler options and sanitizer configuration, declared once |
+| `tools/cpp/gate.ts` | the C++ gate: presets, ASan + UBSan, ctest, clang-tidy |
+| `tools/cpp/falsify.ts` | proof the C++ gate catches a use-after-free, an overflow, a warning and a tidy defect |
+| `deploy/schema/` | the only DDL, linked by `main.sql`; `docs/schema.md` holds its invariants |
+| `docs/plan.md` | the build order: epics, steps, gates |
+| `docs/dependencies.md` | every package, image and tool with its version and licence |
 | `deploy/` | single-server compose, Caddyfile, CrowdSec, backup + restore drill, runbook |
 | `docs/infra/single-server.md` | sizing, threat table, operator checklist |
 | `web/tokens.css` | design tokens (`judge mono`) |

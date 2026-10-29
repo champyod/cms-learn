@@ -89,13 +89,37 @@ jobs:
       - name: scan falsifiability
         run: bash tools/falsify-security-gate.sh
 
+  # C++ sits on the internet-facing path (ADR 0006), so its safety is a gate and not a promise. CMake
+  # presets own the sanitizer and warning flags, ctest owns pass/fail per example, clang-tidy owns the
+  # defect classes a runtime sanitizer cannot see, and tools/cpp/gate.ts only reports what they said.
+  # The gate is then falsified: a use-after-free, a signed overflow, a stack overflow, a warning-as-error
+  # and a static-analysis-only defect must each be caught by name.
+  cpp-safety:
+    name: cpp safety
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned by package, not by version: the gate needs a C++23 compiler with sanitizers, clang-tidy,
+      # and CMake >= 3.25 for presets. cmake_minimum_required in cpp/CMakeLists.txt is the real floor.
+      - name: toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake clang clang-tidy g++ make
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: build, run and analyse
+        run: bun run check:cpp
+
+      - name: safety gate falsifiability
+        run: bun run check:cpp:falsify
+
   # CD is not wired yet: there is no image to build and no host to deploy to (F-061/F-062 are
   # planned). This job exists so a deploy step has one obvious place to land, and so CI says so out
   # loud instead of implying a pipeline that does not exist.
   deploy-state:
     name: deployment
     runs-on: ubuntu-latest
-    needs: [content, references, deploy-contract, security]
+    needs: [content, references, deploy-contract, security, cpp-safety]
     steps:
       - name: report
         run: |
@@ -104,7 +128,7 @@ jobs:
   notify:
     name: discord
     runs-on: ubuntu-latest
-    needs: [content, references, deploy-contract, security]
+    needs: [content, references, deploy-contract, security, cpp-safety]
     if: failure() && github.event_name != 'pull_request'
     steps:
       # The webhook is a credential, so it lives only in repository secrets and is never echoed.

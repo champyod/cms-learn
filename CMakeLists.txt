@@ -8,14 +8,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ProjectSettings)
+include(CompilerOptions)
+include(Sanitizers)
 
-# Services stay opt-in so a checkout configures before vcpkg has installed anything, and the
-# dependency-free core still compiles on a machine that has only a compiler.
+enable_testing()
+
 option(CMS_WITH_API "Build the HTTP service (Drogon, Inja)" OFF)
 option(CMS_WITH_JUDGE "Build the judge (isolate, libsodium, spdlog)" OFF)
 option(CMS_BUILD_TESTS "Build the C++ test binaries (requires the 'tests' manifest feature)" ON)
 
 add_subdirectory(core)
+add_subdirectory(references)
 
 if(CMS_WITH_API)
   add_subdirectory(api)

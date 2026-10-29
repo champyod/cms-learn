@@ -1,0 +1,55 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 28,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "safety",
+      "displayName": "g++ \u2014 asan + ubsan + -Werror (what the gate builds and runs)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/safety",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMS_LEARN_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "tidy",
+      "displayName": "clang++ \u2014 compile_commands.json for clang-tidy, no sanitizers",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/tidy",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMS_LEARN_SANITIZE": "OFF"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "safety",
+      "configurePreset": "safety",
+      "jobs": 4
+    },
+    {
+      "name": "tidy",
+      "configurePreset": "tidy",
+      "jobs": 4
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "safety",
+      "configurePreset": "safety",
+      "output": {
+        "outputOnFailure": true,
+        "verbosity": "default"
+      }
+    }
+  ]
+}
