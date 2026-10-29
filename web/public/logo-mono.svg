@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="t">
+  <title id="t">cms-learn</title>
+  <g fill="none" stroke="#0f110c" stroke-width="7" stroke-linecap="butt">
+    <path d="M50 28V16Q50 12 46 12H14Q10 12 10 16V48Q10 52 14 52H46Q50 52 50 48V40"/>
+  </g>
+  <rect x="15" y="29" width="10" height="10" rx="1" fill="#0f110c"/>
+  <rect x="30" y="29" width="10" height="10" rx="1" fill="#0f110c"/>
+  <rect x="45" y="29" width="10" height="10" rx="1" fill="#0f110c"/>
+</svg>

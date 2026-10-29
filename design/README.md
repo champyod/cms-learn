@@ -17,6 +17,7 @@ This directory holds the mark, the variants it is drawn in, and the specificatio
 | `logo-tile.svg` | — | 512 app tile: plate with a 96 radius, the mark at 62.5% — inside the maskable safe zone |
 | `logo-apple.svg` | — | 180 Apple touch icon: square opaque plate, no radius, because the platform masks it |
 | `logo-maskable.svg` | — | maskable build: the mark at 57% so a circular crop cannot reach it |
+| `logo-favicon.svg` | both | serves as `/favicon.svg`, with a `prefers-color-scheme` rule for light and dark tab bars |
 | `logo-brief.md` | — | the specification: what the product is, what the mark carries, why each element is where it is |
 
 ## Served files
@@ -26,8 +27,8 @@ above; nothing there is drawn by hand.
 
 | File | Size | Declared as |
 |---|---|---|
-| `../favicon.svg` | 64-unit | `<link rel="icon" type="image/svg+xml">` — prefers light or dark from the system |
 | `favicon.ico` | 16, 32, 48 | `/favicon.ico`, requested automatically |
+| `*.webp` | every PNG above | the same raster, lossless, for browsers that take it |
 | `favicon-16.png` | 16×16 | `<link rel="icon" sizes="16x16">` |
 | `favicon-32.png` | 32×32 | `<link rel="icon" sizes="32x32">` |
 | `favicon-48.png` | 48×48 | `<link rel="icon" sizes="48x48">` |
@@ -40,14 +41,14 @@ above; nothing there is drawn by hand.
 | `logo-white-512.png` | 512×512 | dark and photographic embeds |
 
 ```html
-<link rel="icon" href="/favicon.ico" sizes="32x32">
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">
 <link rel="manifest" href="/manifest.webmanifest">
 ```
 
-`sizes="32x32"` on the `.ico` is not decoration: without it Chrome can pick the ICO over the SVG. The
-two PNG favicons stay for browsers that take neither, and are declared after the SVG.
+The served set is **PNG, ICO and WEBP only**. No SVG and no PDF leave this repository's build: a
+vector asset served to a browser is one more format to keep in step, and every browser that matters
+takes one of the three.
 
 ```json
 {
@@ -61,6 +62,41 @@ two PNG favicons stay for browsers that take neither, and are declared after the
 
 A maskable icon is a separate file, not a flag on the same one: the launcher crops it to its own shape,
 so the artwork must be smaller inside the canvas than the version used at 100%.
+
+## Where the mark appears
+
+Every surface, and the file it takes. A surface that is not listed uses the master for its ground;
+nothing invents a new drawing.
+
+| Surface | File | Format |
+|---|---|---|
+| Browser tab, bookmarks, history | `../favicon.svg` first, `favicon.ico`, `icons/favicon-16/32/48.png` | SVG, ICO, PNG |
+| iOS home screen | `icons/apple-touch-icon-180.png` | PNG, opaque |
+| Android launcher, desktop install, PWA | `icons/icon-192.png`, `icons/icon-512.png`, `icons/icon-maskable-512.png` | PNG, opaque |
+| Site header, navigation | `../logo.svg` | SVG, inline |
+| Footer, sign-in, sign-up, 404, empty state | `../logo.svg`, or `../logo-white.svg` on a dark or photographic ground | SVG |
+| **Statement page for a generated task** | `../logo.svg` | SVG, inline at 20–24 px |
+| **Statement PDF for a generated task** | `../pdf/logo.pdf` | vector PDF — a raster would be visible on paper |
+| Printed statement, handout, poster | `../pdf/logo.pdf`, or `../pdf/logo-mono.pdf` for one colour | vector PDF |
+| Verification and approval email | `icons/logo-512.png` | PNG — most clients strip SVG |
+| README, docs, changelog | `../logo.svg` | SVG |
+| Slide deck | `icons/logo-1024.png`, or `../pdf/logo.pdf` | PNG or vector |
+| Social preview / OG card | `icons/logo-1024.png`, composited into the card | PNG |
+| Embossing, stamp, single-colour print | `../logo-mono.svg` | SVG |
+| Photograph or dark hero | `../logo-white.svg` | SVG |
+
+Two of these are easy to get wrong. A statement **page** takes the SVG inline, so it stays sharp on a
+high-density screen and costs no request. A statement **PDF** takes the vector file, because the page
+is printed and a 512 px PNG is visibly soft at A4.
+
+## Rendering
+
+`tools/render-assets.sh` produces every raster and PDF from the masters, and `--check` fails if a
+committed file no longer matches its master. A mark is changed by editing the SVG and running the
+script; no raster is edited directly.
+
+The PDFs embed a creation timestamp, so they differ byte-for-byte on every run even when nothing
+changed. That is expected, and why `--check` covers the rasters rather than the PDFs.
 
 ## Which format for which consumer
 
