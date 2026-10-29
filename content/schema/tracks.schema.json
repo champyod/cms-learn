@@ -4,43 +4,89 @@
   "title": "Tracks",
   "type": "object",
   "additionalProperties": false,
-  "required": ["version", "tracks"],
+  "required": [
+    "version",
+    "tracks"
+  ],
   "properties": {
-    "version": { "type": "integer", "minimum": 1 },
-    "note": { "type": "string" },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "note": {
+      "type": "string"
+    },
     "tracks": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["id", "title", "description", "stages"],
+        "required": [
+          "id",
+          "title",
+          "description",
+          "stages"
+        ],
         "properties": {
-          "id": { "type": "string", "pattern": "^t-[a-z0-9-]+$" },
-          "title": { "$ref": "#/definitions/label" },
-          "description": { "$ref": "#/definitions/label" },
+          "id": {
+            "type": "string",
+            "pattern": "^t-[a-z0-9-]+$"
+          },
+          "title": {
+            "$ref": "#/definitions/label"
+          },
+          "description": {
+            "$ref": "#/definitions/label"
+          },
           "stages": {
             "type": "array",
             "minItems": 1,
             "items": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["id", "title", "modules", "difficulty"],
+              "required": [
+                "id",
+                "title",
+                "tags",
+                "difficulty"
+              ],
               "properties": {
-                "id": { "type": "string", "pattern": "^st-[a-z0-9-]+$" },
-                "title": { "$ref": "#/definitions/label" },
-                "modules": {
-                  "type": "array",
-                  "minItems": 1,
-                  "items": { "type": "string", "pattern": "^m-[a-z0-9-]+$" }
+                "id": {
+                  "type": "string",
+                  "pattern": "^st-[a-z0-9-]+$"
+                },
+                "title": {
+                  "$ref": "#/definitions/label"
                 },
                 "difficulty": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": ["min", "max"],
+                  "required": [
+                    "min",
+                    "max"
+                  ],
                   "properties": {
-                    "min": { "type": "integer", "minimum": 800, "maximum": 3500, "multipleOf": 100 },
-                    "max": { "type": "integer", "minimum": 800, "maximum": 3500, "multipleOf": 100 }
+                    "min": {
+                      "type": "integer",
+                      "minimum": 800,
+                      "maximum": 3500,
+                      "multipleOf": 100
+                    },
+                    "max": {
+                      "type": "integer",
+                      "minimum": 800,
+                      "maximum": 3500,
+                      "multipleOf": 100
+                    }
+                  }
+                },
+                "tags": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9-]+$"
                   }
                 }
               }
@@ -54,10 +100,19 @@
     "label": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["en", "th"],
+      "required": [
+        "en",
+        "th"
+      ],
       "properties": {
-        "en": { "type": "string", "minLength": 1 },
-        "th": { "type": "string", "minLength": 1 }
+        "en": {
+          "type": "string",
+          "minLength": 1
+        },
+        "th": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
   }
