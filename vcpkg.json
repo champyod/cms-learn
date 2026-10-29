@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "cms-learn",
+  "version-string": "0.0.0",
+  "dependencies": [
+    {
+      "name": "drogon",
+      "features": [
+        "orm",
+        "postgres"
+      ]
+    },
+    "inja",
+    "libsodium",
+    "spdlog"
+  ],
+  "features": {
+    "tests": {
+      "description": "Add the C++ test framework used by core and judge tests.",
+      "dependencies": [
+        "catch2"
+      ]
+    }
+  }
+}

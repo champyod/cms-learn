@@ -1,0 +1,7 @@
+[workspace]
+members = ["cmsctl"]
+resolver = "3"
+
+[profile.release]
+panic = "abort"
+strip = true
