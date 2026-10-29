@@ -1,0 +1,508 @@
+{
+  "version": 1,
+  "note": "Tag prerequisite graph behind the USACO route's graph view. An edge with origin \"usaco-guide\" is a prerequisite USACO Guide publishes on its own module, translated to our tag ids; evidence names the module that declares it. An edge with origin \"authored\" is ours alone, with the reason in evidence. An entry with an empty prereqs list is a root: no other tag has to come first.",
+  "sources": [
+    {
+      "name": "USACO Guide (cpinitiative/usaco-guide)",
+      "url": "https://github.com/cpinitiative/usaco-guide",
+      "fetched": "2026-10-29",
+      "method": "Module set enumerated from the GitHub tree API for refs/heads/master; every module's YAML frontmatter read from raw.githubusercontent.com/cpinitiative/usaco-guide/master/<path>.mdx, with <path> recorded per module under mapping[].modules[].path. An edge is a module's own declared `prerequisites:` slug, never a difficulty guess."
+    },
+    {
+      "name": "tag vocabulary with source aliases (seed/vocab/vocabulary.json)",
+      "url": "https://github.com/champyod/cms-learn",
+      "fetched": "2026-10-29",
+      "method": "A USACO module title reaches a tag only through an alias whose source is \"usaco\" on that tag's node in the vocabulary file. A prerequisite slug resolves through its owning module's frontmatter title back through the same alias set, so tag -> module -> tag is re-derivable from mapping plus that file."
+    }
+  ],
+  "mapping": {
+    "note": "The module each tag was read from. A tag absent here has no module whose frontmatter title is one of its vocabulary aliases, so its whole list is authored (or left empty). A tag present here may still carry an authored edge, when the module declares a prerequisite that names a module outside our vocabulary — the reason stays in that edge's evidence.",
+    "tags": [
+      {
+        "tag": "io",
+        "modules": [
+          {
+            "slug": "input-output",
+            "path": "content/1_General/Input_Output.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "complexity",
+        "modules": [
+          {
+            "slug": "time-comp",
+            "path": "content/2_Bronze/Time_Comp.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "simulation",
+        "modules": [
+          {
+            "slug": "simulation",
+            "path": "content/2_Bronze/Simulation.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "brute-force",
+        "modules": [
+          {
+            "slug": "intro-complete",
+            "path": "content/2_Bronze/Intro_Complete.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "sorting",
+        "modules": [
+          {
+            "slug": "intro-sorting",
+            "path": "content/2_Bronze/Intro_Sorting.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "binary-search",
+        "modules": [
+          {
+            "slug": "binary-search",
+            "path": "content/3_Silver/Binary_Search.mdx"
+          },
+          {
+            "slug": "binary-search-sorted-array",
+            "path": "content/3_Silver/Binary_Search_Sorted_Array.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "prefix-sums",
+        "modules": [
+          {
+            "slug": "prefix-sums",
+            "path": "content/3_Silver/Prefix_Sums.mdx"
+          },
+          {
+            "slug": "more-prefix-sums",
+            "path": "content/3_Silver/More_Prefix_Sums.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "two-pointers",
+        "modules": [
+          {
+            "slug": "two-pointers",
+            "path": "content/3_Silver/Two_Pointers.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "backtracking",
+        "modules": [
+          {
+            "slug": "complete-rec",
+            "path": "content/2_Bronze/Complete_Rec.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "stack",
+        "modules": [
+          {
+            "slug": "stacks",
+            "path": "content/4_Gold/Stacks.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "set-map",
+        "modules": [
+          {
+            "slug": "intro-sets",
+            "path": "content/2_Bronze/Intro_Sets.mdx"
+          },
+          {
+            "slug": "intro-sorted-sets",
+            "path": "content/4_Gold/Intro_Sorted_Sets.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "heap",
+        "modules": [
+          {
+            "slug": "priority-queues",
+            "path": "content/3_Silver/Priority_Queues.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "dsu",
+        "modules": [
+          {
+            "slug": "dsu",
+            "path": "content/4_Gold/DSU.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "bfs",
+        "modules": [
+          {
+            "slug": "unweighted-shortest-paths",
+            "path": "content/4_Gold/Unweighted_Shortest_Paths.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "greedy",
+        "modules": [
+          {
+            "slug": "greedy-sorting",
+            "path": "content/3_Silver/Greedy_Sorting.mdx"
+          },
+          {
+            "slug": "intro-greedy",
+            "path": "content/2_Bronze/Intro_Greedy.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "dp",
+        "modules": [
+          {
+            "slug": "intro-dp",
+            "path": "content/4_Gold/Intro_DP.mdx"
+          },
+          {
+            "slug": "paths-grids",
+            "path": "content/4_Gold/Paths_Grids.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "bitmask",
+        "modules": [
+          {
+            "slug": "dp-bitmasks",
+            "path": "content/4_Gold/DP_Bitmasks.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "dijkstra",
+        "modules": [
+          {
+            "slug": "shortest-paths",
+            "path": "content/4_Gold/Shortest_Paths.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "mst",
+        "modules": [
+          {
+            "slug": "mst",
+            "path": "content/4_Gold/MST.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "fenwick",
+        "modules": [
+          {
+            "slug": "PURS",
+            "path": "content/4_Gold/PURS.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "segment-tree",
+        "modules": [
+          {
+            "slug": "RURQ",
+            "path": "content/5_Plat/RURQ.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "modular-arithmetic",
+        "modules": [
+          {
+            "slug": "modular",
+            "path": "content/4_Gold/Modular.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "combinatorics",
+        "modules": [
+          {
+            "slug": "combo",
+            "path": "content/4_Gold/Combinatorics.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "hashing",
+        "modules": [
+          {
+            "slug": "hashing",
+            "path": "content/4_Gold/Hashing.mdx"
+          }
+        ]
+      },
+      {
+        "tag": "interactive",
+        "modules": [
+          {
+            "slug": "interactive",
+            "path": "content/6_Advanced/Interactive.mdx"
+          }
+        ]
+      }
+    ]
+  },
+  "edges": [
+    {
+      "tag": "io",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "input-output: prerequisites data-types map to no tag of ours"
+    },
+    {
+      "tag": "complexity",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "time-comp: no prerequisites declared"
+    },
+    {
+      "tag": "simulation",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "simulation: no prerequisites declared"
+    },
+    {
+      "tag": "brute-force",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "intro-complete: no prerequisites declared"
+    },
+    {
+      "tag": "sorting",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "intro-sorting: prerequisites intro-ds map to no tag of ours"
+    },
+    {
+      "tag": "binary-search",
+      "prereqs": [
+        "sorting"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "binary-search-sorted-array"
+    },
+    {
+      "tag": "prefix-sums",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "prefix-sums: no prerequisites declared; more-prefix-sums: prerequisites prefix-sums map to no tag of ours"
+    },
+    {
+      "tag": "two-pointers",
+      "prereqs": [
+        "sorting"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "two-pointers"
+    },
+    {
+      "tag": "recursion",
+      "prereqs": [],
+      "origin": "authored",
+      "evidence": "no USACO Guide module title is among this tag's vocabulary aliases; left a root rather than inventing a prerequisite."
+    },
+    {
+      "tag": "backtracking",
+      "prereqs": [
+        "brute-force"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "complete-rec"
+    },
+    {
+      "tag": "stack",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "stacks: prerequisites intro-ds map to no tag of ours"
+    },
+    {
+      "tag": "queue",
+      "prereqs": [],
+      "origin": "authored",
+      "evidence": "no USACO Guide module title is among this tag's vocabulary aliases; left a root rather than inventing a prerequisite."
+    },
+    {
+      "tag": "set-map",
+      "prereqs": [
+        "binary-search",
+        "greedy",
+        "heap",
+        "sorting"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "intro-sets, intro-sorted-sets"
+    },
+    {
+      "tag": "heap",
+      "prereqs": [
+        "greedy"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "priority-queues"
+    },
+    {
+      "tag": "dsu",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "dsu: prerequisites graph-traversal map to no tag of ours"
+    },
+    {
+      "tag": "bfs",
+      "prereqs": [
+        "queue"
+      ],
+      "origin": "authored",
+      "evidence": "Breadth-first search is defined by draining a FIFO frontier: queue is the structure the traversal is built on."
+    },
+    {
+      "tag": "dfs",
+      "prereqs": [
+        "recursion"
+      ],
+      "origin": "authored",
+      "evidence": "USACO Guide's Graph Traversal module requires Complete Search with Recursion; DFS is that same recursive walk over edges."
+    },
+    {
+      "tag": "greedy",
+      "prereqs": [
+        "two-pointers"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "greedy-sorting"
+    },
+    {
+      "tag": "dp",
+      "prereqs": [
+        "backtracking",
+        "modular-arithmetic"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "intro-dp"
+    },
+    {
+      "tag": "bitmask",
+      "prereqs": [
+        "dp"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "dp-bitmasks"
+    },
+    {
+      "tag": "dijkstra",
+      "prereqs": [
+        "bfs"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "shortest-paths"
+    },
+    {
+      "tag": "mst",
+      "prereqs": [
+        "dijkstra",
+        "dsu"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "mst"
+    },
+    {
+      "tag": "fenwick",
+      "prereqs": [
+        "prefix-sums",
+        "set-map"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "PURS"
+    },
+    {
+      "tag": "segment-tree",
+      "prereqs": [
+        "fenwick"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "RURQ"
+    },
+    {
+      "tag": "modular-arithmetic",
+      "prereqs": [
+        "gcd"
+      ],
+      "origin": "authored",
+      "evidence": "USACO Guide's Modular Arithmetic module declares Divisibility as a prerequisite; Divisibility is the number-theory module this tag names."
+    },
+    {
+      "tag": "gcd",
+      "prereqs": [],
+      "origin": "authored",
+      "evidence": "no USACO Guide module title is among this tag's vocabulary aliases; left a root rather than inventing a prerequisite."
+    },
+    {
+      "tag": "combinatorics",
+      "prereqs": [
+        "modular-arithmetic"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "combo"
+    },
+    {
+      "tag": "hashing",
+      "prereqs": [
+        "modular-arithmetic"
+      ],
+      "origin": "usaco-guide",
+      "evidence": "hashing"
+    },
+    {
+      "tag": "kmp",
+      "prereqs": [],
+      "origin": "authored",
+      "evidence": "no USACO Guide module title is among this tag's vocabulary aliases; left a root rather than inventing a prerequisite."
+    },
+    {
+      "tag": "z-algorithm",
+      "prereqs": [],
+      "origin": "authored",
+      "evidence": "no USACO Guide module title is among this tag's vocabulary aliases; left a root rather than inventing a prerequisite."
+    },
+    {
+      "tag": "geometry",
+      "prereqs": [],
+      "origin": "authored",
+      "evidence": "no USACO Guide module title is among this tag's vocabulary aliases; left a root rather than inventing a prerequisite."
+    },
+    {
+      "tag": "interactive",
+      "prereqs": [],
+      "origin": "usaco-guide",
+      "evidence": "interactive: no prerequisites declared"
+    },
+    {
+      "tag": "offline",
+      "prereqs": [],
+      "origin": "authored",
+      "evidence": "no USACO Guide module title is among this tag's vocabulary aliases; left a root rather than inventing a prerequisite."
+    }
+  ]
+}
