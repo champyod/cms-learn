@@ -41,3 +41,11 @@ A student is never assigned a route. The USACO ladder and the IOI path are two t
 both place every tag, only the order differs, and no account field records a choice. The gate enforces
 this per route rather than globally, so a tag that one view omits fails, and case 12 of the
 falsification harness proves that failure.
+
+## Language on a record is optional, the interface is not (decided 2026-10-29)
+
+The interface ships in Thai and English and both are required there. A record created from the admin
+panel — a tag, a stage, a task — carries a map of languages, at least one of which must be present and
+none of which is privileged: the schema no longer demands `en` and `th` together, and nothing says the
+second language must be Thai. Case 13 of the falsification harness refuses a label with no language at
+all, which is the only state that cannot be read.
