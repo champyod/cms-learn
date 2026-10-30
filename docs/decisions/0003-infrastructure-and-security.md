@@ -8,7 +8,7 @@ database, network or volume
 | 1 | Database | **PostgreSQL 18.6** | three processes write concurrently; the settings path needs server-side notification and row-level security |
 | 2 | Reverse proxy | **Caddy 2.11.7** | certificates and reloads are configuration, not timers to own |
 | 3 | Edge protection | **CrowdSec 1.8.1**, CRS as *in-band* AppSec rules, IP reputation decided at the proxy | a WAF that only bans for later requests is not a WAF |
-| 4 | Email verification | **Deferred**; `REGISTRATION_OPEN` and `APPROVAL_REQUIRED` are settings rows | neither credential nor deliverability is needed to enrol one class, and the domain allowlist stays |
+| 4 | Email verification | **Deferred**; `REGISTRATION_OPEN` and `APPROVAL_REQUIRED` are settings rows, and the known-organisation list decides the `external` mark rather than refusing signup | neither credential nor deliverability is needed to enrol one class; approval is the barrier, so it defaults on |
 | 5 | Hosting | **A VPS the operator controls**, 4 vCPU / 8 GB, joined to the tailnet | the compose stack does not depend on the provider |
 | 6 | Sessions | **Rows in Postgres**, opaque id in an `HttpOnly; Secure; SameSite=Lax` cookie | a lost device must be revocable |
 | 7 | Judge placement | **Same box**, container with `cgroup: host`, `seccomp:unconfined`, cgroup tree mounted, **no network gateway** | one server; the judge is reachable by the database and nothing else |

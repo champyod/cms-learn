@@ -25,22 +25,31 @@ choose the direction were removed on 2026-10-29; the comparison behind the choic
 `.agents/memos/2026-10-29-decisions.md`, and the direction itself is expressed by the token file. Contrast, advance widths and the rejected
 subsetting measurement are in `.agents/memos/`.
 
-## 2. Accounts: self-signup, school domain, teacher approval
+## 2. Accounts: open signup, organisation mark, admin approval
 
-A student creates a local account, email-verifies, is restricted to an allowlisted school domain, and
-waits for teacher approval that can be switched on or off. The switch is what lets one build serve a
-pilot class and a public demo.
+Anyone may create a local account. At signup the account records the **organisation** the person
+belongs to; an address outside a known organisation is not refused, it is **marked external**. No
+account becomes active until an admin approves it.
+
+Why a mark rather than a gate: a school-domain allowlist answers "is this our student" but cannot
+answer "is this the guest lecturer", and the moment one legitimate outsider needs access the allowlist
+becomes a settings edit that someone forgets to revert. A label keeps the information — this account
+is not from our school — without making the system refuse people the operator has decided to admit.
+Approval is what protects minors, and it is the only barrier, so it must default to on.
 
 Consequences:
 
-- Stored PII is the minimum: email, display name, class, locale. No birthdate, photo or phone.
-- `unverified → verified → pending_approval → active`; approval is skipped when the toggle is off and
-  every transition is audited with its actor.
-- The domain allowlist is a settings row, not a code constant, and the gate fails closed when it is
-  empty.
+- Stored PII stays minimal: email, display name, organisation, locale. No birthdate, photo or phone.
+- `unverified → verified → pending_approval → active`; every transition is audited with its actor.
+- The known-organisation list is a settings row, not a code constant, and it decides the mark only.
+- The `external` mark is visible to an admin and to the account itself, so a guest is never mistaken
+  for a classmate and a teacher never approves one believing it is a student.
+- With no domain gate, an open signup plus a default-off approval switch would admit anyone: approval
+  is on unless an operator turns it off for a deliberate public demo, and that switch is recorded in
+  the audit trail.
 - Rate limits and lockout belong to the auth service, never to the UI.
 
-## 3. CSS
+## 3. CSS## 3. CSS
 
 `web/tokens.css` is the only token definition. **Tailwind 4.3.3 + daisyUI 5.7.50**, both MIT, build
 time only: Tailwind emits only the utilities the templates contain, and daisyUI supplies component
