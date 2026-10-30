@@ -67,16 +67,13 @@ services:
     expose: ["8080"]
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}
-      # Registration and approval are runtime switches, not build-time flags: a pilot class turns
-      # approval on, a public demo turns it off, and neither needs a redeploy of the app.
-      REGISTRATION_OPEN: ${REGISTRATION_OPEN:-true}
-      APPROVAL_REQUIRED: ${APPROVAL_REQUIRED:-true}
-      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
-      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-720}
-      RUST_LOG: ${RUST_LOG:-info}
+      # Everything else the service decides at runtime comes from settings rows: registration,
+      # approval, the domain allowlist, session lifetimes and the log level are all operator-editable
+      # from the CLI and the panel, and none of them is a reason to recreate this container.
     networks: [edge, internal]
     depends_on:
       database: { condition: service_healthy }
+      objects: { condition: service_healthy }
 
   judge:
     <<: *hardening
@@ -201,11 +198,35 @@ services:
     depends_on:
       database: { condition: service_healthy }
 
+  objects:
+    <<: *hardening
+    image: {{image:objects}}
+    # One process holds every role — master, volume server, filer and the S3 gateway — with every
+    # byte under /data. No credentials are configured, which is the documented allow-all state, and
+    # the network below is the boundary instead: nothing outside this network can reach port 8333.
+    command: ["server", "-s3", "-dir=/data"]
+    expose: ["8333"]
+    volumes:
+      - objectdata:/data
+    networks: [internal]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+
 volumes:
   caddy-data:
   caddy-config:
   caddy-logs:
   pgdata:
+  objectdata:
   judge-work:
   crowdsec-db:
   crowdsec-etc:

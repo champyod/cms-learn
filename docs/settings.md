@@ -141,12 +141,16 @@ changed asset is a changed path and the long cache lifetime is safe.
 | `storage.path_style` | bool | operator | `true` | restart |
 | `storage.object_max_bytes` | int | operator | `268435456` | hot |
 | `storage.presign_ttl_seconds` | int | operator | `0` | hot |
-| `storage.access_key_id` | secret | secret | empty | restart |
-| `storage.secret_access_key` | secret | secret | empty | restart |
 
 `storage.presign_ttl_seconds` defaults to `0`, which means no presigned URL is ever minted. A
 presigned URL is a bearer token: it works for anyone who holds it, for as long as it lives, outside
 every capability check. Private objects are therefore streamed by the api, not redirected.
+
+There are no S3 credentials among these keys, because the object store has none. Started without a
+credential configuration, SeaweedFS permits every operation anonymously — verified on the pinned
+image — and the `internal` network is the boundary instead: it has no gateway and publishes no port,
+so only the containers on it can reach 8333. Adding an identity later is a one-way change, which is
+why it is not offered as a setting.
 
 ### Judge
 
