@@ -198,6 +198,27 @@ services:
     depends_on:
       database: { condition: service_healthy }
 
+  schema:
+    <<: *hardening
+    image: ghcr.io/champyod/cms-learn-schema:${TAG:-dev}
+    # One shot, run by the upgrade before any service is switched. The plan and the wrapper are
+    # mounted from the checkout that rendered this stack, read-only, so the digests verified are the
+    # digests of the files that were reviewed.
+    profiles: ["migrate"]
+    restart: "no"
+    environment:
+      PGHOST: database
+      PGPORT: "5432"
+      PGDATABASE: ${POSTGRES_DB:-cmslearn}
+      PGUSER: ${POSTGRES_USER:-cmslearn}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+    volumes:
+      - ../deploy/plan:/app/deploy/plan:ro
+      - ../tools:/app/tools:ro
+    networks: [internal]
+    depends_on:
+      database: { condition: service_healthy }
+
   objects:
     <<: *hardening
     image: chrislusf/seaweedfs:4.51@sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8

@@ -49,7 +49,9 @@ for line in open(src):
 open(dst, "w").writelines(out)
 PY
 
-compose() { docker compose --env-file "$envfile" -f "$deploy/docker-compose.yml" "$@"; }
+compose() {
+  docker compose --profile migrate --env-file "$envfile" -f "$deploy/docker-compose.yml" "$@"
+}
 
 note "interpolation + structure"
 compose config -q || fail "compose config is invalid"
