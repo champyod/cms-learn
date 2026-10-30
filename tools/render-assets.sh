@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Renders every raster and print asset from the SVG masters in design/.
+# Renders every raster asset from the SVG masters in design/.
 #
 # The masters are the only drawings. This script is the only way a PNG, ICO or PDF is produced, so a
 # change to a mark is one edit plus one run, and no raster is ever hand-tuned into a state the SVG
@@ -73,14 +73,6 @@ done
 # Windows and legacy browsers request the .ico directly, so it carries the three small sizes.
 magick "$icons/favicon-16.png" "$icons/favicon-32.png" "$icons/favicon-48.png" -strip "$icons/favicon.ico"
 outputs+=(favicon.ico)
-
-# Vector for print and for statement rendering, where a raster would be visible on paper.
-mkdir -p "$design/pdf"
-for name in logo logo-mono logo-white; do
-  if [ "$mode" = "render" ]; then
-    rsvg-convert -f pdf -o "$design/pdf/$name.pdf" "$design/$name.svg"
-  fi
-done
 
 # Files the page serves directly, copied rather than duplicated by hand.
 if [ "$mode" = "render" ]; then
