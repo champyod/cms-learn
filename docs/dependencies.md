@@ -38,6 +38,36 @@ There is no separate install command to run. Four cases, four outcomes:
 `CMakeUserPresets.json` holds a machine-specific `VCPKG_ROOT` and is not committed. The `tests` manifest
 feature is requested by the preset, so Catch2 arrives with the packages instead of being skipped.
 
+### Preparing a development host
+
+`VCPKG_ROOT` must name a vcpkg checkout, because that checkout is the package registry: the `ports/`
+tree is where every package definition lives. A binary alone is not enough — the distribution package
+ships only `/usr/bin/vcpkg`, and invoking it without a checkout fails with
+`Could not detect vcpkg-root`. So installing `vcpkg` from a distribution adds a command to `PATH` but
+does not remove the checkout.
+
+```bash
+git clone https://github.com/microsoft/vcpkg.git ~/.local/share/vcpkg
+~/.local/share/vcpkg/bootstrap-vcpkg.sh -disableMetrics
+```
+
+`~/.local/share/vcpkg` is also the path the Arch package's `/etc/profile.d/vcpkg.sh` exports, so either
+route leaves `VCPKG_ROOT` pointing at the same place. Nothing here runs in production: the server has
+containers only, and the build images carry their own toolchain.
+
+### Caches, and how to clear them
+
+Nothing is cached inside the repository except the installed tree:
+
+| What | Where | Cleared by |
+|---|---|---|
+| built packages | `build/vcpkg_installed` | `rm -rf build` |
+| source and tool downloads | `$VCPKG_ROOT/downloads` | `rm -rf "$VCPKG_ROOT/downloads"` |
+| binary archives | `$XDG_CACHE_HOME/vcpkg/archives`, else `~/.cache/vcpkg/archives` | `rm -rf ~/.cache/vcpkg/archives` |
+
+All three are disposable; the next configure rebuilds whatever it needs. The `vcpkg.json` baseline,
+not the cache, is what decides versions.
+
 ## Rust — `cmsctl` only
 
 | Crate | Version | Licence | Used for |
