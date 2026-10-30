@@ -19,6 +19,25 @@ carries. A dependency that is not in this table is not allowed in the build.
 Exact baseline versions are resolved at configure time by vcpkg and recorded in `vcpkg-lock` output;
 the two overlay ports are the ones that differ from the registry.
 
+### How the packages arrive
+
+The presets name `cmake/vcpkg-toolchain.cmake` as their toolchain. It reads `VCPKG_ROOT` and hands
+resolution to vcpkg's manifest mode, which bootstraps vcpkg if needed, installs what `vcpkg.json`
+declares, and links from `build/vcpkg_installed` — one directory shared by both presets, so the two
+configurations do not build Drogon and the S3 client twice.
+
+There is no separate install command to run. Four cases, four outcomes:
+
+| `VCPKG_ROOT` | a target needs packages | outcome |
+|---|---|---|
+| unset | no — `CMS_WITH_API` and `CMS_WITH_JUDGE` are off | configures; nothing is resolved |
+| unset | yes | fails, naming `VCPKG_ROOT` |
+| set, and the checkout contains `scripts/buildsystems/vcpkg.cmake` | either | resolves through vcpkg |
+| set, but the path is wrong | either | fails, naming the path |
+
+`CMakeUserPresets.json` holds a machine-specific `VCPKG_ROOT` and is not committed. The `tests` manifest
+feature is requested by the preset, so Catch2 arrives with the packages instead of being skipped.
+
 ## Rust — `cmsctl` only
 
 | Crate | Version | Licence | Used for |

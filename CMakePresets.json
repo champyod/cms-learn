@@ -7,7 +7,17 @@
   },
   "configurePresets": [
     {
+      "name": "vcpkg",
+      "hidden": true,
+      "toolchainFile": "${sourceDir}/cmake/vcpkg-toolchain.cmake",
+      "cacheVariables": {
+        "VCPKG_INSTALLED_DIR": "${sourceDir}/build/vcpkg_installed",
+        "VCPKG_MANIFEST_FEATURES": "tests"
+      }
+    },
+    {
       "name": "safety",
+      "inherits": "vcpkg",
       "displayName": "g++ \u2014 asan + ubsan + -Werror (what the gate builds and runs)",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/safety",
@@ -19,6 +29,7 @@
     },
     {
       "name": "tidy",
+      "inherits": "vcpkg",
       "displayName": "clang++ \u2014 compile_commands.json for clang-tidy, no sanitizers",
       "generator": "Unix Makefiles",
       "binaryDir": "${sourceDir}/build/tidy",

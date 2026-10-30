@@ -16,3 +16,6 @@ target/
 
 # generated stylesheet
 web/public/app.css
+
+# Machine-specific vcpkg location: this file carries VCPKG_ROOT for one checkout.
+CMakeUserPresets.json
