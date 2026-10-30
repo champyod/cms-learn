@@ -35,6 +35,33 @@ bun run check:stack:falsify            # prove that check can fail
 `bun run gate:deploy` runs the stack gate before the contract gate, so a hand edit is reported as drift
 with a line number instead of being silently reverted on the next render.
 
+## How an upgrade runs
+
+One command, and it either finishes or leaves the previous release serving:
+
+```bash
+make upgrade          # tools/upgrade.sh
+```
+
+| Order | Step | What it refuses to proceed past |
+|---|---|---|
+| 1 | the committed stack is what the sources render | a hand-edited `docker-compose.yml`, or a release whose `release.toml` disagrees with it |
+| 2 | the previous release is recorded | — (nothing to refuse; this is what a rollback needs) |
+| 3 | `compose pull --ignore-buildable` | an image that cannot be fetched at the digest the release names |
+| 4 | `compose --profile migrate run --rm schema` | a plan whose digests do not match `deploy/plan/CHECKSUMS`, or a migration the database rejects |
+| 5 | `compose up -d --wait` | a container that does not become healthy |
+| 6 | `GET https://$DOMAIN/healthz` | a release that starts but does not serve |
+
+Nothing is replaced before step 5, so a failure in 1–4 costs a pull and nothing else. A failure in 5 or
+6 restores `deploy/.previous-compose.yml`, which is the stack that was running before this command
+started; the two record files are gitignored because they describe this server, not the repository.
+
+`bun run check:upgrade` drives the script with stubbed `docker`, `bun`, `curl` and `sleep`, so the order
+and the rollback are asserted without a daemon or an image; `bun run check:upgrade:falsify` breaks the
+script six ways — no health gate, a rollback that does nothing, no rollback when the switch fails,
+migration after switch, no release record, a swallowed migration failure — and requires the gate to
+name each one.
+
 ## The contract
 
 | # | Invariant | Why it is a gate and not a comment |
@@ -95,8 +122,8 @@ one place this stack loosens a default, and the reason ADR 0001 picked `isolate`
 
 | Task | Command |
 |---|---|
-| Deploy a version | `TAG=v1.2.3 docker compose pull && docker compose up -d` |
-| Roll back | `git revert` the commit that changed `release.toml`, then `bun run tools/render-stack.ts && docker compose up -d` |
+| Deploy a version | `make upgrade` — see above |
+| Roll back | automatic when the switch or the probe fails; to return to an older release on purpose, `git revert` the commit that changed `release.toml`, `bun run tools/render-stack.ts`, then `make upgrade` |
 | Manual backup before a migration | `docker compose run --rm -e BACKUP_ONCE=1 backup` |
 | Restore drill (needs the private key mounted) | `docker compose run --rm -v /path:/keys:ro -e AGE_KEY_FILE=/keys/cms-learn-backup.key --entrypoint /usr/local/bin/restore-drill.sh backup` |
 | Grafana | `ssh -L 3001:127.0.0.1:3001 <host>` then `http://127.0.0.1:3001` |

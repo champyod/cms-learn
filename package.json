@@ -13,6 +13,8 @@
     "check:stack:falsify": "bash tools/falsify-stack-gate.sh",
     "check:deploy": "bash tools/check-deploy.sh",
     "check:deploy:falsify": "bash tools/falsify-deploy-gate.sh",
+    "check:upgrade": "bash tools/check-upgrade.sh",
+    "check:upgrade:falsify": "bash tools/falsify-upgrade-gate.sh",
     "check:security": "bash tools/security-scan.sh",
     "check:security:falsify": "bash tools/falsify-security-gate.sh",
     "check:schema": "bash tools/check-schema.sh",
@@ -22,7 +24,7 @@
     "check:cpp:falsify": "bun run tools/cpp/falsify.ts",
     "gate": "bun run check:schema && bun run check:schema:falsify && bun run validate && bun run vocab:build && bun run vocab:gate && bun run check:references && bun run validate:falsify && bun run check:references:falsify",
     "gate:schema": "bun run check:schema && bun run check:schema:falsify",
-    "gate:deploy": "bun run check:stack && bun run check:stack:falsify && bun run check:deploy && bun run check:deploy:falsify",
+    "gate:deploy": "bun run check:stack && bun run check:stack:falsify && bun run check:deploy && bun run check:deploy:falsify && bun run check:upgrade && bun run check:upgrade:falsify",
     "gate:cpp": "bun run check:cpp && bun run check:cpp:falsify",
     "gate:all": "bun run gate && bun run gate:deploy && bun run gate:cpp && bun run check:security && bun run check:security:falsify",
     "build:css": "bunx @tailwindcss/cli -i web/app.css -o web/public/app.css --minify"
