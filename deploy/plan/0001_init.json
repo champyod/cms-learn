@@ -1,0 +1,338 @@
+{
+  "version": "1.0.0",
+  "pgschema_version": "1.13.4",
+  "created_at": "2026-10-30T11:42:43+07:00",
+  "source_fingerprint": {
+    "hash": "965b1131737c955e24c7f827c55bd78e4cb49a75adfd04229e0ba297376f5085"
+  },
+  "groups": [
+    {
+      "steps": [
+        {
+          "sql": "CREATE TYPE audit_operation AS ENUM (\n    'insert',\n    'update',\n    'delete'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.audit_operation"
+        },
+        {
+          "sql": "CREATE TYPE capability AS ENUM (\n    'content:read',\n    'content:write',\n    'content:publish',\n    'submission:read',\n    'submission:grade',\n    'user:read',\n    'user:write',\n    'user:approve',\n    'settings:read',\n    'settings:write',\n    'infra:read',\n    'infra:write',\n    'audit:read',\n    'schema:apply'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.capability"
+        },
+        {
+          "sql": "CREATE TYPE principal_kind AS ENUM (\n    'user',\n    'system'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.principal_kind"
+        },
+        {
+          "sql": "CREATE TYPE principal_status AS ENUM (\n    'pending',\n    'active',\n    'suspended',\n    'closed'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.principal_status"
+        },
+        {
+          "sql": "CREATE TYPE setting_kind AS ENUM (\n    'bool',\n    'int',\n    'text'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.setting_kind"
+        },
+        {
+          "sql": "CREATE TYPE setting_tier AS ENUM (\n    'public',\n    'operator',\n    'secret'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.setting_tier"
+        },
+        {
+          "sql": "ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;",
+          "type": "default_privilege",
+          "operation": "create",
+          "path": "default_privileges.postgres.SEQUENCES.cmslearn_app"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS principals (\n    id uuid DEFAULT gen_random_uuid(),\n    kind principal_kind NOT NULL,\n    handle text NOT NULL,\n    email text,\n    password_hash text,\n    status principal_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principals_pkey PRIMARY KEY (id),\n    CONSTRAINT principals_email_key UNIQUE (email),\n    CONSTRAINT principals_handle_key UNIQUE (handle),\n    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),\n    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),\n    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.principals"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS audit_events (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    occurred_at timestamptz DEFAULT now() NOT NULL,\n    actor_id uuid NOT NULL,\n    invoked_by text NOT NULL,\n    action text NOT NULL,\n    subject text DEFAULT '' NOT NULL,\n    detail jsonb DEFAULT '{}' NOT NULL,\n    client_address inet,\n    CONSTRAINT audit_events_pkey PRIMARY KEY (id),\n    CONSTRAINT audit_events_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES principals (id),\n    CONSTRAINT audit_events_action_check CHECK (action ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$'::text),\n    CONSTRAINT audit_events_invoked_by_check CHECK (length(invoked_by) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.audit_events"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS audit_events_actor_idx ON audit_events (actor_id, occurred_at DESC);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.audit_events.audit_events_actor_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS elevations (\n    id uuid DEFAULT gen_random_uuid(),\n    principal_id uuid NOT NULL,\n    capability capability NOT NULL,\n    granted_by uuid NOT NULL,\n    approved_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    consumed_at timestamptz,\n    CONSTRAINT elevations_pkey PRIMARY KEY (id),\n    CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES principals (id),\n    CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),\n    CONSTRAINT elevations_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),\n    CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> principal_id),\n    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),\n    CONSTRAINT elevations_second_person CHECK (approved_by IS NULL OR approved_by <> principal_id)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.elevations"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (principal_id, capability, expires_at) WHERE (consumed_at IS NULL);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.elevations.elevations_live_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS roles (\n    id uuid DEFAULT gen_random_uuid(),\n    name text NOT NULL,\n    description text DEFAULT '' NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT roles_pkey PRIMARY KEY (id),\n    CONSTRAINT roles_name_key UNIQUE (name),\n    CONSTRAINT roles_name_check CHECK (name ~ '^[a-z][a-z0-9_]{1,62}$'::text)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.roles"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS principal_roles (\n    principal_id uuid,\n    role_id uuid,\n    granted_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principal_roles_pkey PRIMARY KEY (principal_id, role_id),\n    CONSTRAINT principal_roles_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),\n    CONSTRAINT principal_roles_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT principal_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.principal_roles"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS role_capabilities (\n    role_id uuid,\n    capability capability,\n    CONSTRAINT role_capabilities_pkey PRIMARY KEY (role_id, capability),\n    CONSTRAINT role_capabilities_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.role_capabilities"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS sessions (\n    id uuid DEFAULT gen_random_uuid(),\n    principal_id uuid NOT NULL,\n    principal_kind principal_kind DEFAULT 'user'::principal_kind NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    last_seen_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    revoked_at timestamptz,\n    user_agent text,\n    client_address inet,\n    CONSTRAINT sessions_pkey PRIMARY KEY (id),\n    CONSTRAINT sessions_principal_fk FOREIGN KEY (principal_id, principal_kind) REFERENCES principals (id, kind) ON DELETE CASCADE,\n    CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),\n    CONSTRAINT sessions_user_principal_only CHECK (principal_kind = 'user'::principal_kind)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.sessions"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS sessions_live_idx ON sessions (principal_id, expires_at) WHERE (revoked_at IS NULL);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.sessions.sessions_live_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS settings (\n    key text,\n    kind setting_kind NOT NULL,\n    value_text text NOT NULL,\n    tier setting_tier DEFAULT 'operator'::setting_tier NOT NULL,\n    description text DEFAULT '' NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    updated_by uuid NOT NULL,\n    CONSTRAINT settings_pkey PRIMARY KEY (key),\n    CONSTRAINT settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES principals (id),\n    CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,7}$'::text),\n    CONSTRAINT settings_value_matches_kind CHECK (CASE kind\n    WHEN 'bool'::setting_kind THEN value_text IN ('true'::text, 'false'::text)\n    WHEN 'int'::setting_kind THEN\n    CASE\n        WHEN value_text ~ '^-?(0|[1-9][0-9]{0,18})$'::text THEN value_text::numeric >= '-9223372036854775808'::bigint::numeric AND value_text::numeric <= '9223372036854775807'::bigint::numeric\n        ELSE false\n    END\n    WHEN 'text'::setting_kind THEN true\n    ELSE NULL::boolean\nEND)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.settings"
+        },
+        {
+          "sql": "ALTER TABLE settings ENABLE ROW LEVEL SECURITY;",
+          "type": "table.rls",
+          "operation": "alter",
+          "path": "public.settings"
+        },
+        {
+          "sql": "CREATE POLICY settings_app_all ON settings TO cmslearn_app USING (true) WITH CHECK (true);",
+          "type": "table.policy",
+          "operation": "create",
+          "path": "public.settings.settings_app_all"
+        },
+        {
+          "sql": "CREATE POLICY settings_judge_read ON settings FOR SELECT TO cmslearn_judge USING (tier <> 'secret'::setting_tier);",
+          "type": "table.policy",
+          "operation": "create",
+          "path": "public.settings.settings_judge_read"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS settings_audit (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    occurred_at timestamptz DEFAULT now() NOT NULL,\n    key text NOT NULL,\n    operation audit_operation NOT NULL,\n    old_kind setting_kind,\n    new_kind setting_kind,\n    old_value text,\n    new_value text,\n    old_tier setting_tier,\n    new_tier setting_tier,\n    actor_id uuid NOT NULL,\n    invoked_by text DEFAULT '' NOT NULL,\n    CONSTRAINT settings_audit_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_audit_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES principals (id),\n    CONSTRAINT settings_audit_update_has_old_state CHECK (operation <> 'update'::audit_operation OR old_kind IS NOT NULL AND new_kind IS NOT NULL)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.settings_audit"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS settings_audit_key_idx ON settings_audit (key, occurred_at DESC);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.settings_audit.settings_audit_key_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS settings_meta (\n    singleton boolean DEFAULT true,\n    version bigint DEFAULT 1 NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT settings_meta_pkey PRIMARY KEY (singleton),\n    CONSTRAINT settings_meta_single_row CHECK (singleton)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.settings_meta"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS settings_plans (\n    id uuid DEFAULT gen_random_uuid(),\n    author_id uuid NOT NULL,\n    changes jsonb NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz DEFAULT (now() + '00:15:00'::interval) NOT NULL,\n    applied_at timestamptz,\n    CONSTRAINT settings_plans_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_plans_author_id_fkey FOREIGN KEY (author_id) REFERENCES principals (id),\n    CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.settings_plans"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION current_actor()\nRETURNS uuid\nLANGUAGE plpgsql\nSTABLE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  raw text := current_setting('cms.actor_id', true);\nBEGIN\n  IF raw IS NULL OR raw = '' THEN\n    RAISE EXCEPTION 'cms.actor_id is not set; every settings write must name its actor'\n      USING ERRCODE = 'insufficient_privilege';\n  END IF;\n  RETURN raw::uuid;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.current_actor"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION reject_mutation()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  RAISE EXCEPTION '% is append-only; % is not permitted', TG_TABLE_NAME, TG_OP\n    USING ERRCODE = 'restrict_violation';\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.reject_mutation"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION settings_bump_version()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  published bigint;\nBEGIN\n  INSERT INTO settings_meta (singleton, version)\n  VALUES (true, 1)\n  ON CONFLICT (singleton) DO UPDATE\n    SET version = settings_meta.version + 1,\n        updated_at = now()\n  RETURNING version INTO published;\n\n  PERFORM pg_notify('cms_settings', published::text);\n  RETURN NULL;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.settings_bump_version"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION settings_stamp()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  NEW.updated_at := now();\n  NEW.updated_by := current_actor();\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.settings_stamp"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION settings_write_audit()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  changed_key text;\n  old_kind setting_kind;\n  new_kind setting_kind;\n  old_value text;\n  new_value text;\n  old_tier setting_tier;\n  new_tier setting_tier;\nBEGIN\n  -- Branches, not COALESCE: OLD is unassigned on INSERT and NEW on DELETE.\n  IF TG_OP = 'INSERT' THEN\n    changed_key := NEW.key;\n    new_kind := NEW.kind;\n    new_value := NEW.value_text;\n    new_tier := NEW.tier;\n  ELSIF TG_OP = 'UPDATE' THEN\n    changed_key := NEW.key;\n    old_kind := OLD.kind;\n    new_kind := NEW.kind;\n    old_value := OLD.value_text;\n    new_value := NEW.value_text;\n    old_tier := OLD.tier;\n    new_tier := NEW.tier;\n  ELSE\n    changed_key := OLD.key;\n    old_kind := OLD.kind;\n    old_value := OLD.value_text;\n    old_tier := OLD.tier;\n  END IF;\n\n  IF old_tier = 'secret' THEN\n    old_value := '<redacted>';\n  END IF;\n  IF new_tier = 'secret' THEN\n    new_value := '<redacted>';\n  END IF;\n\n  INSERT INTO settings_audit (key, operation, old_kind, new_kind, old_value, new_value, old_tier,\n                              new_tier, actor_id, invoked_by)\n  VALUES (changed_key, lower(TG_OP)::audit_operation, old_kind, new_kind, old_value, new_value,\n          old_tier, new_tier, current_actor(),\n          coalesce(current_setting('cms.invoked_by', true), ''));\n  RETURN NULL;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.settings_write_audit"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER audit_events_append_only\n    BEFORE UPDATE OR DELETE ON audit_events\n    FOR EACH ROW\n    EXECUTE FUNCTION reject_mutation();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.audit_events.audit_events_append_only"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER settings_audit_append_only\n    BEFORE UPDATE OR DELETE ON settings_audit\n    FOR EACH ROW\n    EXECUTE FUNCTION reject_mutation();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.settings_audit.settings_audit_append_only"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER settings_audit_row\n    AFTER INSERT OR UPDATE OR DELETE ON settings\n    FOR EACH ROW\n    EXECUTE FUNCTION settings_write_audit();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.settings.settings_audit_row"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER settings_stamp_row\n    BEFORE INSERT OR UPDATE ON settings\n    FOR EACH ROW\n    EXECUTE FUNCTION settings_stamp();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.settings.settings_stamp_row"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER settings_version_bump\n    AFTER INSERT OR UPDATE OR DELETE ON settings\n    FOR EACH ROW\n    EXECUTE FUNCTION settings_bump_version();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.settings.settings_version_bump"
+        },
+        {
+          "sql": "REVOKE EXECUTE ON FUNCTION current_actor() FROM PUBLIC;",
+          "type": "revoked_default_privilege",
+          "operation": "create",
+          "path": "revoked_default.FUNCTION.current_actor()"
+        },
+        {
+          "sql": "REVOKE EXECUTE ON FUNCTION settings_bump_version() FROM PUBLIC;",
+          "type": "revoked_default_privilege",
+          "operation": "create",
+          "path": "revoked_default.FUNCTION.settings_bump_version()"
+        },
+        {
+          "sql": "REVOKE EXECUTE ON FUNCTION settings_write_audit() FROM PUBLIC;",
+          "type": "revoked_default_privilege",
+          "operation": "create",
+          "path": "revoked_default.FUNCTION.settings_write_audit()"
+        },
+        {
+          "sql": "GRANT EXECUTE ON FUNCTION current_actor() TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.FUNCTION.current_actor().cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE audit_events_id_seq TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.SEQUENCE.audit_events_id_seq.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE settings_audit_id_seq TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.SEQUENCE.settings_audit_id_seq.cmslearn_app"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT ON TABLE audit_events TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.audit_events.cmslearn_app"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT ON TABLE elevations TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.elevations.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT ON TABLE principal_roles TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.principal_roles.cmslearn_app"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE principals TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.principals.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT ON TABLE role_capabilities TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.role_capabilities.cmslearn_app"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE roles TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.roles.cmslearn_app"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE sessions TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.sessions.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE settings TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.settings.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE settings TO cmslearn_judge;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.settings.cmslearn_judge"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE settings_audit TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.settings_audit.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE settings_meta TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.settings_meta.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE settings_meta TO cmslearn_judge;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.settings_meta.cmslearn_judge"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE settings_plans TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.settings_plans.cmslearn_app"
+        }
+      ]
+    }
+  ]
+}

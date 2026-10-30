@@ -4,6 +4,48 @@
 `deploy/roles.sql` runs before every apply, because a grant naming a role that does not exist fails
 the whole migration.
 
+## From source to database
+
+One file is edited, three are committed, and nothing is applied by hand:
+
+| Step | Command | Produces |
+|---|---|---|
+| edit | — | `deploy/schema/*.sql` |
+| render | `pgschema plan … --output-sql --output-json` | `deploy/plan/0001_init.sql`, `.json` |
+| seal | `sha256sum … > deploy/plan/CHECKSUMS` | the digests of those two files |
+| apply | `tools/apply-plan.sh` | the schema, in the target database |
+
+Rendering needs a target database to diff against and a second database for the plan scratch space.
+The embedded plan server hangs on this host — it leaves an empty `/tmp/embedded_postgres_log*` and no
+process — so both are passed explicitly:
+
+```bash
+pgschema plan --host "$PGHOST" --port "$PGPORT" --db cmslearn --user postgres \
+  --plan-host "$PGHOST" --plan-port "$PGPORT" --plan-db cmslearn_plan --plan-user postgres \
+  --file deploy/schema/main.sql \
+  --output-sql deploy/plan/0001_init.sql --output-json deploy/plan/0001_init.json
+```
+
+A render is deterministic: two renders of the same source produced byte-identical SQL, and identical
+JSON except `created_at`. The plan is therefore compared field by field with that field ignored, which
+is what `tools/compare-plan.ts` does.
+
+### Why applying goes through a wrapper
+
+pgschema does not verify the plan it executes. A step edited to declare `text` where the source
+declared an enum was accepted by `apply --plan` and failed only when PostgreSQL rejected the resulting
+foreign key (`SQLSTATE 42804`); an edit that stays valid SQL — a weakened grant, a dropped constraint,
+a renamed index — would apply silently. `source_fingerprint` is recorded in the plan and never checked.
+
+`tools/apply-plan.sh` recomputes the digests against `deploy/plan/CHECKSUMS` and refuses before
+connecting if they disagree. Every apply path calls it — the schema container, `make upgrade`, and a
+manual run — so the reviewed file is the only file that can reach a cluster.
+
+`check:schema` proves both halves hold: the committed pair still equals a fresh render of
+`deploy/schema/main.sql`, and applying it leaves nothing to change (`No changes detected.`).
+`check:schema:falsify` breaks the plan, the digests, and the source in seven ways and requires the
+specific refusal each time, because a harness that crashes also exits non-zero.
+
 ## Tables
 
 | File | Holds |

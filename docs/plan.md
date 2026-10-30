@@ -13,7 +13,7 @@ and an operator upgrades with one command.
 | Step | Work | Gate | Falsification |
 |---|---|---|---|
 | E1.1 | ADR 0004 and this plan | review | — |
-| E1.2 | `deploy/schema/` — authority, audit, settings (content tables follow in E4) — linked by `main.sql`, rendered by `pgschema plan` into `deploy/plan/0001_init.sql` + `.json`, executed by `apply --plan` | `check:schema` | hand-edit a rendered plan; `apply --plan` must refuse it |
+| E1.2 | `deploy/schema/` — authority, audit, settings (content tables follow in E4) — linked by `main.sql`, rendered by `pgschema plan` into `deploy/plan/0001_init.sql` + `.json`, executed by `tools/apply-plan.sh` | `check:schema` | hand-edit a rendered plan, or edit it and reseal `CHECKSUMS`; the wrapper and the gate must refuse it |
 | E1.3 | `release.toml` (version, per-image digest) and `tools/render-stack.ts` rendering `deploy/docker-compose.yml` | `check:stack` | change one digest; the committed compose must stop matching |
 | E1.4 | `make upgrade`: pull by digest, one-shot `schema` container running `pgschema apply --plan`, `up -d --wait`, `/healthz` smoke, previous release kept for rollback | `check:upgrade` (dry run) | plant a failing healthcheck; the command must stop before switching |
 
