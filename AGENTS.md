@@ -47,6 +47,57 @@ Neither replaces the other, and a task with a reference but no examples fails bo
   belongs to.
 - Cut a lane from `main`, and say the base in the lane's first commit.
 
+## Orchestration
+
+One deliverable is one epic; an epic is steps; a step ends in exactly one commit. Inside a step several
+agents may work at once, but only across a boundary that was fixed before any of them started.
+
+### The board
+
+`~/.agents/agent-hub/-mnt-D-Datas-Disk-Champ-Coding-Github-cms-learn/` is the ownership board.
+`CLAIMS.md` is the part that matters: before editing, claim the exact paths the step will touch, and
+release them when it lands. A path held `active` by a different `Run` is live work — report the
+conflict, never resolve it by editing first. `DECISIONS.md` holds the patterns every parallel agent
+must follow; `STATE.md` says what is in flight.
+
+### Contract before fan-out
+
+A step with more than one writer starts with main freezing the contract: the headers, the schema, the
+route shapes, the settings keys. Each dispatch then carries that contract plus its own path list, and
+one instruction that outranks the task — **if the contract has to change, stop and report**, never edit
+a shared header so that your slice compiles.
+
+### Perspectives before the writer
+
+Every step that is not a mechanical edit gets at least two independent read-only perspectives before
+implementation, answering different questions: what is wrong with the plan, what evidence contradicts
+it, what the reader will actually see. They run in parallel, and their disagreement is recorded in the
+step's decision rather than averaged away.
+
+### The production contract
+
+`production` is the only writer, and its dispatch is the narrowest in the system:
+
+| Field | Content |
+|---|---|
+| directory | the absolute path of this checkout |
+| unit | one step, and the epic it belongs to |
+| in scope | the exact paths, matching the claim rows |
+| starting state | what exists now, with `file:line` |
+| target state | what must exist when it returns |
+| forbidden | paths outside the list, refactors, new dependencies, new settings keys |
+| stop | a contract change, a missing prerequisite, an ambiguity that changes the design |
+| proof | the command that must exit zero, and its output |
+
+It returns that output. A summary of what it believes it did is not evidence.
+
+### The join
+
+Main integrates, runs the step gate once, and commits once. `checker` then walks the contracts in both
+directions — does the higher layer provide exactly what the lower consumes, and does the lower handle
+every state the higher can produce. A step whose delivered approach differs from the approved one is a
+finding, not a variation.
+
 ## Adding work
 
 - One intent per commit. The message carries the **why** and, on a branch's first commit, the base it
