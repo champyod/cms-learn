@@ -7,6 +7,34 @@ are allowed are read-only mounts (`/proc`, `/sys`, `/`) and the cgroup tree `iso
 `tools/falsify-deploy-gate.sh` proves the gate can fail. If you change a port, a network, an image tag
 or the Caddyfile, run both.
 
+## How `docker-compose.yml` is produced
+
+`docker-compose.yml` is generated. It is never edited by hand.
+
+```
+release.toml                     what runs — the version and, per image, its kind
+deploy/stack.template.yml        the shape — services, networks, and why each one exists
+        │
+        └── tools/render-stack.ts ──→ deploy/docker-compose.yml
+```
+
+`release.toml` declares each image as one of three kinds:
+
+| Kind | Carries | Renders as | Meaning |
+|---|---|---|---|
+| `pinned` | `ref` + `digest` | `ref@digest` | a registry image; the digest is what runs |
+| `built` | `ref` + `context` | `ref:${TAG:-dev}` | built from a Dockerfile in this repository |
+| `unpublished` | `ref` | `ref:${TAG:-dev}` | published by CI and not yet existing; the release is not deployable |
+
+```bash
+bun run tools/render-stack.ts          # write docker-compose.yml
+bun run check:stack                    # verify the committed file is what the sources produce
+bun run check:stack:falsify            # prove that check can fail
+```
+
+`bun run gate:deploy` runs the stack gate before the contract gate, so a hand edit is reported as drift
+with a line number instead of being silently reverted on the next render.
+
 ## The contract
 
 | # | Invariant | Why it is a gate and not a comment |
@@ -15,7 +43,7 @@ or the Caddyfile, run both.
 | 2 | `database` and `grafana` bind `127.0.0.1` only | operator access through an SSH tunnel, not the internet |
 | 3 | Network `internal` is `internal: true` | no gateway means no egress, enforced by the runtime |
 | 4 | `judge` is attached to internal networks only | a submission cannot fetch a payload or exfiltrate |
-| 5 | Every image is pinned (version or digest) | the thing tested is the thing that runs |
+| 5 | Every third-party image is pinned by digest, from `release.toml` | the thing tested is the thing that runs |
 | 6 | `no-new-privileges` everywhere; `judge` is the documented exception | `isolate` needs the host cgroup tree |
 | 7 | Caddy validates the Caddyfile **with the binary that will run it** | a config that only parses in the docs is not a config |
 | 8 | Prometheus config parses for the pinned Prometheus | same reason |
@@ -68,7 +96,7 @@ one place this stack loosens a default, and the reason ADR 0001 picked `isolate`
 | Task | Command |
 |---|---|
 | Deploy a version | `TAG=v1.2.3 docker compose pull && docker compose up -d` |
-| Roll back | restore the previous digest in `.env`, `docker compose up -d` (digests live in git) |
+| Roll back | `git revert` the commit that changed `release.toml`, then `bun run tools/render-stack.ts && docker compose up -d` |
 | Manual backup before a migration | `docker compose run --rm -e BACKUP_ONCE=1 backup` |
 | Restore drill (needs the private key mounted) | `docker compose run --rm -v /path:/keys:ro -e AGE_KEY_FILE=/keys/cms-learn-backup.key --entrypoint /usr/local/bin/restore-drill.sh backup` |
 | Grafana | `ssh -L 3001:127.0.0.1:3001 <host>` then `http://127.0.0.1:3001` |

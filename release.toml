@@ -1,0 +1,61 @@
+# One release: the version an operator sees, and the exact image every service runs.
+#
+# Every service in deploy/stack.template.yml names a key here. There are three kinds, and the
+# difference is what the release is allowed to do with the image:
+#
+#   pinned      a registry image, addressed by digest. ref records which tag that digest resolved
+#               from, so a human can read what it is and the digest stays the thing that runs.
+#   built       built from a Dockerfile in this repository, tagged by the release tag.
+#   unpublished the image is published by CI and does not exist yet. It renders by tag, and a
+#               release that contains one is not deployable until it becomes pinned or built.
+#
+# A digest is the only field that decides what actually runs; a tag is documentation.
+
+version = "0.0.0"
+
+[images.proxy]
+kind = "built"
+ref = "ghcr.io/champyod/cms-learn-proxy"
+context = "proxy"
+
+[images.web]
+kind = "unpublished"
+ref = "ghcr.io/champyod/cms-learn-web"
+
+[images.api]
+kind = "unpublished"
+ref = "ghcr.io/champyod/cms-learn-api"
+
+[images.judge]
+kind = "unpublished"
+ref = "ghcr.io/champyod/cms-learn-judge"
+
+[images.database]
+kind = "pinned"
+ref = "postgres:18.6"
+digest = "sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4"
+
+[images.crowdsec]
+kind = "pinned"
+ref = "crowdsecurity/crowdsec:v1.8.1"
+digest = "sha256:0f2523fa61ef507f15d953045cface490cc880670c62f2755ced17524107f71a"
+
+[images.prometheus]
+kind = "pinned"
+ref = "prom/prometheus:v3.15.1"
+digest = "sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2"
+
+[images.grafana]
+kind = "pinned"
+ref = "grafana/grafana:13.2.4"
+digest = "sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f"
+
+[images.node-exporter]
+kind = "pinned"
+ref = "prom/node-exporter:v1.8.2"
+digest = "sha256:4032c6d5bfd752342c3e631c2f1de93ba6b86c41db6b167b9a35372c139e7706"
+
+[images.backup]
+kind = "built"
+ref = "ghcr.io/champyod/cms-learn-backup"
+context = "backup"

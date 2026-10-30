@@ -1,0 +1,219 @@
+# cms-learn — single server. Template; deploy/docker-compose.yml is rendered from this file and
+# release.toml by tools/render-stack.ts, and is never edited by hand.
+#
+# Rules encoded here, not in prose the operator has to remember:
+#   - only `proxy` publishes ports; every other service listens on an internal network
+#   - `internal` has no gateway, so the judge and the database cannot reach the internet at all
+#   - every image comes from release.toml: a third-party image by digest, a local one by build context
+#   - nothing is installed on the host; the only host mounts are read-only (/sys, /proc) and the
+#     cgroup tree that `isolate` requires
+#
+# A service whose image is `{{image:...}}` is pinned in release.toml; the placeholder names the key
+# there, not the service here.
+
+name: cms-learn
+
+x-hardening: &hardening
+  restart: unless-stopped
+  labels:
+    org.cmslearn.release: "{{version}}"
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  proxy:
+    <<: *hardening
+    build:
+      context: ./proxy
+    image: {{image:proxy}}
+    ports:
+      - "80:8080"          # container listens unprivileged; the host side keeps the public port
+      - "443:8443"
+      - "443:8443/udp"     # HTTP/3
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env}
+      CROWDSEC_API_KEY: ${CROWDSEC_API_KEY:?set CROWDSEC_API_KEY in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data              # certificates; losing this only costs a re-issue
+      - caddy-config:/config
+      - caddy-logs:/var/log/caddy     # CrowdSec reads this
+    networks: [edge]
+    depends_on:
+      crowdsec: { condition: service_started }
+      api: { condition: service_started }
+      web: { condition: service_started }
+
+  web:
+    <<: *hardening
+    image: {{image:web}}
+    expose: ["3000"]
+    environment:
+      NODE_ENV: production
+      API_BASE_URL: http://api:8080
+    networks: [edge]
+    depends_on:
+      api: { condition: service_started }
+
+  api:
+    <<: *hardening
+    image: {{image:api}}
+    expose: ["8080"]
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}
+      # Registration and approval are runtime switches, not build-time flags: a pilot class turns
+      # approval on, a public demo turns it off, and neither needs a redeploy of the app.
+      REGISTRATION_OPEN: ${REGISTRATION_OPEN:-true}
+      APPROVAL_REQUIRED: ${APPROVAL_REQUIRED:-true}
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-}
+      SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:-720}
+      RUST_LOG: ${RUST_LOG:-info}
+    networks: [edge, internal]
+    depends_on:
+      database: { condition: service_healthy }
+
+  judge:
+    <<: *hardening
+    image: {{image:judge}}
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}
+      ISOLATE_CGROUP_PATH: ${ISOLATE_CGROUP_PATH:-/sys/fs/cgroup/cms-learn-isolate}
+    # isolate needs the host cgroup tree and an unconfined seccomp profile — the same shape the
+    # contest worker uses. It is the one container allowed to loosen the default.
+    cgroup: host
+    security_opt:
+      - seccomp:unconfined
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+      - judge-work:/var/lib/cms-learn/work
+    networks: [internal]          # no gateway: a submission cannot reach the internet
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2g
+    depends_on:
+      database: { condition: service_healthy }
+
+  database:
+    <<: *hardening
+    image: {{image:database}}
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cmslearn}
+      POSTGRES_USER: ${POSTGRES_USER:-cmslearn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # Bound to loopback only: the operator reaches it through an SSH tunnel, nothing else can.
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cmslearn} -d ${POSTGRES_DB:-cmslearn}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+
+  crowdsec:
+    <<: *hardening
+    image: {{image:crowdsec}}
+    environment:
+      GIN_MODE: release
+      # Caddy writes JSON access logs; this collection carries the parser for that shape.
+      COLLECTIONS: crowdsecurity/caddy
+    volumes:
+      - crowdsec-db:/var/lib/crowdsec/data
+      - crowdsec-etc:/etc/crowdsec
+      - caddy-logs:/var/log/caddy:ro
+      - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.d/caddy.yaml:ro
+    networks: [edge]
+    healthcheck:
+      test: ["CMD", "cscli", "lapi", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  prometheus:
+    <<: *hardening
+    image: {{image:prometheus}}
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=30d
+      - --web.listen-address=0.0.0.0:9090
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prom-data:/prometheus
+    networks: [internal, edge]    # edge only to be scrapeable; nothing publishes it
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  grafana:
+    <<: *hardening
+    image: {{image:grafana}}
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?set GRAFANA_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"     # loopback only; reach it through an SSH tunnel
+    networks: [internal]
+    depends_on:
+      prometheus: { condition: service_started }
+
+  node-exporter:
+    <<: *hardening
+    image: {{image:node-exporter}}
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro,rslave
+    networks: [internal]
+
+  backup:
+    <<: *hardening
+    build:
+      context: ./backup
+    image: {{image:backup}}
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}
+      AGE_PUBLIC_KEY: ${AGE_PUBLIC_KEY:?set AGE_PUBLIC_KEY in .env}
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
+      BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-7}
+    volumes:
+      - backups:/backups
+    networks: [internal, edge]    # edge for the offsite sync, never for inbound
+    depends_on:
+      database: { condition: service_healthy }
+
+volumes:
+  caddy-data:
+  caddy-config:
+  caddy-logs:
+  pgdata:
+  judge-work:
+  crowdsec-db:
+  crowdsec-etc:
+  prom-data:
+  grafana-data:
+  backups:
+
+networks:
+  edge:
+  internal:
+    internal: true
