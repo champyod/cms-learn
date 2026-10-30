@@ -19,6 +19,7 @@
     "check:security:falsify": "bash tools/falsify-security-gate.sh",
     "check:schema": "bash tools/check-schema.sh",
     "check:schema:falsify": "bash tools/falsify-schema-gate.sh",
+    "check:db": "bash tools/check-db.sh",
     "check:scaffold": "bash tools/check-scaffold.sh",
     "check:cpp": "bun run tools/cpp/gate.ts",
     "check:cpp:falsify": "bun run tools/cpp/falsify.ts",
