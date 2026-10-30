@@ -12,6 +12,7 @@ lives in `.agents/` on the machine that made the decision.
 | The domain: topics, modules, tracks, tasks, lifecycle | [`content-model.md`](content-model.md) |
 | How a task is generated, and what makes a brief stay out of the statement | [`task-generation.md`](task-generation.md) |
 | The database: tables, and the invariants it enforces | [`schema.md`](schema.md) |
+| What an operator can change, and what is deliberately not a setting | [`settings.md`](settings.md) |
 | The server: sizing, exposure, threat table, operator checklist | [`infra/single-server.md`](infra/single-server.md) |
 | Which features are shipped versus planned | [`../FEATURES.md`](../FEATURES.md) |
 | The rules an agent or contributor must follow | [`../AGENTS.md`](../AGENTS.md) |

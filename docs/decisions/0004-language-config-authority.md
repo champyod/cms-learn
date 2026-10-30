@@ -37,8 +37,9 @@ A value lives in Postgres unless it is needed to reach Postgres. Four layers and
 1. **Host file**, read-only, `0600`: `CMSLEARN_DATABASE_URL`, `CMSLEARN_SEAL_KEY`,
    `CMSLEARN_BOOTSTRAP_ADMIN`, TLS mode. Storing the connection string in the database is circular,
    and the key that unseals secrets must not sit beside the ciphertext.
-2. **`settings` rows**: policy, limits, rate limits, routing, image digests, feature flags, sealed
-   credentials.
+2. **`settings` rows**: policy, limits, rate limits, routing, feature flags, sealed credentials.
+   Image digests are not here: they belong to `release.toml`, because a digest describes which
+   release is running rather than how it behaves.
 3. **Content tables**: the task bank, seeded idempotently by content hash, then live.
 4. **Code**: capability names and each setting's declaration — type, range, default, tier, whether it
    is secret.

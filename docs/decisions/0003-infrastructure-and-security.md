@@ -17,7 +17,7 @@ database, network or volume
 | 10 | Deploy path | **Images by digest**, `up -d --wait`, rollback by digest | a broken commit must not become a broken lesson |
 | 11 | Proxy privilege | **uid 10001 on unprivileged ports** (80→8080, 443→8443) | the process terminating TLS does not need root |
 | 12 | Security scanning | **Trivy 0.66.0 as a gate**: secrets, fixable CVEs, deployment hardening | a leak fails the build instead of waiting to be read |
-| 13 | Object storage | **SeaweedFS 4.51**, Apache-2.0, one `weed server -s3` process; reached by **aws-sdk-cpp** with only the `s3` feature | task text, source and test data are blobs, not files on a host; the database holds pointers, so the bucket is the only copy and the backup covers it |
+| 13 | Object storage | **SeaweedFS 4.51**, Apache-2.0, one `weed server -s3` process; reached by **aws-sdk-cpp** with `default-features: false` and only the `s3` feature | task text, source and test data are blobs, not files on a host; the database holds pointers, so the bucket is the only copy and the backup covers it |
 
 ## Consequences
 
@@ -26,6 +26,11 @@ database, network or volume
   the database holds only pointers. A `pg_dump` restores the rows and leaves every task unreadable, so
   the nightly job covers the bucket as well, and the restore drill restores both before it reports
   success.
+- **A private object has no URL of its own.** Public assets are served under `content.assets_path`,
+  a prefix the api owns so an operator can change it from the panel without reloading the proxy; a
+  private object is streamed through the api after the same capability check that guards the page
+  that links to it. No presigned URL is minted, because a presigned URL is a bearer token that keeps
+  working after the session that requested it is gone.
 - A stolen dump is not a stolen lesson plan: the private key is never on the server.
 - The WAF blocks in-band — the stock CRS config reports `Loaded 0 inband rules`, which only bans for
   later requests, so `deploy/crowdsec/appsec-config.yaml` declares CRS in-band and logs

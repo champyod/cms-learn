@@ -14,7 +14,12 @@ carries. A dependency that is not in this table is not allowed in the build.
 | spdlog | baseline `ab9a05e7` | MIT | structured logging |
 | sqlpp23 | **0.70**, pinned by tag | BSD-2-Clause | compile-time-checked SQL; statements are executed through a Drogon connector written here |
 | catch2 | baseline `ab9a05e7`, `tests` feature only | BSL-1.0 | core and judge tests |
-| aws-sdk-cpp | baseline `ab9a05e7`, `s3` feature only | Apache-2.0 | `PutObject`, `GetObject`, `HeadObject`, `ListObjectsV2` for task assets |
+| aws-sdk-cpp | baseline `ab9a05e7`, `default-features: false`, `s3` feature only | Apache-2.0 | `PutObject`, `GetObject`, `HeadObject`, `ListObjectsV2` for task assets |
+
+`aws-sdk-cpp` declares `dynamodb`, `kinesis` and `s3` as default features, so naming the port without
+`default-features: false` compiles three service SDKs to use one. The manifest turns the defaults off
+and enables `s3` alone; the dependency list and the version of each service are visible in
+`~/.local/share/vcpkg/ports/aws-sdk-cpp/vcpkg.json`.
 
 Exact baseline versions are resolved at configure time by vcpkg and recorded in `vcpkg-lock` output;
 the two overlay ports are the ones that differ from the registry.
