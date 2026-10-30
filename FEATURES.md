@@ -23,15 +23,15 @@ Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 
 | ID | Feature | Class | State | Evidence |
 |---|---|---|---|---|
-| F-001 | Controlled topic vocabulary, TH+EN labels (33 topics) | — | ● | `content/topics.json` |
-| F-002 | Routes are stages of tags with a difficulty band; there is no module layer | — | ● | `content/tracks.json` |
-| F-003 | Two routes as parallel views of one bank — USACO ladder and IOI path — 4 stages each, every tag placed in both, difficulty shown as a number | — | ● | `content/tracks.json` |
-| F-004 | Interface in Thai and English; a record made from the panel carries an optional second language, at least one language required, none privileged | — | ● | `content/schema/tracks.schema.json`, `content/tracks.json` |
-| F-005 | Stage lists validated: unknown tag fails, tag twice in one stage fails, unplaced tag fails | — | ● | `tools/validate-content.ts` (cases 4, 5, 9) |
-| F-006 | Task schema: topics, difficulty, limits, checker, origin, verification | — | ● | `content/schema/task.schema.json` |
-| F-007 | Reachability rule — a task no stage can serve fails the gate | — | ● | `tools/validate-content.ts` (case 11) |
-| F-008 | Publish gate — `published` refused without 3 verification methods and test data | — | ● | `tools/validate-content.ts` (case 2) |
-| F-009 | Seed tasks with bilingual statements, machine-checked examples and compiling references | — | ● | `content/tasks/*/examples/`, `tools/check-references.sh` |
+| F-001 | Controlled topic vocabulary, TH+EN labels (33 topics) | A | ● | `content/topics.json` |
+| F-002 | Routes are stages of tags with a difficulty band; there is no module layer | A | ● | `content/tracks.json` |
+| F-003 | Two routes as parallel views of one bank — USACO ladder and IOI path — 4 stages each, every tag placed in both, difficulty shown as a number | A | ● | `content/tracks.json` |
+| F-004 | Interface in Thai and English; a record made from the panel carries an optional second language, at least one language required, none privileged | A | ● | `content/schema/tracks.schema.json`, `content/tracks.json` |
+| F-005 | Stage lists validated: unknown tag fails, tag twice in one stage fails, unplaced tag fails | A | ● | `tools/validate-content.ts` (cases 4, 5, 9) |
+| F-006 | Task schema: topics, difficulty, limits, checker, origin, verification | A | ● | `content/schema/task.schema.json` |
+| F-007 | Reachability rule — a task no stage can serve fails the gate | A | ● | `tools/validate-content.ts` (case 11) |
+| F-008 | Publish gate — `published` refused without 3 verification methods and test data | A | ● | `tools/validate-content.ts` (case 2) |
+| F-009 | Seed tasks with bilingual statements, machine-checked examples and compiling references | A | ● | `content/tasks/*/examples/`, `tools/check-references.sh` |
 | F-010 | Test data with manifests per task | — | ○ | — (needed by F-012/F-013) |
 | F-011 | AI generation pipeline with content-addressed cache key | — | ○ | spec: `docs/content-model.md` |
 | F-012 | Brute-force differential verifier | — | ○ | spec: `docs/content-model.md` |
