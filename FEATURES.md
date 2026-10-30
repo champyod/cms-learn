@@ -32,12 +32,12 @@ Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 | F-007 | Reachability rule — a task no stage can serve fails the gate | A | ● | `tools/validate-content.ts` (case 11) |
 | F-008 | Publish gate — `published` refused without 3 verification methods and test data | A | ● | `tools/validate-content.ts` (case 2) |
 | F-009 | Seed tasks with bilingual statements, machine-checked examples and compiling references | A | ● | `content/tasks/*/examples/`, `tools/check-references.sh` |
-| F-010 | Test data with manifests per task | — | ○ | — (needed by F-012/F-013) |
-| F-011 | AI generation pipeline with content-addressed cache key | — | ○ | spec: `docs/content-model.md` |
-| F-012 | Brute-force differential verifier | — | ○ | spec: `docs/content-model.md` |
-| F-013 | Limit measurement (time/memory with margin) | — | ○ | spec: `docs/content-model.md` |
-| F-014 | Per-account unseen-task serving (topic × difficulty × band) | — | ○ | spec: `docs/content-model.md` |
-| F-015 | Copy/plagiarism detection between classmates | — | ○ | — |
+| F-010 | Test data with manifests per task | C | ○ | — (needed by F-012/F-013) |
+| F-011 | AI generation pipeline with content-addressed cache key | C | ○ | spec: `docs/content-model.md` |
+| F-012 | Brute-force differential verifier | C | ○ | spec: `docs/content-model.md` |
+| F-013 | Limit measurement (time/memory with margin) | C | ○ | spec: `docs/content-model.md` |
+| F-014 | Per-account unseen-task serving (topic × difficulty × band) | C | ○ | spec: `docs/content-model.md` |
+| F-015 | Copy/plagiarism detection between classmates | C | ○ | — |
 
 ## Judge
 
