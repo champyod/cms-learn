@@ -61,7 +61,7 @@ case_of "judge-with-egress" "could reach the internet" \
 
 # 3. an unpinned image: the thing you tested is not the thing that runs next week
 case_of "unpinned-image" "not pinned" \
-  "sed -i 's|image: postgres:18.6|image: postgres:latest|' docker-compose.yml"
+  "sed -i 's|image: postgres:18.6@sha256:[0-9a-f]*|image: postgres:latest|' docker-compose.yml"
 
 # 4. privilege escalation left enabled on an internet-facing service
 case_of "no-new-privileges-dropped" "no-new-privileges" \
