@@ -1,0 +1,22 @@
+# A clean checkout configures without vcpkg, so an absent driver skips this component rather than
+# failing the build; the manifest dependency is what supplies it in every build that has one.
+find_package(Sqlpp23 CONFIG QUIET)
+if(NOT Sqlpp23_FOUND)
+  message(STATUS "sqlpp23 not found; the database layer is skipped (install the 'sqlpp23' manifest dependency)")
+  return()
+endif()
+
+add_library(cms_db INTERFACE)
+add_library(cms::db ALIAS cms_db)
+
+target_include_directories(cms_db INTERFACE
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include>")
+
+target_link_libraries(cms_db INTERFACE sqlpp23::core)
+target_compile_features(cms_db INTERFACE cxx_std_23)
+cms_apply_warnings(cms_db INTERFACE)
+
+if(CMS_BUILD_TESTS)
+  add_subdirectory(tests)
+endif()

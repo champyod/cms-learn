@@ -15,7 +15,7 @@ trap 'rm -rf "$work"' EXIT
 
 CXX="${CXX:-g++}"
 python="${PYTHON:-python3}"
-include_dir="$repo/core/include"
+include_dirs=("$repo/core/include" "$repo/db/include")
 
 # A third-party header is self-contained only with the dependency tree on the include path.
 vcpkg_include=""
@@ -35,11 +35,17 @@ note() { printf '  %s\n' "$*"; }
 
 compile_header() {
   printf '#include "%s"\n' "$1" > "$work/header.cpp"
-  "$CXX" -std=c++23 -fsyntax-only -I"$include_dir" "${extra_includes[@]}" "$work/header.cpp"
+  local includes=()
+  for dir in "${include_dirs[@]}"; do
+    includes+=(-I"$dir")
+  done
+  "$CXX" -std=c++23 -fsyntax-only "${includes[@]}" "${extra_includes[@]}" "$work/header.cpp"
 }
 
 note "every header compiles without a prior include"
-[ -d "$include_dir" ] || fail "no core/include directory"
+for include_dir in "${include_dirs[@]}"; do
+  [ -d "$include_dir" ] || fail "no $include_dir directory"
+done
 note "dependencies: ${vcpkg_include:-not installed}"
 header_count=0
 while IFS= read -r header; do
@@ -50,7 +56,7 @@ while IFS= read -r header; do
     fail "$header does not compile on its own"
   fi
   header_count=$((header_count + 1))
-done < <(find "$include_dir" -name '*.hpp' | sort)
+done < <(find "${include_dirs[@]}" -name '*.hpp' | sort)
 [ "$header_count" -gt 0 ] || fail "no headers were compiled"
 note "$header_count headers"
 

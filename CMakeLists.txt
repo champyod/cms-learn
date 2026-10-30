@@ -18,6 +18,7 @@ option(CMS_WITH_JUDGE "Build the judge (isolate, libsodium, spdlog)" OFF)
 option(CMS_BUILD_TESTS "Build the C++ test binaries (requires the 'tests' manifest feature)" ON)
 
 add_subdirectory(core)
+add_subdirectory(db)
 add_subdirectory(references)
 
 if(CMS_WITH_API)
