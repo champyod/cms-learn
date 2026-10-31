@@ -24,18 +24,18 @@ Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 | ID | Feature | Class | State | Evidence |
 |---|---|---|---|---|
 | F-001 | Controlled topic vocabulary, TH+EN labels (33 topics) | A | ● | `content/topics.json` |
-| F-002 | Routes are stages of tags with a difficulty band; there is no module layer | A | ● | `content/tracks.json` |
-| F-003 | Two routes as parallel views of one bank — USACO ladder and IOI path — 4 stages each, every tag placed in both, difficulty shown as a number | A | ● | `content/tracks.json` |
+| F-002 | Routes are stages of tags with a difficulty band; there is no module layer | C | ● | `content/tracks.json` |
+| F-003 | Two routes as parallel views of one bank — USACO ladder and IOI path — 4 stages each, every tag placed in both, difficulty shown as a number | C | ● | `content/tracks.json` |
 | F-004 | Interface in Thai and English; a record made from the panel carries an optional second language, at least one language required, none privileged | A | ● | `content/schema/tracks.schema.json`, `content/tracks.json` |
-| F-005 | Stage lists validated: unknown tag fails, tag twice in one stage fails, unplaced tag fails | A | ● | `tools/validate-content.ts` (cases 4, 5, 9) |
+| F-005 | Stage lists validated: unknown tag fails, tag twice in one stage fails, unplaced tag fails | C | ● | `tools/validate-content.ts` (cases 4, 5, 9) |
 | F-006 | Task schema: topics, difficulty, limits, checker, origin, verification | A | ● | `content/schema/task.schema.json` |
-| F-007 | Reachability rule — a task no stage can serve fails the gate | A | ● | `tools/validate-content.ts` (case 11) |
+| F-007 | Reachability rule — a task no stage can serve fails the gate | C | ● | `tools/validate-content.ts` (case 11) |
 | F-008 | Publish gate — `published` refused without 3 verification methods and test data | A | ● | `tools/validate-content.ts` (case 2) |
 | F-009 | Seed tasks with bilingual statements, machine-checked examples and compiling references | A | ● | `content/tasks/*/examples/`, `tools/check-references.sh` |
-| F-010 | Test data with manifests per task | C | ○ | — (needed by F-012/F-013) |
-| F-011 | AI generation pipeline with content-addressed cache key | C | ○ | spec: `docs/content-model.md` |
-| F-012 | Brute-force differential verifier | C | ○ | spec: `docs/content-model.md` |
-| F-013 | Limit measurement (time/memory with margin) | C | ○ | spec: `docs/content-model.md` |
+| F-010 | Test data with manifests per task | A | ○ | — (needed by F-012/F-013) |
+| F-011 | Task generation pipeline from a setter's brief — six stages, each checking the previous output, with a content-addressed cache key | A | ○ | spec: `docs/content-model.md` |
+| F-012 | Brute-force differential verifier | A | ○ | spec: `docs/content-model.md` |
+| F-013 | Limit measurement (time/memory with margin) | A | ○ | spec: `docs/content-model.md` |
 | F-014 | Per-account unseen-task serving (topic × difficulty × band) | C | ○ | spec: `docs/content-model.md` |
 | F-015 | Copy/plagiarism detection between classmates | C | ○ | — |
 
@@ -57,11 +57,11 @@ Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 | F-030 | Design tokens, `judge mono` (contrast 15.41:1 body) | C | ● | `web/tokens.css` |
 | F-031 | Thai-coverage monospace font, shipped with licence, verified by advance-width measurement | C | ● | `web/public/fonts/` |
 | F-034 | Drogon + Inja + htmx app shell reading the tokens | C | ○ | ADR 0006 |
-| F-035 | Path home: stage rail, current module, next task | A | ○ | layout decided in ADR 0002 |
+| F-035 | Path home: stage rail, current module, next task | C | ○ | layout decided in ADR 0002 |
 | F-036 | Task view: statement render, samples, limits, topics | A | ○ | designed; statements are markdown |
 | F-037 | Code entry: in-page editor or file upload for `.cpp`, with the C++ standard selectable | A | ○ | ADR 0001 / decision 7 |
 | F-038 | Submission result: verdict, per-test cost, diff of first failure | A | ○ | — |
-| F-039 | Progress and weak-topic view | A | ○ | layout decided in ADR 0002 |
+| F-039 | Progress and weak-topic view | C | ○ | layout decided in ADR 0002 |
 | F-040 | Dictionary wiring for TH/EN across every surface | A | ○ | preview proves the pattern |
 
 ## Accounts and security
