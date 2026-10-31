@@ -25,6 +25,15 @@ and enables `s3` alone; the dependency list and the version of each service are 
 Exact baseline versions are resolved at configure time by vcpkg and recorded in `vcpkg-lock` output;
 the two overlay ports are the ones that differ from the registry.
 
+### OpenSSL 4.x is deliberately not taken
+
+OpenSSL 4.1.0 exists upstream and this project stays on 3.6.5. That was measured, not assumed: a probe
+built 4.1.0 from source, and while the library itself compiles, `s2n` 1.7.6 does not — it dereferences
+`ASN1_IA5STRING`, which 4.x made opaque, and calls `ASN1_STRING_data`, which 4.x removed. `aws-c-io`,
+`aws-crt-cpp` and `aws-sdk-cpp` all sit on `s2n`, so the S3 path is the first casualty. Adopting 4.1
+today would mean owning patches to a TLS library in the security path. The trigger to revisit is s2n
+shipping 4.x support; the five port-recipe changes 4.1 needs are already known and small.
+
 ### How the packages arrive
 
 The presets name `cmake/vcpkg-toolchain.cmake` as their toolchain. It reads `VCPKG_ROOT` and hands
