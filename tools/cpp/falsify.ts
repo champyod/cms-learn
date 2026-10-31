@@ -235,6 +235,29 @@ try {
     console.log(`WRONG RESULT  ${"compiler-minimum".padEnd(28)} — ${why}`);
     missed += 1;
   }
+
+  // A Clang major is not a GCC major: clang++ 23 is numerically above 16 and still accepts -std=c++26 while
+  // compiling a smaller language, so a family test on the version floor passes it for the wrong reason. The
+  // preset configures with g++, so the override is also what proves the check reads the compiler that
+  // actually configured rather than the one the preset asked for.
+  const clangRoot = buildTree(repo, work, "compiler-family", CLEAN_SOURCE);
+  const clangRefusal = configureWith(clangRoot, { CMAKE_CXX_COMPILER: "clang++" });
+  const clangNamed =
+    clangRefusal.status !== 0 &&
+    clangRefusal.output.includes("Clang") &&
+    clangRefusal.output.includes("required minimum '16'");
+  if (clangNamed) {
+    console.log(`behaved       ${"compiler-family".padEnd(28)} (refuses a Clang major that is not a GCC major)`);
+    caught += 1;
+  } else {
+    const detail = clangRefusal.output.trim().split("\n").at(-1)?.slice(0, 140) ?? "";
+    const why =
+      clangRefusal.status === 0
+        ? "configure accepted clang++ on the numeric match alone"
+        : `refusal did not name "Clang" and the required minimum: ${detail}`;
+    console.log(`WRONG RESULT  ${"compiler-family".padEnd(28)} — ${why}`);
+    missed += 1;
+  }
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

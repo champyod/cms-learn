@@ -51,7 +51,8 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_COMPILER": "clang++",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
-        "CMS_LEARN_SANITIZE": "OFF"
+        "CMS_LEARN_SANITIZE": "OFF",
+        "CMS_LINT_ONLY": "ON"
       }
     }
   ],
