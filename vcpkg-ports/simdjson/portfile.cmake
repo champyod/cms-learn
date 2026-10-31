@@ -1,14 +1,15 @@
-# Overlay of the registry port, pinned to the release that carries the bounds fixes.
+# Overlay of the registry port, pinned to the release that carries the input bounds fixes.
 #
-# The registry still ships 5.0.5. Releases 5.0.6 and 5.0.7 stop three reads that ran past the end of
-# a buffer on truncated or unpadded input, which is exactly the shape a request body can take, and
-# 5.0.8 bumps the soversion those fixes belong to. The portfile is otherwise the registry's.
+# Releases 5.0.6 and 5.0.7 stop three reads that ran past the end of a buffer on truncated or
+# unpadded input, which is exactly the shape a request body can take, and 5.0.8 bumps the soversion
+# those fixes belong to. 5.1.0 rejects integers wider than 64 bits instead of truncating them and
+# accepts exponents of more than 19 digits in get_double. The portfile is otherwise the registry's.
 vcpkg_from_github(
     OUT_SOURCE_PATH SOURCE_PATH
     REPO simdjson/simdjson
     REF "v${VERSION}"
     HEAD_REF master
-    SHA512 038e1b684a92f4ebae6e922476b52b58f4f98f9edd2898777f1301c5369630b9fb4129810ebbe838a2eb0fb28069539f1eef77958db958f5ebd9c14b99584c10
+    SHA512 e166657fdb4a80796ff7991c298aeaab0296dc2a4f8bf3a95a8bde2dbf0eda9cf5e967a6d3bfd140fde4458ba8bf2690dd089edefa82b9033b1da325a1173915
 )
 
 vcpkg_check_features(
