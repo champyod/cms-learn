@@ -11,6 +11,7 @@
       "hidden": true,
       "toolchainFile": "${sourceDir}/cmake/vcpkg-toolchain.cmake",
       "cacheVariables": {
+        "VCPKG_MANIFEST_DIR": "${sourceDir}/api",
         "VCPKG_INSTALLED_DIR": "${sourceDir}/build/vcpkg_installed",
         "VCPKG_MANIFEST_FEATURES": "tests"
       }

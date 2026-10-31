@@ -6,6 +6,6 @@
     "baseline": "ab9a05e70421507222d83861ac1a31be7e4272d4"
   },
   "overlay-ports": [
-    "./vcpkg-ports"
+    "../vcpkg-ports"
   ]
 }

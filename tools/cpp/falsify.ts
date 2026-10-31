@@ -109,8 +109,7 @@ const STAGED = [
   "core",
   "db",
   "references",
-  "vcpkg.json",
-  "vcpkg-configuration.json",
+  "api",
   "vcpkg-ports",
 ];
 

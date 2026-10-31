@@ -68,13 +68,13 @@ import re
 import sys
 
 repo = pathlib.Path(sys.argv[1])
-for name in ("vcpkg.json", "vcpkg-configuration.json", "package.json"):
+for name in ("api/vcpkg.json", "api/vcpkg-configuration.json", "package.json"):
     try:
         json.loads((repo / name).read_text())
     except json.JSONDecodeError as error:
         sys.exit(f"{name} is not valid JSON: {error}")
 
-manifest = json.loads((repo / "vcpkg.json").read_text())
+manifest = json.loads((repo / "api" / "vcpkg.json").read_text())
 declared = {entry if isinstance(entry, str) else entry["name"] for entry in manifest["dependencies"]}
 
 ports_dir = repo / "vcpkg-ports"
@@ -98,7 +98,7 @@ for port in ports:
     if port.name not in declared:
         sys.exit(f"overlay port {port.name} is not a dependency of the workspace")
 
-configuration = json.loads((repo / "vcpkg-configuration.json").read_text())
+configuration = json.loads((repo / "api" / "vcpkg-configuration.json").read_text())
 baseline = configuration.get("default-registry", {}).get("baseline", "")
 if not re.fullmatch(r"[0-9a-f]{40}", baseline):
     sys.exit("the default registry baseline is not a commit id")

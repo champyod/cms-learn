@@ -15,7 +15,7 @@ carries. A dependency that is not in this table is not allowed in the build.
 | sqlpp23 | **0.70**, the version the pinned baseline resolves | BSD-2-Clause | compile-time-checked SQL; executed through the connector in `db/` |
 | catch2 | baseline `ab9a05e7`, `tests` feature only | BSL-1.0 | core, db and judge tests |
 | aws-sdk-cpp | baseline `ab9a05e7`, `default-features: false`, `s3` feature only | Apache-2.0 | `PutObject`, `GetObject`, `HeadObject`, `ListObjectsV2` for task assets — declared, not yet included by any source file |
-| openssl | **3.6.5#2**, transitive — never named in `vcpkg.json` | Apache-2.0 | TLS under `curl`, `libpq`, `trantor` (Drogon), `aws-c-cal`, `s2n` and `aws-sdk-cpp`. Its version is decided by the dependency graph, not by us |
+| openssl | **3.6.5#2**, transitive — never named in any manifest | Apache-2.0 | TLS under `curl`, `libpq`, `trantor` (Drogon), `aws-c-cal`, `s2n` and `aws-sdk-cpp`. Its version is decided by the dependency graph, not by us |
 
 `aws-sdk-cpp` declares `dynamodb`, `kinesis` and `s3` as default features, so naming the port without
 `default-features: false` compiles three service SDKs to use one. The manifest turns the defaults off
@@ -37,9 +37,14 @@ shipping 4.x support; the five port-recipe changes 4.1 needs are already known a
 ### How the packages arrive
 
 The presets name `cmake/vcpkg-toolchain.cmake` as their toolchain. It reads `VCPKG_ROOT` and hands
-resolution to vcpkg's manifest mode, which bootstraps vcpkg if needed, installs what `vcpkg.json`
-declares, and links from `build/vcpkg_installed` — one directory shared by both presets, so the two
-configurations do not build Drogon and the S3 client twice.
+resolution to vcpkg's manifest mode, which bootstraps vcpkg if needed, installs what the manifest
+declares, and links from `build/vcpkg_installed`.
+
+The manifest is **per service**, not one list for everything: `api/vcpkg.json` and its
+`api/vcpkg-configuration.json` sit beside the service that consumes them, because vcpkg looks for both
+files in the manifest directory and does not search upward. The presets point at it with
+`VCPKG_MANIFEST_DIR`. A second service gets its own pair, and only then, so nothing is declared for a
+directory that does not exist.
 
 There is no separate install command to run. Four cases, four outcomes:
 
@@ -80,8 +85,8 @@ Nothing is cached inside the repository except the installed tree:
 | source and tool downloads | `$VCPKG_ROOT/downloads` | `rm -rf "$VCPKG_ROOT/downloads"` |
 | binary archives | `$XDG_CACHE_HOME/vcpkg/archives`, else `~/.cache/vcpkg/archives` | `rm -rf ~/.cache/vcpkg/archives` |
 
-All three are disposable; the next configure rebuilds whatever it needs. The `vcpkg.json` baseline,
-not the cache, is what decides versions.
+All three are disposable; the next configure rebuilds whatever it needs. The baseline in
+`api/vcpkg-configuration.json`, not the cache, is what decides versions.
 
 ## Rust — `cmsctl` only
 
