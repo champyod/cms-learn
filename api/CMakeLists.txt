@@ -5,6 +5,18 @@ include(DrogonCompat)
 cms_learn_align_jsoncpp()
 find_package(PostgreSQL REQUIRED)
 find_package(unofficial-sodium CONFIG REQUIRED)
+find_package(CURL REQUIRED)
+
+# Mail is its own library: it is the only part of the api that talks to the network on its own, and it
+# is disabled by default, so it must be testable without a server.
+add_library(cms_api_mail STATIC src/settings_defaults.cpp src/mailer.cpp)
+add_library(cms::api_mail ALIAS cms_api_mail)
+target_include_directories(cms_api_mail PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+target_link_libraries(cms_api_mail PUBLIC cms::core CURL::libcurl)
+cms_apply_warnings(cms_api_mail PUBLIC)
+cms_apply_hardening(cms_api_mail)
+cms_apply_sanitizers(cms_api_mail)
 
 # Identity generation is its own library so the password/uuid tests can link it without the service.
 add_library(cms_api_identity STATIC src/uuid.cpp)
