@@ -4,10 +4,10 @@
 // once reported "6 caught, 1 missed" while actually catching a YAML syntax error instead of judge egress.
 // So each case asserts the rule id (or the sanitizer report) that must appear, not merely a non-zero exit.
 //
-// Each case is built in its own temp tree: the build tree is copied, a defect is written into
+// Each case is built in its own temp tree: the source tree is staged, a defect is written into
 // `content/tasks/demo/solutions/`, and the *real* gate runs against it. Nothing in the repo is mutated.
 
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -99,14 +99,39 @@ int main() {
     return 0;
 }`;
 
+// Everything one configure reads: the presets and the tidy config, the CMake modules, the components the
+// root CMakeLists adds, and the manifest the presets resolve packages from.
+const STAGED = [
+  "CMakeLists.txt",
+  "CMakePresets.json",
+  ".clang-tidy",
+  "cmake",
+  "core",
+  "db",
+  "references",
+  "vcpkg.json",
+  "vcpkg-configuration.json",
+  "vcpkg-ports",
+];
+
 function buildTree(repo: string, work: string, name: string, source: string, examples?: { input: string; output: string }): string {
   const root = join(work, name);
-  for (const entry of ["CMakeLists.txt", "CMakePresets.json", ".clang-tidy", "cmake", "core", "references"]) {
+  for (const entry of STAGED) {
     cpSync(join(repo, entry), join(root, entry), {
       recursive: true,
       // build/ holds absolute paths into the original tree; copying it would make CMake reuse them.
       filter: (path) => !path.includes("/build"),
     });
+  }
+
+  // The root CMakeLists adds every component, and the presets resolve packages from the manifest, so a
+  // tree without them dies at configure and the case never reaches a compile. The installed packages are
+  // shared by link rather than copied: the manifest build would otherwise compile drogon and
+  // aws-sdk-cpp from source once per case, which is hours, not a gate.
+  const installed = join(repo, "build/vcpkg_installed");
+  if (existsSync(installed)) {
+    mkdirSync(join(root, "build"), { recursive: true });
+    symlinkSync(installed, join(root, "build/vcpkg_installed"), "dir");
   }
 
   const solutions = join(root, "content/tasks/demo/solutions");

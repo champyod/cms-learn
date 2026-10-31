@@ -58,7 +58,7 @@ TEST_CASE("grant and revoke touch one bit", "[capability]") {
 
   set.grant(cms::Capability::settings_write);
   REQUIRE(set.has(cms::Capability::settings_write));
-  REQUIRE(set.bits() == (std::uint64_t{1} << 9));
+  REQUIRE(set.bits() == (std::uint64_t{1} << 9U));
 
   set.revoke(cms::Capability::settings_write);
   REQUIRE_FALSE(set.has(cms::Capability::settings_write));

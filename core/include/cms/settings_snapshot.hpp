@@ -65,7 +65,7 @@ class SettingsStore {
   }
 
   /// Installs a newer snapshot and reports whether it was installed.
-  bool publish(std::shared_ptr<const SettingsSnapshot> next) noexcept {
+  bool publish(const std::shared_ptr<const SettingsSnapshot>& next) noexcept {
     if (!next) {
       return false;
     }

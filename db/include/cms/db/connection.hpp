@@ -143,7 +143,7 @@ struct connection_config {
 class connection_handle {
  public:
   connection_handle() = default;
-  explicit connection_handle(std::shared_ptr<const connection_config> config);
+  explicit connection_handle(const std::shared_ptr<const connection_config>& config);
 
   [[nodiscard]] auto is_connected() const noexcept -> bool { return client_ != nullptr; }
   [[nodiscard]] auto ping_server() const noexcept -> bool;

@@ -207,7 +207,7 @@ auto result::stamp(std::size_t field_index) const -> timestamp {
   return parse_timestamp(require_value(rows_[current_row_][field_index]).as<std::string_view>());
 }
 
-connection_handle::connection_handle(std::shared_ptr<const connection_config> config)
+connection_handle::connection_handle(const std::shared_ptr<const connection_config>& config)
     : client_(config == nullptr ? nullptr : config->client) {}
 
 auto connection_handle::client() const -> ::drogon::orm::DbClient& {
