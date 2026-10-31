@@ -85,6 +85,16 @@ template <typename Bindings, typename DataType, typename NameTag>
   return target.bind(parameter);
 }
 
+/// @brief Renders a boolean literal as PostgreSQL spells it.
+///
+/// The default serializer writes a C++ bool as 1 or 0, which PostgreSQL refuses for a `boolean` column
+/// ("expression is of type integer") and refuses again inside a comparison. Binding it as TRUE/FALSE
+/// makes the two spellings of the same value agree.
+template <typename Bindings>
+auto to_sql_string(context<Bindings>&, bool value) -> std::string {
+  return value ? "TRUE" : "FALSE";
+}
+
 /// @brief Renders a timestamp literal with its offset.
 ///
 /// Without this the serializer writes a bare wall clock and Postgres reads it in the session timezone,

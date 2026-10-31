@@ -27,3 +27,13 @@ CREATE TYPE capability AS ENUM (
 -- What an emailed token is for. Kept separate from the principal status so one table can serve both
 -- verification and a later password reset without widening an existing column.
 CREATE TYPE token_purpose AS ENUM ('verify_email', 'reset_password');
+
+CREATE TYPE task_status AS ENUM ('draft', 'verified', 'published', 'rejected');
+
+CREATE TYPE task_verification_status AS ENUM ('pending', 'verified', 'failed');
+
+CREATE TYPE task_checker_kind AS ENUM ('standard', 'token', 'testlib', 'interactive');
+
+CREATE TYPE task_origin_kind AS ENUM ('original', 'imported', 'ai');
+
+CREATE TYPE locale AS ENUM ('en', 'th');

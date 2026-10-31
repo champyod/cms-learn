@@ -6,4 +6,5 @@
 \i settings.sql
 \i settings_functions.sql
 \i settings_triggers.sql
+\i content.sql
 \i grants.sql

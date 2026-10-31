@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "pgschema_version": "1.13.4",
-  "created_at": "2026-10-31T20:57:21+07:00",
+  "created_at": "2026-10-31T22:20:29+07:00",
   "source_fingerprint": {
     "hash": "965b1131737c955e24c7f827c55bd78e4cb49a75adfd04229e0ba297376f5085"
   },
@@ -19,6 +19,12 @@
           "type": "type",
           "operation": "create",
           "path": "public.capability"
+        },
+        {
+          "sql": "CREATE TYPE locale AS ENUM (\n    'en',\n    'th'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.locale"
         },
         {
           "sql": "CREATE TYPE principal_kind AS ENUM (\n    'user',\n    'system'\n);",
@@ -45,6 +51,30 @@
           "path": "public.setting_tier"
         },
         {
+          "sql": "CREATE TYPE task_checker_kind AS ENUM (\n    'standard',\n    'token',\n    'testlib',\n    'interactive'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.task_checker_kind"
+        },
+        {
+          "sql": "CREATE TYPE task_origin_kind AS ENUM (\n    'original',\n    'imported',\n    'ai'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.task_origin_kind"
+        },
+        {
+          "sql": "CREATE TYPE task_status AS ENUM (\n    'draft',\n    'verified',\n    'published',\n    'rejected'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.task_status"
+        },
+        {
+          "sql": "CREATE TYPE task_verification_status AS ENUM (\n    'pending',\n    'verified',\n    'failed'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.task_verification_status"
+        },
+        {
           "sql": "CREATE TYPE token_purpose AS ENUM (\n    'verify_email',\n    'reset_password'\n);",
           "type": "type",
           "operation": "create",
@@ -55,6 +85,12 @@
           "type": "default_privilege",
           "operation": "create",
           "path": "default_privileges.postgres.SEQUENCES.cmslearn_app"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS content_seed (\n    singleton boolean DEFAULT true,\n    version bigint DEFAULT 0 NOT NULL,\n    content_hash text DEFAULT '' NOT NULL,\n    seeded_at timestamptz,\n    CONSTRAINT content_seed_pkey PRIMARY KEY (singleton),\n    CONSTRAINT content_seed_single_row CHECK (singleton)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.content_seed"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS principals (\n    id uuid DEFAULT gen_random_uuid(),\n    kind principal_kind NOT NULL,\n    handle text NOT NULL,\n    email text,\n    email_verified_at timestamptz,\n    password_hash text,\n    status principal_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principals_pkey PRIMARY KEY (id),\n    CONSTRAINT principals_email_key UNIQUE (email),\n    CONSTRAINT principals_handle_key UNIQUE (handle),\n    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),\n    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),\n    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)\n);",
@@ -183,6 +219,48 @@
           "path": "public.settings_plans"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS tasks (\n    id text,\n    version integer,\n    status task_status NOT NULL,\n    title_en text NOT NULL,\n    title_th text NOT NULL,\n    difficulty integer NOT NULL,\n    time_limit_ms integer NOT NULL,\n    memory_limit_mb integer NOT NULL,\n    checker task_checker_kind NOT NULL,\n    checker_path text DEFAULT '' NOT NULL,\n    origin task_origin_kind NOT NULL,\n    verification task_verification_status NOT NULL,\n    solution text NOT NULL,\n    content_hash text NOT NULL,\n    seeded boolean DEFAULT true NOT NULL,\n    seeded_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT tasks_pkey PRIMARY KEY (id, version),\n    CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),\n    CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),\n    CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),\n    CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),\n    CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),\n    CONSTRAINT tasks_title_th_check CHECK (length(btrim(title_th)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.tasks"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS tasks_published_idx ON tasks (difficulty, id) WHERE (status = 'published'::task_status);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.tasks.tasks_published_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS task_examples (\n    task_id text,\n    task_version integer,\n    ordinal integer,\n    input text NOT NULL,\n    expected_output text NOT NULL,\n    CONSTRAINT task_examples_pkey PRIMARY KEY (task_id, task_version, ordinal),\n    CONSTRAINT task_examples_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_examples_ordinal_check CHECK (ordinal >= 1)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.task_examples"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS task_statements (\n    task_id text,\n    task_version integer,\n    locale locale,\n    body text NOT NULL,\n    CONSTRAINT task_statements_pkey PRIMARY KEY (task_id, task_version, locale),\n    CONSTRAINT task_statements_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_statements_body_check CHECK (length(btrim(body)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.task_statements"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS topics (\n    id text,\n    label_en text NOT NULL,\n    label_th text NOT NULL,\n    CONSTRAINT topics_pkey PRIMARY KEY (id),\n    CONSTRAINT topics_id_shape CHECK (id ~ '^[a-z0-9][a-z0-9-]{1,63}$'::text),\n    CONSTRAINT topics_label_en_check CHECK (length(btrim(label_en)) > 0),\n    CONSTRAINT topics_label_th_check CHECK (length(btrim(label_th)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.topics"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS task_topics (\n    task_id text,\n    task_version integer,\n    topic text,\n    CONSTRAINT task_topics_pkey PRIMARY KEY (task_id, task_version, topic),\n    CONSTRAINT task_topics_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_topics_topic_fkey FOREIGN KEY (topic) REFERENCES topics (id)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.task_topics"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS task_topics_topic_idx ON task_topics (topic);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.task_topics.task_topics_topic_idx"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION current_actor()\nRETURNS uuid\nLANGUAGE plpgsql\nSTABLE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  raw text := current_setting('cms.actor_id', true);\nBEGIN\n  IF raw IS NULL OR raw = '' THEN\n    RAISE EXCEPTION 'cms.actor_id is not set; every settings write must name its actor'\n      USING ERRCODE = 'insufficient_privilege';\n  END IF;\n  RETURN raw::uuid;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -193,6 +271,12 @@
           "type": "function",
           "operation": "create",
           "path": "public.reject_mutation"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION reject_published_task_change()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  IF OLD.status = 'published' AND NEW.content_hash <> OLD.content_hash THEN\n    RAISE EXCEPTION 'task % version % is published; publish a new version instead',\n      OLD.id, OLD.version\n      USING ERRCODE = 'restrict_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.reject_published_task_change"
         },
         {
           "sql": "CREATE OR REPLACE FUNCTION settings_bump_version()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  published bigint;\nBEGIN\n  INSERT INTO settings_meta (singleton, version)\n  VALUES (true, 1)\n  ON CONFLICT (singleton) DO UPDATE\n    SET version = settings_meta.version + 1,\n        updated_at = now()\n  RETURNING version INTO published;\n\n  PERFORM pg_notify('cms_settings', published::text);\n  RETURN NULL;\nEND;\n$$;",
@@ -243,6 +327,12 @@
           "path": "public.settings.settings_version_bump"
         },
         {
+          "sql": "CREATE OR REPLACE TRIGGER tasks_published_immutable\n    BEFORE UPDATE ON tasks\n    FOR EACH ROW\n    EXECUTE FUNCTION reject_published_task_change();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.tasks.tasks_published_immutable"
+        },
+        {
           "sql": "REVOKE EXECUTE ON FUNCTION current_actor() FROM PUBLIC;",
           "type": "revoked_default_privilege",
           "operation": "create",
@@ -283,6 +373,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.audit_events.cmslearn_app"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE content_seed TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.content_seed.cmslearn_app"
         },
         {
           "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE elevations TO cmslearn_app;",
@@ -361,6 +457,48 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.settings_plans.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_examples TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_examples.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE task_examples TO cmslearn_judge;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_examples.cmslearn_judge"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_statements TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_statements.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_topics TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_topics.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tasks TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.tasks.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE tasks TO cmslearn_judge;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.tasks.cmslearn_judge"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE topics TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.topics.cmslearn_app"
         }
       ]
     }

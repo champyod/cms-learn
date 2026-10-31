@@ -19,6 +19,7 @@ option(CMS_BUILD_TESTS "Build the C++ test binaries (requires the 'tests' manife
 add_subdirectory(core)
 add_subdirectory(db)
 add_subdirectory(references)
+add_subdirectory(bank)
 
 if(CMS_WITH_API)
   add_subdirectory(api)

@@ -21,6 +21,11 @@ CREATE TYPE capability AS ENUM (
     'schema:apply'
 );
 
+CREATE TYPE locale AS ENUM (
+    'en',
+    'th'
+);
+
 CREATE TYPE principal_kind AS ENUM (
     'user',
     'system'
@@ -45,12 +50,47 @@ CREATE TYPE setting_tier AS ENUM (
     'secret'
 );
 
+CREATE TYPE task_checker_kind AS ENUM (
+    'standard',
+    'token',
+    'testlib',
+    'interactive'
+);
+
+CREATE TYPE task_origin_kind AS ENUM (
+    'original',
+    'imported',
+    'ai'
+);
+
+CREATE TYPE task_status AS ENUM (
+    'draft',
+    'verified',
+    'published',
+    'rejected'
+);
+
+CREATE TYPE task_verification_status AS ENUM (
+    'pending',
+    'verified',
+    'failed'
+);
+
 CREATE TYPE token_purpose AS ENUM (
     'verify_email',
     'reset_password'
 );
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;
+
+CREATE TABLE IF NOT EXISTS content_seed (
+    singleton boolean DEFAULT true,
+    version bigint DEFAULT 0 NOT NULL,
+    content_hash text DEFAULT '' NOT NULL,
+    seeded_at timestamptz,
+    CONSTRAINT content_seed_pkey PRIMARY KEY (singleton),
+    CONSTRAINT content_seed_single_row CHECK (singleton)
+);
 
 CREATE TABLE IF NOT EXISTS principals (
     id uuid DEFAULT gen_random_uuid(),
@@ -242,6 +282,76 @@ CREATE TABLE IF NOT EXISTS settings_plans (
     CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at)
 );
 
+CREATE TABLE IF NOT EXISTS tasks (
+    id text,
+    version integer,
+    status task_status NOT NULL,
+    title_en text NOT NULL,
+    title_th text NOT NULL,
+    difficulty integer NOT NULL,
+    time_limit_ms integer NOT NULL,
+    memory_limit_mb integer NOT NULL,
+    checker task_checker_kind NOT NULL,
+    checker_path text DEFAULT '' NOT NULL,
+    origin task_origin_kind NOT NULL,
+    verification task_verification_status NOT NULL,
+    solution text NOT NULL,
+    content_hash text NOT NULL,
+    seeded boolean DEFAULT true NOT NULL,
+    seeded_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT tasks_pkey PRIMARY KEY (id, version),
+    CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),
+    CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),
+    CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),
+    CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),
+    CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),
+    CONSTRAINT tasks_title_th_check CHECK (length(btrim(title_th)) > 0)
+);
+
+CREATE INDEX IF NOT EXISTS tasks_published_idx ON tasks (difficulty, id) WHERE (status = 'published'::task_status);
+
+CREATE TABLE IF NOT EXISTS task_examples (
+    task_id text,
+    task_version integer,
+    ordinal integer,
+    input text NOT NULL,
+    expected_output text NOT NULL,
+    CONSTRAINT task_examples_pkey PRIMARY KEY (task_id, task_version, ordinal),
+    CONSTRAINT task_examples_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT task_examples_ordinal_check CHECK (ordinal >= 1)
+);
+
+CREATE TABLE IF NOT EXISTS task_statements (
+    task_id text,
+    task_version integer,
+    locale locale,
+    body text NOT NULL,
+    CONSTRAINT task_statements_pkey PRIMARY KEY (task_id, task_version, locale),
+    CONSTRAINT task_statements_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT task_statements_body_check CHECK (length(btrim(body)) > 0)
+);
+
+CREATE TABLE IF NOT EXISTS topics (
+    id text,
+    label_en text NOT NULL,
+    label_th text NOT NULL,
+    CONSTRAINT topics_pkey PRIMARY KEY (id),
+    CONSTRAINT topics_id_shape CHECK (id ~ '^[a-z0-9][a-z0-9-]{1,63}$'::text),
+    CONSTRAINT topics_label_en_check CHECK (length(btrim(label_en)) > 0),
+    CONSTRAINT topics_label_th_check CHECK (length(btrim(label_th)) > 0)
+);
+
+CREATE TABLE IF NOT EXISTS task_topics (
+    task_id text,
+    task_version integer,
+    topic text,
+    CONSTRAINT task_topics_pkey PRIMARY KEY (task_id, task_version, topic),
+    CONSTRAINT task_topics_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT task_topics_topic_fkey FOREIGN KEY (topic) REFERENCES topics (id)
+);
+
+CREATE INDEX IF NOT EXISTS task_topics_topic_idx ON task_topics (topic);
+
 CREATE OR REPLACE FUNCTION current_actor()
 RETURNS uuid
 LANGUAGE plpgsql
@@ -268,6 +378,22 @@ AS $$
 BEGIN
   RAISE EXCEPTION '% is append-only; % is not permitted', TG_TABLE_NAME, TG_OP
     USING ERRCODE = 'restrict_violation';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION reject_published_task_change()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF OLD.status = 'published' AND NEW.content_hash <> OLD.content_hash THEN
+    RAISE EXCEPTION 'task % version % is published; publish a new version instead',
+      OLD.id, OLD.version
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  RETURN NEW;
 END;
 $$;
 
@@ -384,6 +510,11 @@ CREATE OR REPLACE TRIGGER settings_version_bump
     FOR EACH ROW
     EXECUTE FUNCTION settings_bump_version();
 
+CREATE OR REPLACE TRIGGER tasks_published_immutable
+    BEFORE UPDATE ON tasks
+    FOR EACH ROW
+    EXECUTE FUNCTION reject_published_task_change();
+
 REVOKE EXECUTE ON FUNCTION current_actor() FROM PUBLIC;
 
 REVOKE EXECUTE ON FUNCTION settings_bump_version() FROM PUBLIC;
@@ -397,6 +528,8 @@ GRANT SELECT, USAGE ON SEQUENCE audit_events_id_seq TO cmslearn_app;
 GRANT SELECT, USAGE ON SEQUENCE settings_audit_id_seq TO cmslearn_app;
 
 GRANT INSERT, SELECT ON TABLE audit_events TO cmslearn_app;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE content_seed TO cmslearn_app;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE elevations TO cmslearn_app;
 
@@ -423,3 +556,17 @@ GRANT SELECT ON TABLE settings_meta TO cmslearn_app;
 GRANT SELECT ON TABLE settings_meta TO cmslearn_judge;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE settings_plans TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_examples TO cmslearn_app;
+
+GRANT SELECT ON TABLE task_examples TO cmslearn_judge;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_statements TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_topics TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tasks TO cmslearn_app;
+
+GRANT SELECT ON TABLE tasks TO cmslearn_judge;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE topics TO cmslearn_app;
