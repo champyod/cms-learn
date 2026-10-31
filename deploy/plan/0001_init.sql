@@ -38,6 +38,11 @@ CREATE TYPE principal_status AS ENUM (
     'closed'
 );
 
+CREATE TYPE progress_status AS ENUM (
+    'attempted',
+    'solved'
+);
+
 CREATE TYPE setting_kind AS ENUM (
     'bool',
     'int',
@@ -310,6 +315,22 @@ CREATE TABLE IF NOT EXISTS tasks (
 
 CREATE INDEX IF NOT EXISTS tasks_published_idx ON tasks (difficulty, id) WHERE (status = 'published'::task_status);
 
+CREATE TABLE IF NOT EXISTS progress (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    account_id uuid NOT NULL,
+    task_id text NOT NULL,
+    task_version integer NOT NULL,
+    status progress_status DEFAULT 'attempted'::progress_status NOT NULL,
+    attempted_at timestamptz DEFAULT now() NOT NULL,
+    solved_at timestamptz,
+    CONSTRAINT progress_pkey PRIMARY KEY (id),
+    CONSTRAINT progress_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,
+    CONSTRAINT progress_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT progress_solved_has_time CHECK ((status = 'solved'::progress_status) = (solved_at IS NOT NULL))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS progress_account_task_idx ON progress (account_id, task_id, task_version);
+
 CREATE TABLE IF NOT EXISTS task_examples (
     task_id text,
     task_version integer,
@@ -572,6 +593,8 @@ GRANT EXECUTE ON FUNCTION current_actor() TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE audit_events_id_seq TO cmslearn_app;
 
+GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;
+
 GRANT SELECT, USAGE ON SEQUENCE settings_audit_id_seq TO cmslearn_app;
 
 GRANT INSERT, SELECT ON TABLE audit_events TO cmslearn_app;
@@ -585,6 +608,8 @@ GRANT DELETE, INSERT, SELECT ON TABLE principal_roles TO cmslearn_app;
 GRANT INSERT, SELECT, UPDATE ON TABLE principal_tokens TO cmslearn_app;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE principals TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE progress TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT ON TABLE role_capabilities TO cmslearn_app;
 

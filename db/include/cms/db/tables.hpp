@@ -258,6 +258,49 @@ struct Principals_ {
   using _required_insert_columns = sqlpp::detail::type_set<Kind, Handle, Status>;
 };
 
+struct Progress_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
+  struct AccountId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(account_id, accountId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskVersion {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_version, taskVersion);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Status {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(status, status);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  struct AttemptedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(attempted_at, attemptedAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  struct SolvedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(solved_at, solvedAt);
+    using data_type = std::optional<::sqlpp::timestamp>;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(progress, progress);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, AccountId, TaskId, TaskVersion, Status, AttemptedAt, SolvedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<AccountId, TaskId, TaskVersion>;
+};
+
 struct RoleCapabilities_ {
   struct RoleId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(role_id, roleId);
@@ -844,6 +887,7 @@ using Elevations = ::sqlpp::table_t<Elevations_>;
 using PrincipalRoles = ::sqlpp::table_t<PrincipalRoles_>;
 using PrincipalTokens = ::sqlpp::table_t<PrincipalTokens_>;
 using Principals = ::sqlpp::table_t<Principals_>;
+using Progress = ::sqlpp::table_t<Progress_>;
 using RoleCapabilities = ::sqlpp::table_t<RoleCapabilities_>;
 using Roles = ::sqlpp::table_t<Roles_>;
 using Sessions = ::sqlpp::table_t<Sessions_>;
@@ -866,6 +910,7 @@ inline const Elevations elevations{};
 inline const PrincipalRoles principalRoles{};
 inline const PrincipalTokens principalTokens{};
 inline const Principals principals{};
+inline const Progress progress{};
 inline const RoleCapabilities roleCapabilities{};
 inline const Roles roles{};
 inline const Sessions sessions{};

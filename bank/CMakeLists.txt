@@ -9,7 +9,7 @@ cms_learn_align_jsoncpp()
 
 add_library(cms_bank STATIC src/bank.cpp src/curriculum.cpp src/task_files.cpp
                           src/task_manifest.cpp src/track_stage.cpp src/tracks.cpp src/seed.cpp
-                          src/seed_curriculum.cpp)
+                          src/seed_curriculum.cpp src/next_task.cpp)
 add_library(cms::bank ALIAS cms_bank)
 
 target_include_directories(cms_bank PUBLIC

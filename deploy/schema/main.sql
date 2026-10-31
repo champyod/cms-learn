@@ -8,4 +8,5 @@
 \i settings_triggers.sql
 \i content.sql
 \i curriculum.sql
+\i progress.sql
 \i grants.sql

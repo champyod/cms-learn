@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "pgschema_version": "1.13.4",
-  "created_at": "2026-10-31T22:53:25+07:00",
+  "created_at": "2026-10-31T23:06:20+07:00",
   "source_fingerprint": {
     "hash": "965b1131737c955e24c7f827c55bd78e4cb49a75adfd04229e0ba297376f5085"
   },
@@ -37,6 +37,12 @@
           "type": "type",
           "operation": "create",
           "path": "public.principal_status"
+        },
+        {
+          "sql": "CREATE TYPE progress_status AS ENUM (\n    'attempted',\n    'solved'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.progress_status"
         },
         {
           "sql": "CREATE TYPE setting_kind AS ENUM (\n    'bool',\n    'int',\n    'text'\n);",
@@ -231,6 +237,18 @@
           "path": "public.tasks.tasks_published_idx"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS progress (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    status progress_status DEFAULT 'attempted'::progress_status NOT NULL,\n    attempted_at timestamptz DEFAULT now() NOT NULL,\n    solved_at timestamptz,\n    CONSTRAINT progress_pkey PRIMARY KEY (id),\n    CONSTRAINT progress_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT progress_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT progress_solved_has_time CHECK ((status = 'solved'::progress_status) = (solved_at IS NOT NULL))\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.progress"
+        },
+        {
+          "sql": "CREATE UNIQUE INDEX IF NOT EXISTS progress_account_task_idx ON progress (account_id, task_id, task_version);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.progress.progress_account_task_idx"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS task_examples (\n    task_id text,\n    task_version integer,\n    ordinal integer,\n    input text NOT NULL,\n    expected_output text NOT NULL,\n    CONSTRAINT task_examples_pkey PRIMARY KEY (task_id, task_version, ordinal),\n    CONSTRAINT task_examples_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_examples_ordinal_check CHECK (ordinal >= 1)\n);",
           "type": "table",
           "operation": "create",
@@ -387,6 +405,12 @@
           "path": "privileges.SEQUENCE.audit_events_id_seq.cmslearn_app"
         },
         {
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.SEQUENCE.progress_id_seq.cmslearn_app"
+        },
+        {
           "sql": "GRANT SELECT, USAGE ON SEQUENCE settings_audit_id_seq TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
@@ -427,6 +451,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.principals.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE progress TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.progress.cmslearn_app"
         },
         {
           "sql": "GRANT DELETE, INSERT, SELECT ON TABLE role_capabilities TO cmslearn_app;",
