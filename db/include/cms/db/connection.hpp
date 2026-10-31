@@ -31,13 +31,13 @@ struct serialized_statement {
 template <typename T>
 [[nodiscard]] auto make_bound_value(const T& value) -> bound_value {
   if constexpr (requires { value.has_value(); }) {
-    if (not value.has_value()) {
+    if (!value.has_value()) {
       return nullptr;
     }
     return make_bound_value(*value);
   } else {
-    static_assert(std::is_same_v<T, std::string> or std::is_same_v<T, std::int64_t> or
-                      std::is_same_v<T, bool> or std::is_same_v<T, timestamp>,
+    static_assert(std::is_same_v<T, std::string> || std::is_same_v<T, std::int64_t> ||
+                      std::is_same_v<T, bool> || std::is_same_v<T, timestamp>,
                   "this connector binds text, integral, boolean and timestamp parameters only");
     return bound_value{value};
   }

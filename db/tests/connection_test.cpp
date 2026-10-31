@@ -24,7 +24,7 @@ auto two_text_parameters_query() {
   const auto status = sqlpp::parameter(sqlpp::text{}, status_filter);
   return sqlpp::select(cms::db::principals.id)
       .from(cms::db::principals)
-      .where(cms::db::principals.kind == kind and cms::db::principals.status == status);
+      .where(cms::db::principals.kind == kind && cms::db::principals.status == status);
 }
 
 constexpr std::string_view SESSION_ID = "8f14e45f-ceea-467a-9c1e-0f5a2b3c4d5e";
@@ -151,7 +151,7 @@ TEST_CASE("a seeded row round-trips through the connector", "[db][connection][li
   }
   CHECK(principal == PRINCIPAL_ID);
   CHECK(expiry == seeded_expiry());
-  CHECK(not revoked.has_value());
+  CHECK(!revoked.has_value());
 
   const auto probe =
       sqlpp::statement_t<>{} << sqlpp::parameterized_verbatim<sqlpp::integral>("SELECT ",

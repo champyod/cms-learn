@@ -19,7 +19,7 @@ inline auto live_session_query() {
   const auto clock = sqlpp::parameter(sqlpp::timestamp{}, now);
   return sqlpp::select(sessions.principalId, sessions.expiresAt, sessions.revokedAt)
       .from(sessions)
-      .where(sessions.id == id and sessions.revokedAt.is_null() and
+      .where(sessions.id == id && sessions.revokedAt.is_null() &&
              sessions.expiresAt > clock);
 }
 

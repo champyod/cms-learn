@@ -108,6 +108,15 @@ finding, not a variation.
 - Status and counts live in the hub's `epics/003-cms-learn.md` and in `FEATURES.md`. When a feature
   lands, move its row — do not start a parallel list.
 
+## Code style
+
+- **Symbols, not keywords, for operators.** Write `&&`, `||`, `!`, `^`, `&`, `|`, `~` — never
+  `and`, `or`, `not`, `xor`, `bitand`, `bitor`, `compl`. Both forms are valid C++, so this is a
+  readability choice, and a rule applied to half the tree is worse than either style applied to all of
+  it: the whole tree follows it, and so does any generator that emits code.
+- The rule is about operators. English prose in a comment or a message stays prose — `"a stale or
+  repeated snapshot is refused"` is a sentence, not an operator.
+
 ## Invariants (do not "fix" these)
 
 1. **No level on a task or a tag.** A route is stages of tags with a difficulty band; a task carries `topics` + `difficulty`.

@@ -20,7 +20,7 @@ constexpr std::int64_t SECONDS_PER_DAY = 86'400;
 constexpr std::int64_t SECONDS_PER_HOUR = 3'600;
 constexpr std::int64_t MICROS_PER_SECOND = 1'000'000;
 
-auto is_digit(char character) -> bool { return character >= '0' and character <= '9'; }
+auto is_digit(char character) -> bool { return character >= '0' && character <= '9'; }
 
 auto take_number(std::string_view text, std::size_t& position, std::size_t digits) -> std::int64_t {
   if (position + digits > text.size()) {
@@ -29,7 +29,7 @@ auto take_number(std::string_view text, std::size_t& position, std::size_t digit
   auto value = std::int64_t{0};
   for (auto taken = std::size_t{0}; taken < digits; ++taken) {
     const auto character = text[position + taken];
-    if (not is_digit(character)) {
+    if (!is_digit(character)) {
       throw ::sqlpp::exception{std::format("timestamp \"{}\" is not a number", text)};
     }
     value = value * 10 + static_cast<std::int64_t>(character - '0');
@@ -39,7 +39,7 @@ auto take_number(std::string_view text, std::size_t& position, std::size_t digit
 }
 
 auto take_character(std::string_view text, std::size_t& position, char expected) -> void {
-  if (position >= text.size() or text[position] != expected) {
+  if (position >= text.size() || text[position] != expected) {
     throw ::sqlpp::exception{std::format("timestamp \"{}\" is not ISO 8601", text)};
   }
   ++position;
@@ -52,7 +52,7 @@ auto take_date(std::string_view text, std::size_t& position) -> std::chrono::yea
   take_character(text, position, '-');
   const auto day = std::chrono::day{static_cast<unsigned>(take_number(text, position, 2))};
   const auto date = std::chrono::year_month_day{year, month, day};
-  if (not date.ok()) {
+  if (!date.ok()) {
     throw ::sqlpp::exception{std::format("timestamp \"{}\" names no real day", text)};
   }
   return date;
@@ -60,7 +60,7 @@ auto take_date(std::string_view text, std::size_t& position) -> std::chrono::yea
 
 auto take_clock(std::string_view text, std::size_t& position)
     -> std::tuple<std::int64_t, std::int64_t, std::int64_t> {
-  if (position >= text.size() or (text[position] != ' ' and text[position] != 'T')) {
+  if (position >= text.size() || (text[position] != ' ' && text[position] != 'T')) {
     throw ::sqlpp::exception{std::format("timestamp \"{}\" is not ISO 8601", text)};
   }
   ++position;
@@ -73,12 +73,12 @@ auto take_clock(std::string_view text, std::size_t& position)
 
 auto take_fraction(std::string_view text, std::size_t& position) -> std::int64_t {
   auto micros = std::int64_t{0};
-  if (position >= text.size() or text[position] != '.') {
+  if (position >= text.size() || text[position] != '.') {
     return micros;
   }
   ++position;
   auto digits = std::size_t{0};
-  while (position < text.size() and digits < 6 and is_digit(text[position])) {
+  while (position < text.size() && digits < 6 && is_digit(text[position])) {
     micros = micros * 10 + static_cast<std::int64_t>(text[position] - '0');
     ++position;
     ++digits;
@@ -86,27 +86,27 @@ auto take_fraction(std::string_view text, std::size_t& position) -> std::int64_t
   for (; digits < 6; ++digits) {
     micros *= 10;
   }
-  while (position < text.size() and is_digit(text[position])) {
+  while (position < text.size() && is_digit(text[position])) {
     ++position;
   }
   return micros;
 }
 
 auto take_offset(std::string_view text, std::size_t& position) -> std::int64_t {
-  if (position < text.size() and text[position] == 'Z') {
+  if (position < text.size() && text[position] == 'Z') {
     ++position;
     return 0;
   }
-  if (position >= text.size() or (text[position] != '+' and text[position] != '-')) {
+  if (position >= text.size() || (text[position] != '+' && text[position] != '-')) {
     return 0;
   }
   const auto is_behind_utc = text[position] == '-';
   ++position;
   auto offset = take_number(text, position, 2) * SECONDS_PER_HOUR;
-  if (position < text.size() and text[position] == ':') {
+  if (position < text.size() && text[position] == ':') {
     ++position;
     offset += take_number(text, position, 2) * 60;
-    if (position < text.size() and text[position] == ':') {
+    if (position < text.size() && text[position] == ':') {
       ++position;
       offset += take_number(text, position, 2);
     }
@@ -219,7 +219,7 @@ auto connection_handle::client() const -> ::drogon::orm::DbClient& {
 
 auto connection_handle::ping_server() const noexcept -> bool {
   try {
-    return not run(*this, serialized_statement{"SELECT 1", {}}).empty();
+    return !run(*this, serialized_statement{"SELECT 1", {}}).empty();
   } catch (const std::exception&) {
     return false;
   }
@@ -243,7 +243,7 @@ auto run(const connection_handle& handle, const serialized_statement& statement)
   binder << ::drogon::orm::Mode::Blocking;
   binder >> [&received](const ::drogon::orm::Result& result) { received = result; };
   binder.exec();
-  if (not received.has_value()) {
+  if (!received.has_value()) {
     throw ::sqlpp::exception{
         std::format("statement \"{}\" returned no result from the driver", statement.sql)};
   }
