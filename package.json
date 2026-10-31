@@ -2,6 +2,7 @@
   "name": "cms-learn",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.3.14",
   "scripts": {
     "validate": "bun run tools/validate-content.ts",
     "validate:falsify": "bash tools/falsify-content-gate.sh",
@@ -23,16 +24,18 @@
     "check:scaffold": "bash tools/check-scaffold.sh",
     "check:cpp": "bun run tools/cpp/gate.ts",
     "check:cpp:falsify": "bun run tools/cpp/falsify.ts",
+    "check:pm": "bash tools/check-pm.sh",
+    "check:pm:falsify": "bash tools/falsify-pm-gate.sh",
     "gate": "bun run check:schema && bun run check:schema:falsify && bun run validate && bun run vocab:build && bun run vocab:gate && bun run check:references && bun run validate:falsify && bun run check:references:falsify",
     "gate:schema": "bun run check:schema && bun run check:schema:falsify",
     "gate:deploy": "bun run check:stack && bun run check:stack:falsify && bun run check:deploy && bun run check:deploy:falsify && bun run check:upgrade && bun run check:upgrade:falsify",
     "gate:cpp": "bun run check:cpp && bun run check:cpp:falsify",
-    "gate:all": "bun run gate && bun run gate:deploy && bun run gate:cpp && bun run check:db && bun run check:security && bun run check:security:falsify",
+    "gate:all": "bun run gate && bun run gate:deploy && bun run gate:cpp && bun run check:pm && bun run check:pm:falsify && bun run check:db && bun run check:security && bun run check:security:falsify",
     "build:css": "bunx @tailwindcss/cli -i web/app.css -o web/public/app.css --minify"
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.3.3",
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.6.6",
     "ajv": "^8.17.1",
     "daisyui": "5.7.50",
     "tailwindcss": "4.3.3"
