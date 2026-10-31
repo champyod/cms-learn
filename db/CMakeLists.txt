@@ -23,10 +23,8 @@ cms_apply_warnings(cms_db INTERFACE)
 # that reaches the server links Drogon.
 find_package(Drogon CONFIG QUIET)
 if(Drogon_FOUND)
-  # Drogon's exported interface names jsoncpp by a target vcpkg's jsoncpp config does not define.
-  if(NOT TARGET jsoncpp_lib AND TARGET jsoncpp_static)
-    add_library(jsoncpp_lib ALIAS jsoncpp_static)
-  endif()
+  include(DrogonCompat)
+  cms_learn_align_jsoncpp()
 
   add_library(cms_db_drogon STATIC src/connection.cpp)
   add_library(cms::db_drogon ALIAS cms_db_drogon)
