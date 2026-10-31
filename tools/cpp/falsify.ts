@@ -7,6 +7,7 @@
 // Each case is built in its own temp tree: the source tree is staged, a defect is written into
 // `content/tasks/demo/solutions/`, and the *real* gate runs against it. Nothing in the repo is mutated.
 
+import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -152,6 +153,23 @@ function reasonText(report: ReturnType<typeof runGate>): string {
   return [...report.reasons, ...rules].join(" | ");
 }
 
+/** A configure a planted cache value must stop — the gate only reports configures that got past it. */
+function configureWith(root: string, cache: Record<string, string>): { status: number; output: string } {
+  const overrides = Object.entries(cache).map(([key, value]) => `-D${key}=${value}`);
+  const result = spawnSync("cmake", ["--preset", "safety", ...overrides], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  return { status: result.status ?? 127, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+}
+
+/** The version the preset's compiler reports, which a refusal has to name. */
+function gnuCompilerVersion(): string {
+  const result = spawnSync("g++", ["-dumpfullversion"], { encoding: "utf8" });
+  return (result.stdout ?? "").trim();
+}
+
 const repo = join(import.meta.dir, "../..");
 const work = mkdtempSync(join(tmpdir(), "cms-learn-cpp-falsify-"));
 
@@ -199,6 +217,22 @@ try {
     caught += 1;
   } else {
     console.log(`WRONG RESULT  ${"empty-tree".padEnd(28)} — reported green with no sources`);
+    missed += 1;
+  }
+
+  // The compiler refusal is a configure-time defect: raise the required major above the installed compiler
+  // and configure must stop naming both numbers. A check that never fires leaves the configure green, so
+  // this case fails on that instead of passing for the wrong reason.
+  const minimumRoot = buildTree(repo, work, "compiler-minimum", CLEAN_SOURCE);
+  const refusal = configureWith(minimumRoot, { CMS_MIN_GCC_MAJOR: "99" });
+  const installed = gnuCompilerVersion();
+  const named = refusal.status !== 0 && installed !== "" && refusal.output.includes(installed) && refusal.output.includes("99");
+  if (named) {
+    console.log(`behaved       ${"compiler-minimum".padEnd(28)} (refuses a compiler below the minimum)`);
+    caught += 1;
+  } else {
+    const why = refusal.status === 0 ? "configure accepted a compiler below the minimum" : `refusal did not name "${installed}" and 99`;
+    console.log(`WRONG RESULT  ${"compiler-minimum".padEnd(28)} — ${why}`);
     missed += 1;
   }
 } finally {
