@@ -13,6 +13,16 @@ if(Catch2_FOUND)
   include(Catch)
   catch_discover_tests(cms_judge_verdict_tests)
 
+  add_executable(cms_judge_supervisor_tests supervisor_test.cpp)
+  target_link_libraries(cms_judge_supervisor_tests PRIVATE cms::judge_verdict
+                                                         Catch2::Catch2WithMain)
+  target_compile_definitions(cms_judge_supervisor_tests PRIVATE
+    CMS_STUB_DIR="${CMAKE_CURRENT_SOURCE_DIR}/stubs")
+  cms_apply_warnings(cms_judge_supervisor_tests PRIVATE)
+  cms_apply_hardening(cms_judge_supervisor_tests)
+  cms_apply_sanitizers(cms_judge_supervisor_tests)
+  catch_discover_tests(cms_judge_supervisor_tests)
+
   # The vendored testlib has to compile and agree with the parser, or the checker contract is a claim
   # rather than a measurement.
   add_test(

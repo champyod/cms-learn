@@ -1,7 +1,7 @@
 # The judge is its own component because it is the only part of the system that runs untrusted code: it
 # must build and be gated without the HTTP service, and it must never link back into it.
 
-add_library(cms_judge_verdict STATIC src/verdict.cpp)
+add_library(cms_judge_verdict STATIC src/verdict.cpp src/supervisor.cpp)
 add_library(cms::judge_verdict ALIAS cms_judge_verdict)
 
 target_include_directories(cms_judge_verdict PUBLIC
