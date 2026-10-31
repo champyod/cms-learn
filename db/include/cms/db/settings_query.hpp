@@ -14,6 +14,12 @@ inline auto settings_snapshot_query() {
       .from(settings);
 }
 
+/// The counter the settings trigger bumps. Reading it is how a process that missed a notification
+/// finds out, so it costs one integer query rather than a full reload.
+inline auto settings_version_query() {
+  return sqlpp::select(settingsMeta.version).from(settingsMeta);
+}
+
 inline auto live_session_query() {
   const auto id = sqlpp::parameter(sqlpp::text{}, session_id);
   const auto clock = sqlpp::parameter(sqlpp::timestamp{}, now);

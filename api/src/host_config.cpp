@@ -1,15 +1,14 @@
-#include <cms/api/host_config.hpp>
-
 #include <array>
 #include <cstddef>
 #include <fstream>
 #include <map>
 #include <optional>
-#include <sstream>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#include <cms/api/host_config.hpp>
 
 namespace cms::api {
 namespace {
@@ -77,8 +76,14 @@ auto is_port(std::string_view text) -> bool {
   return value >= 1 && value <= 65535;
 }
 
-auto looks_like_url(std::string_view text) -> bool {
-  return text.starts_with("postgresql://") || text.starts_with("postgres://");
+/// libpq accepts two forms, and both are legitimate here: a URL, or a keyword/value string such as
+/// `host=/run/postgresql dbname=cmslearn`. Rejecting the second would refuse a deployment that works.
+auto looks_like_connection(std::string_view text) -> bool {
+  if (text.starts_with("postgresql://") || text.starts_with("postgres://")) {
+    return true;
+  }
+  return text.find("dbname=") != std::string_view::npos ||
+         text.find("host=") != std::string_view::npos;
 }
 
 auto is_known_tls_mode(std::string_view text) -> bool {
@@ -110,8 +115,8 @@ auto check(const entry_map& entries, std::vector<std::string>& problems) -> void
            "CMSLEARN_LISTEN_ADDRESS is empty");
   validate("CMSLEARN_LISTEN_PORT", is_port(value_of(entries, "CMSLEARN_LISTEN_PORT")),
            "CMSLEARN_LISTEN_PORT is not a port number");
-  validate("CMSLEARN_DATABASE_URL", looks_like_url(value_of(entries, "CMSLEARN_DATABASE_URL")),
-           "CMSLEARN_DATABASE_URL is not a postgresql:// URL");
+  validate("CMSLEARN_DATABASE_URL", looks_like_connection(value_of(entries, "CMSLEARN_DATABASE_URL")),
+           "CMSLEARN_DATABASE_URL is neither a postgresql:// URL nor a libpq connection string");
   validate("CMSLEARN_SEAL_KEY", value_of(entries, "CMSLEARN_SEAL_KEY").size() >= SEAL_KEY_BYTES,
            "CMSLEARN_SEAL_KEY is shorter than 32 bytes");
   validate("CMSLEARN_BOOTSTRAP_ADMIN",

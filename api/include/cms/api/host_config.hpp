@@ -7,9 +7,11 @@
 
 namespace cms::api {
 
-/// The operator-supplied facts ADR 0004 keeps outside the database, plus the address a server cannot
-/// invent. No member has a default: a service that starts on a guessed value is worse than one that
-/// stops and says what it is missing.
+/// @brief The operator-supplied facts this service needs before it can start.
+///
+/// These are the facts ADR 0004 keeps outside the database, plus the address a server cannot invent.
+/// No member has a default: a service that starts on a guessed value is worse than one that stops and
+/// says what it is missing.
 struct HostConfig {
   std::string listen_address;
   std::string listen_port;
@@ -19,11 +21,14 @@ struct HostConfig {
   std::string tls_mode;
 };
 
-/// Reads `path`, which holds `KEY=VALUE` lines, and validates every required fact.
+/// @brief Reads a `KEY=VALUE` file and validates every required fact.
 ///
-/// The error message names every key that is missing or malformed rather than the first one, so an
-/// operator fixes the file once instead of restarting until the list empties. Values are never
-/// included in the message: the seal key is in this file.
+/// @param path Filesystem path to the host file.
+/// @return The configuration, or an error naming every key that is missing or malformed.
+///
+/// The message names every problem rather than the first one, so an operator fixes the file once
+/// instead of restarting until the list empties. Values are never included in the message: the seal
+/// key is in this file.
 [[nodiscard]] Result<HostConfig> load_host_config(std::string_view path);
 
 }  // namespace cms::api

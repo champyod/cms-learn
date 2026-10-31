@@ -3,6 +3,7 @@
 find_package(Drogon CONFIG REQUIRED)
 include(DrogonCompat)
 cms_learn_align_jsoncpp()
+find_package(PostgreSQL REQUIRED)
 
 add_library(cms_api_config STATIC src/host_config.cpp)
 add_library(cms::api_config ALIAS cms_api_config)
@@ -15,8 +16,9 @@ cms_apply_warnings(cms_api_config PUBLIC)
 cms_apply_hardening(cms_api_config)
 cms_apply_sanitizers(cms_api_config)
 
-add_executable(cms_api src/main.cpp)
-target_link_libraries(cms_api PRIVATE cms::api_config Drogon::Drogon)
+add_executable(cms_api src/main.cpp src/settings_source.cpp src/settings_watcher.cpp)
+target_link_libraries(cms_api PRIVATE cms::api_config cms::db_drogon Drogon::Drogon
+                                       PostgreSQL::PostgreSQL)
 cms_apply_warnings(cms_api PRIVATE)
 cms_apply_hardening(cms_api)
 cms_apply_sanitizers(cms_api)

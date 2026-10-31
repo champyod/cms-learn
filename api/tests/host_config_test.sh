@@ -84,7 +84,8 @@ write_host_file "$bad_url_file" \
   'CMSLEARN_SEAL_KEY=0123456789abcdef0123456789abcdef' \
   'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
   'CMSLEARN_TLS_MODE=proxy'
-expect_failure_naming "a non-postgres URL is refused" "not a postgresql:// URL" \
+expect_failure_naming "a non-postgres connection string is refused" \
+  "neither a postgresql:// URL nor a libpq connection string" \
   CMSLEARN_HOST_FILE="$bad_url_file"
 
 bad_tls_file="$work/bad-tls.env"
