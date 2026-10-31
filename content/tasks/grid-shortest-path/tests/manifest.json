@@ -1,0 +1,18 @@
+{
+  "task": "",
+  "reference_digest": "77b1b4599eef54cc9c26c4863e375ccc2b9a305718078b8fbad2bc3d4dcb6424",
+  "cases": [
+    {
+      "input": "examples/1.in",
+      "output": "examples/1.out",
+      "input_sha256": "2833e1bea86b19ccb70cb4f048b31b97ea9bc98101257345774476049565eea6",
+      "output_sha256": "f0b5c2c2211c8d67ed15e75e656c7862d086e9245420892a7de62cd9ec582a06"
+    },
+    {
+      "input": "examples/2.in",
+      "output": "examples/2.out",
+      "input_sha256": "adfc70f5e450f27d51f2e77379e78ead19981851a9c06bf4d37796f6844c1af0",
+      "output_sha256": "ee3aa64bb94a50845d5024cd4bd20202a4567aed5cd5328c0d97e9920775fc28"
+    }
+  ]
+}

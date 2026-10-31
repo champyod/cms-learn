@@ -1,15 +1,26 @@
 # The judge is its own component because it is the only part of the system that runs untrusted code: it
 # must build and be gated without the HTTP service, and it must never link back into it.
 
-add_library(cms_judge_verdict STATIC src/verdict.cpp src/supervisor.cpp)
+add_library(cms_judge_verdict STATIC src/verdict.cpp src/manifest.cpp src/supervisor.cpp
+                                 src/verify.cpp)
 add_library(cms::judge_verdict ALIAS cms_judge_verdict)
 
 target_include_directories(cms_judge_verdict PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_link_libraries(cms_judge_verdict PUBLIC cms::core)
+# Verification hashes every case, so the judge needs a digest the same way the bank does.
+find_package(unofficial-sodium CONFIG REQUIRED)
+target_link_libraries(cms_judge_verdict PUBLIC cms::core unofficial-sodium::sodium)
 cms_apply_warnings(cms_judge_verdict PUBLIC)
 cms_apply_hardening(cms_judge_verdict)
 cms_apply_sanitizers(cms_judge_verdict)
+
+# The verifier is the one code path CI and an author both run, so a manifest cannot describe cases that
+# were checked by a different rule than the judge applies.
+add_executable(cms_verify_task src/verify_main.cpp)
+target_link_libraries(cms_verify_task PRIVATE cms::judge_verdict)
+cms_apply_warnings(cms_verify_task PRIVATE)
+cms_apply_hardening(cms_verify_task)
+cms_apply_sanitizers(cms_verify_task)
 
 # The checkers are separate executables because that is how they run: one process per case, arguments
 # (input, output, answer), verdict on standard error.

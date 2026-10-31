@@ -1,0 +1,12 @@
+{
+  "task": "",
+  "reference_digest": "f4b5b4724bbe2980d4ed513c73d24193192d52750338f4501f6ac96ecbc830ef",
+  "cases": [
+    {
+      "input": "examples/1.in",
+      "output": "examples/1.out",
+      "input_sha256": "a4f309c1efa49395b38ce267b9b6d919d69c22b60ffbc17f50f51ae61e58e415",
+      "output_sha256": "24d645114f4f750a0e46832a32f424370e5cb21738fc428ace00307106279793"
+    }
+  ]
+}
