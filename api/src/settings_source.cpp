@@ -1,6 +1,6 @@
 #include <charconv>
 #include <cstdint>
-#include <map>
+#include <flat_map>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -63,7 +63,7 @@ auto read_version(db::connection& database) -> Result<std::optional<std::int64_t
 }  // namespace
 
 auto load_settings(db::connection& database) -> Result<std::shared_ptr<const SettingsSnapshot>> {
-  auto values = std::map<std::string, SettingValue, std::less<>>{};
+  auto values = std::flat_map<std::string, SettingValue, std::less<>>{};
   for (const auto& row : database(db::settings_snapshot_query())) {
     const auto key = std::string{row.key};
     const auto kind = std::string_view{row.kind};

@@ -1,8 +1,9 @@
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <functional>
-#include <iostream>
 #include <memory>
+#include <print>
 #include <string>
 #include <string_view>
 
@@ -23,7 +24,16 @@ constexpr std::size_t DATABASE_CONNECTIONS = 4;
 constexpr unsigned SETTINGS_POLL_SECONDS = 30;
 
 auto fail(std::string_view message) -> int {
-  std::cerr << "cms-api: " << message << '\n';
+  try {
+    std::println(stderr, "cms-api: {}", message);
+  } catch (...) {
+    // The failure path must never itself fail. std::println can throw format_error, and this is called
+    // from the catch block in main, so a broken format falls back to a write that cannot throw.
+    constexpr std::string_view PREFIX = "cms-api: ";
+    std::fwrite(PREFIX.data(), 1, PREFIX.size(), stderr);
+    std::fwrite(message.data(), 1, message.size(), stderr);
+    std::fputc('\n', stderr);
+  }
   return 1;
 }
 
@@ -70,9 +80,9 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store) -> void {
       {drogon::Get});
 }
 
-}  // namespace
-
-int main() {
+/// Runs the service once. Kept separate from main so an exception during startup is reported like any
+/// other refusal rather than escaping as std::terminate.
+auto run() -> int {
   const auto config = load_from_environment();
   if (!config) {
     return fail(config.error().message);
@@ -104,4 +114,16 @@ int main() {
                   static_cast<std::uint16_t>(std::stoi(config->listen_port)));
   app.run();
   return 0;
+}
+
+}  // namespace
+
+int main() {
+  try {
+    return run();
+  } catch (const std::exception& error) {
+    return fail(error.what());
+  } catch (...) {
+    return fail("the service stopped on a failure that is not a std::exception");
+  }
 }

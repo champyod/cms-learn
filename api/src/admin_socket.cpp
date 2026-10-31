@@ -1,10 +1,12 @@
 #include <cms/api/admin_socket.hpp>
 
 #include <array>
+#include <cassert>
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
 #include <poll.h>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -64,8 +66,7 @@ auto peer_uid(int fd) -> uid_t {
   return credentials.uid;
 }
 
-auto read_line(int fd) -> std::string {
-  auto buffer = std::array<char, MAX_REQUEST_BYTES>{};
+auto read_into(int fd, std::span<char> buffer) -> std::span<const char> {
   auto used = std::size_t{0};
   while (used < buffer.size()) {
     const auto count = ::read(fd, buffer.data() + used, buffer.size() - used);
@@ -77,7 +78,13 @@ auto read_line(int fd) -> std::string {
       break;
     }
   }
-  return std::string{buffer.data(), used};
+  return {buffer.data(), used};
+}
+
+auto read_line(int fd) -> std::string {
+  auto buffer = std::array<char, MAX_REQUEST_BYTES>{};
+  const auto received = read_into(fd, buffer);
+  return std::string{received.data(), received.size()};
 }
 
 auto answer(std::string_view request, const SettingsStore& store) -> std::string {
@@ -96,6 +103,7 @@ AdminSocket::AdminSocket(std::string path, uid_t allowed_uid, std::shared_ptr<Se
 AdminSocket::~AdminSocket() { stop(); }
 
 auto AdminSocket::start() -> void {
+  assert(listen_fd_ < 0);
   ::unlink(path_.c_str());
 
   listen_fd_ = ::socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);

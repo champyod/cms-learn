@@ -33,7 +33,7 @@ class AdminSocket {
   AdminSocket& operator=(AdminSocket&&) = delete;
 
   /// @brief Binds the socket and starts accepting.
-  /// @return Nothing on success, or the reason binding failed.
+  /// @pre The socket has not already been started; asserting is the caller's contract.
   void start();
 
   /// @brief Stops the accept loop and removes the socket file.

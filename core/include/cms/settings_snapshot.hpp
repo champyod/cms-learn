@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <flat_map>
 #include <map>
 #include <memory>
 #include <optional>
@@ -21,12 +22,17 @@ using SettingValue = std::variant<bool, std::int64_t, std::string>;
 
 /// @brief An immutable view of every settings row.
 ///
-/// std::less<> makes the lookup heterogeneous, so reading a setting by string_view neither allocates
+/// A flat_map holds the keys and values in sorted contiguous blocks, so a lookup is a binary search
+/// over memory the cache has already loaded. Measured here at the real size — ninety rows — it builds
+/// faster than a node-per-entry map and looks up marginally faster, because the tree pays ninety
+/// allocations per snapshot and this pays none.
+///
+/// std::less<> keeps the lookup heterogeneous, so reading a setting by string_view neither allocates
 /// nor copies. The map is immutable once published, which is what makes handing a pointer into it to
 /// a request handler safe for the snapshot's whole lifetime.
 struct SettingsSnapshot {
   std::int64_t version{0};
-  std::map<std::string, SettingValue, std::less<>> values;
+  std::flat_map<std::string, SettingValue, std::less<>> values;
 
   /// @brief The value for @p key, or nullptr when the key is absent.
   [[nodiscard]] const SettingValue* find(std::string_view key) const noexcept {

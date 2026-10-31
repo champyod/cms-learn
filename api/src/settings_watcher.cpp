@@ -1,3 +1,4 @@
+#include <cassert>
 #include <chrono>
 #include <memory>
 #include <string>
@@ -71,6 +72,7 @@ SettingsWatcher::SettingsWatcher(db::connection& database, std::shared_ptr<Setti
 SettingsWatcher::~SettingsWatcher() { stop(); }
 
 auto SettingsWatcher::start() -> void {
+  assert(!worker_.joinable());
   running_ = true;
   worker_ = std::thread([this] {
     auto connection = connection_ptr{};

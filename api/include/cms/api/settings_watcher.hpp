@@ -32,7 +32,8 @@ class SettingsWatcher {
   SettingsWatcher(SettingsWatcher&&) = delete;
   SettingsWatcher& operator=(SettingsWatcher&&) = delete;
 
-  /// @brief Starts the watcher thread. Calling it twice is a programming error, not a no-op.
+  /// @brief Starts the watcher thread.
+  /// @pre The watcher has not already been started; asserting is the caller's contract.
   void start();
 
   /// @brief Stops and joins the watcher thread. Safe to call when it was never started.
