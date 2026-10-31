@@ -45,6 +45,11 @@ CREATE TYPE setting_tier AS ENUM (
     'secret'
 );
 
+CREATE TYPE token_purpose AS ENUM (
+    'verify_email',
+    'reset_password'
+);
+
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;
 
 CREATE TABLE IF NOT EXISTS principals (
@@ -100,6 +105,24 @@ CREATE TABLE IF NOT EXISTS elevations (
 );
 
 CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (principal_id, capability, expires_at) WHERE (consumed_at IS NULL);
+
+CREATE TABLE IF NOT EXISTS principal_tokens (
+    id uuid DEFAULT gen_random_uuid(),
+    principal_id uuid NOT NULL,
+    purpose token_purpose NOT NULL,
+    token_hash text NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    expires_at timestamptz NOT NULL,
+    used_at timestamptz,
+    CONSTRAINT principal_tokens_pkey PRIMARY KEY (id),
+    CONSTRAINT principal_tokens_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,
+    CONSTRAINT principal_tokens_expiry_after_creation CHECK (expires_at > created_at),
+    CONSTRAINT principal_tokens_hash_shape CHECK (token_hash ~ '^[0-9a-f]{64}$'::text)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS principal_tokens_hash_idx ON principal_tokens (token_hash);
+
+CREATE INDEX IF NOT EXISTS principal_tokens_live_idx ON principal_tokens (principal_id) WHERE (used_at IS NULL);
 
 CREATE TABLE IF NOT EXISTS roles (
     id uuid DEFAULT gen_random_uuid(),
@@ -375,6 +398,8 @@ GRANT INSERT, SELECT ON TABLE audit_events TO cmslearn_app;
 GRANT INSERT, SELECT ON TABLE elevations TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT ON TABLE principal_roles TO cmslearn_app;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE principal_tokens TO cmslearn_app;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE principals TO cmslearn_app;
 

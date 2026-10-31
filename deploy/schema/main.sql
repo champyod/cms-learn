@@ -1,6 +1,7 @@
 -- Apply in this order: dependencies first.
 \i types.sql
 \i authority.sql
+\i tokens.sql
 \i audit.sql
 \i settings.sql
 \i settings_functions.sql

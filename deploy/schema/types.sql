@@ -23,3 +23,7 @@ CREATE TYPE capability AS ENUM (
   'audit:read',
   'schema:apply'
 );
+
+-- What an emailed token is for. Kept separate from the principal status so one table can serve both
+-- verification and a later password reset without widening an existing column.
+CREATE TYPE token_purpose AS ENUM ('verify_email', 'reset_password');

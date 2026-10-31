@@ -3,6 +3,7 @@ GRANT USAGE ON SCHEMA public TO cmslearn_app, cmslearn_judge;
 GRANT SELECT, INSERT, UPDATE ON principals, roles, sessions TO cmslearn_app;
 GRANT SELECT, INSERT, DELETE ON principal_roles, role_capabilities TO cmslearn_app;
 GRANT SELECT, INSERT ON elevations TO cmslearn_app;
+GRANT SELECT, INSERT, UPDATE ON principal_tokens TO cmslearn_app;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON settings TO cmslearn_app;
 GRANT SELECT ON settings_meta TO cmslearn_app;

@@ -134,6 +134,49 @@ struct PrincipalRoles_ {
   using _required_insert_columns = sqlpp::detail::type_set<PrincipalId, RoleId>;
 };
 
+struct PrincipalTokens_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  struct PrincipalId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(principal_id, principalId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Purpose {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(purpose, purpose);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TokenHash {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(token_hash, tokenHash);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  struct ExpiresAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(expires_at, expiresAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::false_type;
+  };
+  struct UsedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(used_at, usedAt);
+    using data_type = std::optional<::sqlpp::timestamp>;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(principal_tokens, principalTokens);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, PrincipalId, Purpose, TokenHash, CreatedAt, ExpiresAt, UsedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<PrincipalId, Purpose, TokenHash, ExpiresAt>;
+};
+
 struct Principals_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -451,6 +494,7 @@ struct SettingsPlans_ {
 using AuditEvents = ::sqlpp::table_t<AuditEvents_>;
 using Elevations = ::sqlpp::table_t<Elevations_>;
 using PrincipalRoles = ::sqlpp::table_t<PrincipalRoles_>;
+using PrincipalTokens = ::sqlpp::table_t<PrincipalTokens_>;
 using Principals = ::sqlpp::table_t<Principals_>;
 using RoleCapabilities = ::sqlpp::table_t<RoleCapabilities_>;
 using Roles = ::sqlpp::table_t<Roles_>;
@@ -463,6 +507,7 @@ using SettingsPlans = ::sqlpp::table_t<SettingsPlans_>;
 inline const AuditEvents auditEvents{};
 inline const Elevations elevations{};
 inline const PrincipalRoles principalRoles{};
+inline const PrincipalTokens principalTokens{};
 inline const Principals principals{};
 inline const RoleCapabilities roleCapabilities{};
 inline const Roles roles{};
