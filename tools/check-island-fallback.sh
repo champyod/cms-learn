@@ -22,8 +22,10 @@ grep -qE '<button[^>]*type="submit"' "$template" \
   || fail "the task page has no submit button"
 
 # The island is markup and a script; if the submission depended on a script, this would be the place it
-# showed. Nothing on the form's path may be a script.
-if sed -n '/<form/,/<\/form>/p' "$template" | grep -q '<script'; then
+# showed. Only the form's own markup counts: the renderer emits one long line, so the region has to be cut
+# out of it before looking, or a script in <head> would be read as if it were inside the form.
+form_markup="$(grep -o '<form[^>]*>.*</form>' "$template" | head -1)"
+if printf '%s' "$form_markup" | grep -q '<script'; then
   fail "the submission form depends on a script"
 fi
 

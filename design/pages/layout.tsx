@@ -18,6 +18,9 @@ export function Layout({ mode, site_name, heading, body }: LayoutProps) {
         <title>{site_name}</title>
         <link rel="stylesheet" href="/static/app.css" />
         <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+        {/* Pinned: htmx 4.0.0, vendored under web/public so production fetches nothing at runtime. The
+            page works without it; what it adds is partial refresh, not the submission itself. */}
+        <script src="/static/htmx.min.js" defer />
       </head>
       <body className="min-h-dvh bg-base-100 text-base-content">
         <header className="navbar mx-auto max-w-5xl gap-4 border-b border-base-300 px-4">
