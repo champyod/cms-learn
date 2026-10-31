@@ -1,3 +1,17 @@
+# The loader is tested through its own interface rather than through the binary, so main carries only
+# the paths a real invocation takes.
+find_package(Catch2 3 CONFIG QUIET)
+if(Catch2_FOUND)
+  add_executable(cms_api_config_tests config_test.cpp)
+  target_link_libraries(cms_api_config_tests PRIVATE cms::api_config Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_api_config_tests PRIVATE)
+  cms_apply_hardening(cms_api_config_tests)
+  cms_apply_sanitizers(cms_api_config_tests)
+
+  include(Catch)
+  catch_discover_tests(cms_api_config_tests)
+endif()
+
 add_test(
   NAME api_host_config
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/host_config_test.sh" "$<TARGET_FILE:cms_api>")

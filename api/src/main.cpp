@@ -17,7 +17,6 @@
 
 namespace {
 
-constexpr std::string_view CHECK_FLAG = "--check";
 constexpr std::size_t DATABASE_CONNECTIONS = 4;
 /// The backstop for a notification that never arrived. A policy value, so it becomes a settings row
 /// once the catalogue is wired; until then it is named rather than inlined.
@@ -47,7 +46,7 @@ auto text_response(std::string body, drogon::HttpStatusCode status = drogon::k20
   return response;
 }
 
-auto register_routes(std::shared_ptr<cms::SettingsStore> store) -> void {
+auto register_routes(const std::shared_ptr<cms::SettingsStore>& store) -> void {
   auto& app = drogon::app();
 
   app.registerHandler(
@@ -73,16 +72,10 @@ auto register_routes(std::shared_ptr<cms::SettingsStore> store) -> void {
 
 }  // namespace
 
-int main(int argc, char** argv) {
+int main() {
   const auto config = load_from_environment();
   if (!config) {
     return fail(config.error().message);
-  }
-
-  if (argc > 1 && std::string_view{argv[1]} == CHECK_FLAG) {
-    std::cout << "cms-api: configuration is valid for " << config->listen_address << ':'
-              << config->listen_port << " (tls " << config->tls_mode << ")\n";
-    return 0;
   }
 
   const auto client =

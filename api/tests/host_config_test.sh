@@ -38,7 +38,7 @@ expect_failure_naming() {
   local name="$1" key="$2"
   shift 2
   local out status
-  out="$(env -u CMSLEARN_HOST_FILE "$@" "$binary" --check 2>&1)"
+  out="$(env -u CMSLEARN_HOST_FILE "$@" "$binary" 2>&1)"
   status=$?
   if [ "$status" -eq 0 ]; then
     broken "$name" "the service accepted a host file it should have refused"
@@ -49,10 +49,7 @@ expect_failure_naming() {
   fi
 }
 
-case_file="$work/complete.env"
-complete_file "$case_file"
-
-out="$(env -u CMSLEARN_HOST_FILE "$binary" --check 2>&1)"
+out="$(env -u CMSLEARN_HOST_FILE "$binary" 2>&1)"
 if [ $? -ne 0 ] && [[ "$out" == *"CMSLEARN_HOST_FILE is not set"* ]]; then
   behaved "no CMSLEARN_HOST_FILE is refused by name"
 else
@@ -110,13 +107,6 @@ complete_file "$duplicate_file"
 printf 'CMSLEARN_LISTEN_PORT=9090\n' >>"$duplicate_file"
 expect_failure_naming "a repeated key is refused" "repeats CMSLEARN_LISTEN_PORT" \
   CMSLEARN_HOST_FILE="$duplicate_file"
-
-out="$(CMSLEARN_HOST_FILE="$case_file" "$binary" --check 2>&1)"
-if [ $? -eq 0 ] && [[ "$out" == *"configuration is valid"* ]]; then
-  behaved "a complete host file is accepted"
-else
-  broken "a complete host file is accepted" "got: $out"
-fi
 
 printf '\n%s assertion(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

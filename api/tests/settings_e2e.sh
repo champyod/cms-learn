@@ -14,6 +14,13 @@ for tool in initdb pg_ctl psql curl nc; do
   command -v "$tool" >/dev/null 2>&1 || { echo "  skipped: $tool is not installed"; exit 77; }
 done
 
+# The falsification harness stages a tree without deploy/ or tools/, so this test cannot run there.
+# Skipping with a reason is honest; failing would report a defect the tree does not have.
+if [ ! -f "$repo/deploy/roles.sql" ] || [ ! -f "$repo/tools/apply-plan.sh" ]; then
+  echo "  skipped: this tree has no deploy/ or tools/ to apply a schema from"
+  exit 77
+fi
+
 work="$(mktemp -d)"
 port=$((55000 + (RANDOM % 500)))
 listen_port=$((18000 + (RANDOM % 500)))
