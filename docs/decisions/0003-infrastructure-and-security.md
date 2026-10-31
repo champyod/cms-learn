@@ -13,7 +13,7 @@ database, network or volume
 | 6 | Sessions | **Rows in Postgres**, opaque id in an `HttpOnly; Secure; SameSite=Lax` cookie | a lost device must be revocable |
 | 7 | Judge placement | **Same box**, container with `cgroup: host`, `seccomp:unconfined`, cgroup tree mounted, **no network gateway** | one server; the judge is reachable by the database and nothing else |
 | 8 | Backups | **Nightly `pg_dump -Fc` through `age` to an offsite remote**, key held off-server, 7/4/3, monthly restore drill | an unverified archive is the bigger risk at this size |
-| 9 | Observability | **Prometheus 3.15.1 + Grafana 13.2.4 + node-exporter 1.8.2**, 30-day retention, judge queue depth as the key metric | a judge that silently stops dequeuing is the failure to catch |
+| 9 | Observability | **Prometheus 3.15.1 + Grafana 13.3.0 + node-exporter 1.9.1**, 30-day retention, judge queue depth as the key metric | a judge that silently stops dequeuing is the failure to catch |
 | 10 | Deploy path | **Images by digest**, `up -d --wait`, rollback by digest | a broken commit must not become a broken lesson |
 | 11 | Proxy privilege | **uid 10001 on unprivileged ports** (80→8080, 443→8443) | the process terminating TLS does not need root |
 | 12 | Security scanning | **Trivy 0.66.0 as a gate**: secrets, fixable CVEs, deployment hardening | a leak fails the build instead of waiting to be read |
