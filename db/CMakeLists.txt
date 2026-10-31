@@ -26,7 +26,7 @@ if(Drogon_FOUND)
   include(DrogonCompat)
   cms_learn_align_jsoncpp()
 
-  add_library(cms_db_drogon STATIC src/connection.cpp)
+  add_library(cms_db_drogon STATIC src/connection.cpp src/transaction.cpp)
   add_library(cms::db_drogon ALIAS cms_db_drogon)
 
   target_link_libraries(cms_db_drogon PUBLIC cms::db Drogon::Drogon)

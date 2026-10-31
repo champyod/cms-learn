@@ -13,6 +13,7 @@
 #include <cms/db/connection.hpp>
 #include <cms/db/settings_query.hpp>
 #include <cms/db/tables.hpp>
+#include <cms/db/transaction.hpp>
 
 namespace {
 
@@ -172,4 +173,61 @@ TEST_CASE("a statement against a table that does not exist throws", "[db][connec
 
   CHECK_THROWS((void)cms::db::run(
       handle, cms::db::serialized_statement{"SELECT 1 FROM cms_gate_missing_table", {}}));
+}
+
+TEST_CASE("a transaction that is never committed leaves no row", "[db][connection][live]") {
+  const auto* dsn = std::getenv("CMSLEAN_TEST_DSN");
+  if (dsn == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  const auto client = ::drogon::orm::DbClient::newPgClient(dsn, 2);
+  seed(*client);
+
+  const auto rows = [&client](std::string_view handle) -> long long {
+    return client->execSqlSync("SELECT count(*) FROM principals WHERE handle = $1",
+                               std::string{handle})[0][0]
+        .as<long long>();
+  };
+
+  {
+    cms::db::Transaction tx{*client};
+    tx.connection()(sqlpp::insert_into(cms::db::principals)
+                        .set(cms::db::principals.id =
+                                 std::string{"11111111-2222-4333-8444-555555555555"},
+                             cms::db::principals.kind = std::string{"system"},
+                             cms::db::principals.handle = std::string{"tx_rollback"},
+                             cms::db::principals.status = std::string{"active"}));
+  }
+
+  CHECK(rows("tx_rollback") == 0);
+}
+
+TEST_CASE("a committed transaction keeps its row", "[db][connection][live]") {
+  const auto* dsn = std::getenv("CMSLEAN_TEST_DSN");
+  if (dsn == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  const auto client = ::drogon::orm::DbClient::newPgClient(dsn, 2);
+  seed(*client);
+
+  const auto rows = [&client](std::string_view handle) -> long long {
+    return client->execSqlSync("SELECT count(*) FROM principals WHERE handle = $1",
+                               std::string{handle})[0][0]
+        .as<long long>();
+  };
+
+  {
+    cms::db::Transaction tx{*client};
+    tx.connection()(sqlpp::insert_into(cms::db::principals)
+                        .set(cms::db::principals.id =
+                                 std::string{"22222222-3333-4444-8555-666666666666"},
+                             cms::db::principals.kind = std::string{"system"},
+                             cms::db::principals.handle = std::string{"tx_commit"},
+                             cms::db::principals.status = std::string{"active"}));
+    tx.commit();
+  }
+
+  CHECK(rows("tx_commit") == 1);
 }
