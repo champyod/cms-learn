@@ -1,6 +1,6 @@
 # Backup sidecar. Same Postgres major as the database image, so pg_dump can never be older than the
 # server it dumps (a mismatched client is how a dump silently loses objects it does not understand).
-FROM postgres:18.6
+FROM postgres:18.6@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends age rclone ca-certificates \

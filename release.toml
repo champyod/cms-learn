@@ -42,8 +42,8 @@ digest = "sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b
 
 [images.crowdsec]
 kind = "pinned"
-ref = "crowdsecurity/crowdsec:v1.8.1"
-digest = "sha256:0f2523fa61ef507f15d953045cface490cc880670c62f2755ced17524107f71a"
+ref = "crowdsecurity/crowdsec:v1.8.2"
+digest = "sha256:65b74942f7e7ed5c60fde4ac15fc4ba715904c398c8b16dd451f4907d90347d4"
 
 [images.prometheus]
 kind = "pinned"
@@ -52,13 +52,13 @@ digest = "sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a
 
 [images.grafana]
 kind = "pinned"
-ref = "grafana/grafana:13.2.4"
-digest = "sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f"
+ref = "grafana/grafana:13.3.0"
+digest = "sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205"
 
 [images.node-exporter]
 kind = "pinned"
-ref = "prom/node-exporter:v1.8.2"
-digest = "sha256:4032c6d5bfd752342c3e631c2f1de93ba6b86c41db6b167b9a35372c139e7706"
+ref = "prom/node-exporter:v1.9.1"
+digest = "sha256:d00a542e409ee618a4edc67da14dd48c5da66726bbd5537ab2af9c1dfc442c8a"
 
 [images.backup]
 kind = "built"

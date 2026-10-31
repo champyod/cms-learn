@@ -5,7 +5,7 @@
 # The binary is a static build published as a release asset, verified against the digest recorded in
 # docs/dependencies.md. A replaced asset fails the build instead of shipping.
 
-FROM debian:bookworm-slim AS fetch
+FROM debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4 AS fetch
 
 ARG PGSCHEMA_VERSION=1.13.4
 ARG PGSCHEMA_SHA256=abce75a704ce411a8f9d1dcc786573d7e0e6dcc6b060a0e6b66a1550ed734bdb
@@ -19,7 +19,7 @@ RUN curl -fsSL -o /usr/local/bin/pgschema \
  && echo "${PGSCHEMA_SHA256}  /usr/local/bin/pgschema" | sha256sum -c - \
  && chmod 0555 /usr/local/bin/pgschema
 
-FROM debian:bookworm-slim
+FROM debian:trixie-slim@sha256:f6b08b09a05725f9431502d3b5714f5c4576e82c1a84fa1debe0c24a7e0c3ec4
 
 # bash runs the wrapper; sha256sum is the check the wrapper performs before it connects.
 COPY --from=fetch /usr/local/bin/pgschema /usr/local/bin/pgschema
