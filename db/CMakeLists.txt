@@ -6,6 +6,8 @@ if(NOT Sqlpp23_FOUND)
   return()
 endif()
 
+# The table types stay an interface target with no transport behind them, so a consumer that only
+# names a column never inherits an HTTP framework.
 add_library(cms_db INTERFACE)
 add_library(cms::db ALIAS cms_db)
 
@@ -16,6 +18,27 @@ target_include_directories(cms_db INTERFACE
 target_link_libraries(cms_db INTERFACE sqlpp23::core)
 target_compile_features(cms_db INTERFACE cxx_std_23)
 cms_apply_warnings(cms_db INTERFACE)
+
+# The connector is its own target so the table types stay free of the transport: only a component
+# that reaches the server links Drogon.
+find_package(Drogon CONFIG QUIET)
+if(Drogon_FOUND)
+  # Drogon's exported interface names jsoncpp by a target vcpkg's jsoncpp config does not define.
+  if(NOT TARGET jsoncpp_lib AND TARGET jsoncpp_static)
+    add_library(jsoncpp_lib ALIAS jsoncpp_static)
+  endif()
+
+  add_library(cms_db_drogon STATIC src/connection.cpp)
+  add_library(cms::db_drogon ALIAS cms_db_drogon)
+
+  target_link_libraries(cms_db_drogon PUBLIC cms::db Drogon::Drogon)
+  target_compile_features(cms_db_drogon PUBLIC cxx_std_23)
+  cms_apply_warnings(cms_db_drogon PRIVATE)
+  cms_apply_hardening(cms_db_drogon)
+  cms_apply_sanitizers(cms_db_drogon)
+else()
+  message(STATUS "Drogon not found; the sqlpp23 connector is skipped (install the 'drogon' manifest dependency)")
+endif()
 
 if(CMS_BUILD_TESTS)
   add_subdirectory(tests)

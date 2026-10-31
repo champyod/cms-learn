@@ -1,0 +1,221 @@
+#pragma once
+
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <variant>
+#include <vector>
+
+#include <drogon/orm/DbClient.h>
+#include <drogon/orm/Result.h>
+#include <sqlpp23/sqlpp23.h>
+
+namespace cms::db {
+
+/// The value type sqlpp23's result row carries for a `timestamp` column.
+using timestamp = std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds>;
+
+/// One positional parameter, still typed: the driver turns it into text only when it binds it.
+using bound_value = std::variant<std::nullptr_t, bool, std::int64_t, std::string, timestamp>;
+
+struct serialized_statement {
+  std::string sql;
+  std::vector<bound_value> parameters;
+};
+
+template <typename T>
+auto make_bound_value(const T& value) -> bound_value {
+  if constexpr (requires { value.has_value(); }) {
+    if (not value.has_value()) {
+      return nullptr;
+    }
+    return make_bound_value(*value);
+  } else {
+    static_assert(std::is_same_v<T, std::string> or std::is_same_v<T, std::int64_t> or
+                      std::is_same_v<T, bool> or std::is_same_v<T, timestamp>,
+                  "this connector binds text, integral, boolean and timestamp parameters only");
+    return bound_value{value};
+  }
+}
+
+/// Collects the parameters of one statement while sqlpp23 walks it, so text and values share an order.
+template <typename Bindings>
+class context {
+ public:
+  explicit context(const Bindings& bindings) : bindings_(bindings) {}
+
+  auto escape(std::string_view text) const -> std::string {
+    auto escaped = std::string{};
+    escaped.reserve(text.size());
+    for (const auto character : text) {
+      escaped.push_back(character);
+      if (character == '\'') {
+        escaped.push_back('\'');
+      }
+    }
+    return escaped;
+  }
+
+  template <typename Parameter>
+  auto bind(const Parameter&) -> std::string {
+    const auto& value = static_cast<const typename Parameter::_instance_t&>(bindings_)();
+    parameters_.push_back(make_bound_value(value));
+    return "$" + std::to_string(parameters_.size());
+  }
+
+  auto bound_parameters() -> std::vector<bound_value> { return std::move(parameters_); }
+
+ private:
+  const Bindings& bindings_;
+  std::vector<bound_value> parameters_;
+};
+
+template <typename Bindings, typename DataType, typename NameTag>
+auto to_sql_string(context<Bindings>& target,
+                   const ::sqlpp::parameter_t<DataType, NameTag>& parameter) -> std::string {
+  return target.bind(parameter);
+}
+
+/// Every parameter of a statement, addressed by the name its statement declared it with.
+template <typename Statement>
+auto bindings_for(const Statement&) -> ::sqlpp::make_parameter_list_t<Statement> {
+  return {};
+}
+
+/// The rows of one select, decoded into the result row type the statement declares.
+class result {
+ public:
+  result() = default;
+  explicit result(::drogon::orm::Result rows);
+
+  template <typename Row>
+  void next(Row& row) {
+    auto bridge = ::sqlpp::detail::result_row_bridge{};
+    if (row_index_ >= row_count_) {
+      bridge.invalidate(row);
+      return;
+    }
+    current_row_ = row_index_;
+    ++row_index_;
+    bridge.read_fields(row, *this);
+    bridge.validate(row);
+  }
+
+  auto get_is_null(std::size_t field_index) const -> bool;
+  auto text(std::size_t field_index) const -> std::string_view;
+  auto integral(std::size_t field_index) const -> std::int64_t;
+  auto boolean(std::size_t field_index) const -> bool;
+  auto stamp(std::size_t field_index) const -> timestamp;
+
+ private:
+  ::drogon::orm::Result rows_{nullptr};
+  std::size_t row_count_{0};
+  std::size_t row_index_{0};
+  std::size_t current_row_{0};
+};
+
+inline auto read_field(result& rows, std::size_t field_index, std::string_view& value) -> void {
+  value = rows.text(field_index);
+}
+
+inline auto read_field(result& rows, std::size_t field_index, std::int64_t& value) -> void {
+  value = rows.integral(field_index);
+}
+
+inline auto read_field(result& rows, std::size_t field_index, bool& value) -> void {
+  value = rows.boolean(field_index);
+}
+
+inline auto read_field(result& rows, std::size_t field_index, timestamp& value) -> void {
+  value = rows.stamp(field_index);
+}
+
+struct connection_config {
+  std::shared_ptr<::drogon::orm::DbClient> client;
+};
+
+/// Owns the pool Drogon handed out and is the only thing sqlpp23 reaches the server through.
+class connection_handle {
+ public:
+  connection_handle() = default;
+  explicit connection_handle(std::shared_ptr<const connection_config> config);
+
+  auto is_connected() const -> bool { return client_ != nullptr; }
+  auto ping_server() const -> bool;
+  auto client() const -> ::drogon::orm::DbClient&;
+
+ private:
+  std::shared_ptr<::drogon::orm::DbClient> client_;
+};
+
+/// Runs one statement and hands back the driver's rows, which outlive every view into them.
+auto run(const connection_handle& handle, const serialized_statement& statement)
+    -> ::drogon::orm::Result;
+
+class connection_base : public ::sqlpp::connection {
+ public:
+  using _config_t = connection_config;
+  using _config_ptr_t = std::shared_ptr<const _config_t>;
+  using _handle_t = connection_handle;
+
+  connection_base() = default;
+  explicit connection_base(_handle_t handle) : _handle(std::move(handle)) {}
+
+  template <typename Statement>
+  auto operator()(Statement&& statement) {
+    return ::sqlpp::statement_handler_t{}.run(std::forward<Statement>(statement), *this);
+  }
+
+  /// Runs a select whose parameters the caller filled by name in `bindings_for(statement)`.
+  template <typename Statement, typename Bindings>
+  auto select(Statement&& statement, const Bindings& bindings)
+      -> ::sqlpp::result_t<result, ::sqlpp::get_result_row_t<std::decay_t<Statement>>> {
+    return ::sqlpp::result_t<result, ::sqlpp::get_result_row_t<std::decay_t<Statement>>>{
+        rows_of(std::forward<Statement>(statement), bindings)};
+  }
+
+  /// Synchronous because sqlpp23's interface is: a caller on an event-loop thread must use a worker.
+  template <typename Statement>
+  auto _select(Statement&& statement) -> result {
+    static_assert(::sqlpp::parameters_of_t<std::decay_t<Statement>>::empty(),
+                  "a statement with parameters has to be run through select(statement, bindings)");
+    return rows_of(std::forward<Statement>(statement), bindings_for(statement));
+  }
+
+  template <typename Statement, typename Bindings>
+  auto execute(Statement&& statement, const Bindings& bindings) -> std::size_t {
+    return run(_handle, serialize(statement, bindings)).affectedRows();
+  }
+
+  template <typename Statement>
+  auto _execute(Statement&& statement) -> std::size_t {
+    static_assert(::sqlpp::parameters_of_t<std::decay_t<Statement>>::empty(),
+                  "a statement with parameters has to be run through execute(statement, bindings)");
+    return execute(std::forward<Statement>(statement), bindings_for(statement));
+  }
+
+ protected:
+  _handle_t _handle{};
+
+ private:
+  template <typename Statement, typename Bindings>
+  static auto serialize(const Statement& statement, const Bindings& bindings) -> serialized_statement {
+    auto target = context<Bindings>{bindings};
+    auto sql = ::sqlpp::to_sql_string(target, statement);
+    return serialized_statement{std::move(sql), target.bound_parameters()};
+  }
+
+  template <typename Statement, typename Bindings>
+  auto rows_of(const Statement& statement, const Bindings& bindings) -> result {
+    return result{run(_handle, serialize(statement, bindings))};
+  }
+};
+
+using connection = ::sqlpp::normal_connection<connection_base>;
+
+}  // namespace cms::db
