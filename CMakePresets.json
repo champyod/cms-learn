@@ -13,7 +13,8 @@
       "cacheVariables": {
         "VCPKG_MANIFEST_DIR": "${sourceDir}/api",
         "VCPKG_INSTALLED_DIR": "${sourceDir}/build/vcpkg_installed",
-        "VCPKG_MANIFEST_FEATURES": "tests"
+        "VCPKG_MANIFEST_FEATURES": "tests",
+        "CMS_WITH_API": "ON"
       }
     },
     {
@@ -26,6 +27,18 @@
         "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_CXX_COMPILER": "g++",
         "CMS_LEARN_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "vcpkg",
+      "displayName": "g++ \u2014 optimised, no sanitizers (what the image builds)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMS_LEARN_SANITIZE": "OFF"
       }
     },
     {
@@ -46,6 +59,11 @@
     {
       "name": "safety",
       "configurePreset": "safety",
+      "jobs": 4
+    },
+    {
+      "name": "release",
+      "configurePreset": "release",
       "jobs": 4
     },
     {
