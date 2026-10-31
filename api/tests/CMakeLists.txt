@@ -10,6 +10,13 @@ if(Catch2_FOUND)
 
   include(Catch)
   catch_discover_tests(cms_api_config_tests)
+
+  add_executable(cms_api_identity_tests uuid_test.cpp)
+  target_link_libraries(cms_api_identity_tests PRIVATE cms::api_identity Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_api_identity_tests PRIVATE)
+  cms_apply_hardening(cms_api_identity_tests)
+  cms_apply_sanitizers(cms_api_identity_tests)
+  catch_discover_tests(cms_api_identity_tests)
 endif()
 
 add_test(

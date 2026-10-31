@@ -208,6 +208,33 @@ class connection_base : public ::sqlpp::connection {
     return execute(std::forward<Statement>(statement), bindings_for(statement));
   }
 
+  /// @brief Runs an insert. sqlpp23 0.70 defines a returning clause but wires it into no statement, so
+  /// a write reports affected rows and the caller supplies any generated identity.
+  template <typename Statement>
+  auto _insert(Statement&& statement) -> std::size_t {
+    static_assert(::sqlpp::parameters_of_t<std::decay_t<Statement>>::empty(),
+                  "a statement with parameters has to be run through insert(statement, bindings)");
+    return execute(std::forward<Statement>(statement), bindings_for(statement));
+  }
+
+  /// @brief Runs an update; the same shape as an insert because neither returns rows here.
+  template <typename Statement>
+  auto _update(Statement&& statement) -> std::size_t {
+    static_assert(::sqlpp::parameters_of_t<std::decay_t<Statement>>::empty(),
+                  "a statement with parameters has to be run through update(statement, bindings)");
+    return execute(std::forward<Statement>(statement), bindings_for(statement));
+  }
+
+  template <typename Statement, typename Bindings>
+  auto insert(Statement&& statement, const Bindings& bindings) -> std::size_t {
+    return execute(std::forward<Statement>(statement), bindings);
+  }
+
+  template <typename Statement, typename Bindings>
+  auto update(Statement&& statement, const Bindings& bindings) -> std::size_t {
+    return execute(std::forward<Statement>(statement), bindings);
+  }
+
  protected:
   _handle_t _handle{};
 
