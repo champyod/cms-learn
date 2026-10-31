@@ -13,17 +13,37 @@ trivy="${TRIVY_IMAGE:-aquasec/trivy:0.66.0}"
 
 note() { printf '  %s\n' "$*"; }
 
+# A scanner that could not run has not found anything. Reporting the two as one message is how a
+# network outage becomes a security finding nobody can act on, so the reason is separated here.
+scan() {
+  local label="$1"
+  shift
+  local output status
+  set +e
+  output="$("$@" 2>&1)"
+  status=$?
+  set -e
+  [ -n "$output" ] && printf '%s\n' "$output"
+  [ "$status" -eq 0 ] && return 0
+  if printf '%s' "$output" | grep -qE 'FATAL|failed to download|failed to load|context deadline exceeded|no such image'; then
+    echo "security scan FAILED: $label could not run — the scanner never produced a verdict" >&2
+  else
+    echo "security scan FAILED: $label reported a finding" >&2
+  fi
+  exit 1
+}
+
 command -v docker >/dev/null || { echo "security scan FAILED: docker is required" >&2; exit 1; }
 
 note "secrets and vulnerable dependencies (fixed CVEs only — an unfixable finding is not actionable)"
-docker run --rm -v "$repo:/src:ro" "$trivy" fs \
-  --quiet --scanners vuln,secret --ignore-unfixed --exit-code 1 \
-  --skip-dirs /src/.git --skip-dirs /src/node_modules /src \
-  || { echo "security scan FAILED: secret or dependency finding" >&2; exit 1; }
+scan "the vulnerability and secret scan" \
+  docker run --rm -v "$repo:/src:ro" "$trivy" fs \
+  --scanners vuln,secret --ignore-unfixed --exit-code 1 \
+  --skip-dirs /src/.git --skip-dirs /src/node_modules /src
 
 note "deployment hardening (Dockerfiles, compose) at MEDIUM and above"
-docker run --rm -v "$repo:/src:ro" "$trivy" config \
-  --quiet --exit-code 1 --severity MEDIUM,HIGH,CRITICAL /src/deploy \
-  || { echo "security scan FAILED: deployment misconfiguration" >&2; exit 1; }
+scan "the deployment configuration scan" \
+  docker run --rm -v "$repo:/src:ro" "$trivy" config \
+  --exit-code 1 --severity MEDIUM,HIGH,CRITICAL /src/deploy
 
 printf 'security scan: OK\n'
