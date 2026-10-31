@@ -4,7 +4,7 @@
 # `size_t` at every container boundary by definition, so those two flags turn normal code into noise
 # that people then suppress — and a suppressed warning set is worse than a smaller honest one.
 function(cms_learn_apply_warnings target)
-  target_compile_features(${target} PRIVATE cxx_std_23)
+  target_compile_features(${target} PRIVATE cxx_std_26)
   target_compile_options(${target} PRIVATE
     -Wall
     -Wextra

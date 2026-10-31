@@ -8,7 +8,7 @@ target_include_directories(cms_core INTERFACE
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
   "$<INSTALL_INTERFACE:include>")
 
-target_compile_features(cms_core INTERFACE cxx_std_23)
+target_compile_features(cms_core INTERFACE cxx_std_26)
 cms_apply_warnings(cms_core INTERFACE)
 
 if(CMS_BUILD_TESTS)

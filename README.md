@@ -46,7 +46,7 @@ are decisions, not code. A document claiming otherwise is wrong.
   ┌─────▼──────────────┐  proxy   Caddy 2.11.7 — TLS, rate limits, CrowdSec bouncer
   └─────┬──────────────┘
         │  internal network, no gateway
-  ┌─────▼──────────────┐  web + api   C++23 · Drogon 1.9.14 · Inja · htmx
+  ┌─────▼──────────────┐  web + api   C++26 · Drogon 1.9.14 · Inja · htmx
   └──┬──────────────┬──┘
      │              │
      │   ┌──────────▼─────────────┐  judge   C++ supervisor · isolate v2.7 · testlib

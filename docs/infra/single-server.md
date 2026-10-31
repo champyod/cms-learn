@@ -37,8 +37,8 @@ Only the proxy is publicly bound. Everything else listens on the internal compos
 | Service | Image (pinned) | Public | Volume | Limits | Role |
 |---|---|---|---|---|---|
 | `proxy` | `caddy:2.11.7` (uid 10001, ports 8080/8443 inside; host maps 80/443) | 80/443 | `caddy-data`, `caddy-config` | 0.3 cpu / 256 MB | TLS (ACME), HTTP→HTTPS, HSTS, rate limits, path routing, static caching |
-| `web` | `ghcr.io/champyod/cms-learn-web:<sha>` | no | — | 0.5 cpu / 512 MB | Drogon + Inja + htmx (C++23) |
-| `api` | `ghcr.io/champyod/cms-learn-api:<sha>` | no | — | 1 cpu / 512 MB | Drogon (C++23) + shared domain core: auth, sessions, progression, serving |
+| `web` | `ghcr.io/champyod/cms-learn-web:<sha>` | no | — | 0.5 cpu / 512 MB | Drogon + Inja + htmx (C++26) |
+| `api` | `ghcr.io/champyod/cms-learn-api:<sha>` | no | — | 1 cpu / 512 MB | Drogon (C++26) + shared domain core: auth, sessions, progression, serving |
 | `judge` | `ghcr.io/champyod/cms-learn-judge:<sha>` | no | `judge-work`, `judge-data` | 2 cpu / 2 GB, `cgroup: host`, cgroups rw | C++ core + `isolate`; no network |
 | `database` | `postgres:18.6` | no | `pgdata` | 1 cpu / 2 GB | Postgres, not published |
 | `objects` | `seaweedfs:4.51` (`weed server -s3`) | no | `objectdata` | 0.5 cpu / 512 MB | S3-compatible store: task statements, source, test archives |

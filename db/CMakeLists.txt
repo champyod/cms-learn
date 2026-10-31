@@ -16,7 +16,7 @@ target_include_directories(cms_db INTERFACE
   "$<INSTALL_INTERFACE:include>")
 
 target_link_libraries(cms_db INTERFACE sqlpp23::core)
-target_compile_features(cms_db INTERFACE cxx_std_23)
+target_compile_features(cms_db INTERFACE cxx_std_26)
 cms_apply_warnings(cms_db INTERFACE)
 
 # The connector is its own target so the table types stay free of the transport: only a component
@@ -32,7 +32,7 @@ if(Drogon_FOUND)
   add_library(cms::db_drogon ALIAS cms_db_drogon)
 
   target_link_libraries(cms_db_drogon PUBLIC cms::db Drogon::Drogon)
-  target_compile_features(cms_db_drogon PUBLIC cxx_std_23)
+  target_compile_features(cms_db_drogon PUBLIC cxx_std_26)
   cms_apply_warnings(cms_db_drogon PRIVATE)
   cms_apply_hardening(cms_db_drogon)
   cms_apply_sanitizers(cms_db_drogon)

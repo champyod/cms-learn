@@ -15,10 +15,10 @@ maximises memory safety per process.
 
 | Layer | Language | Package | Why this one |
 |---|---|---|---|
-| api + web + admin UI | C++23 | Drogon 1.9.14, Inja 3.5.0, htmx 4.0.0 | one binary, one domain core, server-rendered HTML |
+| api + web + admin UI | C++26 | Drogon 1.9.14, Inja 3.5.0, htmx 4.0.0 | one binary, one domain core, server-rendered HTML |
 | domain core (curriculum graph, task schema, limits, serving rules) | C++ | one static library, two callers | api and judge must not disagree about what a task is |
 | judge checkers and verdict comparison | C++ | testlib 0.9.41 + isolate v2.7 | `testlib` **is** the comparison — nothing above it re-derives a verdict |
-| judge supervisor | C++23 | `pidfd_open`/`pidfd_send_signal`, cgroup v2 | the pid-reuse race that motivated Rust is closed by pidfd, and the judge image already ships a C++ toolchain |
+| judge supervisor | C++26 | `pidfd_open`/`pidfd_send_signal`, cgroup v2 | the pid-reuse race that motivated Rust is closed by pidfd, and the judge image already ships a C++ toolchain |
 | `cmsctl` | Rust | no database dependency | cannot reach around the core by construction |
 | content gate | TypeScript | `tools/validate-content.ts` | shipped with 11 falsification cases; it validates files, not runtime state |
 | editor island | TypeScript | CodeMirror 6 | browser DOM; Rust here would mean wasm *and* JS |
@@ -26,6 +26,22 @@ maximises memory safety per process.
 
 Language rows are current as of 2026-10-29; the reasoning behind each rejected alternative is in
 `.agents/memos/2026-10-29-decisions.md` and in ADR 0004 §4 for the schema.
+
+### C++26, and what "C++26" means today
+
+The standard is set once, at `CMakeLists.txt:4`, and every target inherits `cxx_std_26`. Both
+compilers on the development host accept it — g++ 16.2.1 and clang++ 23.1.4 — and the whole tree,
+including the Drogon, sqlpp23 and Catch2 headers, compiles clean under `-std=c++26` with the gate's
+warning set.
+
+Two honest caveats. First, the language is still being finalised: the compilers report
+`__cplusplus == 202400L`, a draft value, because ISO has not published the 2026 revision. Code written
+today is written against the draft as GCC 16 implements it. Second, the third-party libraries are
+compiled by vcpkg under their own standards, so a C++26-only construct must never appear in a header
+those libraries include.
+
+If a future dependency refuses a C++26 translation unit, the fallback is that single line, and this
+section is the reason it would be changed rather than guessed at.
 
 ### Rejected, with the reason
 
@@ -72,7 +88,7 @@ Language rows are current as of 2026-10-29; the reasoning behind each rejected a
   framework-shaped.
 - Component reuse with the `cms-docker` admin panel is lost. Accepted: what was genuinely reusable is
   the token file, and that survives.
-- Four toolchains persist (C++23, Rust, TypeScript for the editor island, Atlas as a binary). The
+- Four toolchains persist (C++26, Rust, TypeScript for the editor island, Atlas as a binary). The
   fourth is a build-time binary, not a runtime in the product.
 - `docs/infra/single-server.md`, `FEATURES.md` F-034 and the proposal annex must name Drogon/Inja
   rather than Rust/Next.js, or they state something false.
