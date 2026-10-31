@@ -31,6 +31,19 @@
       }
     },
     {
+      "name": "safety-core",
+      "inherits": "vcpkg",
+      "displayName": "g++ \u2014 asan + ubsan + -Werror without the api build (what the fast lane gates)",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build/safety-core",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMS_LEARN_SANITIZE": "ON",
+        "CMS_WITH_API": "OFF"
+      }
+    },
+    {
       "name": "release",
       "inherits": "vcpkg",
       "displayName": "g++ \u2014 optimised, no sanitizers (what the image builds)",
@@ -64,6 +77,11 @@
       "jobs": 4
     },
     {
+      "name": "safety-core",
+      "configurePreset": "safety-core",
+      "jobs": 4
+    },
+    {
       "name": "release",
       "configurePreset": "release",
       "jobs": 4
@@ -78,6 +96,14 @@
     {
       "name": "safety",
       "configurePreset": "safety",
+      "output": {
+        "outputOnFailure": true,
+        "verbosity": "default"
+      }
+    },
+    {
+      "name": "safety-core",
+      "configurePreset": "safety-core",
       "output": {
         "outputOnFailure": true,
         "verbosity": "default"

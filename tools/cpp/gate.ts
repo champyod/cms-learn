@@ -115,8 +115,7 @@ const TEST_SUITES = [
   { suite: "db/tests", binary: "cms_db_connection_tests" },
 ];
 
-function missingSuites(root: string): string {
-  const build = join(root, "build/safety");
+function missingSuites(build: string): string {
   const absent = TEST_SUITES.filter((entry) => !existsSync(join(build, entry.suite, entry.binary))).map(
     (entry) => `${entry.suite} (${entry.binary})`,
   );
@@ -130,6 +129,10 @@ function isLiveDatabaseConfigured(): boolean {
 
 /** Components db/CMakeLists.txt adds only when the vcpkg tree supplies sqlpp23 and Drogon. */
 const DATABASE_COMPONENTS = ["cms::db", "cms::db_drogon"];
+
+// clang-tidy needs a clang++ compile database, which the sanitizer preset does not produce, so static
+// analysis always builds its own tree regardless of the preset the caller gated.
+const TIDY_PRESET = "tidy";
 
 interface ComponentAudit {
   /** Components the configure never added, although the vcpkg tree is present. */
@@ -177,14 +180,18 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   }
 
   const cpp = root;
-  const safety = join(root, "build/safety");
-  mkdirSync(safety, { recursive: true });
-  const traceFile = join(safety, "configure-trace.txt");
+  // Which tree the gate builds is the caller's decision, not this file's: the same verdict has to come
+  // out of a fast lane that leaves the api out and a full lane that includes it, and every step below —
+  // configure, build, ctest, the trace — must read the one preset or it reports on a tree it never built.
+  const preset = process.env.CMS_CPP_PRESET ?? "safety";
+  const build = join(root, "build", preset);
+  mkdirSync(build, { recursive: true });
+  const traceFile = join(build, "configure-trace.txt");
 
   // 1. Configure. Presets, not ad-hoc flags: this is where the sanitizer and warning set come from.
   //    The trace is how a component that a found dependency should have added is confirmed, so a
   //    dependency the tree has but the configure dropped cannot hide behind a green build.
-  const configured = run("cmake", ["--preset", "safety", `--trace-redirect=${traceFile}`], cpp);
+  const configured = run("cmake", ["--preset", preset, `--trace-redirect=${traceFile}`], cpp);
   if (configured.status !== 0) {
     report.findings.push(...parseCompilerOutput(configured.output).findings);
     report.reasons.push(`configure failed: ${rulesOf(parseCompilerOutput(configured.output)).join(", ") || "see output"}`);
@@ -204,7 +211,7 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   }
 
   // 2. Build under ASan + UBSan + -Werror.
-  const built = run("cmake", ["--build", "--preset", "safety"], cpp);
+  const built = run("cmake", ["--build", "--preset", preset], cpp);
   const buildDiagnostics = parseCompilerOutput(built.output);
   report.findings.push(...buildDiagnostics.findings);
   if (built.status !== 0 || hasFailure(buildDiagnostics)) {
@@ -214,14 +221,14 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   report.targets = (built.output.match(/Built target /g) ?? []).length;
 
   // 3. Run the cases. The examples are the specification; ctest is what turns them into a verdict.
-  const tested = run("ctest", ["--preset", "safety"], cpp);
+  const tested = run("ctest", ["--preset", preset], cpp);
   const outcome = readTestOutcome(tested.output);
   report.cases = Math.max(outcome.total - outcome.notRun.length, 0);
   report.skipped = outcome.notRun.map((entry) => entry.name);
 
   // Catch2 is looked up at configure time, so its absence leaves a green build with no case at all.
   if (outcome.total === 0) {
-    report.reasons.push(`no ctest case ran — ${missingSuites(root)}; an empty run is not a pass`);
+    report.reasons.push(`no ctest case ran — ${missingSuites(build)}; an empty run is not a pass`);
     return report;
   }
 
@@ -258,8 +265,8 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   }
 
   // 4. Static analysis over the compile database the build just produced.
-  const tidyConfigured = run("cmake", ["--preset", "tidy"], cpp);
-  const database = join(root, "build/tidy/compile_commands.json");
+  const tidyConfigured = run("cmake", ["--preset", TIDY_PRESET], cpp);
+  const database = join(root, "build", TIDY_PRESET, "compile_commands.json");
   if (tidyConfigured.status !== 0 || !existsSync(database)) {
     report.reasons.push("tidy configure produced no compile_commands.json");
     return report;
@@ -285,7 +292,7 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   // is visible and applies the same way to a human running the tool by hand.
   const tidyRun = run(
     "clang-tidy",
-    ["-p", join(root, "build/tidy"), "--config-file", join(cpp, ".clang-tidy"), ...units],
+    ["-p", join(root, "build", TIDY_PRESET), "--config-file", join(cpp, ".clang-tidy"), ...units],
     cpp,
   );
   const tidyDiagnostics = parseTidyOutput(tidyRun.output);
