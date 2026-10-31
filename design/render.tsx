@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
+import { settingsFixture } from "./catalogue.ts";
 import { homeFixture, taskFixture } from "./fixtures.ts";
 import { Home } from "./pages/home.tsx";
+import { Settings } from "./pages/settings.tsx";
 import { Task } from "./pages/task.tsx";
 import type { Mode } from "./slots.ts";
 
@@ -8,6 +10,7 @@ import type { Mode } from "./slots.ts";
 // without a generated template — or a template with no page — is a failure rather than a silent omission.
 export const pages: Record<string, (mode: Mode) => React.ReactElement> = {
   home: (mode) => <Home mode={mode} data={homeFixture} />,
+  settings: (mode) => <Settings mode={mode} data={settingsFixture} />,
   task: (mode) => <Task mode={mode} data={taskFixture} />,
 };
 

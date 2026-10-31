@@ -13,3 +13,13 @@ export const loopStart = (mode: Mode, alias: string, collection: string): string
   mode === "template" ? `{% for ${alias} in ${collection} %}` : "";
 
 export const loopEnd = (mode: Mode): string => (mode === "template" ? "{% endfor %}" : "");
+
+// A conditional, emitted as text for the same reason a loop is: the markers must sit inside the element that
+// holds the branch, never inside a wrapper of their own, or the generated template gains an element the
+// design never had.
+export const when = (mode: Mode, condition: string): string =>
+  mode === "template" ? `{% if ${condition} %}` : "";
+
+export const otherwise = (mode: Mode): string => (mode === "template" ? "{% else %}" : "");
+
+export const endWhen = (mode: Mode): string => (mode === "template" ? "{% endif %}" : "");

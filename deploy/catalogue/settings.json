@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "note": "The settings this build actually reads. The full catalogue in docs/settings.md is larger; a key enters here when code reads it, so the form never offers a setting nothing honours.",
+  "settings": [
+    { "key": "site.name", "kind": "text", "tier": "public", "default": "CMS Learn", "description_en": "Site name", "description_th": "ชื่อเว็บไซต์" },
+    { "key": "site.registration_open", "kind": "bool", "tier": "operator", "default": "false", "description_en": "Allow new accounts to sign up", "description_th": "เปิดให้สมัครบัญชีใหม่" },
+    { "key": "site.registration_domain_allowlist", "kind": "text", "tier": "operator", "default": "", "description_en": "Email domains allowed to register, comma separated", "description_th": "โดเมนอีเมลที่อนุญาตให้สมัคร คั่นด้วยจุลภาค" },
+    { "key": "site.registration_requires_approval", "kind": "bool", "tier": "operator", "default": "true", "description_en": "An operator must approve a verified account", "description_th": "ผู้ดูแลต้องอนุมัติบัญชีที่ยืนยันแล้ว" },
+    { "key": "identity.elevation_minutes", "kind": "int", "tier": "operator", "default": "10", "description_en": "Default lifetime of a time-boxed elevation", "description_th": "อายุเริ่มต้นของการยกสิทธิ์ชั่วคราว" },
+    { "key": "mail.enabled", "kind": "bool", "tier": "operator", "default": "false", "description_en": "Send verification mail", "description_th": "ส่งอีเมลยืนยัน" },
+    { "key": "mail.host", "kind": "text", "tier": "operator", "default": "", "description_en": "SMTP host", "description_th": "โฮสต์ SMTP" },
+    { "key": "mail.port", "kind": "int", "tier": "operator", "default": "587", "description_en": "SMTP port", "description_th": "พอร์ต SMTP" },
+    { "key": "mail.username", "kind": "text", "tier": "operator", "default": "", "description_en": "SMTP user", "description_th": "ผู้ใช้ SMTP" },
+    { "key": "mail.password", "kind": "text", "tier": "secret", "default": "", "description_en": "SMTP password", "description_th": "รหัสผ่าน SMTP" },
+    { "key": "mail.from_address", "kind": "text", "tier": "operator", "default": "", "description_en": "Address mail is sent from", "description_th": "ที่อยู่ผู้ส่ง" },
+    { "key": "mail.starttls", "kind": "bool", "tier": "operator", "default": "true", "description_en": "Require STARTTLS", "description_th": "บังคับใช้ STARTTLS" }
+  ]
+}
