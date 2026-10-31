@@ -116,6 +116,18 @@ finding, not a variation.
   it: the whole tree follows it, and so does any generator that emits code.
 - The rule is about operators. English prose in a comment or a message stays prose — `"a stale or
   repeated snapshot is refused"` is a sentence, not an operator.
+- **Case:** PascalCase types; snake_case functions and variables; snake_case enumerators
+  (`ErrorCode::invalid_argument`); UPPER_SNAKE constants (`SEAL_KEY_BYTES`).
+- **Predicates** take `is_` / `has_` / `should_` / `can_`; **accessors** stay bare nouns (`text()`,
+  `version()`). **Private members** end with an underscore; locals never do.
+- **Abbreviations:** spell them out. The allowlisted acronyms are `id`, `url`, `json`, `http`, `db`.
+- **Comments:** Doxygen tags — `@brief`, `@param`, `@return` — on **public declarations only**, never
+  restating what the name already says, and nothing inside a function body. A non-obvious line gets one
+  `//` WHY comment and no more.
+- **Includes:** standard library, then third-party, then this project's headers; alphabetical within a
+  group, groups separated by a blank line.
+- **No hardcoded configuration, and fail loudly.** A missing or malformed fact stops the process and
+  names every such key in one message. Never fall back to a default, and never print a secret's value.
 
 ## Invariants (do not "fix" these)
 

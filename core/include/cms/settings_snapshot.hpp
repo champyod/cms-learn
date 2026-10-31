@@ -16,10 +16,10 @@
 
 namespace cms {
 
-/// A settings value in the shape it is stored: the three types a settings row can hold.
+/// @brief A settings value in the shape it is stored: the three types a settings row can hold.
 using SettingValue = std::variant<bool, std::int64_t, std::string>;
 
-/// An immutable view of every settings row.
+/// @brief An immutable view of every settings row.
 ///
 /// std::less<> makes the lookup heterogeneous, so reading a setting by string_view neither allocates
 /// nor copies. The map is immutable once published, which is what makes handing a pointer into it to
@@ -28,13 +28,17 @@ struct SettingsSnapshot {
   std::int64_t version{0};
   std::map<std::string, SettingValue, std::less<>> values;
 
+  /// @brief The value for @p key, or nullptr when the key is absent.
   [[nodiscard]] const SettingValue* find(std::string_view key) const noexcept {
     const auto it = values.find(key);
     return it == values.end() ? nullptr : &it->second;
   }
 };
 
-/// Reads a setting as one concrete type, or nothing when the key is absent or holds another type.
+/// @brief Reads a setting as one concrete type.
+/// @param snapshot The snapshot to read.
+/// @param key The setting's key.
+/// @return The value, or nothing when the key is absent or holds another type.
 template <class T>
 [[nodiscard]] std::optional<T> setting_value(const SettingsSnapshot& snapshot,
                                              std::string_view key) {
@@ -49,7 +53,7 @@ template <class T>
   return *typed;
 }
 
-/// Holds the current snapshot behind a single atomic pointer.
+/// @brief Holds the current snapshot behind a single atomic pointer.
 ///
 /// The hot path is one atomic load: no lock, no query, no allocation. A reload builds a new snapshot
 /// and swaps it, which is what lets a policy change take effect without restarting a process. The
@@ -57,14 +61,17 @@ template <class T>
 /// reconnects receives the notifications it missed in whatever order the database delivers them.
 class SettingsStore {
  public:
+  /// @brief Starts with @p initial as the published snapshot.
   explicit SettingsStore(std::shared_ptr<const SettingsSnapshot> initial) noexcept
       : current_(std::move(initial)) {}
 
+  /// @brief The snapshot a reader should use now.
   [[nodiscard]] std::shared_ptr<const SettingsSnapshot> load() const noexcept {
     return current_.load(std::memory_order_acquire);
   }
 
-  /// Installs a newer snapshot and reports whether it was installed.
+  /// @brief Installs @p next when it is newer than the current snapshot.
+  /// @return Whether it was installed.
   bool publish(const std::shared_ptr<const SettingsSnapshot>& next) noexcept {
     if (!next) {
       return false;
@@ -79,6 +86,7 @@ class SettingsStore {
     return false;
   }
 
+  /// @brief The version of the published snapshot, or zero when none is loaded.
   [[nodiscard]] std::int64_t version() const noexcept {
     const std::shared_ptr<const SettingsSnapshot> snapshot = load();
     return snapshot == nullptr ? 0 : snapshot->version;

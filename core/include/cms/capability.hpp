@@ -8,7 +8,7 @@
 
 namespace cms {
 
-/// One authority the core can exercise.
+/// @brief One authority the core can exercise.
 ///
 /// The enumeration is closed on purpose. A role is a row, so an operator can be granted a capability
 /// that exists here and can never create one that does not; the mask stays diffable, and no wildcard
@@ -33,6 +33,7 @@ enum class Capability : std::uint8_t {
 inline constexpr std::size_t k_capability_count = 14;
 static_assert(k_capability_count <= 64U, "a std::uint64_t mask cannot hold this many capabilities");
 
+/// @brief A capability paired with the string every other surface spells it with.
 struct CapabilityName {
   Capability capability;
   std::string_view name;
@@ -40,9 +41,10 @@ struct CapabilityName {
   friend constexpr bool operator==(const CapabilityName&, const CapabilityName&) = default;
 };
 
-/// The spelling every other surface uses for a capability: the database, the control socket and the
-/// audit log all carry this string. Order is asserted in the core tests, so a name can never point at
-/// the wrong bit after an entry is inserted.
+/// @brief The spelling every other surface uses for a capability.
+///
+/// The database, the control socket and the audit log all carry this string. Order is asserted in the
+/// core tests, so a name can never point at the wrong bit after an entry is inserted.
 inline constexpr std::array<CapabilityName, k_capability_count> k_capability_names{{
     {Capability::content_read, "content:read"},
     {Capability::content_write, "content:write"},
@@ -60,8 +62,11 @@ inline constexpr std::array<CapabilityName, k_capability_count> k_capability_nam
     {Capability::schema_apply, "schema:apply"},
 }};
 
-/// The registered name of a capability, or an empty view when the value did not come from the
-/// enumeration. Callers treat empty as "deny": an unrecognised value must never widen authority.
+/// @brief The registered name of a capability.
+/// @param capability The value to spell.
+/// @return The name, or an empty view when the value did not come from the enumeration.
+///
+/// Callers treat empty as "deny": an unrecognised value must never widen authority.
 [[nodiscard]] constexpr std::string_view capability_name(Capability capability) noexcept {
   for (const auto& entry : k_capability_names) {
     if (entry.capability == capability) {
@@ -71,7 +76,9 @@ inline constexpr std::array<CapabilityName, k_capability_count> k_capability_nam
   return {};
 }
 
-/// The inverse of capability_name, used when a role row or a control-socket request is read.
+/// @brief The inverse of capability_name.
+/// @param name The string a role row or a control-socket request carried.
+/// @return The capability, or nothing when the name is not registered.
 [[nodiscard]] constexpr std::optional<Capability> capability_from_name(
     std::string_view name) noexcept {
   for (const auto& entry : k_capability_names) {
@@ -82,19 +89,25 @@ inline constexpr std::array<CapabilityName, k_capability_count> k_capability_nam
   return std::nullopt;
 }
 
-/// A set of capabilities. Every check is one AND against a value the request already holds, so an
-/// authorisation decision never costs a query and never branches on a role name.
+/// @brief A set of capabilities.
+///
+/// Every check is one AND against a value the request already holds, so an authorisation decision
+/// never costs a query and never branches on a role name.
 class CapabilitySet {
  public:
   constexpr CapabilitySet() noexcept = default;
 
+  /// @brief Whether this set carries @p capability.
   [[nodiscard]] constexpr bool has(Capability capability) const noexcept {
     return (bits_ & bit_of(capability)) != 0;
   }
 
+  /// @brief Adds @p capability to the set.
   constexpr void grant(Capability capability) noexcept { bits_ |= bit_of(capability); }
+  /// @brief Removes @p capability from the set.
   constexpr void revoke(Capability capability) noexcept { bits_ &= ~bit_of(capability); }
 
+  /// @brief The raw mask, as it is stored and carried on the wire.
   [[nodiscard]] constexpr std::uint64_t bits() const noexcept { return bits_; }
 
   friend constexpr bool operator==(const CapabilitySet&, const CapabilitySet&) noexcept = default;
@@ -107,6 +120,9 @@ class CapabilitySet {
   std::uint64_t bits_{0};
 };
 
+/// @brief Rebuilds a set from a stored mask, ignoring bits the enumeration does not define.
+/// @param bits The mask as it was stored.
+/// @return The set the mask describes.
 [[nodiscard]] constexpr CapabilitySet capability_set_from_bits(std::uint64_t bits) noexcept {
   CapabilitySet set;
   for (const auto& entry : k_capability_names) {
@@ -117,8 +133,11 @@ class CapabilitySet {
   return set;
 }
 
-/// Every capability that exists. The system principal holds exactly this set and nothing more, so
-/// "root can do anything" is answerable by reading the enumeration rather than by trusting a rule.
+/// @brief Every capability that exists.
+/// @return A set holding all of them.
+///
+/// The system principal holds exactly this set and nothing more, so "root can do anything" is
+/// answerable by reading the enumeration rather than by trusting a rule.
 [[nodiscard]] constexpr CapabilitySet all_capabilities() noexcept {
   CapabilitySet set;
   for (const auto& entry : k_capability_names) {

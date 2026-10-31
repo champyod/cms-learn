@@ -17,12 +17,13 @@
 
 namespace cms::db {
 
-/// The value type sqlpp23's result row carries for a `timestamp` column.
+/// @brief The value type sqlpp23's result row carries for a `timestamp` column.
 using timestamp = std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds>;
 
-/// One positional parameter, still typed: the driver turns it into text only when it binds it.
+/// @brief One positional parameter, still typed: the driver turns it into text only when it binds it.
 using bound_value = std::variant<std::nullptr_t, bool, std::int64_t, std::string, timestamp>;
 
+/// @brief A statement rendered to PostgreSQL text plus its parameters, in binding order.
 struct serialized_statement {
   std::string sql;
   std::vector<bound_value> parameters;
@@ -135,28 +136,36 @@ inline auto read_field(result& rows, std::size_t field_index, timestamp& value) 
   value = rows.stamp(field_index);
 }
 
+/// @brief The pool a connection borrows from: the only thing it needs from Drogon.
 struct connection_config {
   std::shared_ptr<::drogon::orm::DbClient> client;
 };
 
-/// Owns the pool Drogon handed out and is the only thing sqlpp23 reaches the server through.
+/// @brief Owns the pool Drogon handed out and is the only thing sqlpp23 reaches the server through.
 class connection_handle {
  public:
   connection_handle() = default;
   explicit connection_handle(const std::shared_ptr<const connection_config>& config);
 
+  /// @brief Whether a usable client was supplied.
   [[nodiscard]] auto is_connected() const noexcept -> bool { return client_ != nullptr; }
+  /// @brief Asks the server for a trivial query and reports whether it answered.
   [[nodiscard]] auto ping_server() const noexcept -> bool;
+  /// @brief The pool, or an exception when none was configured.
   [[nodiscard]] auto client() const -> ::drogon::orm::DbClient&;
 
  private:
   std::shared_ptr<::drogon::orm::DbClient> client_;
 };
 
-/// Runs one statement and hands back the driver's rows, which outlive every view into them.
+/// @brief Runs one statement and hands back the driver's rows.
+/// @param handle The connection to run on.
+/// @param statement The rendered SQL and its parameters, in order.
+/// @return The driver's rows, which outlive every view into them.
 [[nodiscard]] auto run(const connection_handle& handle, const serialized_statement& statement)
     -> ::drogon::orm::Result;
 
+/// @brief The sqlpp23 connection this project supplies: CRTP over the handle, not a virtual interface.
 class connection_base : public ::sqlpp::connection {
  public:
   using _config_t = connection_config;
