@@ -11,6 +11,13 @@ if(Catch2_FOUND)
   include(Catch)
   catch_discover_tests(cms_api_config_tests)
 
+  add_executable(cms_api_accounts_tests accounts_test.cpp)
+  target_link_libraries(cms_api_accounts_tests PRIVATE cms::api_accounts Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_api_accounts_tests PRIVATE)
+  cms_apply_hardening(cms_api_accounts_tests)
+  cms_apply_sanitizers(cms_api_accounts_tests)
+  catch_discover_tests(cms_api_accounts_tests)
+
   add_executable(cms_api_mail_tests mailer_test.cpp)
   target_link_libraries(cms_api_mail_tests PRIVATE cms::api_mail Catch2::Catch2WithMain)
   cms_apply_warnings(cms_api_mail_tests PRIVATE)

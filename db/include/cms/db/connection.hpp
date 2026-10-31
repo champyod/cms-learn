@@ -20,6 +20,9 @@ namespace cms::db {
 /// @brief The value type sqlpp23's result row carries for a `timestamp` column.
 using timestamp = std::chrono::time_point<std::chrono::system_clock, std::chrono::microseconds>;
 
+/// @brief Renders a timestamp as PostgreSQL text with an explicit UTC offset.
+[[nodiscard]] auto format_timestamp(timestamp value) -> std::string;
+
 /// @brief One positional parameter, still typed: the driver turns it into text only when it binds it.
 using bound_value = std::variant<std::nullptr_t, bool, std::int64_t, std::string, timestamp>;
 
@@ -80,6 +83,16 @@ template <typename Bindings, typename DataType, typename NameTag>
 [[nodiscard]] auto to_sql_string(context<Bindings>& target,
                                  const ::sqlpp::parameter_t<DataType, NameTag>& parameter) -> std::string {
   return target.bind(parameter);
+}
+
+/// @brief Renders a timestamp literal with its offset.
+///
+/// Without this the serializer writes a bare wall clock and Postgres reads it in the session timezone,
+/// which moves the instant by the server's UTC offset — the bug that made a session expire before it
+/// was created.
+template <typename Bindings>
+auto to_sql_string(context<Bindings>&, const timestamp& value) -> std::string {
+  return "'" + format_timestamp(value) + "'";
 }
 
 /// Every parameter of a statement, addressed by the name its statement declared it with.

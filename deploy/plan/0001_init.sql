@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS principals (
     kind principal_kind NOT NULL,
     handle text NOT NULL,
     email text,
+    email_verified_at timestamptz,
     password_hash text,
     status principal_status NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL,

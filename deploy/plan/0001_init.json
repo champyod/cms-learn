@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "pgschema_version": "1.13.4",
-  "created_at": "2026-10-31T17:45:40+07:00",
+  "created_at": "2026-10-31T18:27:37+07:00",
   "source_fingerprint": {
     "hash": "965b1131737c955e24c7f827c55bd78e4cb49a75adfd04229e0ba297376f5085"
   },
@@ -57,7 +57,7 @@
           "path": "default_privileges.postgres.SEQUENCES.cmslearn_app"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS principals (\n    id uuid DEFAULT gen_random_uuid(),\n    kind principal_kind NOT NULL,\n    handle text NOT NULL,\n    email text,\n    password_hash text,\n    status principal_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principals_pkey PRIMARY KEY (id),\n    CONSTRAINT principals_email_key UNIQUE (email),\n    CONSTRAINT principals_handle_key UNIQUE (handle),\n    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),\n    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),\n    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS principals (\n    id uuid DEFAULT gen_random_uuid(),\n    kind principal_kind NOT NULL,\n    handle text NOT NULL,\n    email text,\n    email_verified_at timestamptz,\n    password_hash text,\n    status principal_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principals_pkey PRIMARY KEY (id),\n    CONSTRAINT principals_email_key UNIQUE (email),\n    CONSTRAINT principals_handle_key UNIQUE (handle),\n    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),\n    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),\n    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.principals"

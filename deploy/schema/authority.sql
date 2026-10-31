@@ -3,6 +3,7 @@ CREATE TABLE principals (
   kind principal_kind NOT NULL,
   handle text NOT NULL UNIQUE,
   email text UNIQUE,
+  email_verified_at timestamptz,
   password_hash text,
   status principal_status NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),

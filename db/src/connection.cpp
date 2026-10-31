@@ -132,26 +132,6 @@ auto parse_timestamp(std::string_view text) -> timestamp {
          timestamp::duration{micros};
 }
 
-auto format_timestamp(timestamp value) -> std::string {
-  const auto micros = value.time_since_epoch().count();
-  auto seconds = micros / MICROS_PER_SECOND;
-  auto fraction = micros % MICROS_PER_SECOND;
-  if (fraction < 0) {
-    fraction += MICROS_PER_SECOND;
-    --seconds;
-  }
-  auto days = seconds / SECONDS_PER_DAY;
-  auto second_of_day = seconds % SECONDS_PER_DAY;
-  if (second_of_day < 0) {
-    second_of_day += SECONDS_PER_DAY;
-    --days;
-  }
-  const auto date = std::chrono::year_month_day{std::chrono::sys_days{std::chrono::days{days}}};
-  return std::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}+00", static_cast<int>(date.year()),
-                     static_cast<unsigned>(date.month()), static_cast<unsigned>(date.day()),
-                     second_of_day / SECONDS_PER_HOUR,
-                     (second_of_day % SECONDS_PER_HOUR) / 60, second_of_day % 60, fraction);
-}
 
 auto driver_text(const bound_value& value) -> std::optional<std::string> {
   return std::visit(
@@ -184,6 +164,27 @@ auto require_value(const ::drogon::orm::Field& field) -> ::drogon::orm::Field {
 }
 
 }  // namespace
+
+auto format_timestamp(timestamp value) -> std::string {
+  const auto micros = value.time_since_epoch().count();
+  auto seconds = micros / MICROS_PER_SECOND;
+  auto fraction = micros % MICROS_PER_SECOND;
+  if (fraction < 0) {
+    fraction += MICROS_PER_SECOND;
+    --seconds;
+  }
+  auto days = seconds / SECONDS_PER_DAY;
+  auto second_of_day = seconds % SECONDS_PER_DAY;
+  if (second_of_day < 0) {
+    second_of_day += SECONDS_PER_DAY;
+    --days;
+  }
+  const auto date = std::chrono::year_month_day{std::chrono::sys_days{std::chrono::days{days}}};
+  return std::format("{:04}-{:02}-{:02} {:02}:{:02}:{:02}.{:06}+00", static_cast<int>(date.year()),
+                     static_cast<unsigned>(date.month()), static_cast<unsigned>(date.day()),
+                     second_of_day / SECONDS_PER_HOUR,
+                     (second_of_day % SECONDS_PER_HOUR) / 60, second_of_day % 60, fraction);
+}
 
 result::result(::drogon::orm::Result rows) : rows_(std::move(rows)), row_count_(rows_.size()) {}
 

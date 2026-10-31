@@ -198,6 +198,11 @@ struct Principals_ {
     using data_type = std::optional<::sqlpp::text>;
     using has_default = std::true_type;
   };
+  struct EmailVerifiedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(email_verified_at, emailVerifiedAt);
+    using data_type = std::optional<::sqlpp::timestamp>;
+    using has_default = std::true_type;
+  };
   struct PasswordHash {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(password_hash, passwordHash);
     using data_type = std::optional<::sqlpp::text>;
@@ -216,7 +221,7 @@ struct Principals_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(principals, principals);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, Kind, Handle, Email, PasswordHash, Status, CreatedAt>;
+      sqlpp::table_columns<T, Id, Kind, Handle, Email, EmailVerifiedAt, PasswordHash, Status, CreatedAt>;
   using _required_insert_columns = sqlpp::detail::type_set<Kind, Handle, Status>;
 };
 
