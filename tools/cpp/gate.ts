@@ -9,7 +9,7 @@
 // It never decides whether C++ is correct; it reads what the toolchain said and refuses to soften it.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import {
@@ -26,6 +26,8 @@ export interface GateReport {
   targets: number;
   /** ctest cases that ran and passed. */
   cases: number;
+  /** ctest cases that did not run, by name — a skip is never counted as a pass. */
+  skipped: string[];
   /** Translation units clang-tidy analysed. */
   analysed: number;
   findings: Finding[];
@@ -75,10 +77,86 @@ export function cppSources(root: string): string[] {
   return found.sort();
 }
 
-function countTests(root: string): number {
-  const listed = run("ctest", ["--preset", "safety", "-N"], root);
-  const total = /Total Tests:\s*(\d+)/.exec(listed.output);
-  return total ? Number(total[1]) : 0;
+interface TestOutcome {
+  /** Cases ctest registered in this build tree. */
+  total: number;
+  /** Cases that did not run, with the status ctest gave them. */
+  notRun: { name: string; status: string }[];
+}
+
+const NOT_RUN_STATUSES = new Set(["Skipped", "Disabled", "Not Run"]);
+
+// ctest names the cases it did not run in a trailing section and marks each of them in the per-case
+// listing; both are read because a disabled case appears only in the listing.
+const NOT_RUN_LINE = /^\s*\d+ - (.+?) \((\w[\w ]*)\)[ \t]*$/gm;
+const NOT_RUN_CASE_LINE = /^\s*\d+\/\d+ Test\s+#\d+:\s+(.+?)[ \t.]+\*\*\*([\w][\w ]*)/gm;
+
+function readTestOutcome(output: string): TestOutcome {
+  const total = Number(/out of (\d+)/.exec(output)?.[1] ?? 0);
+  const notRun = new Map<string, string>();
+
+  const summaryAt = output.indexOf("The following tests did not run:");
+  if (summaryAt >= 0) {
+    for (const match of output.slice(summaryAt).matchAll(NOT_RUN_LINE)) {
+      notRun.set(match[1], match[2]);
+    }
+  }
+  for (const match of output.matchAll(NOT_RUN_CASE_LINE)) {
+    if (NOT_RUN_STATUSES.has(match[2])) notRun.set(match[1], match[2]);
+  }
+
+  return { total, notRun: [...notRun].map(([name, status]) => ({ name, status })) };
+}
+
+/** The test binaries a configured test directory has to leave behind. */
+const TEST_SUITES = [
+  { suite: "core/tests", binary: "cms_core_tests" },
+  { suite: "db/tests", binary: "cms_db_tests" },
+  { suite: "db/tests", binary: "cms_db_connection_tests" },
+];
+
+function missingSuites(root: string): string {
+  const build = join(root, "build/safety");
+  const absent = TEST_SUITES.filter((entry) => !existsSync(join(build, entry.suite, entry.binary))).map(
+    (entry) => `${entry.suite} (${entry.binary})`,
+  );
+  return absent.length > 0 ? `no test binary under ${absent.join(", ")}` : "the test suites registered no case";
+}
+
+/** The live database is the only dependency a case is allowed to be missing. */
+function isLiveDatabaseConfigured(): boolean {
+  return (process.env.CMSLEAN_TEST_DSN ?? "") !== "";
+}
+
+/** Components db/CMakeLists.txt adds only when the vcpkg tree supplies sqlpp23 and Drogon. */
+const DATABASE_COMPONENTS = ["cms::db", "cms::db_drogon"];
+
+interface ComponentAudit {
+  /** Components the configure never added, although the vcpkg tree is present. */
+  missing: string[];
+  /** False when the configure left no trace to read, so the components cannot be confirmed. */
+  traced: boolean;
+}
+
+/** The same tree tools/check-scaffold.sh treats as "dependencies installed". */
+function hasInstalledDependencies(root: string): boolean {
+  return ["build/vcpkg_installed", "vcpkg_installed"].some((prefix) => {
+    const dir = join(root, prefix);
+    if (!existsSync(dir)) return false;
+    return readdirSync(dir, { withFileTypes: true }).some(
+      (entry) => entry.isDirectory() && existsSync(join(dir, entry.name, "include")),
+    );
+  });
+}
+
+function auditDatabaseComponents(root: string, traceFile: string): ComponentAudit {
+  if (!hasInstalledDependencies(root)) return { missing: [], traced: true };
+  if (!existsSync(traceFile)) return { missing: [], traced: false };
+  const trace = readFileSync(traceFile, "utf8");
+  return {
+    missing: DATABASE_COMPONENTS.filter((name) => !trace.includes(`add_library(${name} `)),
+    traced: true,
+  };
 }
 
 export function runGate(root: string, options: { tidy?: boolean } = {}): GateReport {
@@ -87,6 +165,7 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
     ok: false,
     targets: 0,
     cases: 0,
+    skipped: [],
     analysed: 0,
     findings: [],
     reasons: [],
@@ -98,12 +177,29 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   }
 
   const cpp = root;
+  const safety = join(root, "build/safety");
+  mkdirSync(safety, { recursive: true });
+  const traceFile = join(safety, "configure-trace.txt");
 
   // 1. Configure. Presets, not ad-hoc flags: this is where the sanitizer and warning set come from.
-  const configured = run("cmake", ["--preset", "safety"], cpp);
+  //    The trace is how a component that a found dependency should have added is confirmed, so a
+  //    dependency the tree has but the configure dropped cannot hide behind a green build.
+  const configured = run("cmake", ["--preset", "safety", `--trace-redirect=${traceFile}`], cpp);
   if (configured.status !== 0) {
     report.findings.push(...parseCompilerOutput(configured.output).findings);
     report.reasons.push(`configure failed: ${rulesOf(parseCompilerOutput(configured.output)).join(", ") || "see output"}`);
+    return report;
+  }
+
+  const components = auditDatabaseComponents(root, traceFile);
+  if (!components.traced) {
+    report.reasons.push("the configure wrote no trace, so the database components cannot be confirmed");
+    return report;
+  }
+  if (components.missing.length > 0) {
+    report.reasons.push(
+      `database component(s) missing from the configure although the vcpkg tree is present: ${components.missing.join(", ")}`,
+    );
     return report;
   }
 
@@ -118,8 +214,17 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   report.targets = (built.output.match(/Built target /g) ?? []).length;
 
   // 3. Run the cases. The examples are the specification; ctest is what turns them into a verdict.
-  report.cases = countTests(root);
   const tested = run("ctest", ["--preset", "safety"], cpp);
+  const outcome = readTestOutcome(tested.output);
+  report.cases = Math.max(outcome.total - outcome.notRun.length, 0);
+  report.skipped = outcome.notRun.map((entry) => entry.name);
+
+  // Catch2 is looked up at configure time, so its absence leaves a green build with no case at all.
+  if (outcome.total === 0) {
+    report.reasons.push(`no ctest case ran — ${missingSuites(root)}; an empty run is not a pass`);
+    return report;
+  }
+
   if (tested.status !== 0) {
     const failed = [...tested.output.matchAll(/^\s*\d+\s+-\s+(\S+)/gm)].map((m) => m[1]);
     const detail = failed.length > 0 ? failed.slice(0, 3).join(", ") : "see output";
@@ -130,6 +235,20 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
       tested.output,
     );
     if (crash) report.reasons.push(`sanitizer: ${crash[0].trim()}`);
+    return report;
+  }
+
+  // The live database is the one dependency a case may be missing; anything else that stops a case
+  // from running — a disabled case, a guard that fired with the database configured — is a failure.
+  const liveDatabase = isLiveDatabaseConfigured();
+  const unexplained = outcome.notRun.filter((entry) => entry.status !== "Skipped" || liveDatabase);
+  if (unexplained.length > 0) {
+    const names = unexplained.map((entry) => `${entry.name} (${entry.status})`).join(", ");
+    report.reasons.push(
+      liveDatabase
+        ? `case(s) skipped although CMSLEAN_TEST_DSN is set: ${names}`
+        : `case(s) disabled rather than run: ${names}`,
+    );
     return report;
   }
 
@@ -208,7 +327,15 @@ function format(report: GateReport, root: string): string {
   // versions, so "green on 23" and "green on 18" are different claims. Printing the versions makes that
   // difference visible in the log instead of mysterious.
   const versions = `${toolVersion(root, ["g++", "--version"])} / ${toolVersion(root, ["clang++", "--version"])} / ${toolVersion(root, ["clang-tidy", "--version"])}`;
-  const head = `cpp gate — ${parts.join(" · ")}\n           ${versions}`;
+  // A skipped case is printed by name on every run: a partial run that looks exactly like a full one is
+  // how a live suite stops being exercised without anyone noticing.
+  const skip =
+    report.skipped.length === 0
+      ? []
+      : [
+          `           skipped: ${report.skipped.join(", ")}${isLiveDatabaseConfigured() ? "" : " (CMSLEAN_TEST_DSN is not set)"}`,
+        ];
+  const head = `cpp gate — ${parts.join(" · ")}\n${[...skip, `           ${versions}`].join("\n")}`;
   if (report.ok) return head;
 
   const lines = [head];

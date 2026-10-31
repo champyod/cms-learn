@@ -29,7 +29,7 @@ struct serialized_statement {
 };
 
 template <typename T>
-auto make_bound_value(const T& value) -> bound_value {
+[[nodiscard]] auto make_bound_value(const T& value) -> bound_value {
   if constexpr (requires { value.has_value(); }) {
     if (not value.has_value()) {
       return nullptr;
@@ -76,8 +76,8 @@ class context {
 };
 
 template <typename Bindings, typename DataType, typename NameTag>
-auto to_sql_string(context<Bindings>& target,
-                   const ::sqlpp::parameter_t<DataType, NameTag>& parameter) -> std::string {
+[[nodiscard]] auto to_sql_string(context<Bindings>& target,
+                                 const ::sqlpp::parameter_t<DataType, NameTag>& parameter) -> std::string {
   return target.bind(parameter);
 }
 
@@ -106,11 +106,11 @@ class result {
     bridge.validate(row);
   }
 
-  auto get_is_null(std::size_t field_index) const -> bool;
-  auto text(std::size_t field_index) const -> std::string_view;
-  auto integral(std::size_t field_index) const -> std::int64_t;
-  auto boolean(std::size_t field_index) const -> bool;
-  auto stamp(std::size_t field_index) const -> timestamp;
+  [[nodiscard]] auto get_is_null(std::size_t field_index) const -> bool;
+  [[nodiscard]] auto text(std::size_t field_index) const -> std::string_view;
+  [[nodiscard]] auto integral(std::size_t field_index) const -> std::int64_t;
+  [[nodiscard]] auto boolean(std::size_t field_index) const -> bool;
+  [[nodiscard]] auto stamp(std::size_t field_index) const -> timestamp;
 
  private:
   ::drogon::orm::Result rows_{nullptr};
@@ -145,16 +145,16 @@ class connection_handle {
   connection_handle() = default;
   explicit connection_handle(std::shared_ptr<const connection_config> config);
 
-  auto is_connected() const -> bool { return client_ != nullptr; }
-  auto ping_server() const -> bool;
-  auto client() const -> ::drogon::orm::DbClient&;
+  [[nodiscard]] auto is_connected() const noexcept -> bool { return client_ != nullptr; }
+  [[nodiscard]] auto ping_server() const noexcept -> bool;
+  [[nodiscard]] auto client() const -> ::drogon::orm::DbClient&;
 
  private:
   std::shared_ptr<::drogon::orm::DbClient> client_;
 };
 
 /// Runs one statement and hands back the driver's rows, which outlive every view into them.
-auto run(const connection_handle& handle, const serialized_statement& statement)
+[[nodiscard]] auto run(const connection_handle& handle, const serialized_statement& statement)
     -> ::drogon::orm::Result;
 
 class connection_base : public ::sqlpp::connection {
@@ -173,7 +173,7 @@ class connection_base : public ::sqlpp::connection {
 
   /// Runs a select whose parameters the caller filled by name in `bindings_for(statement)`.
   template <typename Statement, typename Bindings>
-  auto select(Statement&& statement, const Bindings& bindings)
+  [[nodiscard]] auto select(Statement&& statement, const Bindings& bindings)
       -> ::sqlpp::result_t<result, ::sqlpp::get_result_row_t<std::decay_t<Statement>>> {
     return ::sqlpp::result_t<result, ::sqlpp::get_result_row_t<std::decay_t<Statement>>>{
         rows_of(std::forward<Statement>(statement), bindings)};
@@ -188,7 +188,7 @@ class connection_base : public ::sqlpp::connection {
   }
 
   template <typename Statement, typename Bindings>
-  auto execute(Statement&& statement, const Bindings& bindings) -> std::size_t {
+  [[nodiscard]] auto execute(Statement&& statement, const Bindings& bindings) -> std::size_t {
     return run(_handle, serialize(statement, bindings)).affectedRows();
   }
 

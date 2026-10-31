@@ -158,3 +158,18 @@ TEST_CASE("a seeded row round-trips through the connector", "[db][connection][li
                                                                               sqlpp::value(1), "");
   CHECK_NOTHROW(db(probe));
 }
+
+TEST_CASE("a statement against a table that does not exist throws", "[db][connection][live]") {
+  const auto* dsn = std::getenv("CMSLEAN_TEST_DSN");
+  if (dsn == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  const auto client = ::drogon::orm::DbClient::newPgClient(dsn, 1);
+  const auto config =
+      std::make_shared<const cms::db::connection_config>(cms::db::connection_config{client});
+  const auto handle = cms::db::connection_handle{config};
+
+  CHECK_THROWS((void)cms::db::run(
+      handle, cms::db::serialized_statement{"SELECT 1 FROM cms_gate_missing_table", {}}));
+}

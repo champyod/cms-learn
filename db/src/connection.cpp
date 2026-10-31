@@ -217,7 +217,7 @@ auto connection_handle::client() const -> ::drogon::orm::DbClient& {
   return *client_;
 }
 
-auto connection_handle::ping_server() const -> bool {
+auto connection_handle::ping_server() const noexcept -> bool {
   try {
     return not run(*this, serialized_statement{"SELECT 1", {}}).empty();
   } catch (const std::exception&) {
@@ -237,11 +237,17 @@ auto run(const connection_handle& handle, const serialized_statement& statement)
     }
   }
 
-  auto rows = ::drogon::orm::Result{nullptr};
+  // The driver reports a failed statement by throwing from exec(); a callback that never ran leaves no
+  // result at all, and result::result would dereference it when it asks for the row count.
+  auto received = std::optional<::drogon::orm::Result>{};
   binder << ::drogon::orm::Mode::Blocking;
-  binder >> [&rows](const ::drogon::orm::Result& received) { rows = received; };
+  binder >> [&received](const ::drogon::orm::Result& result) { received = result; };
   binder.exec();
-  return rows;
+  if (not received.has_value()) {
+    throw ::sqlpp::exception{
+        std::format("statement \"{}\" returned no result from the driver", statement.sql)};
+  }
+  return std::move(*received);
 }
 
 }  // namespace cms::db
