@@ -3,13 +3,13 @@
 # The build stage pins the vcpkg checkout to the baseline the manifest names, so an image built next
 # year resolves the same ports this commit resolved rather than whatever master happens to hold.
 
-FROM debian:trixie-slim AS build
+FROM gcc:16.2.0-trixie AS build
 
 ARG VCPKG_BASELINE=ab9a05e70421507222d83861ac1a31be7e4272d4
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      build-essential cmake ninja-build git curl ca-certificates zip unzip tar pkg-config \
+      cmake ninja-build git curl ca-certificates zip unzip tar pkg-config \
  && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --filter=blob:none https://github.com/microsoft/vcpkg /vcpkg \

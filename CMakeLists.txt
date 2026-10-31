@@ -10,6 +10,11 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(ProjectSettings)
 include(Sanitizers)
 
+# The runtime stage's libstdc++6 is GCC 14's, so a dynamically linked GCC-16 binary would fail on GLIBCXX versions.
+if(NOT CMS_LEARN_SANITIZE)
+  add_link_options(-static-libstdc++ -static-libgcc)
+endif()
+
 enable_testing()
 
 option(CMS_WITH_API "Build the HTTP service (Drogon, Inja)" OFF)
