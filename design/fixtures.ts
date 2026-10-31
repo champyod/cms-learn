@@ -28,6 +28,40 @@ export interface PageFixture {
   tracks: TrackFixture[];
 }
 
+export interface TaskFixture {
+  site_name: string;
+  task_id: string;
+  title: string;
+  limit_label: string;
+  time_ms: number;
+  memory_mb: number;
+  statement: string;
+  example_label: string;
+  example_input: string;
+  example_output: string;
+  source_label: string;
+  submit_label: string;
+  starter_source: string;
+  verdict_pending: string;
+}
+
+export const taskFixture: TaskFixture = {
+  site_name: "CMS Learn",
+  task_id: "range-sum-query",
+  title: "ผลรวมของช่วงข้อมูล",
+  limit_label: "ขีดจำกัด",
+  time_ms: 1000,
+  memory_mb: 256,
+  statement: "<p>ให้ลำดับตัวเลขและคำถามหลายข้อ จงตอบผลรวมของแต่ละช่วง</p>",
+  example_label: "ตัวอย่าง",
+  example_input: "3 2\n1 2 3\n1 2\n2 3\n",
+  example_output: "3\n5\n",
+  source_label: "โค้ดของคุณ",
+  submit_label: "ส่งคำตอบ",
+  starter_source: "#include <iostream>\nint main() { return 0; }\n",
+  verdict_pending: "ยังไม่มีผลการตรวจ",
+};
+
 export const homeFixture: PageFixture = {
   site_name: "CMS Learn",
   heading: "หลักสูตร",
