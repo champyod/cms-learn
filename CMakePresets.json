@@ -14,7 +14,8 @@
         "VCPKG_MANIFEST_DIR": "${sourceDir}/api",
         "VCPKG_INSTALLED_DIR": "${sourceDir}/build/vcpkg_installed",
         "VCPKG_MANIFEST_FEATURES": "tests",
-        "CMS_WITH_API": "ON"
+        "CMS_WITH_API": "ON",
+        "CMS_WITH_JUDGE": "ON"
       }
     },
     {
