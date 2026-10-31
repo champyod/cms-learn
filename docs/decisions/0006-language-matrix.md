@@ -111,7 +111,7 @@ section is the reason it would be changed rather than guessed at.
 
 | Claim | How it will be proven | State |
 |---|---|---|
-| C++ path is memory-safe enough to be exposed | `bun run check:cpp` — CMake presets + ctest + clang-tidy, falsified per layer (use-after-free, signed overflow, stack overflow, warning-as-error, static-analysis-only) | gate exists and is falsified 7/7; no api code yet |
+| C++ path is memory-safe enough to be exposed | `bun run check:cpp` — CMake presets + ctest + clang-tidy, falsified per layer (use-after-free, signed overflow, stack overflow, warning-as-error, static-analysis-only) | gate exists with nine falsification cases; the api builds under it |
 | Autoescape on | test that a `<script>` in a user field renders escaped | not built |
 | No sync DB in handlers | grep gate over `api/` sources for `execSqlSync` | not built |
 | Content and runtime agree | gate calls the domain core validator; api calls the same | not built |
