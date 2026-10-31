@@ -37,3 +37,13 @@ CREATE TYPE task_checker_kind AS ENUM ('standard', 'token', 'testlib', 'interact
 CREATE TYPE task_origin_kind AS ENUM ('original', 'imported', 'ai');
 
 CREATE TYPE locale AS ENUM ('en', 'th');
+
+-- What a checker can say, in the judge's own vocabulary plus the two states the judge itself produces.
+CREATE TYPE verdict_status AS ENUM (
+  'ok',
+  'wrong_answer',
+  'wrong_format',
+  'partially_correct',
+  'failed',
+  'check_failed'
+);

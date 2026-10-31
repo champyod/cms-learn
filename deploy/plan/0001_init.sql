@@ -86,6 +86,15 @@ CREATE TYPE token_purpose AS ENUM (
     'reset_password'
 );
 
+CREATE TYPE verdict_status AS ENUM (
+    'ok',
+    'wrong_answer',
+    'wrong_format',
+    'partially_correct',
+    'failed',
+    'check_failed'
+);
+
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;
 
 CREATE TABLE IF NOT EXISTS content_seed (
@@ -330,6 +339,27 @@ CREATE TABLE IF NOT EXISTS progress (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS progress_account_task_idx ON progress (account_id, task_id, task_version);
+
+CREATE TABLE IF NOT EXISTS submissions (
+    id uuid DEFAULT gen_random_uuid(),
+    account_id uuid NOT NULL,
+    task_id text NOT NULL,
+    task_version integer NOT NULL,
+    source text NOT NULL,
+    submitted_at timestamptz DEFAULT now() NOT NULL,
+    verdict verdict_status,
+    verdict_detail text,
+    judged_at timestamptz,
+    CONSTRAINT submissions_pkey PRIMARY KEY (id),
+    CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,
+    CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT submissions_source_check CHECK (length(source) > 0),
+    CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS submissions_account_idx ON submissions (account_id, submitted_at DESC);
+
+CREATE INDEX IF NOT EXISTS submissions_unjudged_idx ON submissions (submitted_at) WHERE (verdict IS NULL);
 
 CREATE TABLE IF NOT EXISTS task_examples (
     task_id text,
@@ -630,6 +660,10 @@ GRANT SELECT ON TABLE settings_meta TO cmslearn_judge;
 GRANT INSERT, SELECT, UPDATE ON TABLE settings_plans TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE stage_tags TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE submissions TO cmslearn_app;
+
+GRANT SELECT, UPDATE ON TABLE submissions TO cmslearn_judge;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_examples TO cmslearn_app;
 

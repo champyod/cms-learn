@@ -595,6 +595,59 @@ struct StageTags_ {
   using _required_insert_columns = sqlpp::detail::type_set<TrackId, StageId, Tag>;
 };
 
+struct Submissions_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  struct AccountId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(account_id, accountId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskVersion {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_version, taskVersion);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Source {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(source, source);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct SubmittedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(submitted_at, submittedAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  struct Verdict {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(verdict, verdict);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct VerdictDetail {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(verdict_detail, verdictDetail);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct JudgedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(judged_at, judgedAt);
+    using data_type = std::optional<::sqlpp::timestamp>;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(submissions, submissions);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, AccountId, TaskId, TaskVersion, Source, SubmittedAt, Verdict, VerdictDetail, JudgedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<AccountId, TaskId, TaskVersion, Source>;
+};
+
 struct TaskExamples_ {
   struct TaskId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
@@ -896,6 +949,7 @@ using SettingsAudit = ::sqlpp::table_t<SettingsAudit_>;
 using SettingsMeta = ::sqlpp::table_t<SettingsMeta_>;
 using SettingsPlans = ::sqlpp::table_t<SettingsPlans_>;
 using StageTags = ::sqlpp::table_t<StageTags_>;
+using Submissions = ::sqlpp::table_t<Submissions_>;
 using TaskExamples = ::sqlpp::table_t<TaskExamples_>;
 using TaskStatements = ::sqlpp::table_t<TaskStatements_>;
 using TaskTopics = ::sqlpp::table_t<TaskTopics_>;
@@ -919,6 +973,7 @@ inline const SettingsAudit settingsAudit{};
 inline const SettingsMeta settingsMeta{};
 inline const SettingsPlans settingsPlans{};
 inline const StageTags stageTags{};
+inline const Submissions submissions{};
 inline const TaskExamples taskExamples{};
 inline const TaskStatements taskStatements{};
 inline const TaskTopics taskTopics{};

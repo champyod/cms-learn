@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "pgschema_version": "1.13.4",
-  "created_at": "2026-10-31T23:06:20+07:00",
+  "created_at": "2026-11-01T00:25:49+07:00",
   "source_fingerprint": {
     "hash": "965b1131737c955e24c7f827c55bd78e4cb49a75adfd04229e0ba297376f5085"
   },
@@ -85,6 +85,12 @@
           "type": "type",
           "operation": "create",
           "path": "public.token_purpose"
+        },
+        {
+          "sql": "CREATE TYPE verdict_status AS ENUM (\n    'ok',\n    'wrong_answer',\n    'wrong_format',\n    'partially_correct',\n    'failed',\n    'check_failed'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.verdict_status"
         },
         {
           "sql": "ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;",
@@ -247,6 +253,24 @@
           "type": "table.index",
           "operation": "create",
           "path": "public.progress.progress_account_task_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS submissions (\n    id uuid DEFAULT gen_random_uuid(),\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    source text NOT NULL,\n    submitted_at timestamptz DEFAULT now() NOT NULL,\n    verdict verdict_status,\n    verdict_detail text,\n    judged_at timestamptz,\n    CONSTRAINT submissions_pkey PRIMARY KEY (id),\n    CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT submissions_source_check CHECK (length(source) > 0),\n    CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL))\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.submissions"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS submissions_account_idx ON submissions (account_id, submitted_at DESC);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.submissions.submissions_account_idx"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS submissions_unjudged_idx ON submissions (submitted_at) WHERE (verdict IS NULL);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.submissions.submissions_unjudged_idx"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS task_examples (\n    task_id text,\n    task_version integer,\n    ordinal integer,\n    input text NOT NULL,\n    expected_output text NOT NULL,\n    CONSTRAINT task_examples_pkey PRIMARY KEY (task_id, task_version, ordinal),\n    CONSTRAINT task_examples_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_examples_ordinal_check CHECK (ordinal >= 1)\n);",
@@ -517,6 +541,18 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.stage_tags.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE submissions TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.submissions.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT, UPDATE ON TABLE submissions TO cmslearn_judge;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.submissions.cmslearn_judge"
         },
         {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_examples TO cmslearn_app;",

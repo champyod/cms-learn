@@ -9,4 +9,5 @@
 \i content.sql
 \i curriculum.sql
 \i progress.sql
+\i submissions.sql
 \i grants.sql

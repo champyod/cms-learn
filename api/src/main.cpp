@@ -10,9 +10,11 @@
 #include <drogon/drogon.h>
 
 #include <cms/api/admin_socket.hpp>
+#include <cms/api/form_body.hpp>
 #include <cms/api/host_config.hpp>
 #include <cms/api/settings_source.hpp>
 #include <cms/api/settings_watcher.hpp>
+#include <cms/api/submissions.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
 
@@ -56,7 +58,9 @@ auto text_response(std::string body, drogon::HttpStatusCode status = drogon::k20
   return response;
 }
 
-auto register_routes(const std::shared_ptr<cms::SettingsStore>& store) -> void {
+auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
+                     const std::shared_ptr<const cms::db::connection_config>& database_config)
+    -> void {
   auto& app = drogon::app();
 
   app.registerHandler(
@@ -78,6 +82,27 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store) -> void {
         callback(text_response(std::move(body)));
       },
       {drogon::Get});
+
+  // The task page posts here. The account comes from the session cookie, never from the body, so a client
+  // cannot submit as somebody else by editing a form field.
+  app.registerHandler(
+      "/tasks/{}/submit",
+      [database_config](const drogon::HttpRequestPtr& request,
+                        std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+                        std::string task_id) {
+        auto database = cms::db::connection{database_config};
+        const auto submitted = cms::api::submit_solution(
+            database, request->getCookie("cms_session"), task_id,
+            cms::api::form_field(request->body(), "source"));
+
+        if (!submitted) {
+          callback(text_response(submitted.error().message, drogon::k400BadRequest));
+          return;
+        }
+        callback(drogon::HttpResponse::newRedirectionResponse("/tasks/" + task_id,
+                                                             drogon::k303SeeOther));
+      },
+      {drogon::Post});
 }
 
 /// Runs the service once. Kept separate from main so an exception during startup is reported like any
@@ -100,7 +125,7 @@ auto run() -> int {
   }
 
   auto store = std::make_shared<cms::SettingsStore>(*snapshot);
-  register_routes(store);
+  register_routes(store, database_config);
 
   auto watcher = cms::api::SettingsWatcher{database, store, config->database_url,
                                            SETTINGS_POLL_SECONDS};
