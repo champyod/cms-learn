@@ -49,4 +49,16 @@ struct SignupOutcome {
                                                  std::string_view principal_id,
                                                  std::int64_t lifetime_seconds);
 
+/// @brief Creates the first system principal and the first administrator, exactly once.
+///
+/// @param database The connection; the caller owns the transaction.
+/// @param admin_email The first administrator's address, recorded as proven because an operator entered it.
+/// @param admin_handle The first administrator's handle.
+/// @return The administrator's id, or a conflict when anything already exists.
+///
+/// There is no empty-database branch: the function refuses when the database is not empty rather than
+/// choosing behaviour from a count, so running it twice is an error instead of a silent second seed.
+[[nodiscard]] Result<std::string> bootstrap(db::connection& database, std::string_view admin_email,
+                                           std::string_view admin_handle);
+
 }  // namespace cms::api

@@ -172,3 +172,18 @@ TEST_CASE("a system principal holds every capability and an unknown one holds no
   REQUIRE(!missing.has_value());
   CHECK(missing.error().code == cms::ErrorCode::not_found);
 }
+
+TEST_CASE("bootstrap runs once and then refuses", "[bootstrap][live]") {
+  if (std::getenv("CMSLEAN_TEST_DSN") == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  auto database = live_database();
+  const auto first = cms::api::bootstrap(database, "operator@example.org", "first_admin");
+  REQUIRE(first.has_value());
+  CHECK(first->size() == 36);
+
+  const auto second = cms::api::bootstrap(database, "second@example.org", "second_admin");
+  REQUIRE(!second.has_value());
+  CHECK(second.error().code == cms::ErrorCode::conflict);
+}

@@ -264,3 +264,40 @@ auto create_session(db::connection& database, std::string_view principal_id,
 }
 
 }  // namespace cms::api
+
+namespace cms::api {
+
+auto bootstrap(db::connection& database, std::string_view admin_email, std::string_view admin_handle)
+    -> Result<std::string> {
+  try {
+    auto existing = std::size_t{0};
+    auto rows = database(sqlpp::select(db::principals.id).from(db::principals));
+    for (const auto& row : rows) {
+      (void)row;
+      ++existing;
+    }
+    if (existing != 0) {
+      return std::unexpected(
+          Error::make(ErrorCode::conflict, "this database already holds principals; bootstrap runs once"));
+    }
+
+    const auto system_id = uuid_v4();
+    auto admin_id = uuid_v4();
+    database(sqlpp::insert_into(db::principals).set(
+        db::principals.id = system_id, db::principals.kind = std::string{"system"},
+        db::principals.handle = std::string{"system:bootstrap"},
+        db::principals.status = std::string{"active"}));
+    database(sqlpp::insert_into(db::principals).set(
+        db::principals.id = admin_id, db::principals.kind = std::string{"user"},
+        db::principals.handle = std::string{admin_handle},
+        db::principals.email = std::string{admin_email},
+        db::principals.emailVerifiedAt = now_stamp(),
+        db::principals.status = std::string{"active"}));
+    record_audit(database, admin_id, "bootstrap.completed", admin_id);
+    return admin_id;
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::conflict, error.what()));
+  }
+}
+
+}  // namespace cms::api
