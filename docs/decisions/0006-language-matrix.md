@@ -29,12 +29,26 @@ Language rows are current as of 2026-10-29; the reasoning behind each rejected a
 
 ### C++26, and what "C++26" means today
 
-The standard is set once, at `CMakeLists.txt:4`, and every target inherits `cxx_std_26`. Both
-compilers on the development host accept it — g++ 16.2.1 and clang++ 23.1.4 — and the whole tree,
-including the Drogon, sqlpp23 and Catch2 headers, compiles clean under `-std=c++26` with the gate's
-warning set.
+The standard is set once, at `CMakeLists.txt:4`, and every target inherits `cxx_std_26`. One compiler
+carries it: the gate runs g++ (GCC) 16.2.1, and the api image builds on `gcc:16.2.0-trixie`.
+`cmake/ProjectSettings.cmake` refuses to configure under anything else — a compiler that is not GNU, or
+one older than `CMS_MIN_GCC_MAJOR` (16), fails with the found ID, full version, required minimum and
+compiler path in one message. GCC 16 is the first release that implements the C++26 these targets are
+written in; 14 and 15 accept `-std=c++26` and then compile a smaller language, so a tree that builds
+under either is not the build this project gates.
 
-Two honest caveats. First, the language is still being finalised: the compilers report
+One exemption, not a second toolchain. clang++ — 23.1.4 on the development host — configures only where
+`CMS_LINT_ONLY` is set, and the `tidy` preset is the only place that sets it. A lint-only configure ships
+nothing: clang-tidy is the analyser, it reads the sources, and the compile database it walks is the one
+clang++ writes. That exemption keeps static analysis in the gate; it does not make clang a supported
+compiler, and its parse of C++26 lags the compiler that ships, so a construct clang 23 accepts is not
+evidence that the shipped build accepts it.
+
+The whole tree, Drogon, sqlpp23 and Catch2 headers included, compiles clean under `-std=c++26` with the
+gate's warning set, and the release link is static for libstdc++ and libgcc, so a binary built on GCC 16
+runs against the older libstdc++ in the `debian:trixie-slim` runtime stage.
+
+Two honest caveats. First, the language is still being finalised: the compiler reports
 `__cplusplus == 202400L`, a draft value, because ISO has not published the 2026 revision. Code written
 today is written against the draft as GCC 16 implements it. Second, the third-party libraries are
 compiled by vcpkg under their own standards, so a C++26-only construct must never appear in a header
@@ -74,7 +88,7 @@ section is the reason it would be changed rather than guessed at.
    radius; admin gets a separate bind address, its own session scope and its own container.
 4. **Rust never computes a verdict, C++ never parses unstructured foreign output without a fuzzer.**
    The supervisor treats checker output as untrusted data with a hard size cap.
-5. **Every C++ build runs under ASan + UBSan with `-Werror` and `_GLIBCXX_ASSERTIONS`, and the flags live in the build.** Because the internet-facing path is now C++, this gate is mandatory, not best-effort. `cpp/CMakePresets.json` owns the flags, `ctest` owns pass/fail per example, `clang-tidy` owns the defect classes a runtime sanitizer cannot see, and `tools/cpp/gate.ts` only reports what those tools said. A gate that re-declared its own compiler flags in a script would test a configuration nobody ships — that is why this is not a shell script.
+5. **Every C++ target compiles through one warning function with `-Werror` and `_GLIBCXX_ASSERTIONS`, the gate's presets add ASan + UBSan, and the flags live in the build.** Because the internet-facing path is now C++, this gate is mandatory, not best-effort. `cmake/ProjectSettings.cmake` holds `cms_apply_warnings`, the one place a warning is declared: it applies `-Wconversion`, `-Woverloaded-virtual` and the rest of the set, plus the `_GLIBCXX_ASSERTIONS` definition, to every unit of every target — the release build included, so an unchecked `vector::operator[]` aborts rather than reading past the end. `cmake/Sanitizers.cmake` adds ASan + UBSan to the presets the gate builds, `CMakePresets.json` owns both halves, `ctest` owns pass/fail per example, `clang-tidy` owns the defect classes a runtime sanitizer cannot see, and `tools/cpp/gate.ts` only reports what those tools said. A gate that re-declared its own compiler flags in a script would test a configuration nobody ships — that is why this is not a shell script.
 6. **`atlas migrate validate` and `migrate lint` run in CI.** Without them `atlas.sum` is a file nobody
    checks and the "no hand edits" claim is decoration.
 

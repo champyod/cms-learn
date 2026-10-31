@@ -101,9 +101,13 @@ bun run validate            # content integrity, with the counts it scanned
 bun run check:references    # every reference builds under -Werror and reproduces its examples
 bun run check:deploy        # exposure, isolation, pinning, Caddyfile, Prometheus
 bun run check:security      # secrets, fixable CVEs, deployment hardening
-bun run check:cpp           # every C++ unit under ASan + UBSan, warnings fatal, runnable ones executed
+bun run check:cpp           # every C++ unit in the preset under ASan + UBSan, warnings fatal, runnable ones executed
 bun run check:scaffold      # the C++ workspace and the pinned dependency set
 ```
+
+`check:cpp` has two lanes, chosen by `CMS_CPP_PRESET`: `safety-core` skips the api build and is the one
+CI runs on every pull request, while `safety` compiles the api too and is the one a push, the nightly
+schedule and a manual run take, followed there by `check:cpp:falsify`.
 
 The identity is `design/logo.svg` — a frame with one edge interrupted, and a unit already past it —
 with `logo-16`, `logo-mono` and `logo-tile` beside it for the favicon, single-colour and app-tile uses.
@@ -118,7 +122,7 @@ with `logo-16`, `logo-mono` and `logo-tile` beside it for the favicon, single-co
 | `bun run check:references` | every reference compiles under `-Werror` and reproduces its own examples |
 | `bun run check:deploy` | only the proxy is public, the judge has no egress, every image is pinned, and the Caddyfile and Prometheus config are valid for the exact versions in compose |
 | `bun run check:security` | no secret in the tree, no dependency with a fixed CVE, no deployment misconfiguration at MEDIUM+ |
-| `bun run check:cpp` | every C++ unit compiles under ASan + UBSan with `-Werror` and `_GLIBCXX_ASSERTIONS`, and every runnable one is executed |
+| `bun run check:cpp` | every unit in the chosen preset compiles under ASan + UBSan with `-Werror` and `_GLIBCXX_ASSERTIONS`, and every runnable one is executed — the `safety-core` lane, no api build, on a pull request; the `safety` lane, api built, on a push, the nightly run and a manual run |
 | `bun run check:cpp:falsify` | a use-after-free, a signed overflow, an out-of-bounds read and a warning each fail with the right reason; a clean file stays green |
 | `bun run check:scaffold` | the C++ workspace configures, the overlay ports are present, the dependency manifest resolves, and the CLI crate is well formed |
 

@@ -133,12 +133,18 @@ Application images (`web`, `api`, `judge`, `schema`, `backup`) are built here an
 
 | Tool | Version | Licence | Used for |
 |---|---|---|---|
+| gcc / g++ | **16.2.0**, from the `gcc:16.2.0-trixie` image | GPL-3.0-or-later WITH GCC-exception-3.1 | every C++ translation unit: the workspace build, the gate and the api image |
 | pgschema | 1.13.4 | Apache-2.0 | schema plan and apply |
 | isolate | v2.7 | GPL-2.0 | sandbox |
 | testlib | 0.9.41 | MIT | checker library |
 | Trivy | 0.66.0 | Apache-2.0 | security gate |
 | age | current | BSD-3-Clause | backup encryption |
 | Arundina Sans Mono | — | GPL-2+ | Thai and Latin monospace, licence text beside the file |
+
+The compiler is pinned by image tag rather than by a distribution package: the api image builds on
+`gcc:16.2.0-trixie`, CI runs that same tag, and `cmake/ProjectSettings.cmake` refuses to configure under a
+compiler that is not GNU or is older than `CMS_MIN_GCC_MAJOR` (16). A development host therefore needs
+g++ 16 or newer; the gate's own run reports `g++ (GCC) 16.2.1`.
 
 ## Rules
 
