@@ -4,12 +4,31 @@
 // once reported "6 caught, 1 missed" while actually catching a YAML syntax error instead of judge egress.
 // So each case asserts the rule id (or the sanitizer report) that must appear, not merely a non-zero exit.
 //
-// Each case is built in its own temp tree: the source tree is staged, a defect is written into
+// Each case is built in its own staged tree: the source tree is staged, a defect is written into
 // `content/tasks/demo/solutions/`, and the *real* gate runs against it. Nothing in the repo is mutated.
+//
+// The trees live under a scratch root this file owns — `CMS_FALSIFY_SCRATCH`, else
+// `$XDG_CACHE_HOME/cms-learn/falsify` — never in the system temp directory: nine staged trees and their
+// sanitizer builds are several gigabytes, so a tmpfs scratch root holds all of it in RAM, and a run that
+// starts with too little room then fails a different case every time. The root is swept of the trees a
+// killed run abandoned before anything is staged, and a run below the free-space floor refuses to start.
+//
+// A gate that fails without naming a rule prints "see output", which its caller never sees: this file
+// re-runs that one step itself so the log carries the first `CMake Error` line instead.
 
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statfsSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 
 import { runGate } from "./gate.ts";
@@ -170,8 +189,78 @@ function gnuCompilerVersion(): string {
   return (result.stdout ?? "").trim();
 }
 
+const SCRATCH_PREFIX = "cms-learn-cpp-falsify-";
+const SCRATCH_ROOT =
+  process.env.CMS_FALSIFY_SCRATCH ?? join(process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "cms-learn", "falsify");
+
+// One staged tree plus its safety build measures 0.65 GiB on this repository. Every case's tree survives
+// until the finally sweep, so a full run holds nine of them and peaks near 5.9 GiB; the floor is that
+// peak plus headroom for the tidy pass, and it is checked before the first byte is staged.
+const REQUIRED_BYTES = 8 * 1024 ** 3;
+
+function formatGib(bytes: number): string {
+  return `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
+}
+
+/** Free bytes for unprivileged writes on the filesystem holding `path`. */
+function freeBytes(path: string): number {
+  const stats = statfsSync(path);
+  return stats.bavail * stats.bsize;
+}
+
+/** A killed run leaves its tree behind; nothing else may occupy the scratch root between runs. */
+function sweepOrphans(root: string): void {
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    if (entry.isDirectory() && entry.name.startsWith(SCRATCH_PREFIX)) {
+      rmSync(join(root, entry.name), { recursive: true, force: true });
+    }
+  }
+}
+
+function refuseBelowFloor(root: string): void {
+  const free = freeBytes(root);
+  if (free >= REQUIRED_BYTES) return;
+  console.error(
+    `not enough scratch space: ${root} has ${formatGib(free)} free, ${formatGib(REQUIRED_BYTES)} required for nine staged trees and their builds`,
+  );
+  process.exit(1);
+}
+
+function streamLines(stream: string | null): string[] {
+  return `${stream ?? ""}`
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/** The line a "see output" reason swallowed: the first `CMake Error`, else the first stderr line. */
+function firstErrorLine(command: string, args: string[], root: string): string {
+  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+  const stderr = streamLines(result.stderr);
+  return stderr.find((line) => line.startsWith("CMake Error")) ?? stderr[0] ?? streamLines(result.stdout)[0] ?? "";
+}
+
+const FAILED_STEP = [
+  { reason: "configure failed", command: "cmake", args: ["--preset", "safety"] },
+  { reason: "build failed", command: "cmake", args: ["--build", "--preset", "safety"] },
+  { reason: "ctest failed", command: "ctest", args: ["--preset", "safety"] },
+];
+
+/** Re-runs the step that failed without naming a rule, so the reader sees its cause instead of a pointer. */
+function causeOf(report: ReturnType<typeof runGate>, root: string): string {
+  const text = reasonText(report);
+  if (!text.includes("see output")) return text;
+  const step = FAILED_STEP.find((entry) => report.reasons.some((reason) => reason.startsWith(entry.reason)));
+  if (step === undefined) return text;
+  const cause = firstErrorLine(step.command, step.args, root);
+  return cause === "" ? text : text.replace("see output", `see output — ${cause.slice(0, 200)}`);
+}
+
 const repo = join(import.meta.dir, "../..");
-const work = mkdtempSync(join(tmpdir(), "cms-learn-cpp-falsify-"));
+mkdirSync(SCRATCH_ROOT, { recursive: true });
+sweepOrphans(SCRATCH_ROOT);
+refuseBelowFloor(SCRATCH_ROOT);
+const work = mkdtempSync(join(SCRATCH_ROOT, SCRATCH_PREFIX));
 
 let caught = 0;
 let missed = 0;
@@ -182,7 +271,7 @@ try {
     // tidy only where the defect is invisible to the sanitizers: it is the slow half, and running it on
     // a case that already fails at build time proves nothing about static analysis.
     const report = runGate(root, { tidy: testCase.staticOnly === true });
-    const text = reasonText(report);
+    const text = causeOf(report, root);
 
     if (!report.ok && text.includes(testCase.expect)) {
       console.log(`caught        ${testCase.name.padEnd(28)} (${testCase.expect})`);
@@ -204,7 +293,7 @@ try {
     console.log(`behaved       ${"clean-control".padEnd(28)} (a correct solution passes)`);
     caught += 1;
   } else {
-    console.log(`WRONG RESULT  ${"clean-control".padEnd(28)} — correct solution rejected: ${reasonText(clean).slice(0, 160)}`);
+    console.log(`WRONG RESULT  ${"clean-control".padEnd(28)} — correct solution rejected: ${causeOf(clean, cleanRoot).slice(0, 160)}`);
     missed += 1;
   }
 
