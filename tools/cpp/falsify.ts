@@ -18,10 +18,13 @@
 
 import { spawnSync } from "node:child_process";
 import {
+  closeSync,
   cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
+  openSync,
+  readFileSync,
   readdirSync,
   rmSync,
   statfsSync,
@@ -208,6 +211,83 @@ function freeBytes(path: string): number {
   return stats.bavail * stats.bsize;
 }
 
+const LOCK_NAME = "run.lock";
+
+/** The run that created the lock file, read back to decide whether it is still alive. */
+interface LockHolder {
+  pid: number;
+  startedAt: string;
+}
+
+function readHolder(text: string): LockHolder | null {
+  const [pid, startedAt] = text.trim().split("\n");
+  const value = Number.parseInt(pid ?? "", 10);
+  if (!Number.isInteger(value) || value <= 0) return null;
+  return { pid: value, startedAt: startedAt === undefined || startedAt === "" ? "unknown" : startedAt };
+}
+
+/** Signal 0 runs the existence and permission checks without delivering anything to the process. */
+function isRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM means the process exists under another user; only ESRCH proves that it is gone.
+    return (error as NodeJS.ErrnoException).code !== "ESRCH";
+  }
+}
+
+/** The holder recorded in `path`, or null when the file cannot be read — an unreadable lock is never stale. */
+function lockHolder(path: string): LockHolder | null {
+  try {
+    return readHolder(readFileSync(path, "utf8"));
+  } catch {
+    // The lock can be released between the failed create and this read, leaving nothing to report.
+    return null;
+  }
+}
+
+function refuseBusy(path: string, holder: LockHolder | null): never {
+  const who = holder === null ? "a run whose lock file could not be read" : `pid ${holder.pid} since ${holder.startedAt}`;
+  console.error(`scratch root busy: ${path} is held by ${who}`);
+  process.exit(1);
+}
+
+/** Creates the lock exclusively, so the first run to reach it wins and every later one sees EEXIST. */
+function takeLock(path: string): boolean {
+  try {
+    closeSync(openSync(path, "wx"));
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    return false;
+  }
+}
+
+/**
+ * Claims the scratch root for this run, or exits naming the run that holds it, and returns the release.
+ *
+ * A lock left by a process that no longer exists is removed and the acquisition retried once; a lock whose
+ * holder cannot be identified is left alone, because only a dead pid proves that a run has finished.
+ */
+function acquireLock(root: string): () => void {
+  const path = join(root, LOCK_NAME);
+  if (!takeLock(path)) {
+    const holder = lockHolder(path);
+    if (holder === null || isRunning(holder.pid)) refuseBusy(path, holder);
+    rmSync(path, { force: true });
+    console.log(`cleared a stale lock at ${path} — pid ${holder.pid} is not running`);
+    if (!takeLock(path)) refuseBusy(path, lockHolder(path));
+  }
+
+  writeFileSync(path, `${process.pid}\n${new Date().toISOString()}\n`);
+  // Only the finally on the case loop releases the lock, so a killed run leaves the file behind and the next
+  // run clears it through the stale-pid check above. Nothing else may release it: this script never yields to
+  // the event loop, so a signal handler would not run until the whole run had finished, and registering one
+  // would suppress the default kill in the meantime.
+  return (): void => rmSync(path, { force: true });
+}
+
 /** A killed run leaves its tree behind; nothing else may occupy the scratch root between runs. */
 function sweepOrphans(root: string): void {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
@@ -258,6 +338,9 @@ function causeOf(report: ReturnType<typeof runGate>, root: string): string {
 
 const repo = join(import.meta.dir, "../..");
 mkdirSync(SCRATCH_ROOT, { recursive: true });
+// The sweep below is keyed on a shared directory prefix, so without a lock one run deletes the tree another
+// run is still building. Two full safety builds at once exhaust the machine's memory long before they finish.
+const releaseLock = acquireLock(SCRATCH_ROOT);
 sweepOrphans(SCRATCH_ROOT);
 refuseBelowFloor(SCRATCH_ROOT);
 const work = mkdtempSync(join(SCRATCH_ROOT, SCRATCH_PREFIX));
@@ -349,6 +432,7 @@ try {
   }
 } finally {
   rmSync(work, { recursive: true, force: true });
+  releaseLock();
 }
 
 console.log(`\n${caught} case(s) behaved, ${missed} did not`);
