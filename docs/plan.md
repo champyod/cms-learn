@@ -26,7 +26,7 @@ and an operator upgrades with one command.
 | E2.0 | `db/`: sqlpp23 table headers rendered by `tools/render-tables.sh` from `information_schema.columns` on a scratch cluster, and a CRTP connector over `drogon::orm::DbClient` — `_select` and `_execute` only, so insert/update/prepare stay compile-time absences until E3 needs them | `check:db` — the committed header equals what the schema renders, compared table by table and column by column | delete a column struct; the gate names the column and the line. Shift the placeholder numbering in `context::bind`; the serialization test names the wrong position |
 | E2.1 | CMake workspace, `api/` target, Drogon app reading only the host file, multi-stage `api/Dockerfile` | `cmake --build` clean under `-Wall -Wextra -Werror` | remove a required host fact; startup must fail loudly rather than default |
 | E2.2 | settings snapshot service (atomic pointer, NOTIFY listener, 30 s version check), `/healthz`, `/metrics` | `check:settings` | declare a setting in code that is absent from `deploy/schema/` and prove the gate fails |
-| E2.3 | `/admin/*` on `/run/cmslearn/admin.sock` behind `SO_PEERCRED`, absent from the public listener | socket test | send an admin request to the public listener; it must 404 |
+| E2.3 | the admin channel: a Unix socket speaking one JSON object per line, mode 0600, every accept checked with `SO_PEERCRED`; Drogon serves TCP only, so the listener is ours | `api_settings_e2e` asserts the socket is bound, is 0600, answers `ping`, and that the public listener carries no admin route | send an admin request to the public listener; it must 404 |
 
 What E2.0 does **not** prove, stated so it is not assumed later:
 

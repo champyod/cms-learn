@@ -8,6 +8,7 @@
 
 #include <drogon/drogon.h>
 
+#include <cms/api/admin_socket.hpp>
 #include <cms/api/host_config.hpp>
 #include <cms/api/settings_source.hpp>
 #include <cms/api/settings_watcher.hpp>
@@ -100,6 +101,10 @@ int main(int argc, char** argv) {
   auto watcher = cms::api::SettingsWatcher{database, store, config->database_url,
                                            SETTINGS_POLL_SECONDS};
   watcher.start();
+
+  const auto allowed_uid = static_cast<uid_t>(std::stoul(config->admin_uid));
+  auto admin = cms::api::AdminSocket{config->admin_socket, allowed_uid, store};
+  admin.start();
 
   auto& app = drogon::app();
   app.addListener(config->listen_address,

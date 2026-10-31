@@ -16,7 +16,8 @@ cms_apply_warnings(cms_api_config PUBLIC)
 cms_apply_hardening(cms_api_config)
 cms_apply_sanitizers(cms_api_config)
 
-add_executable(cms_api src/main.cpp src/settings_source.cpp src/settings_watcher.cpp)
+add_executable(cms_api src/main.cpp src/settings_source.cpp src/settings_watcher.cpp
+                       src/admin_socket.cpp)
 target_link_libraries(cms_api PRIVATE cms::api_config cms::db_drogon Drogon::Drogon
                                        PostgreSQL::PostgreSQL)
 cms_apply_warnings(cms_api PRIVATE)

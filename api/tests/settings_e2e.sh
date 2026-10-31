@@ -10,7 +10,7 @@ set -uo pipefail
 binary="${1:?usage: settings_e2e.sh <path to cms_api>}"
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-for tool in initdb pg_ctl psql curl; do
+for tool in initdb pg_ctl psql curl nc; do
   command -v "$tool" >/dev/null 2>&1 || { echo "  skipped: $tool is not installed"; exit 77; }
 done
 
@@ -68,6 +68,8 @@ CMSLEARN_DATABASE_URL=host=$work port=$port dbname=$database user=postgres
 CMSLEARN_SEAL_KEY=0123456789abcdef0123456789abcdef
 CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org
 CMSLEARN_TLS_MODE=proxy
+CMSLEARN_ADMIN_SOCKET=$work/admin.sock
+CMSLEARN_ADMIN_UID=$(id -u)
 ENV
 
 before_version="$(psql_db -tAc 'SELECT version FROM settings_meta')"
@@ -96,9 +98,35 @@ else
   bad "/metrics exposes the version as a gauge" "got: $metrics"
 fi
 
+if [ -S "$work/admin.sock" ]; then
+  ok "the admin socket is bound"
+else
+  bad "the admin socket is bound" "no socket at $work/admin.sock"
+fi
+
+socket_mode="$(stat -c '%a' "$work/admin.sock" 2>/dev/null)"
+if [ "$socket_mode" = "600" ]; then
+  ok "the admin socket is 0600"
+else
+  bad "the admin socket is 0600" "mode is ${socket_mode:-missing}"
+fi
+
+reply="$(printf '{"command":"ping"}\n' | nc -U -N "$work/admin.sock" 2>/dev/null | head -1)"
+if [[ "$reply" == *'"ok":true'* && "$reply" == *"settings_version"* ]]; then
+  ok "the admin socket answers ping"
+else
+  bad "the admin socket answers ping" "got: ${reply:-nothing}"
+fi
+
+public_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$listen_port/admin/ping" 2>&1)"
+if [ "$public_status" = "404" ]; then
+  ok "the public listener carries no admin route"
+else
+  bad "the public listener carries no admin route" "got HTTP $public_status"
+fi
+
 as_actor "UPDATE settings SET value_text = 'CMS Learn (edited)' WHERE key = 'site.name';" \
   || { echo "  [!!] settings update failed"; exit 1; }
-
 after_version="$(psql_db -tAc 'SELECT version FROM settings_meta')"
 if [ "$after_version" = "$before_version" ]; then
   bad "editing a setting moves the version" "the trigger did not bump it"

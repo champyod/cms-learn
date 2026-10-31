@@ -16,9 +16,10 @@ namespace {
 using entry_map = std::map<std::string, std::string, std::less<>>;
 
 constexpr std::array REQUIRED_KEYS{
-    std::string_view{"CMSLEARN_LISTEN_ADDRESS"}, std::string_view{"CMSLEARN_LISTEN_PORT"},
-    std::string_view{"CMSLEARN_DATABASE_URL"},   std::string_view{"CMSLEARN_SEAL_KEY"},
-    std::string_view{"CMSLEARN_BOOTSTRAP_ADMIN"}, std::string_view{"CMSLEARN_TLS_MODE"},
+    std::string_view{"CMSLEARN_LISTEN_ADDRESS"},   std::string_view{"CMSLEARN_LISTEN_PORT"},
+    std::string_view{"CMSLEARN_DATABASE_URL"},     std::string_view{"CMSLEARN_SEAL_KEY"},
+    std::string_view{"CMSLEARN_BOOTSTRAP_ADMIN"},  std::string_view{"CMSLEARN_TLS_MODE"},
+    std::string_view{"CMSLEARN_ADMIN_SOCKET"},     std::string_view{"CMSLEARN_ADMIN_UID"},
 };
 
 constexpr std::size_t SEAL_KEY_BYTES = 32;
@@ -124,6 +125,12 @@ auto check(const entry_map& entries, std::vector<std::string>& problems) -> void
            "CMSLEARN_BOOTSTRAP_ADMIN is not an email address");
   validate("CMSLEARN_TLS_MODE", is_known_tls_mode(value_of(entries, "CMSLEARN_TLS_MODE")),
            "CMSLEARN_TLS_MODE is neither proxy nor direct");
+  const auto socket = value_of(entries, "CMSLEARN_ADMIN_SOCKET");
+  validate("CMSLEARN_ADMIN_SOCKET", !socket.empty() && socket.front() == '/',
+           "CMSLEARN_ADMIN_SOCKET is not an absolute path");
+  const auto uid = value_of(entries, "CMSLEARN_ADMIN_UID");
+  validate("CMSLEARN_ADMIN_UID", !uid.empty() && uid.find_first_not_of("0123456789") == std::string_view::npos,
+           "CMSLEARN_ADMIN_UID is not a numeric user id");
 }
 
 auto join(const std::vector<std::string>& problems) -> std::string {
@@ -159,6 +166,8 @@ auto load_host_config(std::string_view path) -> Result<HostConfig> {
       .seal_key = entries.at("CMSLEARN_SEAL_KEY"),
       .bootstrap_admin = entries.at("CMSLEARN_BOOTSTRAP_ADMIN"),
       .tls_mode = entries.at("CMSLEARN_TLS_MODE"),
+      .admin_socket = entries.at("CMSLEARN_ADMIN_SOCKET"),
+      .admin_uid = entries.at("CMSLEARN_ADMIN_UID"),
   };
 }
 

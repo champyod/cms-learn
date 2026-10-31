@@ -29,7 +29,9 @@ complete_file() {
     'CMSLEARN_DATABASE_URL=postgresql://cmslearn@database/cmslearn' \
     'CMSLEARN_SEAL_KEY=0123456789abcdef0123456789abcdef' \
     'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
-    'CMSLEARN_TLS_MODE=proxy'
+    'CMSLEARN_TLS_MODE=proxy' \
+    'CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock' \
+    'CMSLEARN_ADMIN_UID=1000'
 }
 
 expect_failure_naming() {
@@ -72,7 +74,9 @@ write_host_file "$short_key_file" \
   'CMSLEARN_DATABASE_URL=postgresql://cmslearn@database/cmslearn' \
   'CMSLEARN_SEAL_KEY=too-short' \
   'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
-  'CMSLEARN_TLS_MODE=proxy'
+  'CMSLEARN_TLS_MODE=proxy' \
+  'CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock' \
+  'CMSLEARN_ADMIN_UID=1000'
 expect_failure_naming "a short seal key is refused" "shorter than 32 bytes" \
   CMSLEARN_HOST_FILE="$short_key_file"
 
@@ -83,7 +87,9 @@ write_host_file "$bad_url_file" \
   'CMSLEARN_DATABASE_URL=mysql://nope' \
   'CMSLEARN_SEAL_KEY=0123456789abcdef0123456789abcdef' \
   'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
-  'CMSLEARN_TLS_MODE=proxy'
+  'CMSLEARN_TLS_MODE=proxy' \
+  'CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock' \
+  'CMSLEARN_ADMIN_UID=1000'
 expect_failure_naming "a non-postgres connection string is refused" \
   "neither a postgresql:// URL nor a libpq connection string" \
   CMSLEARN_HOST_FILE="$bad_url_file"
