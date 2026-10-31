@@ -40,12 +40,21 @@ Neither replaces the other, and a task with a reference but no examples fails bo
 
 ## Lanes in this repo
 
+Work lands on `main`, one commit per step. That is what the history shows and it is the default here:
+as of 2026-11-01 there is no other branch, local or remote, and never has been.
+
+A lane is for when two agents must change the same component at once and a shared working tree would
+make them overwrite each other. Then:
+
 - A lane branch is `learn/<area>/<topic>` — `learn/judge/grading`, `learn/content/pipeline` — and its
   worktree lives at `<hub>/.worktrees/learn-<area>-<topic>`.
 - Never use a bare `feat/` or `docs/` prefix here. This hub holds another project whose lanes are named
   that way, and a branch called `feat/task-view` in a shared listing says nothing about which project it
   belongs to.
 - Cut a lane from `main`, and say the base in the lane's first commit.
+
+If a lane is cut, say so in `STATE.md`; otherwise a reader has to guess whether a missing branch means
+"not started" or "not needed".
 
 ## Orchestration
 
@@ -128,6 +137,30 @@ finding, not a variation.
   group, groups separated by a blank line.
 - **No hardcoded configuration, and fail loudly.** A missing or malformed fact stops the process and
   names every such key in one message. Never fall back to a default, and never print a secret's value.
+
+## Languages, one job each
+
+- **C++** decides judgement of student code: testlib checkers, reference solutions, the judge
+  supervisor. Nothing above testlib re-derives a verdict.
+- **TypeScript** orchestrates and parses tool output: `tools/cpp/gate.ts` drives cmake and reads
+  clang-tidy, `validate-content.ts` runs `ajv`, the renderers emit text.
+- **Shell** asserts facts about files and containers: the `check-*.sh` gates hand the work to
+  `docker`, `trivy`, `pgschema` and `curl`.
+
+Do not port a gate to C++. `validate-content.ts` would need a hand-rolled JSON Schema engine, and
+`tools/cpp/gate.ts` would have to compile itself with the toolchain whose breakage it exists to
+detect. `docs/decisions/0006` records both rejections.
+
+## Resources
+
+- **Check what `/tmp` is before trusting it.** On a machine where `findmnt -no FSTYPE /tmp` prints
+  `tmpfs`, every staged tree and every build under it is RAM. Point scratch elsewhere:
+  `export TMPDIR=$HOME/.cache/cms-learn-tmp`.
+- **The falsification harness owns `~/.cache/cms-learn/falsify`**, keeps a `run.lock` there, and
+  refuses to start below 8 GiB free. If it says the root is busy, a run is live — wait. Never delete
+  a tree it is holding.
+- **Do not poll a background job with `sleep N`.** Launch it in the background and let the completion
+  notice arrive: a sleeping shell holds a slot for minutes and can read a half-written file.
 
 ## Invariants (do not "fix" these)
 
