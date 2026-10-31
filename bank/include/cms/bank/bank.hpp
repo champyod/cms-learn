@@ -48,11 +48,39 @@ struct Task {
   std::string content_hash;
 };
 
+/// @brief One stage of a route: a difficulty band and the tags a task must carry to belong to it.
+struct Stage {
+  std::string id;
+  std::int32_t position{0};
+  std::string title_en;
+  std::string title_th;
+  std::int32_t difficulty_min{0};
+  std::int32_t difficulty_max{0};
+  std::vector<std::string> tags;
+};
+
+/// @brief One route through the shared module set.
+///
+/// A track decides order and band, never content: the same module can appear in two routes at different
+/// points, and a task never belongs to a track.
+struct Track {
+  std::string id;
+  std::int32_t position{0};
+  std::string title_en;
+  std::string title_th;
+  std::string description_en;
+  std::string description_th;
+  std::vector<Stage> stages;
+  /// The digest of the file entry this track was built from.
+  std::string content_hash;
+};
+
 /// @brief The whole on-disk bank.
 struct Bank {
   std::vector<Topic> topics;
   std::vector<Task> tasks;
-  /// One digest over the vocabulary and every task's digest, so an unchanged bank compares equal.
+  std::vector<Track> tracks;
+  /// One digest over the vocabulary, every task and every track, so an unchanged bank compares equal.
   std::string content_hash;
 };
 

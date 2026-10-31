@@ -109,6 +109,21 @@ auto with_json(const std::filesystem::path& path, Use&& use) -> Result<void> {
   return value;
 }
 
+/// @brief Builds a refusal that names the file or task it came from.
+[[nodiscard]] inline auto fail(std::string_view where, std::string_view text) -> Error {
+  return Error::make(ErrorCode::invalid_argument, std::string{where} + ": " + std::string{text});
+}
+
+/// @brief Reads a nested object, or nothing when the key is absent or holds another type.
+[[nodiscard]] inline auto nested(const simdjson::dom::object& object, std::string_view name)
+    -> std::optional<simdjson::dom::object> {
+  auto child = simdjson::dom::object{};
+  if (object.at_key(name).get_object().get(child) != simdjson::SUCCESS) {
+    return std::nullopt;
+  }
+  return child;
+}
+
 [[nodiscard]] inline auto required_text(const simdjson::dom::object& object, std::string_view name,
                                         std::string_view where) -> Result<std::string> {
   const auto value = field_text(object, name);

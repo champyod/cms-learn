@@ -99,5 +99,62 @@ third="$("$seeder" --content "$repo/content" 2>&1)"
 [ "$(psql_db 'SELECT version FROM content_seed')" = "$version_after_first" ] \
   && ok "a third import still reports version $version_after_first" || bad "a third import is still a no-op" "$third"
 
+expected_tracks=$(python3 -c "import json,sys;print(len(json.load(open(sys.argv[1]))['tracks']))" \
+  "$repo/content/tracks.json" 2>/dev/null)
+expected_stages=$(python3 -c "
+import json,sys
+print(sum(len(t['stages']) for t in json.load(open(sys.argv[1]))['tracks']))" \
+  "$repo/content/tracks.json" 2>/dev/null)
+
+tracks="$(psql_db 'SELECT count(*) FROM tracks')"
+stages="$(psql_db 'SELECT count(*) FROM track_stages')"
+tags="$(psql_db 'SELECT count(*) FROM stage_tags')"
+
+[ "$tracks" = "$expected_tracks" ] && ok "every route landed ($tracks track(s))" \
+  || bad "every route landed" "expected $expected_tracks, found $tracks"
+[ "$stages" = "$expected_stages" ] && ok "every stage landed ($stages stage(s))" \
+  || bad "every stage landed" "expected $expected_stages, found $stages"
+[ "$tags" -gt 0 ] && ok "stage tags resolve to the vocabulary ($tags row(s))" \
+  || bad "stage tags resolve to the vocabulary" "none"
+
+# The plan's E4.2 falsification, end to end: a third route is appended to a copy of the content tree and
+# imported without touching a line of code. Re-importing the original must remove it again, because the
+# seeder owns it.
+cp -R "$repo/content" "$work/content"
+python3 - "$work/content/tracks.json" <<'PY_ADD'
+import json, sys
+path = sys.argv[1]
+with open(path) as handle:
+    data = json.load(handle)
+data["tracks"].append({
+    "id": "t-third",
+    "title": {"en": "Third route", "th": "เส้นทางที่สาม"},
+    "description": {"en": "A route the gate added.", "th": "เส้นทางที่เกตเพิ่มเข้ามา"},
+    "stages": [{
+        "id": "st-third-start",
+        "title": {"en": "Start", "th": "เริ่ม"},
+        "difficulty": {"min": 800, "max": 1200},
+        "tags": ["io", "sorting"],
+    }],
+})
+with open(path, "w") as handle:
+    json.dump(data, handle, ensure_ascii=False, indent=2)
+PY_ADD
+
+if "$seeder" --content "$work/content" >/dev/null 2>&1; then
+  ok "a third route imports without a code change"
+else
+  bad "a third route imports without a code change" "the seeder refused the extra track"
+fi
+[ "$(psql_db 'SELECT count(*) FROM tracks')" = "$((expected_tracks + 1))" ] \
+  && ok "the third route is in the database" \
+  || bad "the third route is in the database" "$(psql_db 'SELECT count(*) FROM tracks') track(s)"
+
+"$seeder" --content "$repo/content" >/dev/null 2>&1
+[ "$(psql_db 'SELECT count(*) FROM tracks')" = "$expected_tracks" ] \
+  && ok "re-importing the original removes the route the data dropped" \
+  || bad "re-importing the original removes the dropped route" \
+        "$(psql_db 'SELECT count(*) FROM tracks') track(s) left"
+
 printf '\n%s assertion(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

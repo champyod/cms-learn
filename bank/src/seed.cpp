@@ -14,6 +14,8 @@
 
 #include <cms/db/tables.hpp>
 
+#include "seed_curriculum.hpp"
+
 namespace cms::bank {
 namespace {
 
@@ -185,6 +187,8 @@ auto import_tasks(db::connection& database, const Bank& bank, const std::map<Tas
 }  // namespace
 
 auto seed(db::connection& database, const Bank& bank) -> Result<SeedReport> {
+  // The curriculum is imported before the state row moves: if it fails, the transaction rolls back and
+  // the previous version is still what the database reports.
   auto report = SeedReport{};
   try {
     const auto state = read_state(database);
@@ -195,6 +199,11 @@ auto seed(db::connection& database, const Bank& bank) -> Result<SeedReport> {
 
     auto topics = existing_topic_ids(database);
     report.topics_written = write_topics(database, bank, topics);
+    const auto curriculum = import_curriculum(database, bank);
+    if (!curriculum) {
+      return std::unexpected(curriculum.error());
+    }
+    report.tracks_written = *curriculum;
     import_tasks(database, bank, read_tasks(database), report);
 
     write_state(database, state, bank);

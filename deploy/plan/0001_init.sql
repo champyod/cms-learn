@@ -352,6 +352,53 @@ CREATE TABLE IF NOT EXISTS task_topics (
 
 CREATE INDEX IF NOT EXISTS task_topics_topic_idx ON task_topics (topic);
 
+CREATE TABLE IF NOT EXISTS tracks (
+    id text,
+    position integer NOT NULL,
+    title_en text NOT NULL,
+    title_th text NOT NULL,
+    description_en text NOT NULL,
+    description_th text NOT NULL,
+    content_hash text NOT NULL,
+    seeded boolean DEFAULT true NOT NULL,
+    CONSTRAINT tracks_pkey PRIMARY KEY (id),
+    CONSTRAINT tracks_position_unique UNIQUE (position),
+    CONSTRAINT tracks_description_en_check CHECK (length(btrim(description_en)) > 0),
+    CONSTRAINT tracks_description_th_check CHECK (length(btrim(description_th)) > 0),
+    CONSTRAINT tracks_id_shape CHECK (id ~ '^t-[a-z0-9][a-z0-9-]{0,62}$'::text),
+    CONSTRAINT tracks_title_en_check CHECK (length(btrim(title_en)) > 0),
+    CONSTRAINT tracks_title_th_check CHECK (length(btrim(title_th)) > 0)
+);
+
+CREATE TABLE IF NOT EXISTS track_stages (
+    track_id text,
+    id text,
+    position integer NOT NULL,
+    title_en text NOT NULL,
+    title_th text NOT NULL,
+    difficulty_min integer NOT NULL,
+    difficulty_max integer NOT NULL,
+    CONSTRAINT track_stages_pkey PRIMARY KEY (track_id, id),
+    CONSTRAINT track_stages_position_unique UNIQUE (track_id, position),
+    CONSTRAINT track_stages_track_fkey FOREIGN KEY (track_id) REFERENCES tracks (id) ON DELETE CASCADE,
+    CONSTRAINT track_stages_band CHECK (difficulty_min <= difficulty_max),
+    CONSTRAINT track_stages_difficulty_band CHECK (difficulty_min >= 800 AND difficulty_min <= 3500 AND difficulty_max >= 800 AND difficulty_max <= 3500 AND (difficulty_min % 100) = 0 AND (difficulty_max % 100) = 0),
+    CONSTRAINT track_stages_id_shape CHECK (id ~ '^st-[a-z0-9][a-z0-9-]{0,62}$'::text),
+    CONSTRAINT track_stages_title_en_check CHECK (length(btrim(title_en)) > 0),
+    CONSTRAINT track_stages_title_th_check CHECK (length(btrim(title_th)) > 0)
+);
+
+CREATE TABLE IF NOT EXISTS stage_tags (
+    track_id text,
+    stage_id text,
+    tag text,
+    CONSTRAINT stage_tags_pkey PRIMARY KEY (track_id, stage_id, tag),
+    CONSTRAINT stage_tags_stage_fkey FOREIGN KEY (track_id, stage_id) REFERENCES track_stages (track_id, id) ON DELETE CASCADE,
+    CONSTRAINT stage_tags_tag_fkey FOREIGN KEY (tag) REFERENCES topics (id)
+);
+
+CREATE INDEX IF NOT EXISTS stage_tags_tag_idx ON stage_tags (tag);
+
 CREATE OR REPLACE FUNCTION current_actor()
 RETURNS uuid
 LANGUAGE plpgsql
@@ -557,6 +604,8 @@ GRANT SELECT ON TABLE settings_meta TO cmslearn_judge;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE settings_plans TO cmslearn_app;
 
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE stage_tags TO cmslearn_app;
+
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_examples TO cmslearn_app;
 
 GRANT SELECT ON TABLE task_examples TO cmslearn_judge;
@@ -570,3 +619,7 @@ GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tasks TO cmslearn_app;
 GRANT SELECT ON TABLE tasks TO cmslearn_judge;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE topics TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE track_stages TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tracks TO cmslearn_app;

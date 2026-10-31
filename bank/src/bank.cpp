@@ -11,6 +11,7 @@
 
 #include "detail.hpp"
 #include "task.hpp"
+#include "tracks.hpp"
 
 namespace cms::bank {
 namespace {
@@ -21,6 +22,7 @@ using detail::with_json;
 
 constexpr std::string_view TOPICS_FILE = "topics.json";
 constexpr std::string_view TASKS_DIR = "tasks";
+constexpr std::string_view TRACKS_FILE = "tracks.json";
 
 auto load_topics(const std::filesystem::path& path) -> Result<std::vector<Topic>> {
   auto topics = std::vector<Topic>{};
@@ -91,7 +93,8 @@ auto check_vocabulary(const std::vector<Topic>& topics, const std::vector<Task>&
   return {};
 }
 
-auto digest_bank(const std::vector<Topic>& topics, std::vector<Task>& tasks) -> std::string {
+auto digest_bank(const std::vector<Topic>& topics, std::vector<Task>& tasks,
+                 const std::vector<Track>& tracks) -> std::string {
   std::ranges::sort(tasks, [](const Task& left, const Task& right) {
     return left.id == right.id ? left.version < right.version : left.id < right.id;
   });
@@ -105,6 +108,11 @@ auto digest_bank(const std::vector<Topic>& topics, std::vector<Task>& tasks) -> 
     hasher.add_field(task.id);
     hasher.add_field(std::to_string(task.version));
     hasher.add_field(task.content_hash);
+  }
+  for (const auto& track : tracks) {
+    hasher.add_field(track.id);
+    hasher.add_field(std::to_string(track.position));
+    hasher.add_field(track.content_hash);
   }
   return hasher.digest();
 }
@@ -135,8 +143,14 @@ auto load(const std::filesystem::path& content_root) -> Result<Bank> {
     return std::unexpected(vocabulary.error());
   }
 
-  auto bank = Bank{.topics = std::move(*topics), .tasks = std::move(tasks), .content_hash = {}};
-  bank.content_hash = digest_bank(bank.topics, bank.tasks);
+  auto tracks = load_tracks(content_root / TRACKS_FILE, *topics);
+  if (!tracks) {
+    return std::unexpected(tracks.error());
+  }
+
+  auto bank = Bank{.topics = std::move(*topics), .tasks = std::move(tasks),
+                   .tracks = std::move(*tracks), .content_hash = {}};
+  bank.content_hash = digest_bank(bank.topics, bank.tasks, bank.tracks);
   return bank;
 }
 

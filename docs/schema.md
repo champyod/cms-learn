@@ -56,6 +56,8 @@ specific refusal each time, because a harness that crashes also exits non-zero.
 | `settings.sql` | `settings`, `settings_meta`, `settings_plans`, `settings_audit` |
 | `settings_functions.sql` | the four functions the settings triggers need |
 | `settings_triggers.sql` | the four triggers |
+| `content.sql` | `topics`, `tasks`, `task_topics`, `task_statements`, `task_examples`, `content_seed`, and the published-row guard |
+| `curriculum.sql` | `tracks`, `track_stages`, `stage_tags` |
 | `grants.sql` | role grants, row-level security, and the `PUBLIC` revokes |
 
 ## Invariants

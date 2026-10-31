@@ -17,6 +17,8 @@ struct SeedReport {
   /// The content version after the call. It moves only when the bank moved.
   std::int64_t version{0};
   std::size_t topics_written{0};
+  /// Tracks inserted or updated. A route the data dropped is removed and not counted here.
+  std::size_t tracks_written{0};
   std::size_t tasks_inserted{0};
   std::size_t tasks_updated{0};
   /// Tasks the seeder left alone because an administrator owns them.

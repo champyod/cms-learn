@@ -529,6 +529,29 @@ struct SettingsPlans_ {
   using _required_insert_columns = sqlpp::detail::type_set<AuthorId, Changes>;
 };
 
+struct StageTags_ {
+  struct TrackId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(track_id, trackId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct StageId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(stage_id, stageId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Tag {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(tag, tag);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(stage_tags, stageTags);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, TrackId, StageId, Tag>;
+  using _required_insert_columns = sqlpp::detail::type_set<TrackId, StageId, Tag>;
+};
+
 struct TaskExamples_ {
   struct TaskId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
@@ -724,6 +747,97 @@ struct Topics_ {
   using _required_insert_columns = sqlpp::detail::type_set<Id, LabelEn, LabelTh>;
 };
 
+struct TrackStages_ {
+  struct TrackId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(track_id, trackId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct TitleEn {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(title_en, titleEn);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TitleTh {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(title_th, titleTh);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct DifficultyMin {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(difficulty_min, difficultyMin);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct DifficultyMax {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(difficulty_max, difficultyMax);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(track_stages, trackStages);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, TrackId, Id, Position, TitleEn, TitleTh, DifficultyMin, DifficultyMax>;
+  using _required_insert_columns = sqlpp::detail::type_set<TrackId, Id, Position, TitleEn, TitleTh, DifficultyMin, DifficultyMax>;
+};
+
+struct Tracks_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct TitleEn {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(title_en, titleEn);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TitleTh {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(title_th, titleTh);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct DescriptionEn {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(description_en, descriptionEn);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct DescriptionTh {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(description_th, descriptionTh);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct ContentHash {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(content_hash, contentHash);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Seeded {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(seeded, seeded);
+    using data_type = ::sqlpp::boolean;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(tracks, tracks);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, Position, TitleEn, TitleTh, DescriptionEn, DescriptionTh, ContentHash, Seeded>;
+  using _required_insert_columns = sqlpp::detail::type_set<Id, Position, TitleEn, TitleTh, DescriptionEn, DescriptionTh, ContentHash>;
+};
+
 using AuditEvents = ::sqlpp::table_t<AuditEvents_>;
 using ContentSeed = ::sqlpp::table_t<ContentSeed_>;
 using Elevations = ::sqlpp::table_t<Elevations_>;
@@ -737,11 +851,14 @@ using Settings = ::sqlpp::table_t<Settings_>;
 using SettingsAudit = ::sqlpp::table_t<SettingsAudit_>;
 using SettingsMeta = ::sqlpp::table_t<SettingsMeta_>;
 using SettingsPlans = ::sqlpp::table_t<SettingsPlans_>;
+using StageTags = ::sqlpp::table_t<StageTags_>;
 using TaskExamples = ::sqlpp::table_t<TaskExamples_>;
 using TaskStatements = ::sqlpp::table_t<TaskStatements_>;
 using TaskTopics = ::sqlpp::table_t<TaskTopics_>;
 using Tasks = ::sqlpp::table_t<Tasks_>;
 using Topics = ::sqlpp::table_t<Topics_>;
+using TrackStages = ::sqlpp::table_t<TrackStages_>;
+using Tracks = ::sqlpp::table_t<Tracks_>;
 
 inline const AuditEvents auditEvents{};
 inline const ContentSeed contentSeed{};
@@ -756,10 +873,13 @@ inline const Settings settings{};
 inline const SettingsAudit settingsAudit{};
 inline const SettingsMeta settingsMeta{};
 inline const SettingsPlans settingsPlans{};
+inline const StageTags stageTags{};
 inline const TaskExamples taskExamples{};
 inline const TaskStatements taskStatements{};
 inline const TaskTopics taskTopics{};
 inline const Tasks tasks{};
 inline const Topics topics{};
+inline const TrackStages trackStages{};
+inline const Tracks tracks{};
 
 }  // namespace cms::db

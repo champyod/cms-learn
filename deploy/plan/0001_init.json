@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "pgschema_version": "1.13.4",
-  "created_at": "2026-10-31T22:20:29+07:00",
+  "created_at": "2026-10-31T22:53:25+07:00",
   "source_fingerprint": {
     "hash": "965b1131737c955e24c7f827c55bd78e4cb49a75adfd04229e0ba297376f5085"
   },
@@ -261,6 +261,30 @@
           "path": "public.task_topics.task_topics_topic_idx"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS tracks (\n    id text,\n    position integer NOT NULL,\n    title_en text NOT NULL,\n    title_th text NOT NULL,\n    description_en text NOT NULL,\n    description_th text NOT NULL,\n    content_hash text NOT NULL,\n    seeded boolean DEFAULT true NOT NULL,\n    CONSTRAINT tracks_pkey PRIMARY KEY (id),\n    CONSTRAINT tracks_position_unique UNIQUE (position),\n    CONSTRAINT tracks_description_en_check CHECK (length(btrim(description_en)) > 0),\n    CONSTRAINT tracks_description_th_check CHECK (length(btrim(description_th)) > 0),\n    CONSTRAINT tracks_id_shape CHECK (id ~ '^t-[a-z0-9][a-z0-9-]{0,62}$'::text),\n    CONSTRAINT tracks_title_en_check CHECK (length(btrim(title_en)) > 0),\n    CONSTRAINT tracks_title_th_check CHECK (length(btrim(title_th)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.tracks"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS track_stages (\n    track_id text,\n    id text,\n    position integer NOT NULL,\n    title_en text NOT NULL,\n    title_th text NOT NULL,\n    difficulty_min integer NOT NULL,\n    difficulty_max integer NOT NULL,\n    CONSTRAINT track_stages_pkey PRIMARY KEY (track_id, id),\n    CONSTRAINT track_stages_position_unique UNIQUE (track_id, position),\n    CONSTRAINT track_stages_track_fkey FOREIGN KEY (track_id) REFERENCES tracks (id) ON DELETE CASCADE,\n    CONSTRAINT track_stages_band CHECK (difficulty_min <= difficulty_max),\n    CONSTRAINT track_stages_difficulty_band CHECK (difficulty_min >= 800 AND difficulty_min <= 3500 AND difficulty_max >= 800 AND difficulty_max <= 3500 AND (difficulty_min % 100) = 0 AND (difficulty_max % 100) = 0),\n    CONSTRAINT track_stages_id_shape CHECK (id ~ '^st-[a-z0-9][a-z0-9-]{0,62}$'::text),\n    CONSTRAINT track_stages_title_en_check CHECK (length(btrim(title_en)) > 0),\n    CONSTRAINT track_stages_title_th_check CHECK (length(btrim(title_th)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.track_stages"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS stage_tags (\n    track_id text,\n    stage_id text,\n    tag text,\n    CONSTRAINT stage_tags_pkey PRIMARY KEY (track_id, stage_id, tag),\n    CONSTRAINT stage_tags_stage_fkey FOREIGN KEY (track_id, stage_id) REFERENCES track_stages (track_id, id) ON DELETE CASCADE,\n    CONSTRAINT stage_tags_tag_fkey FOREIGN KEY (tag) REFERENCES topics (id)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.stage_tags"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS stage_tags_tag_idx ON stage_tags (tag);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.stage_tags.stage_tags_tag_idx"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION current_actor()\nRETURNS uuid\nLANGUAGE plpgsql\nSTABLE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  raw text := current_setting('cms.actor_id', true);\nBEGIN\n  IF raw IS NULL OR raw = '' THEN\n    RAISE EXCEPTION 'cms.actor_id is not set; every settings write must name its actor'\n      USING ERRCODE = 'insufficient_privilege';\n  END IF;\n  RETURN raw::uuid;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -459,6 +483,12 @@
           "path": "privileges.TABLE.settings_plans.cmslearn_app"
         },
         {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE stage_tags TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.stage_tags.cmslearn_app"
+        },
+        {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_examples TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
@@ -499,6 +529,18 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.topics.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE track_stages TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.track_stages.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tracks TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.tracks.cmslearn_app"
         }
       ]
     }

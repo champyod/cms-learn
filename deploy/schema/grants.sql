@@ -18,6 +18,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON topics, tasks, task_topics, task_stateme
   task_examples TO cmslearn_app;
 GRANT SELECT, INSERT, UPDATE ON content_seed TO cmslearn_app;
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON tracks, track_stages, stage_tags TO cmslearn_app;
+
 GRANT SELECT ON tasks, task_examples TO cmslearn_judge;
 
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO cmslearn_app;
