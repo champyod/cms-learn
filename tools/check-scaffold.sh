@@ -39,7 +39,7 @@ compile_header() {
   for dir in "${include_dirs[@]}"; do
     includes+=(-I"$dir")
   done
-  "$CXX" -std=c++23 -fsyntax-only "${includes[@]}" "${extra_includes[@]}" "$work/header.cpp"
+  "$CXX" -std=c++26 -fsyntax-only "${includes[@]}" "${extra_includes[@]}" "$work/header.cpp"
 }
 
 note "every header compiles without a prior include"
