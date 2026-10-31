@@ -21,7 +21,7 @@ foreach(task_path ${task_paths})
     set(target "ref_${slug}")
 
     add_executable(${target} "${source}")
-    cms_learn_apply_warnings(${target})
+    cms_apply_warnings(${target} PRIVATE)
     math(EXPR executables "${executables}+1")
 
     foreach(input ${inputs})

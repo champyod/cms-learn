@@ -32,8 +32,12 @@ function(cms_apply_warnings target scope)
     -Wformat=2
     -Wimplicit-fallthrough
     -Wnull-dereference
+    -Woverloaded-virtual
     -Wundef
     -Wunused)
+  # Turns the standard library's unchecked paths (vector::operator[], string::front) into aborts rather
+  # than silent reads past the end — the difference between an ASan report and a wrong answer.
+  target_compile_definitions(${target} ${scope} _GLIBCXX_ASSERTIONS)
   if(CMS_WARNINGS_AS_ERRORS)
     target_compile_options(${target} ${scope} -Werror)
   endif()
