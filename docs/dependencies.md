@@ -8,13 +8,14 @@ carries. A dependency that is not in this table is not allowed in the build.
 | Package | Version | Licence | Used for |
 |---|---|---|---|
 | drogon | **1.9.14** (overlay port) | MIT | HTTP server, routing, `orm::DbClient` Postgres pool, sessions |
-| inja | baseline `ab9a05e7` | MIT | template rendering |
-| simdjson | **5.0.8** (overlay port, `default-features: false`, `utf8-validation`) | Apache-2.0 | request and JSON parsing |
-| libsodium | baseline `ab9a05e7` | ISC | sealing credentials with `CMSLEARN_SEAL_KEY` |
-| spdlog | baseline `ab9a05e7` | MIT | structured logging |
-| sqlpp23 | **0.70**, pinned by tag | BSD-2-Clause | compile-time-checked SQL; statements are executed through a Drogon connector written here |
-| catch2 | baseline `ab9a05e7`, `tests` feature only | BSL-1.0 | core and judge tests |
-| aws-sdk-cpp | baseline `ab9a05e7`, `default-features: false`, `s3` feature only | Apache-2.0 | `PutObject`, `GetObject`, `HeadObject`, `ListObjectsV2` for task assets |
+| inja | baseline `ab9a05e7` | MIT | template rendering — declared, not yet included by any source file |
+| simdjson | **5.1.0** (overlay port, `default-features: false`, `utf8-validation`) | Apache-2.0 | request and JSON parsing — declared, not yet included by any source file |
+| libsodium | baseline `ab9a05e7` | ISC | sealing credentials with `CMSLEARN_SEAL_KEY` — declared; the sealing code is not written |
+| spdlog | baseline `ab9a05e7` | MIT | structured logging — declared, not yet included by any source file |
+| sqlpp23 | **0.70**, the version the pinned baseline resolves | BSD-2-Clause | compile-time-checked SQL; executed through the connector in `db/` |
+| catch2 | baseline `ab9a05e7`, `tests` feature only | BSL-1.0 | core, db and judge tests |
+| aws-sdk-cpp | baseline `ab9a05e7`, `default-features: false`, `s3` feature only | Apache-2.0 | `PutObject`, `GetObject`, `HeadObject`, `ListObjectsV2` for task assets — declared, not yet included by any source file |
+| openssl | **3.6.5#2**, transitive — never named in `vcpkg.json` | Apache-2.0 | TLS under `curl`, `libpq`, `trantor` (Drogon), `aws-c-cal`, `s2n` and `aws-sdk-cpp`. Its version is decided by the dependency graph, not by us |
 
 `aws-sdk-cpp` declares `dynamodb`, `kinesis` and `s3` as default features, so naming the port without
 `default-features: false` compiles three service SDKs to use one. The manifest turns the defaults off
@@ -88,9 +89,9 @@ added.
 
 | Package | Version | Licence | Used for |
 |---|---|---|---|
-| bun | 1.3.14 | MIT | runtime for the gates only |
+| bun | 1.3.14, pinned by `packageManager` | MIT | runtime for the gates only |
 | ajv | ^8.17.1 | MIT | JSON Schema validation in the content gate |
-| @types/node | ^22.10.2 | MIT | types for the gate scripts |
+| @types/node | ^26.6.6 | MIT | types for the gate scripts |
 | tailwindcss | 4.3.3 | MIT | build-time CSS generation |
 | @tailwindcss/cli | 4.3.3 | MIT | the `build:css` command |
 | daisyui | 5.7.50 | MIT | component classes, CSS only |
@@ -103,11 +104,13 @@ added.
 |---|---|---|---|
 | `postgres` | 18.6 | PostgreSQL | database |
 | `caddy` | 2.11.7 | Apache-2.0 | TLS, routing, rate limits |
-| `crowdsecurity/crowdsec` | v1.8.1 | MIT | in-band CRS AppSec and IP reputation |
+| `crowdsecurity/crowdsec` | v1.8.2 | MIT | in-band CRS AppSec and IP reputation |
 | `prom/prometheus` | v3.15.1 | Apache-2.0 | metrics |
-| `grafana/grafana` | 13.2.4 | AGPL-3.0 | dashboards, operator only |
-| `prom/node-exporter` | v1.8.2 | Apache-2.0 | host metrics |
+| `grafana/grafana` | 13.3.0 | AGPL-3.0 | dashboards, operator only |
+| `prom/node-exporter` | v1.9.1 | Apache-2.0 | host metrics |
 | `seaweedfs` | 4.51 | Apache-2.0 | S3-compatible object store for task text, source and test data |
+
+Every one of these is pinned by digest in `release.toml`, and the `FROM` lines in `deploy/` carry digests too. A tag without its matching digest changes nothing: the digest is what runs.
 
 Application images (`web`, `api`, `judge`, `schema`, `backup`) are built here and pinned by digest in
 `release.toml`; none exists yet.

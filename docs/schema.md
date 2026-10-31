@@ -84,10 +84,11 @@ specific refusal each time, because a harness that crashes also exits non-zero.
 
 ## Query layer
 
-`core/include/cms/db/tables.hpp` declares the tables sqlpp23 checks against, in exactly the shape
-`sqlpp23-ddl2cpp` emits. `core/include/cms/db/settings_query.hpp` holds the statements. Both compile
-clean under `-Wall -Wextra -Werror`, the SQL they produce runs against the real schema, and renaming a
-column in the header breaks the build rather than production.
+`db/include/cms/db/tables.hpp` declares the tables sqlpp23 checks against, and `tools/render-tables.sh`
+writes it from `information_schema.columns` on a cluster that has the plan applied — the schema is the
+input, so a column cannot go missing quietly. `db/include/cms/db/settings_query.hpp` holds the
+statements. Both compile clean under `-Wall -Wextra -Werror`, and `check:db` fails when the committed
+header is not what the schema renders.
 
 Three rules that fell out of the library's contract, each learned from a compiler error:
 
@@ -103,8 +104,14 @@ of filtering it, because the process holding the snapshot decides which tiers it
 `secret` value must be dropped before it is ever built in. The session query carries `revokedAt IS
 NULL` and the expiry comparison, so a revoked session cannot be resurrected by a forgotten check.
 
-The execution side, `core/db/` implementing sqlpp23's connection interface over Drogon's async pool, is
-not written: it needs Drogon's headers, and `vcpkg install` has not run.
+The execution side is `db/`: a CRTP connection over `drogon::orm::DbClient` that serialises a statement
+to `$n` placeholders, binds the parameters by the order sqlpp23 walks them, and decodes the driver's
+text rows into the types the header declares. `cms::db` stays an interface target so a consumer that
+only names a column never inherits Drogon; `cms::db_drogon` is the compiled connector.
+
+It supports `_select` and `_execute` only. Insert, update and prepared statements are deliberately
+absent, so attempting one is a compile error rather than a silent no-op, and they arrive with E3, the
+first code that needs them.
 
 ## Why the two definer functions exist
 
