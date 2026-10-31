@@ -42,7 +42,7 @@ cms_apply_hardening(cms_api_config)
 cms_apply_sanitizers(cms_api_config)
 
 # Accounts are their own library so the state machine is testable without Drogon's server.
-add_library(cms_api_accounts STATIC src/accounts.cpp)
+add_library(cms_api_accounts STATIC src/accounts.cpp src/authorize.cpp)
 add_library(cms::api_accounts ALIAS cms_api_accounts)
 target_include_directories(cms_api_accounts PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")

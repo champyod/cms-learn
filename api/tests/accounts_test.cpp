@@ -1,4 +1,5 @@
 #include <cms/api/accounts.hpp>
+#include <cms/api/authorize.hpp>
 #include <cms/api/settings_defaults.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/db/tables.hpp>
@@ -114,4 +115,60 @@ TEST_CASE("a system principal cannot hold a session", "[accounts][live]") {
 
   const auto session = cms::api::create_session(database, system_id, SESSION_LIFETIME_SECONDS);
   CHECK(!session.has_value());
+}
+
+TEST_CASE("a role grants exactly the capabilities it names", "[authorize][live]") {
+  if (std::getenv("CMSLEAN_TEST_DSN") == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  auto database = live_database();
+  const auto user_id = std::string{"44444444-5555-4666-8777-888888888888"};
+  const auto role_id = std::string{"55555555-6666-4777-8888-999999999999"};
+
+  database(sqlpp::insert_into(cms::db::principals).set(
+      cms::db::principals.id = user_id, cms::db::principals.kind = std::string{"user"},
+      cms::db::principals.handle = std::string{"role_holder"},
+      cms::db::principals.status = std::string{"active"}));
+  database(sqlpp::insert_into(cms::db::roles).set(
+      cms::db::roles.id = role_id, cms::db::roles.name = std::string{"reader"}));
+  database(sqlpp::insert_into(cms::db::principalRoles).set(
+      cms::db::principalRoles.principalId = user_id,
+      cms::db::principalRoles.roleId = role_id));
+  database(sqlpp::insert_into(cms::db::roleCapabilities).set(
+      cms::db::roleCapabilities.roleId = role_id,
+      cms::db::roleCapabilities.capability = std::string{"settings:read"}));
+
+  const auto held = cms::api::load_capabilities(database, user_id);
+  REQUIRE(held.has_value());
+  CHECK(held->has(cms::Capability::settings_read));
+  CHECK(!held->has(cms::Capability::settings_write));
+
+  CHECK(cms::api::authorize(database, user_id, cms::Capability::settings_read).has_value());
+  const auto refused = cms::api::authorize(database, user_id, cms::Capability::settings_write);
+  REQUIRE(!refused.has_value());
+  CHECK(refused.error().code == cms::ErrorCode::permission_denied);
+  CHECK(refused.error().message.find("settings:write") != std::string::npos);
+}
+
+TEST_CASE("a system principal holds every capability and an unknown one holds none", "[authorize][live]") {
+  if (std::getenv("CMSLEAN_TEST_DSN") == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  auto database = live_database();
+  const auto system_id = std::string{"66666666-7777-4888-8999-aaaaaaaaaaaa"};
+
+  database(sqlpp::insert_into(cms::db::principals).set(
+      cms::db::principals.id = system_id, cms::db::principals.kind = std::string{"system"},
+      cms::db::principals.handle = std::string{"system:authority"},
+      cms::db::principals.status = std::string{"active"}));
+
+  const auto all = cms::api::load_capabilities(database, system_id);
+  REQUIRE(all.has_value());
+  CHECK(all->bits() == cms::all_capabilities().bits());
+
+  const auto missing = cms::api::load_capabilities(database, "99999999-0000-4000-8000-000000000000");
+  REQUIRE(!missing.has_value());
+  CHECK(missing.error().code == cms::ErrorCode::not_found);
 }
