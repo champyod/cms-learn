@@ -10,6 +10,9 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 trivy="${TRIVY_IMAGE:-aquasec/trivy:0.66.0}"
+# The vulnerability database is ~130 MB. Without a cache volume every run re-downloads it, which makes
+# the gate slow and turns a flaky network into a red build.
+trivy_cache="${TRIVY_CACHE_VOLUME:-cms-learn-trivy-cache}"
 
 note() { printf '  %s\n' "$*"; }
 
@@ -37,13 +40,13 @@ command -v docker >/dev/null || { echo "security scan FAILED: docker is required
 
 note "secrets and vulnerable dependencies (fixed CVEs only — an unfixable finding is not actionable)"
 scan "the vulnerability and secret scan" \
-  docker run --rm -v "$repo:/src:ro" "$trivy" fs \
+  docker run --rm -v "$repo:/src:ro" -v "$trivy_cache:/root/.cache/trivy" "$trivy" fs \
   --scanners vuln,secret --ignore-unfixed --exit-code 1 \
   --skip-dirs /src/.git --skip-dirs /src/node_modules /src
 
 note "deployment hardening (Dockerfiles, compose) at MEDIUM and above"
 scan "the deployment configuration scan" \
-  docker run --rm -v "$repo:/src:ro" "$trivy" config \
+  docker run --rm -v "$repo:/src:ro" -v "$trivy_cache:/root/.cache/trivy" "$trivy" config \
   --exit-code 1 --severity MEDIUM,HIGH,CRITICAL /src/deploy
 
 printf 'security scan: OK\n'
