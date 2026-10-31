@@ -16,35 +16,14 @@
 #include <unistd.h>
 #include <utility>
 
+#include <cms/api/admin_protocol.hpp>
+
 namespace cms::api {
 namespace {
 
 constexpr std::size_t MAX_REQUEST_BYTES = 4096;
 constexpr int ACCEPT_POLL_MILLISECONDS = 200;
 constexpr mode_t SOCKET_MODE = 0600;
-
-/// Pulls a string field out of one flat JSON object. A general parser is not needed and would be a
-/// liability: the request is a single object written by the one client we ship.
-auto string_field(std::string_view json, std::string_view name) -> std::string {
-  const auto key = "\"" + std::string{name} + "\"";
-  auto position = json.find(key);
-  if (position == std::string_view::npos) {
-    return {};
-  }
-  position = json.find(':', position + key.size());
-  if (position == std::string_view::npos) {
-    return {};
-  }
-  position = json.find('"', position + 1);
-  if (position == std::string_view::npos) {
-    return {};
-  }
-  const auto end = json.find('"', position + 1);
-  if (end == std::string_view::npos) {
-    return {};
-  }
-  return std::string{json.substr(position + 1, end - position - 1)};
-}
 
 auto write_all(int fd, std::string_view text) -> void {
   auto written = std::size_t{0};
@@ -56,6 +35,7 @@ auto write_all(int fd, std::string_view text) -> void {
     written += static_cast<std::size_t>(count);
   }
 }
+
 
 auto peer_uid(int fd) -> uid_t {
   auto credentials = ucred{};
@@ -87,18 +67,26 @@ auto read_line(int fd) -> std::string {
   return std::string{received.data(), received.size()};
 }
 
-auto answer(std::string_view request, const SettingsStore& store) -> std::string {
-  const auto command = string_field(request, "command");
-  if (command == "ping") {
-    return "{\"ok\":true,\"settings_version\":" + std::to_string(store.version()) + "}\n";
+/// Pulls the request line and hands it to the protocol. Nothing is interpreted here: the socket's one
+/// job is to carry bytes for a peer the credentials already authorized.
+auto answer(std::string_view request, const SettingsStore& store,
+            const std::shared_ptr<const db::connection_config>& database_config) -> std::string {
+  const auto snapshot = store.load();
+  if (!snapshot) {
+    return "{\"ok\":false,\"error\":\"no settings snapshot is loaded\"}\n";
   }
-  return "{\"ok\":false,\"error\":\"unknown command\"}\n";
+  auto database = db::connection{database_config};
+  return dispatch_line(request, *snapshot, database);
 }
 
 }  // namespace
 
-AdminSocket::AdminSocket(std::string path, uid_t allowed_uid, std::shared_ptr<SettingsStore> store)
-    : path_(std::move(path)), allowed_uid_(allowed_uid), store_(std::move(store)) {}
+AdminSocket::AdminSocket(std::string path, uid_t allowed_uid, std::shared_ptr<SettingsStore> store,
+                         std::shared_ptr<const db::connection_config> database_config)
+    : path_(std::move(path)),
+      allowed_uid_(allowed_uid),
+      store_(std::move(store)),
+      database_config_(std::move(database_config)) {}
 
 AdminSocket::~AdminSocket() { stop(); }
 
@@ -144,7 +132,7 @@ auto AdminSocket::start() -> void {
         continue;
       }
       const auto request = read_line(client);
-      write_all(client, answer(request, *store_));
+      write_all(client, answer(request, *store_, database_config_));
       ::close(client);
     }
   });

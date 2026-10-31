@@ -95,6 +95,7 @@ CREATE TABLE IF NOT EXISTS elevations (
     granted_at timestamptz DEFAULT now() NOT NULL,
     expires_at timestamptz NOT NULL,
     consumed_at timestamptz,
+    reason text NOT NULL,
     CONSTRAINT elevations_pkey PRIMARY KEY (id),
     CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES principals (id),
     CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),
@@ -102,7 +103,8 @@ CREATE TABLE IF NOT EXISTS elevations (
     CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),
     CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> principal_id),
     CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),
-    CONSTRAINT elevations_second_person CHECK (approved_by IS NULL OR approved_by <> principal_id)
+    CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),
+    CONSTRAINT elevations_two_people CHECK (approved_by IS NULL OR approved_by <> principal_id AND approved_by <> granted_by)
 );
 
 CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (principal_id, capability, expires_at) WHERE (consumed_at IS NULL);
@@ -396,7 +398,7 @@ GRANT SELECT, USAGE ON SEQUENCE settings_audit_id_seq TO cmslearn_app;
 
 GRANT INSERT, SELECT ON TABLE audit_events TO cmslearn_app;
 
-GRANT INSERT, SELECT ON TABLE elevations TO cmslearn_app;
+GRANT INSERT, SELECT, UPDATE ON TABLE elevations TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT ON TABLE principal_roles TO cmslearn_app;
 

@@ -1,7 +1,8 @@
 //! The command surface.
 //!
 //! Every verb here maps to one action the core performs, and nothing more: an option that the core
-//! cannot honour would be a promise this binary cannot keep.
+//! cannot honour would be a promise this binary cannot keep. Schema and settings changes are two-phase
+//! and are not answered by the core yet, so no verb offers them.
 
 use std::path::PathBuf;
 
@@ -29,43 +30,39 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Report the core version, schema version and settings version.
+    /// Report the settings version the core is serving.
     Status,
 
-    /// Change configuration.
-    #[command(subcommand)]
-    Settings(SettingsCommand),
+    /// Ask for a capability to be granted to an account for a while.
+    Elevate {
+        /// Account that will hold the capability.
+        #[arg(long, value_name = "UUID")]
+        principal: String,
 
-    /// Change the database schema.
-    #[command(subcommand)]
-    Migrate(MigrateCommand),
-}
+        /// Capability name, for example `settings:write`.
+        #[arg(long, value_name = "NAME")]
+        capability: String,
 
-#[derive(Debug, Subcommand)]
-pub enum SettingsCommand {
-    /// Show what a change would do, without doing it.
-    Plan {
-        /// Settings key, for example `registration_open`.
-        key: String,
-        /// Value as it would be entered in the admin interface.
-        value: String,
+        /// Account asking for it. Never the account receiving it.
+        #[arg(long, value_name = "UUID")]
+        granted_by: String,
+
+        /// Why the elevation exists. An approver is asked to judge this, so it is required.
+        #[arg(long, value_name = "TEXT")]
+        reason: String,
+
+        /// Minutes it should last. Omit for the policy default; the core caps it at 60.
+        #[arg(long, value_name = "MINUTES")]
+        minutes: Option<i64>,
     },
 
-    /// Apply a plan that was previously generated.
-    Apply {
-        /// Identifier returned by `settings plan`.
-        plan_id: String,
-    },
-}
+    /// Make a pending elevation live as the second person.
+    Approve {
+        /// Identifier returned by `cmsctl elevate`.
+        elevation_id: String,
 
-#[derive(Debug, Subcommand)]
-pub enum MigrateCommand {
-    /// Show the statements a migration would run, without running them.
-    Plan,
-
-    /// Apply a migration plan that was previously generated.
-    Apply {
-        /// Identifier returned by `migrate plan`.
-        plan_id: String,
+        /// Account approving. Must be neither the beneficiary nor the account that asked.
+        #[arg(long, value_name = "UUID")]
+        approved_by: String,
     },
 }

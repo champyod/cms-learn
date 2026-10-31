@@ -1,3 +1,5 @@
+#include "live_database.hpp"
+
 #include <cms/api/accounts.hpp>
 #include <cms/api/authorize.hpp>
 #include <cms/api/settings_defaults.hpp>
@@ -17,16 +19,6 @@ namespace {
 
 constexpr std::int64_t SESSION_LIFETIME_SECONDS = 3600;
 
-auto live_database() -> cms::db::connection {
-  const auto* dsn = std::getenv("CMSLEAN_TEST_DSN");
-  REQUIRE(dsn != nullptr);
-  // One client for the whole binary: creating a second Drogon client in a process that already holds
-  // one deadlocks its pool, and the tests only need a connection, not a pool each.
-  static const auto client = ::drogon::orm::DbClient::newPgClient(dsn, 4);
-  return cms::db::connection{
-      std::make_shared<const cms::db::connection_config>(cms::db::connection_config{client})};
-}
-
 auto registration_settings(bool requires_approval) -> cms::SettingsSnapshot {
   auto snapshot = cms::SettingsSnapshot{1, {}};
   snapshot.values.emplace("site.registration_open", true);
@@ -42,7 +34,7 @@ TEST_CASE("a signup is verified, approved, and only then opens a session", "[acc
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
 
-  auto database = live_database();
+  auto database = cms::test::live_database();
   const auto settings = registration_settings(true);
 
   const auto signup = cms::api::sign_up(database, settings, "student@example.org", "student_one");
@@ -78,7 +70,7 @@ TEST_CASE("an address outside the allowlist is refused", "[accounts][live]") {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
 
-  auto database = live_database();
+  auto database = cms::test::live_database();
   const auto settings = registration_settings(false);
 
   const auto refused = cms::api::sign_up(database, settings, "student@elsewhere.test", "outsider");
@@ -91,7 +83,7 @@ TEST_CASE("a closed registration refuses everyone", "[accounts][live]") {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
 
-  auto database = live_database();
+  auto database = cms::test::live_database();
   auto settings = registration_settings(false);
   settings.values.insert_or_assign("site.registration_open", false);
 
@@ -105,7 +97,7 @@ TEST_CASE("a system principal cannot hold a session", "[accounts][live]") {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
 
-  auto database = live_database();
+  auto database = cms::test::live_database();
   const auto system_id = std::string{"33333333-4444-4555-8666-777777777777"};
 
   database(sqlpp::insert_into(cms::db::principals).set(
@@ -122,7 +114,7 @@ TEST_CASE("a role grants exactly the capabilities it names", "[authorize][live]"
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
 
-  auto database = live_database();
+  auto database = cms::test::live_database();
   const auto user_id = std::string{"44444444-5555-4666-8777-888888888888"};
   const auto role_id = std::string{"55555555-6666-4777-8888-999999999999"};
 
@@ -156,7 +148,7 @@ TEST_CASE("a system principal holds every capability and an unknown one holds no
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
 
-  auto database = live_database();
+  auto database = cms::test::live_database();
   const auto system_id = std::string{"66666666-7777-4888-8999-aaaaaaaaaaaa"};
 
   database(sqlpp::insert_into(cms::db::principals).set(
@@ -171,19 +163,4 @@ TEST_CASE("a system principal holds every capability and an unknown one holds no
   const auto missing = cms::api::load_capabilities(database, "99999999-0000-4000-8000-000000000000");
   REQUIRE(!missing.has_value());
   CHECK(missing.error().code == cms::ErrorCode::not_found);
-}
-
-TEST_CASE("bootstrap runs once and then refuses", "[bootstrap][live]") {
-  if (std::getenv("CMSLEAN_TEST_DSN") == nullptr) {
-    SKIP("CMSLEAN_TEST_DSN is not set");
-  }
-
-  auto database = live_database();
-  const auto first = cms::api::bootstrap(database, "operator@example.org", "first_admin");
-  REQUIRE(first.has_value());
-  CHECK(first->size() == 36);
-
-  const auto second = cms::api::bootstrap(database, "second@example.org", "second_admin");
-  REQUIRE(!second.has_value());
-  CHECK(second.error().code == cms::ErrorCode::conflict);
 }

@@ -33,4 +33,12 @@ note "the client declares the transports it is allowed"
 grep -Eq "^serde_json[[:space:]]*=" "$manifest" || fail "cmsctl no longer declares serde_json"
 grep -Eq "^clap[[:space:]]*=" "$manifest" || fail "cmsctl no longer declares clap"
 
+command -v cargo >/dev/null 2>&1 || fail "cargo is not on PATH, so the client cannot be built"
+
+note "the client formats, lints and passes its contract tests"
+(cd "$repo/cmsctl" && cargo fmt --check >/dev/null) || fail "cargo fmt --check reports unformatted code"
+(cd "$repo/cmsctl" && cargo clippy --all-targets -- -D warnings >/dev/null 2>&1) ||
+  fail "cargo clippy reports a warning"
+(cd "$repo/cmsctl" && cargo test >/dev/null 2>&1) || fail "cargo test fails"
+
 printf 'cli gate: OK\n'

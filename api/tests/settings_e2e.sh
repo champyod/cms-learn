@@ -118,7 +118,7 @@ else
   bad "the admin socket is 0600" "mode is ${socket_mode:-missing}"
 fi
 
-reply="$(printf '{"command":"ping"}\n' | nc -U -N "$work/admin.sock" 2>/dev/null | head -1)"
+reply="$(printf '{"action":"ping"}\n' | nc -U -N "$work/admin.sock" 2>/dev/null | head -1)"
 if [[ "$reply" == *'"ok":true'* && "$reply" == *"settings_version"* ]]; then
   ok "the admin socket answers ping"
 else

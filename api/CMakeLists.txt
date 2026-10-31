@@ -6,6 +6,7 @@ cms_learn_align_jsoncpp()
 find_package(PostgreSQL REQUIRED)
 find_package(unofficial-sodium CONFIG REQUIRED)
 find_package(CURL REQUIRED)
+find_package(simdjson CONFIG REQUIRED)
 
 # Mail is its own library: it is the only part of the api that talks to the network on its own, and it
 # is disabled by default, so it must be testable without a server.
@@ -41,19 +42,22 @@ cms_apply_warnings(cms_api_config PUBLIC)
 cms_apply_hardening(cms_api_config)
 cms_apply_sanitizers(cms_api_config)
 
-# Accounts are their own library so the state machine is testable without Drogon's server.
-add_library(cms_api_accounts STATIC src/accounts.cpp src/authorize.cpp)
-add_library(cms::api_accounts ALIAS cms_api_accounts)
-target_include_directories(cms_api_accounts PUBLIC
+# Authority is its own library so the account state machine, the capability check, elevation and the
+# control protocol are testable without Drogon's server or a file descriptor.
+add_library(cms_api_authority STATIC src/accounts.cpp src/audit.cpp src/authorize.cpp
+                                      src/elevation.cpp src/admin_socket.cpp
+                                      src/admin_protocol.cpp)
+add_library(cms::api_authority ALIAS cms_api_authority)
+target_include_directories(cms_api_authority PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
-target_link_libraries(cms_api_accounts PUBLIC cms::api_identity cms::api_mail cms::db_drogon)
-cms_apply_warnings(cms_api_accounts PUBLIC)
-cms_apply_hardening(cms_api_accounts)
-cms_apply_sanitizers(cms_api_accounts)
+target_link_libraries(cms_api_authority PUBLIC cms::api_identity cms::api_mail cms::db_drogon
+                                             simdjson::simdjson)
+cms_apply_warnings(cms_api_authority PUBLIC)
+cms_apply_hardening(cms_api_authority)
+cms_apply_sanitizers(cms_api_authority)
 
-add_executable(cms_api src/main.cpp src/settings_source.cpp src/settings_watcher.cpp
-                       src/admin_socket.cpp)
-target_link_libraries(cms_api PRIVATE cms::api_accounts cms::api_config cms::api_identity
+add_executable(cms_api src/main.cpp src/settings_source.cpp src/settings_watcher.cpp)
+target_link_libraries(cms_api PRIVATE cms::api_authority cms::api_config cms::api_identity
                                        cms::api_mail cms::db_drogon Drogon::Drogon
                                        PostgreSQL::PostgreSQL)
 cms_apply_warnings(cms_api PRIVATE)

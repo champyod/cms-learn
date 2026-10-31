@@ -90,8 +90,9 @@ auto run() -> int {
 
   const auto client =
       drogon::orm::DbClient::newPgClient(config->database_url, DATABASE_CONNECTIONS);
-  auto database = cms::db::connection{std::make_shared<const cms::db::connection_config>(
-      cms::db::connection_config{.client = client})};
+  const auto database_config = std::make_shared<const cms::db::connection_config>(
+      cms::db::connection_config{.client = client});
+  auto database = cms::db::connection{database_config};
 
   const auto snapshot = cms::api::load_settings(database);
   if (!snapshot) {
@@ -106,7 +107,7 @@ auto run() -> int {
   watcher.start();
 
   const auto allowed_uid = static_cast<uid_t>(std::stoul(config->admin_uid));
-  auto admin = cms::api::AdminSocket{config->admin_socket, allowed_uid, store};
+  auto admin = cms::api::AdminSocket{config->admin_socket, allowed_uid, store, database_config};
   admin.start();
 
   auto& app = drogon::app();

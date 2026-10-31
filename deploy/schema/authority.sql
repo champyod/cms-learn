@@ -66,9 +66,16 @@ CREATE TABLE elevations (
   granted_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz,
+  reason text NOT NULL,
+  CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),
   CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),
   CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= granted_at + interval '60 minutes'),
-  CONSTRAINT elevations_second_person CHECK (approved_by IS NULL OR approved_by <> principal_id),
+  -- Two people, and the beneficiary is neither of them. Written as one constraint because a null
+  -- approver is the pending state, not a missing fact: a row is live only once a second principal,
+  -- distinct from both the beneficiary and the grantor, has approved it.
+  CONSTRAINT elevations_two_people CHECK (
+    approved_by IS NULL OR (approved_by <> principal_id AND approved_by <> granted_by)
+  ),
   CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> principal_id)
 );
 

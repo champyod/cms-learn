@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <thread>
 
+#include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
 
 namespace cms::api {
@@ -22,8 +23,12 @@ class AdminSocket {
  public:
   /// @param path Absolute path to bind. An existing socket file is replaced.
   /// @param allowed_uid The only user id whose requests are answered.
-  /// @param store The settings snapshot reported by `ping`.
-  AdminSocket(std::string path, uid_t allowed_uid, std::shared_ptr<SettingsStore> store);
+  /// @param store The settings snapshot answered against.
+  /// @param database_config The pool an action reads or writes through. Held as the pool rather than
+  /// as a connection because a connection is move-only and each request builds its own from this; a
+  /// borrowed reference would outlive its owner the moment the service restarts its listener.
+  AdminSocket(std::string path, uid_t allowed_uid, std::shared_ptr<SettingsStore> store,
+              std::shared_ptr<const db::connection_config> database_config);
 
   ~AdminSocket();
 
@@ -43,6 +48,7 @@ class AdminSocket {
   std::string path_;
   uid_t allowed_uid_;
   std::shared_ptr<SettingsStore> store_;
+  std::shared_ptr<const db::connection_config> database_config_;
   std::atomic<bool> running_{false};
   std::thread worker_;
   int listen_fd_{-1};

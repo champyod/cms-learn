@@ -23,6 +23,7 @@ inline constexpr std::array k_setting_defaults{
     SettingDefault{"site.registration_open", "false"},
     SettingDefault{"site.registration_domain_allowlist", ""},
     SettingDefault{"site.registration_requires_approval", "true"},
+    SettingDefault{"identity.elevation_minutes", "10"},
     SettingDefault{"mail.enabled", "false"},
     SettingDefault{"mail.host", ""},
     SettingDefault{"mail.port", "587"},

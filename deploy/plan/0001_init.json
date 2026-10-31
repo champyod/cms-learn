@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "pgschema_version": "1.13.4",
-  "created_at": "2026-10-31T18:27:37+07:00",
+  "created_at": "2026-10-31T20:57:21+07:00",
   "source_fingerprint": {
     "hash": "965b1131737c955e24c7f827c55bd78e4cb49a75adfd04229e0ba297376f5085"
   },
@@ -75,7 +75,7 @@
           "path": "public.audit_events.audit_events_actor_idx"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS elevations (\n    id uuid DEFAULT gen_random_uuid(),\n    principal_id uuid NOT NULL,\n    capability capability NOT NULL,\n    granted_by uuid NOT NULL,\n    approved_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    consumed_at timestamptz,\n    CONSTRAINT elevations_pkey PRIMARY KEY (id),\n    CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES principals (id),\n    CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),\n    CONSTRAINT elevations_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),\n    CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> principal_id),\n    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),\n    CONSTRAINT elevations_second_person CHECK (approved_by IS NULL OR approved_by <> principal_id)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS elevations (\n    id uuid DEFAULT gen_random_uuid(),\n    principal_id uuid NOT NULL,\n    capability capability NOT NULL,\n    granted_by uuid NOT NULL,\n    approved_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    consumed_at timestamptz,\n    reason text NOT NULL,\n    CONSTRAINT elevations_pkey PRIMARY KEY (id),\n    CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES principals (id),\n    CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),\n    CONSTRAINT elevations_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),\n    CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> principal_id),\n    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),\n    CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),\n    CONSTRAINT elevations_two_people CHECK (approved_by IS NULL OR approved_by <> principal_id AND approved_by <> granted_by)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.elevations"
@@ -285,7 +285,7 @@
           "path": "privileges.TABLE.audit_events.cmslearn_app"
         },
         {
-          "sql": "GRANT INSERT, SELECT ON TABLE elevations TO cmslearn_app;",
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE elevations TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.elevations.cmslearn_app"

@@ -14,6 +14,7 @@
 #include <sodium.h>
 #include <sqlpp23/sqlpp23.h>
 
+#include <cms/api/audit.hpp>
 #include <cms/api/mailer.hpp>
 #include <cms/api/settings_defaults.hpp>
 #include <cms/api/uuid.hpp>
@@ -110,14 +111,6 @@ auto domain_allowed(std::string_view domain, std::string_view allowlist) -> bool
   return !any;
 }
 
-auto record_audit(db::connection& database, std::string_view actor_id, std::string_view action,
-                  std::string_view subject) -> void {
-  database(sqlpp::insert_into(db::auditEvents).set(
-      db::auditEvents.actorId = std::string{actor_id},
-      db::auditEvents.invokedBy = std::string{INVOKED_BY},
-      db::auditEvents.action = std::string{action}, db::auditEvents.subject = std::string{subject}));
-}
-
 auto failure(std::string_view text) -> Error {
   return Error::make(ErrorCode::unavailable, text);
 }
@@ -161,7 +154,7 @@ auto sign_up(db::connection& database, const SettingsSnapshot& settings, std::st
         db::principals.id = principal_id, db::principals.kind = std::string{"user"},
         db::principals.handle = std::string{handle}, db::principals.email = std::string{email},
         db::principals.status = std::string{"pending"}));
-    record_audit(database, principal_id, ACTION_SIGNUP, principal_id);
+    record_audit(database, principal_id, INVOKED_BY, ACTION_SIGNUP, principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::conflict, error.what()));
   }
@@ -209,7 +202,7 @@ auto verify_email(db::connection& database, const SettingsSnapshot& settings, st
                  .set(db::principals.emailVerifiedAt = now_stamp(),
                       db::principals.status = std::string{status})
                  .where(db::principals.id == principal_id));
-    record_audit(database, principal_id, ACTION_VERIFY, principal_id);
+    record_audit(database, principal_id, INVOKED_BY, ACTION_VERIFY, principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }
@@ -228,7 +221,7 @@ auto approve_account(db::connection& database, std::string_view principal_id,
           ErrorCode::invalid_argument,
           "only an account that has verified its address can be approved"));
     }
-    record_audit(database, actor_id, ACTION_APPROVE, principal_id);
+    record_audit(database, actor_id, INVOKED_BY, ACTION_APPROVE, principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }
@@ -256,7 +249,7 @@ auto create_session(db::connection& database, std::string_view principal_id,
     database(sqlpp::insert_into(db::sessions).set(
         db::sessions.id = session_id, db::sessions.principalId = std::string{principal_id},
         db::sessions.expiresAt = stamp_after(lifetime_seconds)));
-    record_audit(database, principal_id, ACTION_SESSION, session_id);
+    record_audit(database, principal_id, INVOKED_BY, ACTION_SESSION, session_id);
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }
@@ -293,7 +286,7 @@ auto bootstrap(db::connection& database, std::string_view admin_email, std::stri
         db::principals.email = std::string{admin_email},
         db::principals.emailVerifiedAt = now_stamp(),
         db::principals.status = std::string{"active"}));
-    record_audit(database, admin_id, "bootstrap.completed", admin_id);
+    record_audit(database, admin_id, INVOKED_BY, "bootstrap.completed", admin_id);
     return admin_id;
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::conflict, error.what()));

@@ -18,10 +18,18 @@ const MAX_RESPONSE_BYTES: u64 = 1 << 20;
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Request<'a> {
     Status,
-    SettingsPlan { key: &'a str, value: &'a str },
-    SettingsApply { plan_id: &'a str },
-    MigratePlan,
-    MigrateApply { plan_id: &'a str },
+    ElevationGrant {
+        principal_id: &'a str,
+        capability: &'a str,
+        granted_by: &'a str,
+        reason: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        minutes: Option<i64>,
+    },
+    ElevationApprove {
+        elevation_id: &'a str,
+        approved_by: &'a str,
+    },
 }
 
 #[derive(Debug)]

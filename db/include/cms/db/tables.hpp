@@ -99,11 +99,16 @@ struct Elevations_ {
     using data_type = std::optional<::sqlpp::timestamp>;
     using has_default = std::true_type;
   };
+  struct Reason {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(reason, reason);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(elevations, elevations);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, PrincipalId, Capability, GrantedBy, ApprovedBy, GrantedAt, ExpiresAt, ConsumedAt>;
-  using _required_insert_columns = sqlpp::detail::type_set<PrincipalId, Capability, GrantedBy, ExpiresAt>;
+      sqlpp::table_columns<T, Id, PrincipalId, Capability, GrantedBy, ApprovedBy, GrantedAt, ExpiresAt, ConsumedAt, Reason>;
+  using _required_insert_columns = sqlpp::detail::type_set<PrincipalId, Capability, GrantedBy, ExpiresAt, Reason>;
 };
 
 struct PrincipalRoles_ {
