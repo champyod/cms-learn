@@ -93,7 +93,7 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
       "/tasks/{}/submit",
       [database_config](const drogon::HttpRequestPtr& request,
                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
-                        std::string task_id) {
+                        std::string_view task_id) {
         auto database = cms::db::connection{database_config};
         const auto submitted = cms::api::submit_solution(
             database, request->getCookie("cms_session"), task_id,
@@ -103,8 +103,8 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
           callback(text_response(submitted.error().message, drogon::k400BadRequest));
           return;
         }
-        callback(drogon::HttpResponse::newRedirectionResponse("/tasks/" + task_id,
-                                                             drogon::k303SeeOther));
+        const auto location = std::string{"/tasks/"}.append(task_id);
+        callback(drogon::HttpResponse::newRedirectionResponse(location, drogon::k303SeeOther));
       },
       {drogon::Post});
 
