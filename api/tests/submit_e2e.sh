@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Posts a submission through the real route and checks the row it left.
 #
-# This is the only test that exercises the whole path a learner takes: cookie in, form body in, row out. It
-# skips (exit 77) when the PostgreSQL server binaries are not installed.
+# It skips (exit 77) when the PostgreSQL server binaries are not installed.
 set -uo pipefail
 
 binary="${1:?usage: submit_e2e.sh <path to cms_api>}"

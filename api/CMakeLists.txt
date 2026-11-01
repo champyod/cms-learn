@@ -47,7 +47,8 @@ cms_apply_sanitizers(cms_api_config)
 add_library(cms_api_authority STATIC src/accounts.cpp src/audit.cpp src/authorize.cpp
                                       src/elevation.cpp src/admin_socket.cpp
                                       src/admin_protocol.cpp src/submissions.cpp
-                                      src/settings_view.cpp src/settings_write.cpp)
+                                      src/settings_view.cpp src/settings_write.cpp
+                                      src/settings_route.cpp)
 add_library(cms::api_authority ALIAS cms_api_authority)
 target_include_directories(cms_api_authority PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
@@ -58,6 +59,12 @@ cms_apply_hardening(cms_api_authority)
 cms_apply_sanitizers(cms_api_authority)
 
 add_executable(cms_api src/main.cpp src/settings_source.cpp src/settings_watcher.cpp)
+
+# The catalogue is a build input, not operator configuration: a key this binary was not compiled against is
+# not a setting it can honour, so the build names the file it was built from rather than letting a runtime
+# value offer controls nothing honours. A missing file stops the service at startup, naming the path.
+target_compile_definitions(cms_api PRIVATE
+  CMS_CATALOGUE_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../deploy/catalogue/settings.json")
 target_link_libraries(cms_api PRIVATE cms::api_authority cms::api_config cms::api_identity
                                        cms::api_mail cms::db_drogon Drogon::Drogon
                                        PostgreSQL::PostgreSQL)

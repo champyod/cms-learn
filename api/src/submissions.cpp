@@ -17,8 +17,7 @@ auto now_stamp() -> cms::db::timestamp {
       std::chrono::system_clock::now());
 }
 
-/// The session is the cookie. A row that has expired or been revoked is not a session, and the query says so
-/// rather than leaving the caller to remember.
+/// The session is the cookie. A row that has expired or been revoked is not a session.
 auto account_of(db::connection& database, std::string_view session_id) -> std::string {
   auto account = std::string{};
   for (const auto& row : database(sqlpp::select(db::sessions.principalId)

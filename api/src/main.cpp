@@ -6,23 +6,27 @@
 #include <print>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <drogon/drogon.h>
 
 #include <cms/api/admin_socket.hpp>
+#include <cms/api/authorize.hpp>
 #include <cms/api/form_body.hpp>
 #include <cms/api/host_config.hpp>
+#include <cms/api/settings_route.hpp>
 #include <cms/api/settings_source.hpp>
+#include <cms/api/settings_view.hpp>
 #include <cms/api/settings_watcher.hpp>
 #include <cms/api/submissions.hpp>
+#include <cms/capability.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
 
 namespace {
 
 constexpr std::size_t DATABASE_CONNECTIONS = 4;
-/// The backstop for a notification that never arrived. A policy value, so it becomes a settings row
-/// once the catalogue is wired; until then it is named rather than inlined.
+/// The backstop for a notification that never arrived. A policy value, named rather than inlined.
 constexpr unsigned SETTINGS_POLL_SECONDS = 30;
 
 auto fail(std::string_view message) -> int {
@@ -59,8 +63,8 @@ auto text_response(std::string body, drogon::HttpStatusCode status = drogon::k20
 }
 
 auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
-                     const std::shared_ptr<const cms::db::connection_config>& database_config)
-    -> void {
+                     const std::shared_ptr<const cms::db::connection_config>& database_config,
+                     const std::vector<cms::api::CatalogueEntry>& catalogue) -> void {
   auto& app = drogon::app();
 
   app.registerHandler(
@@ -103,6 +107,41 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
                                                              drogon::k303SeeOther));
       },
       {drogon::Post});
+
+  // The settings page posts every field it renders. The account comes from the session cookie, so a client
+  // cannot write settings as somebody else by editing a field.
+  app.registerHandler(
+      "/settings",
+      [database_config, catalogue](const drogon::HttpRequestPtr& request,
+                                   std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        auto database = cms::db::connection{database_config};
+        const auto principal =
+            cms::api::principal_of_session(database, request->getCookie("cms_session"));
+        if (!principal) {
+          callback(text_response(principal.error().message, drogon::k500InternalServerError));
+          return;
+        }
+        if (principal->empty()) {
+          callback(text_response("no live session; sign in before changing settings",
+                                 drogon::k403Forbidden));
+          return;
+        }
+        const auto permitted =
+            cms::api::authorize(database, *principal, cms::Capability::settings_write);
+        if (!permitted) {
+          callback(text_response(permitted.error().message, drogon::k403Forbidden));
+          return;
+        }
+        const auto changes = cms::api::setting_changes(request->body(), catalogue);
+        const auto written =
+            cms::api::commit_settings(database_config, catalogue, changes, *principal);
+        if (!written) {
+          callback(text_response(written.error().message, drogon::k400BadRequest));
+          return;
+        }
+        callback(drogon::HttpResponse::newRedirectionResponse("/settings", drogon::k303SeeOther));
+      },
+      {drogon::Post});
 }
 
 /// Runs the service once. Kept separate from main so an exception during startup is reported like any
@@ -124,8 +163,13 @@ auto run() -> int {
     return fail(snapshot.error().message);
   }
 
+  const auto catalogue = cms::api::load_catalogue(CMS_CATALOGUE_FILE);
+  if (!catalogue) {
+    return fail(catalogue.error().message);
+  }
+
   auto store = std::make_shared<cms::SettingsStore>(*snapshot);
-  register_routes(store, database_config);
+  register_routes(store, database_config, *catalogue);
 
   auto watcher = cms::api::SettingsWatcher{database, store, config->database_url,
                                            SETTINGS_POLL_SECONDS};
