@@ -1,17 +1,45 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { endWhen, otherwise, slot, when, type Mode } from "../slots.ts";
-import type { SettingsFixture, SettingEntry } from "../catalogue.ts";
+import { endWhen, loopEnd, loopStart, otherwise, slot, when, type Mode } from "../slots.ts";
+import { groupOf, type SettingsFixture, type SettingEntry } from "../catalogue.ts";
 import { RepeatList } from "../repeat.tsx";
 import { Layout } from "./layout.tsx";
 
 // The settings form, generated from the catalogue rather than written per key: adding a setting is a change
 // to deploy/catalogue/settings.json and nothing else.
 //
+// A key's first segment is its group, and one request renders one group: the group travels in the query
+// string, the controller passes that group's entries as `settings`, and the form posts only what it showed.
+// The nav is the other half of that contract — `groups` and `active_group` — so a reader can reach a group
+// the current request did not render.
+//
 // A secret is the one field with a rule attached. Its value is never rendered — the field arrives empty, a
 // change replaces it, and the page says so. The branch that enforces this is emitted into the template, so
 // the rule lives in one place and applies to every secret the catalogue declares.
 
+interface SettingsGroup {
+  key: string;
+  settings: SettingEntry[];
+}
+
+/// Splits the catalogue by first key segment, keeping the order the catalogue declares.
+function groupSettings(settings: SettingEntry[]): SettingsGroup[] {
+  const groups: SettingsGroup[] = [];
+  for (const setting of settings) {
+    const key = groupOf(setting.key);
+    const existing = groups.find((group) => group.key === key);
+    if (existing === undefined) {
+      groups.push({ key, settings: [setting] });
+      continue;
+    }
+    existing.settings.push(setting);
+  }
+  return groups;
+}
+
 export function Settings({ mode, data }: { mode: Mode; data: SettingsFixture }) {
+  const groups = groupSettings(data.settings);
+  const active = groups.find((group) => group.key === data.group) ?? groups[0];
+
   return (
     <Layout
       mode={mode}
@@ -22,6 +50,8 @@ export function Settings({ mode, data }: { mode: Mode; data: SettingsFixture }) 
           <h1 className="text-2xl font-semibold tracking-tight">{slot(mode, "title", data.title)}</h1>
           <p className="mt-1 opacity-70">{slot(mode, "lede", data.lede)}</p>
 
+          <GroupNav mode={mode} groups={groups} active={active?.key ?? ""} />
+
           <form className="mt-8 grid gap-4" method="post" action={slot(mode, "action", "/settings")}>
             <RepeatList
               mode={mode}
@@ -29,7 +59,7 @@ export function Settings({ mode, data }: { mode: Mode; data: SettingsFixture }) 
               className="contents"
               alias="setting"
               collection="settings"
-              items={data.settings}
+              items={active === undefined ? [] : active.settings}
               placeholder={placeholderSetting}
             >
               {(setting) => <Field mode={mode} setting={setting} />}
@@ -42,6 +72,41 @@ export function Settings({ mode, data }: { mode: Mode; data: SettingsFixture }) 
       }
     />
   );
+}
+
+/// One link per group. The selected group is a query parameter rather than a path segment, so the form's
+/// action and the nav share the same address and no second route has to exist.
+function GroupNav({ mode, groups, active }: { mode: Mode; groups: SettingsGroup[]; active: string }) {
+  if (mode === "template") {
+    return <nav className="tabs tabs-box mt-6" dangerouslySetInnerHTML={{ __html: templateNav() }} />;
+  }
+  return (
+    <nav className="tabs tabs-box mt-6">
+      {groups.map((group) => (
+        <a
+          key={group.key}
+          className={group.key === active ? "tab tab-active" : "tab"}
+          href={`?group=${group.key}`}
+        >
+          {group.key}
+        </a>
+      ))}
+    </nav>
+  );
+}
+
+/// The nav as Inja: `groups` is the list of first segments, `active_group` the one this request renders.
+function templateNav(): string {
+  const mode: Mode = "template";
+  const link = (isActive: boolean): string =>
+    renderToStaticMarkup(
+      <a className={isActive ? "tab tab-active" : "tab"} href="?group={{ group.key }}">
+        {slot(mode, "group.key", "")}
+      </a>,
+    );
+  const branch =
+    when(mode, "group.key == active_group") + link(true) + otherwise(mode) + link(false) + endWhen(mode);
+  return loopStart(mode, "group", "groups") + branch + loopEnd(mode);
 }
 
 const SECRET_HINT = "ปล่อยว่างไว้เพื่อคงค่าเดิม";

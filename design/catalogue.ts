@@ -19,7 +19,15 @@ export interface SettingsFixture {
   title: string;
   lede: string;
   submit_label: string;
+  /// The group this request renders. The page shows one group at a time, so a request names the one it wants.
+  group: string;
   settings: SettingEntry[];
+}
+
+/// A setting key's first segment is its group: `mail.password` belongs to `mail`.
+export function groupOf(key: string): string {
+  const separator = key.indexOf(".");
+  return separator === -1 ? key : key.slice(0, separator);
 }
 
 const cataloguePath = join(import.meta.dir, "..", "deploy", "catalogue", "settings.json");
@@ -30,5 +38,6 @@ export const settingsFixture: SettingsFixture = {
   title: "ตั้งค่า",
   lede: "ค่าที่ระบบอ่านจริง แต่ละรายการมีชั้นการเข้าถึงกำกับ",
   submit_label: "บันทึก",
+  group: groupOf(catalogue.settings[0]?.key ?? ""),
   settings: catalogue.settings,
 };
