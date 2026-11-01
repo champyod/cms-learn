@@ -97,13 +97,11 @@ TEST_CASE("a secret is stored and never read back", "[settings][write][live]") {
   if (!has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
-  const auto catalogue = cms::api::load_catalogue(catalogue_path());
-  REQUIRE(catalogue.has_value());
   given_operator();
 
   auto transaction = cms::db::Transaction{*live_client()};
   const auto applied = cms::api::apply_settings(
-      transaction.connection(), *catalogue,
+      transaction.connection(), shared_catalogue(),
       {cms::api::SettingChange{.key = "mail.password", .value = "hunter2"}}, OPERATOR);
   REQUIRE(applied.has_value());
   transaction.commit();
