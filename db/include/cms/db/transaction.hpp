@@ -28,8 +28,10 @@ class Transaction {
   /// @brief The connector bound to this transaction; every statement must run through it.
   [[nodiscard]] auto connection() -> cms::db::connection& { return connection_; }
 
-  /// @brief Lets the transaction commit when its handle is released.
+  /// @brief Commits, and returns only once the database has answered.
   /// @pre Neither commit() nor rollback() has been called.
+  /// @throws std::logic_error when the transaction is already finished.
+  /// @throws std::runtime_error when the commit is refused or does not finish within the timeout.
   void commit();
 
   /// @brief Rolls back now. Called by the destructor when commit() was not.
