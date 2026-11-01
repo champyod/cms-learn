@@ -47,7 +47,7 @@ cms_apply_sanitizers(cms_api_config)
 add_library(cms_api_authority STATIC src/accounts.cpp src/audit.cpp src/authorize.cpp
                                       src/elevation.cpp src/admin_socket.cpp
                                       src/admin_protocol.cpp src/submissions.cpp
-                                      src/settings_view.cpp)
+                                      src/settings_view.cpp src/settings_write.cpp)
 add_library(cms::api_authority ALIAS cms_api_authority)
 target_include_directories(cms_api_authority PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")

@@ -42,6 +42,16 @@ if(Catch2_FOUND)
   cms_apply_sanitizers(cms_api_settings_view_tests)
   catch_discover_tests(cms_api_settings_view_tests)
 
+  add_executable(cms_api_settings_write_tests settings_write_test.cpp)
+  target_link_libraries(cms_api_settings_write_tests PRIVATE cms::api_authority
+                                                             Catch2::Catch2WithMain)
+  target_compile_definitions(cms_api_settings_write_tests PRIVATE
+    CMS_CATALOGUE_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../../deploy/catalogue/settings.json")
+  cms_apply_warnings(cms_api_settings_write_tests PRIVATE)
+  cms_apply_hardening(cms_api_settings_write_tests)
+  cms_apply_sanitizers(cms_api_settings_write_tests)
+  catch_discover_tests(cms_api_settings_write_tests)
+
   add_executable(cms_api_mail_tests mailer_test.cpp)
   target_link_libraries(cms_api_mail_tests PRIVATE cms::api_mail Catch2::Catch2WithMain)
   cms_apply_warnings(cms_api_mail_tests PRIVATE)
