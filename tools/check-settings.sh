@@ -33,29 +33,16 @@ case "$password_tag" in
   *) fail "the password input is not bound to the setting key" ;;
 esac
 
-# A secret may not declare a default: a credential in a committed file is a credential in git. The catalogue
-# is generated JSON, one field per line, so it is read as JSON rather than scanned as text.
-secret_defaults="$(bun -e '
-const fs = require("node:fs");
-const catalogue = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
-for (const entry of catalogue.settings) {
-  if (entry.tier === "secret" && entry.default !== "") console.log(entry.key);
-}' "$catalogue" 2>/dev/null)"
-[ -z "$secret_defaults" ] || fail "a secret setting declares a default: $secret_defaults"
-
-# Every key the service reads must exist in the catalogue, or the admin page shows no control for it. This is
-# how the mail settings were found missing: they were read in code but never declared in the document.
+# A secret may not declare a default: a credential in a committed file is a credential in git. Every key the
+# service reads must exist in the catalogue, or the admin page shows no control for it — that is how the mail
+# settings were found missing. Both questions read the same generated file, so one process answers both.
 code_defaults="$repo/api/include/cms/api/settings_defaults.hpp"
+extra=()
 if [ -f "$code_defaults" ]; then
-  undeclared="$(bun -e '
-const fs = require("node:fs");
-const code = fs.readFileSync(process.argv[1], "utf8");
-const catalogue = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
-const known = new Set(catalogue.settings.map((entry) => entry.key));
-for (const match of code.matchAll(/SettingDefault\{"([^"]+)"/g)) {
-  if (!known.has(match[1])) console.log(match[1]);
-}' "$code_defaults" "$catalogue" 2>/dev/null)"
-  [ -z "$undeclared" ] || fail "a setting the code reads is not in the catalogue: $undeclared"
+  extra+=("$code_defaults")
+fi
+if ! bun run "$repo/tools/check-settings.ts" "$catalogue" ${extra[@]+"${extra[@]}"}; then
+  fail "the catalogue and the settings the code reads disagree"
 fi
 
 printf 'settings gate: OK — the secret tier has no read-back path\n'
