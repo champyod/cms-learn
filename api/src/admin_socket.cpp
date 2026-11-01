@@ -70,23 +70,25 @@ auto read_line(int fd) -> std::string {
 /// Pulls the request line and hands it to the protocol. Nothing is interpreted here: the socket's one
 /// job is to carry bytes for a peer the credentials already authorized.
 auto answer(std::string_view request, const SettingsStore& store,
-            const std::shared_ptr<const db::connection_config>& database_config) -> std::string {
+            const std::shared_ptr<const db::connection_config>& database_config,
+            const std::vector<CatalogueEntry>& catalogue) -> std::string {
   const auto snapshot = store.load();
   if (!snapshot) {
     return "{\"ok\":false,\"error\":\"no settings snapshot is loaded\"}\n";
   }
-  auto database = db::connection{database_config};
-  return dispatch_line(request, *snapshot, database);
+  return dispatch_line(request, *snapshot, database_config, catalogue);
 }
 
 }  // namespace
 
 AdminSocket::AdminSocket(std::string path, uid_t allowed_uid, std::shared_ptr<SettingsStore> store,
-                         std::shared_ptr<const db::connection_config> database_config)
+                         std::shared_ptr<const db::connection_config> database_config,
+                         std::vector<CatalogueEntry> catalogue)
     : path_(std::move(path)),
       allowed_uid_(allowed_uid),
       store_(std::move(store)),
-      database_config_(std::move(database_config)) {}
+      database_config_(std::move(database_config)),
+      catalogue_(std::move(catalogue)) {}
 
 AdminSocket::~AdminSocket() { stop(); }
 
@@ -132,7 +134,7 @@ auto AdminSocket::start() -> void {
         continue;
       }
       const auto request = read_line(client);
-      write_all(client, answer(request, *store_, database_config_));
+      write_all(client, answer(request, *store_, database_config_, catalogue_));
       ::close(client);
     }
   });

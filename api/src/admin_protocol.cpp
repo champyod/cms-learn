@@ -2,12 +2,16 @@
 
 #include <cstdint>
 #include <flat_map>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <simdjson.h>
 
 #include <cms/api/elevation.hpp>
+#include <cms/api/settings_plan.hpp>
+#include <cms/api/settings_view.hpp>
 #include <cms/error.hpp>
 #include <cms/settings_snapshot.hpp>
 
@@ -130,6 +134,12 @@ auto require(const Request& request, std::string_view name) -> bool {
   return !text_of(request, name).empty();
 }
 
+/// Whether the request names @p name at all. A text setting may legitimately be set to the empty string,
+/// so presence and emptiness are different questions on this path.
+auto present(const Request& request, std::string_view name) -> bool {
+  return request.strings.find(name) != request.strings.end();
+}
+
 auto answer_elevation_grant(const Request& request, const SettingsSnapshot& settings,
                             db::connection& database) -> std::string {
   for (const auto name : {"principal_id", "capability", "granted_by", "reason"}) {
@@ -167,10 +177,54 @@ auto answer_elevation_approve(const Request& request, db::connection& database) 
   return accepted(",\"live\":true");
 }
 
+/// The diff goes back to the client because a plan is only useful as a decision: the operator compares
+/// what is stored with what would be stored before anything is.
+auto answer_settings_plan(const Request& request, const std::vector<CatalogueEntry>& catalogue,
+                          db::connection& database) -> std::string {
+  for (const auto name : {"key", "author_id"}) {
+    if (!require(request, name)) {
+      return refused("a plan needs " + std::string{name});
+    }
+  }
+  if (!present(request, "value")) {
+    return refused("a plan needs value");
+  }
+
+  const auto preview = plan_setting(database, catalogue, text_of(request, "key"),
+                                    text_of(request, "value"), text_of(request, "author_id"));
+  if (!preview) {
+    return refused(preview.error());
+  }
+  return accepted(",\"plan_id\":\"" + escape(preview->id) + "\",\"key\":\"" +
+                  escape(preview->key) + "\",\"old_value\":\"" + escape(preview->old_value) +
+                  "\",\"new_value\":\"" + escape(preview->new_value) + "\",\"tier\":\"" +
+                  escape(preview->tier) + "\",\"reload\":\"" + escape(preview->reload) +
+                  "\",\"expires_at\":\"" + escape(preview->expires_at) + "\"");
+}
+
+auto answer_settings_apply(const Request& request, const std::vector<CatalogueEntry>& catalogue,
+                           const std::shared_ptr<const db::connection_config>& database_config)
+    -> std::string {
+  for (const auto name : {"plan_id", "actor_id"}) {
+    if (!require(request, name)) {
+      return refused("an apply needs " + std::string{name});
+    }
+  }
+
+  const auto applied = apply_plan(database_config, catalogue, text_of(request, "plan_id"),
+                                  text_of(request, "actor_id"));
+  if (!applied) {
+    return refused(applied.error());
+  }
+  return accepted(",\"plan_id\":\"" + escape(applied->id) + "\",\"key\":\"" +
+                  escape(applied->key) + "\"");
+}
+
 }  // namespace
 
 auto dispatch_line(std::string_view request, const SettingsSnapshot& settings,
-                   db::connection& database) -> std::string {
+                   const std::shared_ptr<const db::connection_config>& database_config,
+                   const std::vector<CatalogueEntry>& catalogue) -> std::string {
   // The padded copy owns the bytes every field view points into, so it outlives the parsed request.
   const auto json = simdjson::padded_string{request};
   const auto fields = parse(json);
@@ -185,11 +239,18 @@ auto dispatch_line(std::string_view request, const SettingsSnapshot& settings,
   if (action == "status") {
     return accepted(",\"settings_version\":" + std::to_string(settings.version));
   }
+  if (action == "settings_apply") {
+    return answer_settings_apply(fields, catalogue, database_config);
+  }
+  auto database = db::connection{database_config};
   if (action == "elevation_grant") {
     return answer_elevation_grant(fields, settings, database);
   }
   if (action == "elevation_approve") {
     return answer_elevation_approve(fields, database);
+  }
+  if (action == "settings_plan") {
+    return answer_settings_plan(fields, catalogue, database);
   }
   return refused("unknown action: " + std::string{action});
 }

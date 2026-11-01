@@ -16,6 +16,13 @@ struct SettingChange {
   std::string value;
 };
 
+/// @brief Whether @p value can be stored for a setting of @p kind.
+///
+/// The table enforces the same rule; this says which key broke it. Shared with the plan path so a value
+/// is refused at planning time with the message the write path would give, rather than by a second
+/// opinion that can drift from this one.
+[[nodiscard]] bool matches_kind(std::string_view kind, std::string_view value);
+
 /// @brief Applies catalogued changes to the settings table.
 ///
 /// @param database The connection; the caller owns the transaction.

@@ -61,6 +61,7 @@ auto load_catalogue(const std::filesystem::path& path) -> Result<std::vector<Cat
     entry.kind = field(object, "kind");
     entry.tier = field(object, "tier");
     entry.fallback = field(object, "default");
+    entry.reload = field(object, "reload");
     if (!entry.key.empty()) {
       entries.push_back(std::move(entry));
     }

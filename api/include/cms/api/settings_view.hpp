@@ -23,12 +23,14 @@ struct VisibleSetting {
   std::string value{};
 };
 
-/// @brief The catalogue: every key the build knows, with its kind and tier.
+/// @brief The catalogue: every key the build knows, with its kind, tier and reload class.
 struct CatalogueEntry {
   std::string key;
   std::string kind;
   std::string tier;
   std::string fallback;
+  /// `hot` or `restart`: whether a new value reaches the running service without being restarted.
+  std::string reload;
 };
 
 /// @brief The redaction marker a secret is replaced with on every read.

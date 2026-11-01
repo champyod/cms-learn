@@ -2,14 +2,17 @@
 
 #include <chrono>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <catch2/catch_test_macros.hpp>
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/api/admin_protocol.hpp>
 #include <cms/api/elevation.hpp>
+#include <cms/api/settings_view.hpp>
 #include <cms/db/tables.hpp>
 #include <cms/settings_snapshot.hpp>
 
@@ -51,6 +54,20 @@ auto ensure_principal(cms::db::connection& database, std::string_view id, std::s
 }
 
 auto policy() -> cms::SettingsSnapshot { return cms::SettingsSnapshot{1, {}}; }
+
+/// The pool `dispatch_line` builds its own connections from, so the protocol is exercised through the same
+/// entry point the socket uses.
+auto live_config() -> const std::shared_ptr<const cms::db::connection_config>& {
+  static const auto config = std::make_shared<const cms::db::connection_config>(
+      cms::db::connection_config{.client = cms::test::live_client()});
+  return config;
+}
+
+/// The elevation cases answer no settings action, so an empty catalogue is what this binary knows.
+auto no_catalogue() -> const std::vector<cms::api::CatalogueEntry>& {
+  static const auto catalogue = std::vector<cms::api::CatalogueEntry>{};
+  return catalogue;
+}
 
 /// Gives a beneficiary a known starting state: the account exists and holds no elevation, so a case can
 /// run more than once against one database and still assert what it says it asserts.
@@ -220,29 +237,32 @@ TEST_CASE("the control protocol answers every action a client can send", "[proto
   prepare(database, BENEFICIARY_A, "elevation_one");
   ensure_principal(database, GRANTOR, "elevation_grantor");
 
-  CHECK(cms::api::dispatch_line(R"({"action":"ping"})", settings, database) ==
+  CHECK(cms::api::dispatch_line(R"({"action":"ping"})", settings, live_config(), no_catalogue()) ==
         "{\"ok\":true,\"settings_version\":1}\n");
 
-  const auto unknown = cms::api::dispatch_line(R"({"action":"invent"})", settings, database);
+  const auto unknown =
+      cms::api::dispatch_line(R"({"action":"invent"})", settings, live_config(), no_catalogue());
   CHECK(unknown.find("\"ok\":false") != std::string::npos);
   CHECK(unknown.find("invent") != std::string::npos);
 
-  const auto nested =
-      cms::api::dispatch_line(R"({"action":"ping","extra":{"a":1}})", settings, database);
+  const auto nested = cms::api::dispatch_line(R"({"action":"ping","extra":{"a":1}})", settings,
+                                              live_config(), no_catalogue());
   CHECK(nested.find("\"ok\":false") != std::string::npos);
 
-  CHECK(cms::api::dispatch_line("{", settings, database).find("\"ok\":false") != std::string::npos);
+  CHECK(cms::api::dispatch_line("{", settings, live_config(), no_catalogue())
+            .find("\"ok\":false") != std::string::npos);
 
   // A reason containing a quote is the case a hand-rolled field reader truncates; the parser does not.
   const auto granted = cms::api::dispatch_line(
       R"({"action":"elevation_grant","principal_id":"77777777-8888-4999-8aaa-bbbbbbbbbbb1",)"
       R"("capability":"content:read","granted_by":"88888888-9999-4aaa-8bbb-cccccccccccc",)"
       R"("reason":"the \"audit\" export","minutes":3})",
-      settings, database);
+      settings, live_config(), no_catalogue());
   CHECK(granted.find("\"ok\":true") != std::string::npos);
   CHECK(granted.find("\"live\":false") != std::string::npos);
 
-  const auto missing = cms::api::dispatch_line(R"({"action":"elevation_grant"})", settings, database);
+  const auto missing = cms::api::dispatch_line(R"({"action":"elevation_grant"})", settings,
+                                               live_config(), no_catalogue());
   CHECK(missing.find("\"ok\":false") != std::string::npos);
   CHECK(missing.find("principal_id") != std::string::npos);
 }

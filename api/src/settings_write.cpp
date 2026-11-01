@@ -9,6 +9,7 @@
 
 #include <sqlpp23/sqlpp23.h>
 
+#include <cms/api/uuid.hpp>
 #include <cms/db/tables.hpp>
 
 namespace cms::api {
@@ -30,17 +31,6 @@ auto is_integer(std::string_view text) -> bool {
          });
 }
 
-/// Whether @p value can be stored as @p kind. The table enforces the same rule; this says which key broke it.
-auto matches_kind(std::string_view kind, std::string_view value) -> bool {
-  if (kind == "bool") {
-    return value == "true" || value == "false";
-  }
-  if (kind == "int") {
-    return is_integer(value);
-  }
-  return kind == "text";
-}
-
 auto entry_for(const std::vector<CatalogueEntry>& catalogue, std::string_view key)
     -> const CatalogueEntry* {
   const auto found = std::ranges::find(catalogue, key, &CatalogueEntry::key);
@@ -49,26 +39,6 @@ auto entry_for(const std::vector<CatalogueEntry>& catalogue, std::string_view ke
 
 /// A 36-character UUID, checked before the value is placed in a `SET LOCAL` statement: a session variable
 /// cannot be bound as a parameter, so the shape is the guard that makes the literal safe.
-auto is_uuid(std::string_view text) -> bool {
-  if (text.size() != 36) {
-    return false;
-  }
-  for (auto index = std::size_t{0}; index < text.size(); ++index) {
-    const auto is_dash_position = index == 8 || index == 13 || index == 18 || index == 23;
-    const auto character = static_cast<unsigned char>(text[index]);
-    if (is_dash_position) {
-      if (text[index] != '-') {
-        return false;
-      }
-      continue;
-    }
-    if (std::isxdigit(character) == 0) {
-      return false;
-    }
-  }
-  return true;
-}
-
 auto setting_exists(db::connection& database, std::string_view key) -> bool {
   for (const auto& row :
        database(sqlpp::select(db::settings.key)
@@ -99,6 +69,16 @@ auto store(db::connection& database, const CatalogueEntry& entry, std::string_vi
 
 }  // namespace
 
+auto matches_kind(std::string_view kind, std::string_view value) -> bool {
+  if (kind == "bool") {
+    return value == "true" || value == "false";
+  }
+  if (kind == "int") {
+    return is_integer(value);
+  }
+  return kind == "text";
+}
+
 auto apply_settings(db::connection& database, const std::vector<CatalogueEntry>& catalogue,
                     const std::vector<SettingChange>& changes, std::string_view actor_id)
     -> Result<void> {
@@ -119,7 +99,9 @@ auto apply_settings(db::connection& database, const std::vector<CatalogueEntry>&
   try {
     // The settings trigger reads the actor from the session; an unset actor is a refusal, not a default. It is
     // set once per transaction, before any row is touched.
-    if (!is_uuid(actor_id)) {
+    // The actor is pasted into `SET LOCAL`, which cannot bind a parameter, so its shape is what makes the
+    // literal safe.
+    if (!has_uuid_shape(actor_id)) {
       return std::unexpected(
           Error::make(ErrorCode::invalid_argument, "a settings write needs the actor's id"));
     }

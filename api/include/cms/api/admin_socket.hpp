@@ -5,7 +5,9 @@
 #include <string>
 #include <sys/types.h>
 #include <thread>
+#include <vector>
 
+#include <cms/api/settings_view.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
 
@@ -27,8 +29,11 @@ class AdminSocket {
   /// @param database_config The pool an action reads or writes through. Held as the pool rather than
   /// as a connection because a connection is move-only and each request builds its own from this; a
   /// borrowed reference would outlive its owner the moment the service restarts its listener.
+  /// @param catalogue The keys this build knows, taken by value so the listener thread never reads a
+  /// catalogue the process has already released.
   AdminSocket(std::string path, uid_t allowed_uid, std::shared_ptr<SettingsStore> store,
-              std::shared_ptr<const db::connection_config> database_config);
+              std::shared_ptr<const db::connection_config> database_config,
+              std::vector<CatalogueEntry> catalogue);
 
   ~AdminSocket();
 
@@ -49,6 +54,7 @@ class AdminSocket {
   uid_t allowed_uid_;
   std::shared_ptr<SettingsStore> store_;
   std::shared_ptr<const db::connection_config> database_config_;
+  std::vector<CatalogueEntry> catalogue_;
   std::atomic<bool> running_{false};
   std::thread worker_;
   int listen_fd_{-1};

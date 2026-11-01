@@ -176,7 +176,8 @@ auto run() -> int {
   watcher.start();
 
   const auto allowed_uid = static_cast<uid_t>(std::stoul(config->admin_uid));
-  auto admin = cms::api::AdminSocket{config->admin_socket, allowed_uid, store, database_config};
+  auto admin = cms::api::AdminSocket{config->admin_socket, allowed_uid, store, database_config,
+                                     *catalogue};
   admin.start();
 
   auto& app = drogon::app();
