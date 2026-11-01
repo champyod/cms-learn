@@ -122,6 +122,8 @@ int main() {
     return 0;
 }`;
 
+const CLEAN_EXAMPLES = { input: "3\n", output: "3\n" };
+
 // Everything one configure reads: the presets and the tidy config, the CMake modules, the components the
 // root CMakeLists adds, and the manifest the presets resolve packages from.
 // The files a configure reads, plus every component the root CMakeLists adds, plus the data directories
@@ -372,6 +374,68 @@ function causeOf(report: ReturnType<typeof runGate>, root: string): string {
   return cause === "" ? text : text.replace("see output", `see output — ${cause.slice(0, 200)}`);
 }
 
+const BASELINE_STEPS = [
+  { what: "configure", command: "cmake", args: ["--preset", "safety"] },
+  { what: "build", command: "cmake", args: ["--build", "--preset", "safety"] },
+];
+
+/** ctest reads the `-E` value as a regular expression, so every metacharacter in a case name is escaped. */
+function escapeForCtest(name: string): string {
+  return name.replace(/[.+?()\[\]{}|^$\\]/g, "\\$&");
+}
+
+/** A case ctest says it failed; a skipped case has its own section and is not a failure of the tree. */
+const FAILED_CASE = /^\s*\d+\s+-\s+(.+?)\s+\((?:Failed|Timeout|Exception)\)\s*$/gm;
+
+/** One command in a staged tree, both streams kept: cmake reports on stderr and ctest splits the two. */
+function runIn(root: string, command: string, args: string[]): { status: number; output: string } {
+  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  return { status: result.status ?? 127, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+}
+
+/** A baseline that cannot be built leaves no tree to judge, so the run stops and names the step that stopped it. */
+function stopBaseline(work: string, what: string, output: string): never {
+  const tail = streamLines(output).slice(-30).join("\n");
+  console.error(`the baseline tree does not ${what}, so this run has no staged tree to judge:\n${tail}`);
+  rmSync(work, { recursive: true, force: true });
+  releaseLock();
+  process.exit(1);
+}
+
+/**
+ * Names the cases that fail in a tree built from the clean source, and returns them as one ctest exclusion.
+ *
+ * A staged tree carries the source, the presets and the data a configure and a run read, but not the bank
+ * the image ships, so the cases that assert that bank fail there for want of their data rather than from a
+ * planted defect — and the gate returns before static analysis on any ctest failure, which would turn the
+ * control and the one static-only case into wrong reasons. The names are read from this run instead of
+ * being written down here, because a hand-kept list is the drift that left `bank/` out of the staging.
+ *
+ * Returns "" when the baseline is already green: a staged tree that needs no exclusion gets none.
+ */
+function baselineExclusion(repo: string, work: string): string {
+  const root = buildTree(repo, work, "baseline", CLEAN_SOURCE, CLEAN_EXAMPLES);
+  for (const step of BASELINE_STEPS) {
+    const result = runIn(root, step.command, step.args);
+    if (result.status !== 0) stopBaseline(work, step.what, result.output);
+  }
+
+  const tested = runIn(root, "ctest", ["--preset", "safety"]);
+  const failed = [...new Set([...tested.output.matchAll(FAILED_CASE)].map((match) => match[1].trim()))];
+  // A non-zero status with nothing named is a ctest that could not run its cases, not a tree with failures.
+  if (tested.status !== 0 && failed.length === 0) stopBaseline(work, "run its cases", tested.output);
+  rmSync(work, { recursive: true, force: true });
+
+  if (failed.length === 0) {
+    console.log("baseline      0 test(s) fail in a staged tree — every case runs the full suite");
+    return "";
+  }
+  console.log(
+    `baseline      ${failed.length} test(s) fail in a staged tree and are excluded by name — this run does not prove: ${failed.join(", ")}`,
+  );
+  return failed.map(escapeForCtest).join("|");
+}
+
 const repo = join(import.meta.dir, "../..");
 mkdirSync(SCRATCH_ROOT, { recursive: true });
 // The sweep below is keyed on a shared directory prefix, so without a lock one run deletes the tree another
@@ -379,6 +443,14 @@ mkdirSync(SCRATCH_ROOT, { recursive: true });
 const releaseLock = acquireLock(SCRATCH_ROOT);
 sweepOrphans(SCRATCH_ROOT);
 refuseBelowFloor(SCRATCH_ROOT);
+
+// What a staged tree cannot prove is read from this run rather than written down here, and nothing inherited
+// from the caller survives: this run derives its own exclusion, and an unset one leaves the gate unchanged.
+delete process.env.CMS_CTEST_EXCLUDE;
+const baselineWork = mkdtempSync(join(SCRATCH_ROOT, SCRATCH_PREFIX));
+const exclusion = baselineExclusion(repo, baselineWork);
+if (exclusion !== "") process.env.CMS_CTEST_EXCLUDE = exclusion;
+
 const work = mkdtempSync(join(SCRATCH_ROOT, SCRATCH_PREFIX));
 
 let caught = 0;
@@ -406,7 +478,7 @@ try {
 
   // The control: a correct solution must pass, otherwise the gate is failing everything and proves
   // nothing about the defects above.
-  const cleanRoot = buildTree(repo, work, "clean-control", CLEAN_SOURCE, { input: "3\n", output: "3\n" });
+  const cleanRoot = buildTree(repo, work, "clean-control", CLEAN_SOURCE, CLEAN_EXAMPLES);
   const clean = runGate(cleanRoot);
   if (clean.ok) {
     console.log(`behaved       ${"clean-control".padEnd(28)} (a correct solution passes)`);
