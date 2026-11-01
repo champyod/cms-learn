@@ -142,3 +142,55 @@ fn a_client_with_no_core_to_talk_to_says_so() {
     assert!(!output.status.success());
     assert!(String::from_utf8_lossy(&output.stderr).contains("cannot reach"));
 }
+
+#[test]
+fn a_plan_prints_the_diff_the_core_would_make() {
+    let plan_id = "0b6f4d1e-0000-4000-8000-000000000001";
+    let reply = format!(
+        r#"{{"ok":true,"plan_id":"{plan_id}","key":"mail.host","tier":"operator","reload":"hot","old_value":"mail.example.org","new_value":"mail.example.net","expires_at":"2026-11-01T00:00:00Z"}}"#
+    );
+    let (_, output) = invoke(
+        "plan",
+        &[
+            "settings",
+            "plan",
+            "--key",
+            "mail.host",
+            "--value",
+            "mail.example.net",
+            "--author",
+            "bbbbbbbb-cccc-4ddd-8eee-ffffffff0001",
+        ],
+        &reply,
+    );
+    assert!(output.status.success());
+    let printed = String::from_utf8_lossy(&output.stdout);
+    assert!(printed.contains(&format!("plan {plan_id}")));
+    assert!(printed.contains("mail.host (operator, applies without a restart)"));
+    assert!(printed.contains("mail.example.org -> mail.example.net"));
+    assert!(printed.contains(&format!(
+        "apply with: cmsctl settings apply {plan_id} --actor <uuid>"
+    )));
+}
+
+#[test]
+fn a_plan_answer_missing_part_of_the_diff_fails_the_invocation() {
+    // The operator reads the change before it lands, so a reply carrying only part of it is refused rather
+    // than printed as though it were the whole change.
+    let (_, output) = invoke(
+        "partial-plan",
+        &[
+            "settings",
+            "plan",
+            "--key",
+            "mail.host",
+            "--value",
+            "x",
+            "--author",
+            "bbbbbbbb-cccc-4ddd-8eee-ffffffff0001",
+        ],
+        r#"{"ok":true,"plan_id":"0b6f4d1e-0000-4000-8000-000000000001"}"#,
+    );
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("the answer carries no reload"));
+}

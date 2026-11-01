@@ -1,8 +1,10 @@
 //! The command surface.
 //!
 //! Every verb here maps to one action the core performs, and nothing more: an option that the core
-//! cannot honour would be a promise this binary cannot keep. Schema and settings changes are two-phase
-//! and are not answered by the core yet, so no verb offers them.
+//! cannot honour would be a promise this binary cannot keep. A settings change is two-phase, so both
+//! halves are offered: `plan` records the change and prints the diff it would make, `apply` lands
+//! exactly the plan it is given, once. `apply` takes no value, because the value was decided when the
+//! diff was read.
 
 use std::path::PathBuf;
 
@@ -64,5 +66,39 @@ pub enum Command {
         /// Account approving. Must be neither the beneficiary nor the account that asked.
         #[arg(long, value_name = "UUID")]
         approved_by: String,
+    },
+
+    /// Change a setting, or land a change that was planned.
+    Settings {
+        #[command(subcommand)]
+        action: SettingsAction,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SettingsAction {
+    /// Record a change and print the diff it would make, without storing it.
+    Plan {
+        /// Setting key, as the catalogue declares it.
+        #[arg(long, value_name = "KEY")]
+        key: String,
+
+        /// Value the setting would take.
+        #[arg(long, value_name = "VALUE")]
+        value: String,
+
+        /// Account the plan is attributed to.
+        #[arg(long, value_name = "UUID")]
+        author: String,
+    },
+
+    /// Land exactly one planned change, once.
+    Apply {
+        /// Identifier returned by `cmsctl settings plan`.
+        plan_id: String,
+
+        /// Account the change is attributed to.
+        #[arg(long, value_name = "UUID")]
+        actor: String,
     },
 }

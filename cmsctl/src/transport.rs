@@ -30,6 +30,15 @@ pub enum Request<'a> {
         elevation_id: &'a str,
         approved_by: &'a str,
     },
+    SettingsPlan {
+        key: &'a str,
+        value: &'a str,
+        author_id: &'a str,
+    },
+    SettingsApply {
+        plan_id: &'a str,
+        actor_id: &'a str,
+    },
 }
 
 #[derive(Debug)]
