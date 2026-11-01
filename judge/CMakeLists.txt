@@ -2,7 +2,7 @@
 # must build and be gated without the HTTP service, and it must never link back into it.
 
 add_library(cms_judge_verdict STATIC src/verdict.cpp src/manifest.cpp src/supervisor.cpp
-                                 src/verify.cpp src/generate.cpp)
+                                 src/verify.cpp src/generate.cpp src/promote.cpp)
 add_library(cms::judge_verdict ALIAS cms_judge_verdict)
 
 target_include_directories(cms_judge_verdict PUBLIC
@@ -27,6 +27,12 @@ target_link_libraries(cms_generate_task PRIVATE cms::judge_verdict)
 cms_apply_warnings(cms_generate_task PRIVATE)
 cms_apply_hardening(cms_generate_task)
 cms_apply_sanitizers(cms_generate_task)
+
+add_executable(cms_promote_task src/promote_main.cpp)
+target_link_libraries(cms_promote_task PRIVATE cms::judge_verdict)
+cms_apply_warnings(cms_promote_task PRIVATE)
+cms_apply_hardening(cms_promote_task)
+cms_apply_sanitizers(cms_promote_task)
 
 # The checkers are separate executables because that is how they run: one process per case, arguments
 # (input, output, answer), verdict on standard error.
