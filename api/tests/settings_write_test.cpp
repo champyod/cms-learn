@@ -31,6 +31,23 @@ auto live_database() -> cms::db::connection {
       cms::db::connection_config{.client = live_client()})};
 }
 
+/// The generated catalogue cannot change while the binary runs, so it is parsed once: a case that re-read it
+/// would parse 108 entries for the answer the previous case already had.
+auto shared_catalogue() -> const std::vector<cms::api::CatalogueEntry>& {
+  static const auto loaded = [] {
+    auto catalogue = cms::api::load_catalogue(catalogue_path());
+    REQUIRE(catalogue.has_value());
+    return *catalogue;
+  }();
+  return loaded;
+}
+
+/// One view for the binary: it rebuilds the visible list only when the snapshot version changes.
+auto shared_view() -> const cms::api::SettingsView& {
+  static const auto view = cms::api::SettingsView{shared_catalogue()};
+  return view;
+}
+
 constexpr std::string_view OPERATOR = "bbbbbbbb-cccc-4ddd-8eee-ffffffff0001";
 
 /// Creates the acting principal if it is not there. Idempotent because the cases share one database and Catch2
@@ -61,9 +78,7 @@ auto stored_settings() -> cms::SettingsSnapshot {
 }
 
 auto visible(const std::string& key) -> cms::api::VisibleSetting {
-  const auto catalogue = cms::api::load_catalogue(catalogue_path());
-  REQUIRE(catalogue.has_value());
-  for (const auto& setting : cms::api::visible_settings(*catalogue, stored_settings())) {
+  for (const auto& setting : *shared_view().for_snapshot(stored_settings())) {
     if (setting.key == key) {
       return setting;
     }
@@ -78,13 +93,9 @@ TEST_CASE("a catalogued setting is written and read back", "[settings][write][li
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   given_operator();
-  const auto catalogue = cms::api::load_catalogue(catalogue_path());
-  REQUIRE(catalogue.has_value());
-
-  auto database = live_database();
   auto transaction = cms::db::Transaction{*live_client()};
   const auto applied = cms::api::apply_settings(
-      transaction.connection(), *catalogue,
+      transaction.connection(), shared_catalogue(),
       {cms::api::SettingChange{.key = "site.name", .value = "CMS Learn Probe"}}, OPERATOR);
   REQUIRE(applied.has_value());
   transaction.commit();
@@ -112,9 +123,7 @@ TEST_CASE("a secret is stored and never read back", "[settings][write][live]") {
   CHECK(shown.tier == "secret");
   CHECK(shown.value == std::string{cms::api::REDACTED});
 
-  const auto catalogue_now = cms::api::load_catalogue(catalogue_path());
-  REQUIRE(catalogue_now.has_value());
-  for (const auto& setting : cms::api::visible_settings(*catalogue_now, stored_settings())) {
+  for (const auto& setting : *shared_view().for_snapshot(stored_settings())) {
     CHECK(setting.value != "hunter2");
   }
 }
@@ -123,13 +132,11 @@ TEST_CASE("a key outside the catalogue is refused", "[settings][write][live]") {
   if (!has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
-  const auto catalogue = cms::api::load_catalogue(catalogue_path());
-  REQUIRE(catalogue.has_value());
   given_operator();
 
   auto database = live_database();
   const auto refused = cms::api::apply_settings(
-      database, *catalogue, {cms::api::SettingChange{.key = "not.a.setting", .value = "x"}},
+      database, shared_catalogue(), {cms::api::SettingChange{.key = "not.a.setting", .value = "x"}},
       OPERATOR);
   REQUIRE(!refused.has_value());
   CHECK(refused.error().code == cms::ErrorCode::invalid_argument);
@@ -140,14 +147,12 @@ TEST_CASE("a value that does not match its kind is refused before anything is wr
   if (!has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
-  const auto catalogue = cms::api::load_catalogue(catalogue_path());
-  REQUIRE(catalogue.has_value());
   given_operator();
 
   auto database = live_database();
   const auto before = visible("site.name").value;
   const auto refused = cms::api::apply_settings(
-      database, *catalogue,
+      database, shared_catalogue(),
       {cms::api::SettingChange{.key = "site.name", .value = "written first"},
        cms::api::SettingChange{.key = "judge.enabled", .value = "yes"}},
       OPERATOR);

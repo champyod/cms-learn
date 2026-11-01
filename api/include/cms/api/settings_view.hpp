@@ -1,6 +1,9 @@
 #pragma once
 
+#include <cstdint>
 #include <filesystem>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -53,5 +56,29 @@ inline constexpr std::string_view REDACTED = "<redacted>";
 /// A secret may be written — that is how a credential is rotated — but it may never be read back, which is
 /// what visible_settings enforces.
 [[nodiscard]] bool is_catalogued(const std::vector<CatalogueEntry>& catalogue, std::string_view key);
+
+/// @brief The visible list for one snapshot version, built once and then handed out.
+///
+/// The catalogue is a generated file and a snapshot is immutable, so the list is a pure function of the two.
+/// A surface that renders it per request would rebuild every entry and copy three strings each time for an
+/// answer that has not changed since the last version; this keeps the last list and shares it.
+class SettingsView {
+ public:
+  /// @brief Takes the catalogue this view answers from.
+  explicit SettingsView(std::vector<CatalogueEntry> catalogue);
+
+  /// @brief The list for @p snapshot, reusing the previous one while its version is unchanged.
+  ///
+  /// The returned view stays valid as long as the caller holds it, including after a later version replaces
+  /// it: a request rendering the previous list is not invalidated by the next reload.
+  [[nodiscard]] auto for_snapshot(const SettingsSnapshot& snapshot) const
+      -> std::shared_ptr<const std::vector<VisibleSetting>>;
+
+ private:
+  std::vector<CatalogueEntry> catalogue_;
+  mutable std::mutex mutex_;
+  mutable std::int64_t version_{-1};
+  mutable std::shared_ptr<const std::vector<VisibleSetting>> built_;
+};
 
 }  // namespace cms::api

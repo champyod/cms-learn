@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <fstream>
+#include <memory>
+#include <mutex>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <simdjson.h>
@@ -96,6 +99,20 @@ auto visible_settings(const std::vector<CatalogueEntry>& catalogue, const Settin
 auto is_catalogued(const std::vector<CatalogueEntry>& catalogue, std::string_view key) -> bool {
   return std::ranges::any_of(catalogue,
                              [key](const CatalogueEntry& entry) { return entry.key == key; });
+}
+
+SettingsView::SettingsView(std::vector<CatalogueEntry> catalogue)
+    : catalogue_(std::move(catalogue)) {}
+
+auto SettingsView::for_snapshot(const SettingsSnapshot& snapshot) const
+    -> std::shared_ptr<const std::vector<VisibleSetting>> {
+  const auto guard = std::scoped_lock{mutex_};
+  if (built_ == nullptr || version_ != snapshot.version) {
+    built_ = std::make_shared<const std::vector<VisibleSetting>>(
+        visible_settings(catalogue_, snapshot));
+    version_ = snapshot.version;
+  }
+  return built_;
 }
 
 }  // namespace cms::api
