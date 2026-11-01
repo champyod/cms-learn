@@ -124,7 +124,9 @@ const placeholderSetting: SettingEntry = {
 };
 
 function Field({ mode, setting }: { mode: Mode; setting: SettingEntry }) {
-  const id = setting.key.replace(/\./g, "-");
+  // The field's id is its key in both renderings: the template can only echo `setting.key`, so deriving a
+  // different shape here would give the design page and the shipped page different ids for the same field.
+  const id = setting.key;
 
   if (mode === "template") {
     return <div className="form-control" dangerouslySetInnerHTML={{ __html: templateRow() }} />;
@@ -177,7 +179,7 @@ function PlainInput({ id, setting }: { id: string; setting: SettingEntry }) {
 function templateRow(): string {
   const mode: Mode = "template";
   const label = renderToStaticMarkup(
-    <label className="label" htmlFor={slot(mode, "id", "x")}>
+    <label className="label" htmlFor={slot(mode, "setting.key", "x")}>
       <span className="label-text">{slot(mode, "setting.description", "")}</span>
       <span className="label-text-alt opacity-60">{slot(mode, "setting.tier", "")}</span>
     </label>,
@@ -185,7 +187,7 @@ function templateRow(): string {
   const secret = renderToStaticMarkup(
     <>
       <input
-        id={slot(mode, "id", "x")}
+        id={slot(mode, "setting.key", "x")}
         name={slot(mode, "setting.key", "")}
         type="password"
         className="input input-bordered w-full"
@@ -198,7 +200,7 @@ function templateRow(): string {
   );
   const plain = renderToStaticMarkup(
     <input
-      id={slot(mode, "id", "x")}
+      id={slot(mode, "setting.key", "x")}
       name={slot(mode, "setting.key", "")}
       type="text"
       className="input input-bordered w-full"
