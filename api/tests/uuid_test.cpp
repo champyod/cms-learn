@@ -33,3 +33,20 @@ TEST_CASE("two draws differ", "[uuid]") {
   }
   CHECK(seen.size() == 1000);
 }
+
+TEST_CASE("a generated uuid has the shape the guard accepts", "[uuid]") {
+  CHECK(cms::api::has_uuid_shape(cms::api::uuid_v4()));
+}
+
+TEST_CASE("a value that cannot name a session is refused before any query", "[uuid]") {
+  // Each of these reached the uuid column before the guard existed, where the server answered with a type
+  // error rather than a refusal.
+  CHECK_FALSE(cms::api::has_uuid_shape(""));
+  CHECK_FALSE(cms::api::has_uuid_shape("abc"));
+  CHECK_FALSE(cms::api::has_uuid_shape("bbbbbbbbcccc4ddd8eeeffffffff0001"));
+  CHECK_FALSE(cms::api::has_uuid_shape("bbbbbbbb-cccc-4ddd-8eee-ffffffff000"));
+  CHECK_FALSE(cms::api::has_uuid_shape("bbbbbbbb-cccc-4ddd-8eee-ffffffff00011"));
+  CHECK_FALSE(cms::api::has_uuid_shape("bbbbbbbbxcccc-4ddd-8eee-ffffffff0001"));
+  CHECK_FALSE(cms::api::has_uuid_shape("gbbbbbbb-cccc-4ddd-8eee-ffffffff0001"));
+  CHECK(cms::api::has_uuid_shape("bbbbbbbb-cccc-4ddd-8eee-ffffffff0001"));
+}

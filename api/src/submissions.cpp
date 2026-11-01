@@ -8,6 +8,7 @@
 
 #include <sqlpp23/sqlpp23.h>
 
+#include <cms/api/uuid.hpp>
 #include <cms/db/tables.hpp>
 
 namespace cms::api {
@@ -67,6 +68,13 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
   if (source.empty()) {
     return std::unexpected(
         Error::make(ErrorCode::invalid_argument, "a submission needs a program"));
+  }
+  // The cookie is client input. An absent one arrives here as an empty string, and anything that is not a
+  // uuid cannot name a session, so both are refused here rather than cast against a uuid column: that raises
+  // a type error, which surfaces the server's message instead of a reason a student can act on.
+  if (!has_uuid_shape(session_id)) {
+    return std::unexpected(
+        Error::make(ErrorCode::permission_denied, "no live session; sign in before submitting"));
   }
   try {
     const auto written = database.execute_text(

@@ -1,10 +1,12 @@
 #include <cms/api/uuid.hpp>
 
 #include <array>
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
 #include <sodium.h>
 
@@ -54,6 +56,25 @@ auto uuid_v4() -> std::string {
     text.push_back(HEX_DIGITS[as_unsigned(bytes[index]) & LOW_FOUR_BITS]);
   }
   return text;
+}
+
+auto has_uuid_shape(std::string_view text) -> bool {
+  if (text.size() != UUID_TEXT_LENGTH) {
+    return false;
+  }
+  for (auto index = std::size_t{0}; index < text.size(); ++index) {
+    const auto is_dash_position = index == 8 || index == 13 || index == 18 || index == 23;
+    if (is_dash_position) {
+      if (text[index] != '-') {
+        return false;
+      }
+      continue;
+    }
+    if (std::isxdigit(static_cast<unsigned char>(text[index])) == 0) {
+      return false;
+    }
+  }
+  return true;
 }
 
 }  // namespace cms::api
