@@ -57,8 +57,9 @@ grep -o '^  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP([a-z0-9_]*,' "$committed" \
   | sed 's/.*(\([a-z0-9_]*\),/\1/' | LC_ALL=C sort > "$work/header-tables.txt" \
   || die "the committed header declares no tables"
 
-missing_in_header="$(comm -23 "$work/db-tables.txt" "$work/header-tables.txt")"
-invented_in_header="$(comm -13 "$work/db-tables.txt" "$work/header-tables.txt")"
+# Both lists are C-sorted, so comm must be too: another collation makes it exit 1 and set -e abort first.
+missing_in_header="$(LC_ALL=C comm -23 "$work/db-tables.txt" "$work/header-tables.txt")"
+invented_in_header="$(LC_ALL=C comm -13 "$work/db-tables.txt" "$work/header-tables.txt")"
 if [ -n "$missing_in_header" ] || [ -n "$invented_in_header" ]; then
   printf 'db gate FAILED: the header and the schema disagree about which tables exist\n' >&2
   if [ -n "$missing_in_header" ]; then
