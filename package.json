@@ -8,6 +8,7 @@
     "validate:falsify": "bash tools/falsify-content-gate.sh",
     "vocab:build": "bun run tools/vocab/build.ts",
     "vocab:gate": "bun run tools/vocab/gate.ts",
+    "vocab:gate:falsify": "bash tools/falsify-vocab-gate.sh",
     "check:references": "bash tools/check-references.sh",
     "check:references:falsify": "bash tools/falsify-references-gate.sh",
     "check:stack": "bun run tools/render-stack.ts --check",
