@@ -124,21 +124,31 @@ int main() {
 
 // Everything one configure reads: the presets and the tidy config, the CMake modules, the components the
 // root CMakeLists adds, and the manifest the presets resolve packages from.
-const STAGED = [
-  "CMakeLists.txt",
-  "CMakePresets.json",
-  ".clang-tidy",
-  "cmake",
-  "core",
-  "db",
-  "references",
-  "api",
-  "vcpkg-ports",
-];
+// The files a configure reads, plus every component the root CMakeLists adds, plus the data directories
+// those components read at run time. All three were hardcoded once and drifted: `bank/` was added to the
+// root CMakeLists and not to this list, so every staged tree died at configure, and `content/` and
+// `deploy/catalogue/` were missing, so thirty-three data-backed tests failed for want of their files.
+const STAGED_CONFIG = ["CMakeLists.txt", "CMakePresets.json", ".clang-tidy", "cmake", "vcpkg-ports"];
+const STAGED_DATA = ["content", "deploy"];
+
+function stagedEntries(repo: string): string[] {
+  const rootLists = join(repo, "CMakeLists.txt");
+  const root = readFileSync(rootLists, "utf8");
+  const components = [...root.matchAll(/^\s*add_subdirectory\(([A-Za-z0-9_]+)\)/gm)].map((match) => match[1]);
+  if (components.length === 0) {
+    throw new Error(`no add_subdirectory(...) found in ${rootLists}; a staged tree would not configure`);
+  }
+  for (const entry of [...components, ...STAGED_DATA]) {
+    if (!existsSync(join(repo, entry))) {
+      throw new Error(`${rootLists} and the test data expect ${entry}/ but that directory is not in the tree`);
+    }
+  }
+  return [...STAGED_CONFIG, ...components, ...STAGED_DATA];
+}
 
 function buildTree(repo: string, work: string, name: string, source: string, examples?: { input: string; output: string }): string {
   const root = join(work, name);
-  for (const entry of STAGED) {
+  for (const entry of stagedEntries(repo)) {
     cpSync(join(repo, entry), join(root, entry), {
       recursive: true,
       // build/ holds absolute paths into the original tree; copying it would make CMake reuse them.
@@ -156,12 +166,38 @@ function buildTree(repo: string, work: string, name: string, source: string, exa
     symlinkSync(installed, join(root, "build/vcpkg_installed"), "dir");
   }
 
-  const solutions = join(root, "content/tasks/demo/solutions");
+  // The demo task has to be a *task*: once real content is staged, the bank loader walks every
+  // directory under `content/tasks/`, and a folder holding only a solution and an example is a
+  // malformed task that makes the whole bank fail to load.
+  const demo = join(root, "content/tasks/demo");
+  const solutions = join(demo, "solutions");
   mkdirSync(solutions, { recursive: true });
   writeFileSync(join(solutions, "main.cpp"), `${source}\n`);
+  writeFileSync(
+    join(demo, "task.json"),
+    `${JSON.stringify(
+      {
+        id: "demo",
+        version: 1,
+        status: "draft",
+        title: { en: "Falsification probe", th: "งานตรวจสอบ" },
+        topics: ["complexity"],
+        difficulty: 800,
+        locales: ["en", "th"],
+        limits: { time_ms: 1000, memory_mb: 256 },
+        checker: { kind: "token" },
+        origin: { kind: "original" },
+        verification: { status: "pending", reference_solution: "solutions/main.cpp", methods: [] },
+      },
+      null,
+      2,
+    )}\n`,
+  );
+  writeFileSync(join(demo, "statement.en.md"), "Read one integer and print it.\n");
+  writeFileSync(join(demo, "statement.th.md"), "อ่านจำนวนเต็มหนึ่งจำนวนแล้วพิมพ์ออกมา\n");
 
   if (examples) {
-    const dir = join(root, "content/tasks/demo/examples");
+    const dir = join(demo, "examples");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "01.in"), examples.input);
     writeFileSync(join(dir, "01.out"), examples.output);
