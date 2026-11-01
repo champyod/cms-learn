@@ -14,6 +14,17 @@ cms_apply_warnings(cms_judge_verdict PUBLIC)
 cms_apply_hardening(cms_judge_verdict)
 cms_apply_sanitizers(cms_judge_verdict)
 
+# The claim is the judge's only write to the database, and it is its own target so a build without the
+# sqlpp23 headers can still verify tasks: the claim is absent rather than present and unlinked.
+if(TARGET cms::db)
+  add_library(cms_judge_worker STATIC src/worker.cpp)
+  add_library(cms::judge_worker ALIAS cms_judge_worker)
+  target_link_libraries(cms_judge_worker PUBLIC cms::judge_verdict cms::db)
+  cms_apply_warnings(cms_judge_worker PRIVATE)
+  cms_apply_hardening(cms_judge_worker)
+  cms_apply_sanitizers(cms_judge_worker)
+endif()
+
 # The verifier is the one code path CI and an author both run, so a manifest cannot describe cases that
 # were checked by a different rule than the judge applies.
 add_executable(cms_verify_task src/verify_main.cpp)

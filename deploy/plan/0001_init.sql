@@ -350,9 +350,12 @@ CREATE TABLE IF NOT EXISTS submissions (
     verdict verdict_status,
     verdict_detail text,
     judged_at timestamptz,
+    claimed_by text,
+    claimed_at timestamptz,
     CONSTRAINT submissions_pkey PRIMARY KEY (id),
     CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,
     CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT submissions_claim_complete CHECK ((claimed_by IS NULL) = (claimed_at IS NULL)),
     CONSTRAINT submissions_source_check CHECK (length(source) > 0),
     CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL))
 );

@@ -23,6 +23,17 @@ if(Catch2_FOUND)
   cms_apply_sanitizers(cms_judge_supervisor_tests)
   catch_discover_tests(cms_judge_supervisor_tests)
 
+  # A claim is a database operation, so its test exists only where the connector does.
+  if(TARGET cms::judge_worker AND TARGET cms::db_drogon)
+    add_executable(cms_judge_worker_tests worker_test.cpp)
+    target_link_libraries(cms_judge_worker_tests PRIVATE cms::judge_worker cms::db_drogon
+                                                           Catch2::Catch2WithMain)
+    cms_apply_warnings(cms_judge_worker_tests PRIVATE)
+    cms_apply_hardening(cms_judge_worker_tests)
+    cms_apply_sanitizers(cms_judge_worker_tests)
+    catch_discover_tests(cms_judge_worker_tests)
+  endif()
+
   # The vendored testlib has to compile and agree with the parser, or the checker contract is a claim
   # rather than a measurement.
   add_test(

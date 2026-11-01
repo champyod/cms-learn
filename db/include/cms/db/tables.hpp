@@ -641,10 +641,20 @@ struct Submissions_ {
     using data_type = std::optional<::sqlpp::timestamp>;
     using has_default = std::true_type;
   };
+  struct ClaimedBy {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(claimed_by, claimedBy);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct ClaimedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(claimed_at, claimedAt);
+    using data_type = std::optional<::sqlpp::timestamp>;
+    using has_default = std::true_type;
+  };
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(submissions, submissions);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, AccountId, TaskId, TaskVersion, Source, SubmittedAt, Verdict, VerdictDetail, JudgedAt>;
+      sqlpp::table_columns<T, Id, AccountId, TaskId, TaskVersion, Source, SubmittedAt, Verdict, VerdictDetail, JudgedAt, ClaimedBy, ClaimedAt>;
   using _required_insert_columns = sqlpp::detail::type_set<AccountId, TaskId, TaskVersion, Source>;
 };
 

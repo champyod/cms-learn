@@ -11,10 +11,16 @@ CREATE TABLE submissions (
   verdict verdict_status,
   verdict_detail text,
   judged_at timestamptz,
+  -- Which worker took this row and when. The pair is the lease: the moment is what a second worker compares
+  -- against, the name is what a human reads after a worker dies without clearing it.
+  claimed_by text,
+  claimed_at timestamptz,
   CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version)
     REFERENCES tasks (id, version) ON DELETE CASCADE,
   -- A verdict and the moment it was reached travel together, or neither exists.
-  CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL))
+  CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL)),
+  -- Half a claim cannot be told apart from no claim, so the range of states is exactly two.
+  CONSTRAINT submissions_claim_complete CHECK ((claimed_by IS NULL) = (claimed_at IS NULL))
 );
 
 CREATE INDEX submissions_account_idx ON submissions (account_id, submitted_at DESC);

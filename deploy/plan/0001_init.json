@@ -1,7 +1,7 @@
 {
   "version": "1.0.0",
   "pgschema_version": "1.13.4",
-  "created_at": "2026-11-01T00:25:49+07:00",
+  "created_at": "2026-11-01T20:56:40+07:00",
   "source_fingerprint": {
     "hash": "965b1131737c955e24c7f827c55bd78e4cb49a75adfd04229e0ba297376f5085"
   },
@@ -255,7 +255,7 @@
           "path": "public.progress.progress_account_task_idx"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS submissions (\n    id uuid DEFAULT gen_random_uuid(),\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    source text NOT NULL,\n    submitted_at timestamptz DEFAULT now() NOT NULL,\n    verdict verdict_status,\n    verdict_detail text,\n    judged_at timestamptz,\n    CONSTRAINT submissions_pkey PRIMARY KEY (id),\n    CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT submissions_source_check CHECK (length(source) > 0),\n    CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL))\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS submissions (\n    id uuid DEFAULT gen_random_uuid(),\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    source text NOT NULL,\n    submitted_at timestamptz DEFAULT now() NOT NULL,\n    verdict verdict_status,\n    verdict_detail text,\n    judged_at timestamptz,\n    claimed_by text,\n    claimed_at timestamptz,\n    CONSTRAINT submissions_pkey PRIMARY KEY (id),\n    CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT submissions_claim_complete CHECK ((claimed_by IS NULL) = (claimed_at IS NULL)),\n    CONSTRAINT submissions_source_check CHECK (length(source) > 0),\n    CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL))\n);",
           "type": "table",
           "operation": "create",
           "path": "public.submissions"

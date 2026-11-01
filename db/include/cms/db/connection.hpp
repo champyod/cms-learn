@@ -276,6 +276,19 @@ class connection_base : public ::sqlpp::connection {
         .affectedRows();
   }
 
+  /// @brief Runs a statement written as text whose rows are the answer, as `UPDATE … RETURNING` is.
+  /// @param sql The statement, using the connector's placeholder syntax (`$1`, `$2`, …).
+  /// @param parameters The values, in placeholder order.
+  /// @return The rows the statement returned, to be read through a row type the caller names.
+  ///
+  /// A select's row type is derived from the statement, and text has no statement to derive one from, so the
+  /// caller passes it to `sqlpp::result_t` itself. That keeps the decoding identical to a typed select's:
+  /// one `read_field` per column, in the order the statement returns them.
+  auto query_text(std::string sql, std::vector<bound_value> parameters) -> result {
+    return result{::cms::db::run(_handle, serialized_statement{.sql = std::move(sql),
+                                                               .parameters = std::move(parameters)})};
+  }
+
   template <typename Statement, typename Bindings>
   auto update(Statement&& statement, const Bindings& bindings) -> std::size_t {
     return execute(std::forward<Statement>(statement), bindings);
