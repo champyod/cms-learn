@@ -147,9 +147,12 @@ finding, not a variation.
 - **Shell** asserts facts about files and containers: the `check-*.sh` gates hand the work to
   `docker`, `trivy`, `pgschema` and `curl`.
 
-Do not port a gate to C++. `validate-content.ts` would need a hand-rolled JSON Schema engine, and
-`tools/cpp/gate.ts` would have to compile itself with the toolchain whose breakage it exists to
-detect. `docs/decisions/0006` records both rejections.
+Do not port a gate to C++. `validate-content.ts` asserts things that need a schema engine and uses
+`ajv` today; hand-rolling one is the cost, and no mature C++ equivalent exists. `tools/cpp/gate.ts`
+would have to be compiled by the very toolchain whose breakage it exists to detect, and
+`cmake/ProjectSettings.cmake` already refuses to configure under anything but the pinned compiler.
+`docs/decisions/0006` rejects the nearest version of this argument — porting the content gate to
+Rust — for the same reason: it buys language purity, not a better gate.
 
 ## Resources
 
