@@ -1,8 +1,11 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <nlohmann/json.hpp>
 
 #include <cms/bank/bank.hpp>
 #include <cms/error.hpp>
@@ -34,16 +37,38 @@ struct Locale {
 [[nodiscard]] std::string label(const Locale& locale, std::string_view english,
                                 std::string_view thai);
 
-/// @brief Renders the curriculum page.
+/// @brief Builds the model `home.html` renders from.
 ///
-/// @param template_root The directory holding `home.html` and `layout.html`.
 /// @param locale The locale to render in.
 /// @param tracks The curriculum to list.
 /// @param site_name The installation's own name.
+/// @return The model, with every word the locale cannot supply replaced by the other locale's.
+[[nodiscard]] nlohmann::json home_model(const Locale& locale,
+                                        const std::vector<bank::Track>& tracks,
+                                        std::string_view site_name);
+
+/// @brief Renders one template of @p template_root against @p model.
+///
+/// @param template_root The directory holding the templates and their partials.
+/// @param page The template file to render, relative to @p template_root.
+/// @param model The values the template reads.
 /// @return The HTML, or the reason it could not be produced.
-[[nodiscard]] Result<std::string> render_home(const std::string& template_root,
-                                              const Locale& locale,
-                                              const std::vector<bank::Track>& tracks,
-                                              std::string_view site_name);
+///
+/// The model is the caller's, so a page's data is decided where the page's data comes from rather
+/// than by a renderer that would have to know every page.
+[[nodiscard]] Result<std::string> render_page(const std::string& template_root,
+                                              std::string_view page,
+                                              const nlohmann::json& model);
+
+/// @brief The file a request for @p relative under @p static_root may serve.
+///
+/// @param static_root The directory the operator published assets in.
+/// @param relative The path the request named, with no leading separator.
+/// @return The path to serve, or nothing when it is outside @p static_root or is not a regular file.
+///
+/// The candidate is resolved before it is compared, so `..`, an absolute path and a symlink out of the
+/// tree all land outside the root and are refused by the same check instead of by three string rules.
+[[nodiscard]] std::optional<std::string> static_file(std::string_view static_root,
+                                                     std::string_view relative);
 
 }  // namespace cms::api

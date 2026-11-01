@@ -16,10 +16,11 @@ namespace {
 using entry_map = std::map<std::string, std::string, std::less<>>;
 
 constexpr std::array REQUIRED_KEYS{
-    std::string_view{"CMSLEARN_LISTEN_ADDRESS"},   std::string_view{"CMSLEARN_LISTEN_PORT"},
-    std::string_view{"CMSLEARN_DATABASE_URL"},     std::string_view{"CMSLEARN_SEAL_KEY"},
-    std::string_view{"CMSLEARN_BOOTSTRAP_ADMIN"},  std::string_view{"CMSLEARN_TLS_MODE"},
-    std::string_view{"CMSLEARN_ADMIN_SOCKET"},     std::string_view{"CMSLEARN_ADMIN_UID"},
+    std::string_view{"CMSLEARN_LISTEN_ADDRESS"},  std::string_view{"CMSLEARN_LISTEN_PORT"},
+    std::string_view{"CMSLEARN_DATABASE_URL"},    std::string_view{"CMSLEARN_SEAL_KEY"},
+    std::string_view{"CMSLEARN_BOOTSTRAP_ADMIN"}, std::string_view{"CMSLEARN_TLS_MODE"},
+    std::string_view{"CMSLEARN_ADMIN_SOCKET"},    std::string_view{"CMSLEARN_ADMIN_UID"},
+    std::string_view{"CMSLEARN_TEMPLATE_ROOT"},   std::string_view{"CMSLEARN_STATIC_ROOT"},
 };
 
 constexpr std::size_t SEAL_KEY_BYTES = 32;
@@ -131,6 +132,14 @@ auto check(const entry_map& entries, std::vector<std::string>& problems) -> void
   const auto uid = value_of(entries, "CMSLEARN_ADMIN_UID");
   validate("CMSLEARN_ADMIN_UID", !uid.empty() && uid.find_first_not_of("0123456789") == std::string_view::npos,
            "CMSLEARN_ADMIN_UID is not a numeric user id");
+  for (const auto root_key : {std::string_view{"CMSLEARN_TEMPLATE_ROOT"},
+                              std::string_view{"CMSLEARN_STATIC_ROOT"}}) {
+    const auto root = value_of(entries, root_key);
+    // A relative root would resolve against the service's working directory, which is not a fact the
+    // operator can see in the file they wrote.
+    validate(root_key, !root.empty() && root.front() == '/',
+             std::string{root_key} + " is not an absolute path");
+  }
 }
 
 auto join(const std::vector<std::string>& problems) -> std::string {
@@ -168,6 +177,8 @@ auto load_host_config(std::string_view path) -> Result<HostConfig> {
       .tls_mode = entries.at("CMSLEARN_TLS_MODE"),
       .admin_socket = entries.at("CMSLEARN_ADMIN_SOCKET"),
       .admin_uid = entries.at("CMSLEARN_ADMIN_UID"),
+      .template_root = entries.at("CMSLEARN_TEMPLATE_ROOT"),
+      .static_root = entries.at("CMSLEARN_STATIC_ROOT"),
   };
 }
 

@@ -7,6 +7,7 @@ find_package(PostgreSQL REQUIRED)
 find_package(unofficial-sodium CONFIG REQUIRED)
 find_package(CURL REQUIRED)
 find_package(simdjson CONFIG REQUIRED)
+find_package(inja CONFIG REQUIRED)
 
 # Mail is its own library: it is the only part of the api that talks to the network on its own, and it
 # is disabled by default, so it must be testable without a server.
@@ -42,6 +43,19 @@ cms_apply_warnings(cms_api_config PUBLIC)
 cms_apply_hardening(cms_api_config)
 cms_apply_sanitizers(cms_api_config)
 
+# The web layer is its own library so a page can be rendered and an asset path resolved without a
+# server, a database or a listening socket.
+add_library(cms_api_web STATIC src/web.cpp)
+add_library(cms::api_web ALIAS cms_api_web)
+
+target_include_directories(cms_api_web PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
+
+target_link_libraries(cms_api_web PUBLIC cms::bank pantor::inja)
+cms_apply_warnings(cms_api_web PUBLIC)
+cms_apply_hardening(cms_api_web)
+cms_apply_sanitizers(cms_api_web)
+
 # Authority is its own library so the account state machine, the capability check, elevation and the
 # control protocol are testable without Drogon's server or a file descriptor.
 add_library(cms_api_authority STATIC src/accounts.cpp src/audit.cpp src/authorize.cpp
@@ -66,7 +80,7 @@ add_executable(cms_api src/main.cpp src/settings_source.cpp src/settings_watcher
 target_compile_definitions(cms_api PRIVATE
   CMS_CATALOGUE_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../deploy/catalogue/settings.json")
 target_link_libraries(cms_api PRIVATE cms::api_authority cms::api_config cms::api_identity
-                                       cms::api_mail cms::db_drogon Drogon::Drogon
+                                       cms::api_mail cms::api_web cms::db_drogon Drogon::Drogon
                                        PostgreSQL::PostgreSQL)
 cms_apply_warnings(cms_api PRIVATE)
 cms_apply_hardening(cms_api)

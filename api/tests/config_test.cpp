@@ -19,6 +19,8 @@ CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org
 CMSLEARN_TLS_MODE=proxy
 CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock
 CMSLEARN_ADMIN_UID=1000
+CMSLEARN_TEMPLATE_ROOT=/srv/cmslearn/templates
+CMSLEARN_STATIC_ROOT=/srv/cmslearn/public
 )";
 
 /// Writes a host file for one test and removes it afterwards.
@@ -63,6 +65,8 @@ TEST_CASE("a complete host file is accepted and every fact is carried", "[host-c
   CHECK(config->tls_mode == "proxy");
   CHECK(config->admin_socket == "/run/cmslearn/admin.sock");
   CHECK(config->admin_uid == "1000");
+  CHECK(config->template_root == "/srv/cmslearn/templates");
+  CHECK(config->static_root == "/srv/cmslearn/public");
 }
 
 TEST_CASE("a libpq keyword connection string is accepted", "[host-config]") {

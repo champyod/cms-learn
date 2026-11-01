@@ -31,7 +31,9 @@ complete_file() {
     'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
     'CMSLEARN_TLS_MODE=proxy' \
     'CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock' \
-    'CMSLEARN_ADMIN_UID=1000'
+    'CMSLEARN_ADMIN_UID=1000' \
+    'CMSLEARN_TEMPLATE_ROOT=/srv/cmslearn/templates' \
+    'CMSLEARN_STATIC_ROOT=/srv/cmslearn/public'
 }
 
 expect_failure_naming() {
@@ -73,7 +75,9 @@ write_host_file "$short_key_file" \
   'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
   'CMSLEARN_TLS_MODE=proxy' \
   'CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock' \
-  'CMSLEARN_ADMIN_UID=1000'
+  'CMSLEARN_ADMIN_UID=1000' \
+  'CMSLEARN_TEMPLATE_ROOT=/srv/cmslearn/templates' \
+  'CMSLEARN_STATIC_ROOT=/srv/cmslearn/public'
 expect_failure_naming "a short seal key is refused" "shorter than 32 bytes" \
   CMSLEARN_HOST_FILE="$short_key_file"
 
@@ -86,7 +90,9 @@ write_host_file "$bad_url_file" \
   'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
   'CMSLEARN_TLS_MODE=proxy' \
   'CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock' \
-  'CMSLEARN_ADMIN_UID=1000'
+  'CMSLEARN_ADMIN_UID=1000' \
+  'CMSLEARN_TEMPLATE_ROOT=/srv/cmslearn/templates' \
+  'CMSLEARN_STATIC_ROOT=/srv/cmslearn/public'
 expect_failure_naming "a non-postgres connection string is refused" \
   "neither a postgresql:// URL nor a libpq connection string" \
   CMSLEARN_HOST_FILE="$bad_url_file"
@@ -107,6 +113,24 @@ complete_file "$duplicate_file"
 printf 'CMSLEARN_LISTEN_PORT=9090\n' >>"$duplicate_file"
 expect_failure_naming "a repeated key is refused" "repeats CMSLEARN_LISTEN_PORT" \
   CMSLEARN_HOST_FILE="$duplicate_file"
+
+no_roots_file="$work/no-roots.env"
+write_host_file "$no_roots_file" \
+  'CMSLEARN_LISTEN_ADDRESS=127.0.0.1' \
+  'CMSLEARN_LISTEN_PORT=8080' \
+  'CMSLEARN_DATABASE_URL=postgresql://cmslearn@database/cmslearn' \
+  'CMSLEARN_SEAL_KEY=0123456789abcdef0123456789abcdef' \
+  'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
+  'CMSLEARN_TLS_MODE=proxy' \
+  'CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock' \
+  'CMSLEARN_ADMIN_UID=1000'
+out="$(CMSLEARN_HOST_FILE="$no_roots_file" "$binary" 2>&1)"
+if [ $? -ne 0 ] &&
+  [[ "$out" == *"missing CMSLEARN_TEMPLATE_ROOT"* && "$out" == *"missing CMSLEARN_STATIC_ROOT"* ]]; then
+  behaved "both published roots are named in one refusal"
+else
+  broken "both published roots are named in one refusal" "got: $out"
+fi
 
 printf '\n%s assertion(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

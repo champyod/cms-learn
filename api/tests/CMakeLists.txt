@@ -75,6 +75,15 @@ if(Catch2_FOUND)
   cms_apply_hardening(cms_api_identity_tests)
   cms_apply_sanitizers(cms_api_identity_tests)
   catch_discover_tests(cms_api_identity_tests)
+
+  add_executable(cms_api_web_tests web_test.cpp)
+  target_link_libraries(cms_api_web_tests PRIVATE cms::api_web Catch2::Catch2WithMain)
+  target_compile_definitions(cms_api_web_tests PRIVATE
+    CMS_TEMPLATE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../templates")
+  cms_apply_warnings(cms_api_web_tests PRIVATE)
+  cms_apply_hardening(cms_api_web_tests)
+  cms_apply_sanitizers(cms_api_web_tests)
+  catch_discover_tests(cms_api_web_tests)
 endif()
 
 add_test(
@@ -95,3 +104,8 @@ add_test(
   NAME api_settings_route_e2e
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/settings_route_test.sh" "$<TARGET_FILE:cms_api>")
 set_tests_properties(api_settings_route_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+
+add_test(
+  NAME api_render_e2e
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/check-render.sh" "$<TARGET_FILE:cms_api>")
+set_tests_properties(api_render_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)

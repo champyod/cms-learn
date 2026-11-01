@@ -21,6 +21,8 @@ struct HostConfig {
   std::string tls_mode;
   std::string admin_socket;
   std::string admin_uid;
+  std::string template_root;
+  std::string static_root;
 };
 
 /// @brief Reads a `KEY=VALUE` file and validates every required fact.

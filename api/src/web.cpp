@@ -1,10 +1,13 @@
 #include <cms/api/web.hpp>
 
-#include <algorithm>
 #include <cctype>
 #include <exception>
+#include <filesystem>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <system_error>
+#include <utility>
 #include <vector>
 
 #include <inja/inja.hpp>
@@ -65,6 +68,19 @@ auto words_for(const Locale& locale) -> const Words& {
   return locale.code == THAI ? THAI_WORDS : ENGLISH_WORDS;
 }
 
+/// Component-wise, so `/srv/web` does not admit `/srv/webevil`, and a candidate that is the root itself is
+/// not inside it: a directory is not an asset.
+auto is_inside(const std::filesystem::path& root, const std::filesystem::path& candidate) -> bool {
+  auto root_part = root.begin();
+  auto candidate_part = candidate.begin();
+  for (; root_part != root.end(); ++root_part, ++candidate_part) {
+    if (candidate_part == candidate.end() || *candidate_part != *root_part) {
+      return false;
+    }
+  }
+  return candidate_part != candidate.end();
+}
+
 }  // namespace
 
 auto choose_locale(std::string_view query_language, std::string_view accept_language) -> Locale {
@@ -91,8 +107,8 @@ auto label(const Locale& locale, std::string_view english, std::string_view thai
   return std::string{fallback};
 }
 
-auto build_model(const Locale& locale, const std::vector<bank::Track>& tracks,
-                 std::string_view site_name) -> nlohmann::json {
+auto home_model(const Locale& locale, const std::vector<bank::Track>& tracks,
+                std::string_view site_name) -> nlohmann::json {
   const auto& words = words_for(locale);
   const auto other_words = words_for(Locale{.code = locale.other, .other = locale.code});
 
@@ -134,20 +150,37 @@ auto build_model(const Locale& locale, const std::vector<bank::Track>& tracks,
   return data;
 }
 
-}  // namespace
-
-auto render_home(const std::string& template_root, const Locale& locale,
-                 const std::vector<bank::Track>& tracks, std::string_view site_name)
-    -> Result<std::string> {
-  const auto data = build_model(locale, tracks, site_name);
+auto render_page(const std::string& template_root, std::string_view page,
+                 const nlohmann::json& model) -> Result<std::string> {
   try {
     auto environment = inja::Environment{};
     environment.set_html_autoescape(true);
     environment.set_search_included_templates_in_files(true);
-    return environment.render(template_root + "/home.html", data);
+    return environment.render_file(template_root + "/" + std::string{page}, model);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::internal, error.what()));
   }
+}
+
+auto static_file(std::string_view static_root, std::string_view relative)
+    -> std::optional<std::string> {
+  if (relative.empty()) {
+    return std::nullopt;
+  }
+  auto error = std::error_code{};
+  const auto root = std::filesystem::weakly_canonical(std::filesystem::path{static_root}, error);
+  if (error) {
+    return std::nullopt;
+  }
+  const auto candidate =
+      std::filesystem::weakly_canonical(root / std::filesystem::path{relative}, error);
+  if (error || !is_inside(root, candidate)) {
+    return std::nullopt;
+  }
+  if (!std::filesystem::is_regular_file(candidate, error) || error) {
+    return std::nullopt;
+  }
+  return candidate.string();
 }
 
 }  // namespace cms::api

@@ -2,6 +2,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <unistd.h>
+
+#include <filesystem>
+#include <fstream>
 #include <string>
 #include <vector>
 
@@ -43,6 +47,41 @@ auto contains(const std::string& haystack, std::string_view needle) -> bool {
   return haystack.find(needle) != std::string::npos;
 }
 
+auto home_page(const cms::api::Locale& locale) -> cms::Result<std::string> {
+  return cms::api::render_page(template_root(), "home.html",
+                               cms::api::home_model(locale, sample_curriculum(), "CMS Learn"));
+}
+
+/// A published tree with one asset, and one file beside it that no request may reach.
+class ScratchTree {
+ public:
+  ScratchTree() {
+    root_ = std::filesystem::temp_directory_path() /
+            ("cms-web-static-" + std::to_string(::getpid()));
+    std::filesystem::create_directories(assets());
+    auto asset = std::ofstream{assets() / "app.css"};
+    asset << "body{}";
+    auto beside = std::ofstream{root_ / "secret.txt"};
+    beside << "not published";
+  }
+
+  ~ScratchTree() {
+    auto error = std::error_code{};
+    std::filesystem::remove_all(root_, error);
+  }
+
+  ScratchTree(const ScratchTree&) = delete;
+  ScratchTree& operator=(const ScratchTree&) = delete;
+  ScratchTree(ScratchTree&&) = delete;
+  ScratchTree& operator=(ScratchTree&&) = delete;
+
+  [[nodiscard]] std::filesystem::path assets() const { return root_ / "assets"; }
+  [[nodiscard]] std::filesystem::path root() const { return root_; }
+
+ private:
+  std::filesystem::path root_;
+};
+
 }  // namespace
 
 TEST_CASE("a request without a language gets the site's own", "[web][unit]") {
@@ -66,11 +105,10 @@ TEST_CASE("a missing translation falls back to the other language", "[web][unit]
 }
 
 TEST_CASE("the page renders every route and its stages", "[web][unit]") {
-  const auto page = cms::api::render_home(template_root(), cms::api::choose_locale("th", ""),
-                                          sample_curriculum(), "CMS Learn");
+  const auto page = home_page(cms::api::choose_locale("th", ""));
   REQUIRE(page.has_value());
 
-  CHECK(contains(*page, "<html lang=\"th\">"));
+  CHECK(contains(*page, "<html lang=\"th\" data-theme=\"cms\">"));
   CHECK(contains(*page, "เส้นทางแบบ USACO"));
   CHECK(contains(*page, "ทองแดง"));
   CHECK(contains(*page, "prefix-sums"));
@@ -80,27 +118,46 @@ TEST_CASE("the page renders every route and its stages", "[web][unit]") {
 
 TEST_CASE("a stage with no Thai title renders its English one, not an empty heading",
           "[web][unit]") {
-  // The plan's E6.1 falsification: the Thai stage title is empty in the data, and the page must show the
-  // English label rather than `<h3></h3>`.
-  const auto page = cms::api::render_home(template_root(), cms::api::choose_locale("th", ""),
-                                          sample_curriculum(), "CMS Learn");
+  // The Thai stage title is empty in the data, and the page must show the English label rather than
+  // `<h3></h3>`.
+  const auto page = home_page(cms::api::choose_locale("th", ""));
   REQUIRE(page.has_value());
   CHECK(contains(*page, "Silver"));
   CHECK(!contains(*page, "<h3></h3>"));
 }
 
 TEST_CASE("the English page carries the English navigation", "[web][unit]") {
-  const auto page = cms::api::render_home(template_root(), cms::api::choose_locale("en", ""),
-                                          sample_curriculum(), "CMS Learn");
+  const auto page = home_page(cms::api::choose_locale("en", ""));
   REQUIRE(page.has_value());
-  CHECK(contains(*page, "<html lang=\"en\">"));
+  CHECK(contains(*page, "<html lang=\"en\" data-theme=\"cms\">"));
   CHECK(contains(*page, "Curriculum"));
   CHECK(contains(*page, "USACO ladder"));
   CHECK(contains(*page, "?lang=th"));
 }
 
 TEST_CASE("a page whose template is missing is an error, not an empty document", "[web][unit]") {
-  const auto page = cms::api::render_home("/nonexistent/templates", cms::api::choose_locale("th", ""),
-                                          sample_curriculum(), "CMS Learn");
+  const auto page = cms::api::render_page(
+      "/nonexistent/templates", "home.html",
+      cms::api::home_model(cms::api::choose_locale("th", ""), sample_curriculum(), "CMS Learn"));
   REQUIRE(!page.has_value());
+}
+
+TEST_CASE("an asset under the published root is served", "[web][unit]") {
+  const auto tree = ScratchTree{};
+  const auto file = cms::api::static_file(tree.assets().string(), "app.css");
+
+  REQUIRE(file.has_value());
+  CHECK(std::filesystem::equivalent(*file, tree.assets() / "app.css"));
+}
+
+TEST_CASE("a path that resolves outside the published root is refused", "[web][unit]") {
+  const auto tree = ScratchTree{};
+  const auto root = tree.assets().string();
+  std::filesystem::create_symlink(tree.root() / "secret.txt", tree.assets() / "link.txt");
+
+  CHECK(!cms::api::static_file(root, "../secret.txt").has_value());
+  CHECK(!cms::api::static_file(root, "/etc/hostname").has_value());
+  CHECK(!cms::api::static_file(root, "link.txt").has_value());
+  CHECK(!cms::api::static_file(root, "").has_value());
+  CHECK(!cms::api::static_file(root, "absent.css").has_value());
 }

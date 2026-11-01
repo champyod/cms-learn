@@ -19,6 +19,8 @@
 #include <cms/api/settings_view.hpp>
 #include <cms/api/settings_watcher.hpp>
 #include <cms/api/submissions.hpp>
+#include <cms/api/web.hpp>
+#include <cms/bank/curriculum.hpp>
 #include <cms/capability.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
@@ -144,6 +146,70 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
       {drogon::Post});
 }
 
+/// The installation's own name, as the settings row publishes it. Empty when the row is absent, because a
+/// heading with no name is still a page.
+auto site_name_of(const cms::SettingsStore& store) -> std::string {
+  const auto settings = store.load();
+  return settings == nullptr
+             ? std::string{}
+             : cms::setting_value<std::string>(*settings, "site.name").value_or("");
+}
+
+/// Serves the curriculum page. The curriculum is read per request, so a route imported into the database
+/// appears here without a restart and an unreachable database is reported rather than served as a stale
+/// page.
+auto register_home_route(const std::shared_ptr<cms::SettingsStore>& store,
+                         const std::shared_ptr<const cms::db::connection_config>& database_config,
+                         std::string_view template_root) -> void {
+  drogon::app().registerHandler(
+      "/",
+      [store, database_config, template_root = std::string{template_root}](
+          const drogon::HttpRequestPtr& request,
+          std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        auto database = cms::db::connection{database_config};
+        const auto curriculum = cms::bank::read_curriculum(database);
+        if (!curriculum) {
+          callback(text_response(curriculum.error().message, drogon::k500InternalServerError));
+          return;
+        }
+
+        const auto locale = cms::api::choose_locale(request->getParameter("lang"),
+                                                    request->getHeader("accept-language"));
+        const auto page = cms::api::render_page(
+            template_root, "home.html",
+            cms::api::home_model(locale, *curriculum, site_name_of(*store)));
+        if (!page) {
+          callback(text_response(page.error().message, drogon::k500InternalServerError));
+          return;
+        }
+
+        auto response = drogon::HttpResponse::newHttpResponse();
+        response->setContentTypeString("text/html; charset=utf-8");
+        response->setBody(*page);
+        callback(response);
+      },
+      {drogon::Get});
+}
+
+/// Serves the published assets. One route covers the whole tree, and the path it names is resolved before
+/// it is compared with the root, so a request that leaves the tree is refused instead of read.
+auto register_asset_route(std::string_view static_root) -> void {
+  drogon::app().registerHandlerViaRegex(
+      "/static/(.*)",
+      [static_root = std::string{static_root}](
+          const drogon::HttpRequestPtr&,
+          std::function<void(const drogon::HttpResponsePtr&)>&& callback,
+          std::string_view relative) {
+        const auto file = cms::api::static_file(static_root, relative);
+        if (!file) {
+          callback(text_response("no such asset\n", drogon::k404NotFound));
+          return;
+        }
+        callback(drogon::HttpResponse::newFileResponse(*file));
+      },
+      {drogon::Get});
+}
+
 /// Runs the service once. Kept separate from main so an exception during startup is reported like any
 /// other refusal rather than escaping as std::terminate.
 auto run() -> int {
@@ -170,6 +236,8 @@ auto run() -> int {
 
   auto store = std::make_shared<cms::SettingsStore>(*snapshot);
   register_routes(store, database_config, *catalogue);
+  register_home_route(store, database_config, config->template_root);
+  register_asset_route(config->static_root);
 
   auto watcher = cms::api::SettingsWatcher{database, store, config->database_url,
                                            SETTINGS_POLL_SECONDS};

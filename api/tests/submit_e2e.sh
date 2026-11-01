@@ -61,6 +61,8 @@ CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org
 CMSLEARN_TLS_MODE=proxy
 CMSLEARN_ADMIN_SOCKET=$work/admin.sock
 CMSLEARN_ADMIN_UID=$(id -u)
+CMSLEARN_TEMPLATE_ROOT=$repo/api/templates
+CMSLEARN_STATIC_ROOT=$repo/web/public
 ENV
 
 CMSLEARN_HOST_FILE="$work/host.env" "$binary" >"$work/api.log" 2>&1 &
