@@ -261,6 +261,21 @@ class connection_base : public ::sqlpp::connection {
     return execute(std::forward<Statement>(statement), bindings);
   }
 
+  /// @brief Runs a statement written as text, with its values bound rather than interpolated.
+  /// @param sql The statement, using the connector's placeholder syntax (`$1`, `$2`, …).
+  /// @param parameters The values, in placeholder order.
+  /// @return How many rows the statement affected.
+  ///
+  /// sqlpp23 models the statements it knows. A shape it does not model — `INSERT … SELECT` is the one this
+  /// service needs to write a submission and check its preconditions in the same statement — would
+  /// otherwise have to be assembled by concatenating a caller's values into text. These parameters travel
+  /// the same path a typed statement's do, so a value is never part of the SQL.
+  auto execute_text(std::string sql, std::vector<bound_value> parameters) -> std::size_t {
+    return ::cms::db::run(_handle, serialized_statement{.sql = std::move(sql),
+                                                        .parameters = std::move(parameters)})
+        .affectedRows();
+  }
+
   template <typename Statement, typename Bindings>
   auto update(Statement&& statement, const Bindings& bindings) -> std::size_t {
     return execute(std::forward<Statement>(statement), bindings);
