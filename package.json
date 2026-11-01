@@ -42,6 +42,7 @@
     "gate:all": "bun run gate && bun run gate:deploy && bun run gate:cpp && bun run check:pm && bun run check:pm:falsify && bun run check:cli && bun run check:db && bun run check:content:db && bun run check:unseen && bun run check:verify && bun run check:templates && bun run falsify:templates && bun run check:island && bun run falsify:island && bun run check:settings && bun run falsify:settings && bun run check:catalogue && bun run check:security && bun run check:security:falsify",
     "build:css": "bunx @tailwindcss/cli -i web/app.css -o web/public/app.css --minify",
     "check:cli": "bash tools/check-cli.sh",
+    "check:cli:falsify": "bash tools/falsify-cli-gate.sh",
     "check:content:db": "bash tools/check-content-db.sh",
     "check:unseen": "bash tools/check-unseen-task.sh"
   },
