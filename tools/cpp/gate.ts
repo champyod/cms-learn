@@ -221,7 +221,11 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   report.targets = (built.output.match(/Built target /g) ?? []).length;
 
   // 3. Run the cases. The examples are the specification; ctest is what turns them into a verdict.
-  const tested = run("ctest", ["--preset", preset], cpp);
+  // CMS_CTEST_EXCLUDE exists for the falsification harness, whose staged tree cannot carry the shipped data,
+  // so the cases that assert that data fail there for a reason no planted defect caused. No preset and no CI
+  // job sets it, so a gate run excludes nothing unless its caller asked it to.
+  const exclude = process.env.CMS_CTEST_EXCLUDE ?? "";
+  const tested = run("ctest", exclude === "" ? ["--preset", preset] : ["--preset", preset, "-E", exclude], cpp);
   const outcome = readTestOutcome(tested.output);
   report.cases = Math.max(outcome.total - outcome.notRun.length, 0);
   report.skipped = outcome.notRun.map((entry) => entry.name);
