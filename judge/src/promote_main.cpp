@@ -4,6 +4,7 @@
 // refused before anything is read, and a reference that does not reproduce its expected output stops it.
 
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <print>
 #include <string_view>
@@ -20,9 +21,7 @@ auto fail(std::string_view message) -> int {
   return 1;
 }
 
-}  // namespace
-
-int main(int argc, char** argv) {
+auto run(int argc, char** argv) -> int {
   if (argc != 4) {
     return fail(USAGE);
   }
@@ -34,4 +33,16 @@ int main(int argc, char** argv) {
   }
   std::println("published {} -> {}", promoted->digest, promoted->artifact.string());
   return 0;
+}
+
+}  // namespace
+
+// An exception leaving main ends the process through std::terminate with no message an operator can act on;
+// catching it here reports the same line the error paths do.
+int main(int argc, char** argv) {
+  try {
+    return run(argc, argv);
+  } catch (const std::exception& error) {
+    return fail(error.what());
+  }
 }

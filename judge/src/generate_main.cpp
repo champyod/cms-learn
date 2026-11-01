@@ -4,6 +4,7 @@
 // invocation twice produces byte-identical files, which is what makes a draft reviewable as a diff.
 
 #include <cstdio>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <print>
@@ -58,9 +59,7 @@ auto split_topics(const std::string& text) -> std::vector<std::string> {
   return topics;
 }
 
-}  // namespace
-
-int main(int argc, char** argv) {
+auto run(int argc, char** argv) -> int {
   auto spec = cms::judge::TaskSpec{};
   auto output = std::filesystem::path{};
 
@@ -93,4 +92,16 @@ int main(int argc, char** argv) {
   }
   std::println("generated {}", output.string());
   return 0;
+}
+
+}  // namespace
+
+// An exception leaving main ends the process through std::terminate with no message an operator can act on;
+// catching it here reports the same line the error paths do.
+int main(int argc, char** argv) {
+  try {
+    return run(argc, argv);
+  } catch (const std::exception& error) {
+    return fail(error.what());
+  }
 }
