@@ -75,7 +75,7 @@ function Field({ mode, setting }: { mode: Mode; setting: SettingEntry }) {
 function Label({ id, entry }: { id: string; entry: SettingEntry }) {
   return (
     <label className="label" htmlFor={id}>
-      <span className="label-text">{entry.description_en}</span>
+      <span className="label-text font-mono text-sm">{entry.key}</span>
       <span className="label-text-alt opacity-60">{entry.tier}</span>
     </label>
   );

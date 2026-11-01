@@ -43,9 +43,16 @@ else
   ok "a template without the tier branch is refused"
 fi
 
-# A default on a secret: a credential committed to git.
-sed 's|"tier": "secret", "default": ""|"tier": "secret", "default": "hunter2"|' \
-  "$catalogue" >"$work/catalogue.json"
+# A default on a secret: a credential committed to git. The catalogue is generated JSON, so the copy is
+# rewritten as JSON rather than patched textually — a textual patch would silently do nothing.
+bun -e '
+const fs = require("node:fs");
+const catalogue = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+for (const entry of catalogue.settings) {
+  if (entry.tier === "secret") { entry.default = "hunter2"; break; }
+}
+fs.writeFileSync(process.argv[2], JSON.stringify(catalogue, null, 2));
+' "$catalogue" "$work/catalogue.json"
 if bash "$gate" "$template" "$work/catalogue.json" >/dev/null 2>&1; then
   bad "a secret with a default is refused" "the gate accepted a committed credential"
 else

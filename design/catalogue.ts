@@ -11,8 +11,7 @@ export interface SettingEntry {
   kind: SettingKind;
   tier: SettingTier;
   default: string;
-  description_en: string;
-  description_th: string;
+  reload: string;
 }
 
 export interface SettingsFixture {

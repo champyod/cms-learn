@@ -1,18 +1,713 @@
 {
   "version": 1,
-  "note": "The settings this build actually reads. The full catalogue in docs/settings.md is larger; a key enters here when code reads it, so the form never offers a setting nothing honours.",
+  "note": "Generated from docs/settings.md by tools/render-catalogue.ts. Edit the document, then run: bun run render:catalogue",
   "settings": [
-    { "key": "site.name", "kind": "text", "tier": "public", "default": "CMS Learn", "description_en": "Site name", "description_th": "ชื่อเว็บไซต์" },
-    { "key": "site.registration_open", "kind": "bool", "tier": "operator", "default": "false", "description_en": "Allow new accounts to sign up", "description_th": "เปิดให้สมัครบัญชีใหม่" },
-    { "key": "site.registration_domain_allowlist", "kind": "text", "tier": "operator", "default": "", "description_en": "Email domains allowed to register, comma separated", "description_th": "โดเมนอีเมลที่อนุญาตให้สมัคร คั่นด้วยจุลภาค" },
-    { "key": "site.registration_requires_approval", "kind": "bool", "tier": "operator", "default": "true", "description_en": "An operator must approve a verified account", "description_th": "ผู้ดูแลต้องอนุมัติบัญชีที่ยืนยันแล้ว" },
-    { "key": "identity.elevation_minutes", "kind": "int", "tier": "operator", "default": "10", "description_en": "Default lifetime of a time-boxed elevation", "description_th": "อายุเริ่มต้นของการยกสิทธิ์ชั่วคราว" },
-    { "key": "mail.enabled", "kind": "bool", "tier": "operator", "default": "false", "description_en": "Send verification mail", "description_th": "ส่งอีเมลยืนยัน" },
-    { "key": "mail.host", "kind": "text", "tier": "operator", "default": "", "description_en": "SMTP host", "description_th": "โฮสต์ SMTP" },
-    { "key": "mail.port", "kind": "int", "tier": "operator", "default": "587", "description_en": "SMTP port", "description_th": "พอร์ต SMTP" },
-    { "key": "mail.username", "kind": "text", "tier": "operator", "default": "", "description_en": "SMTP user", "description_th": "ผู้ใช้ SMTP" },
-    { "key": "mail.password", "kind": "text", "tier": "secret", "default": "", "description_en": "SMTP password", "description_th": "รหัสผ่าน SMTP" },
-    { "key": "mail.from_address", "kind": "text", "tier": "operator", "default": "", "description_en": "Address mail is sent from", "description_th": "ที่อยู่ผู้ส่ง" },
-    { "key": "mail.starttls", "kind": "bool", "tier": "operator", "default": "true", "description_en": "Require STARTTLS", "description_th": "บังคับใช้ STARTTLS" }
+    {
+      "key": "site.name",
+      "kind": "text",
+      "tier": "public",
+      "default": "CMS Learn",
+      "reload": "hot"
+    },
+    {
+      "key": "site.tagline",
+      "kind": "text",
+      "tier": "public",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "site.base_url",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "site.contact_email",
+      "kind": "text",
+      "tier": "public",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "site.locale_default",
+      "kind": "text",
+      "tier": "public",
+      "default": "th",
+      "reload": "hot"
+    },
+    {
+      "key": "site.locales",
+      "kind": "text",
+      "tier": "public",
+      "default": "th,en",
+      "reload": "hot"
+    },
+    {
+      "key": "site.timezone",
+      "kind": "text",
+      "tier": "operator",
+      "default": "Asia/Bangkok",
+      "reload": "restart"
+    },
+    {
+      "key": "site.maintenance_mode",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "false",
+      "reload": "hot"
+    },
+    {
+      "key": "site.maintenance_message",
+      "kind": "text",
+      "tier": "public",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "site.announcement",
+      "kind": "text",
+      "tier": "public",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "site.announcement_level",
+      "kind": "text",
+      "tier": "public",
+      "default": "info",
+      "reload": "hot"
+    },
+    {
+      "key": "site.registration_open",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "false",
+      "reload": "hot"
+    },
+    {
+      "key": "site.registration_domain_allowlist",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "site.registration_requires_approval",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.logo_light",
+      "kind": "text",
+      "tier": "public",
+      "default": "/static/logo-light.svg",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.logo_dark",
+      "kind": "text",
+      "tier": "public",
+      "default": "/static/logo-dark.svg",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.favicon",
+      "kind": "text",
+      "tier": "public",
+      "default": "/static/favicon.svg",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.color_primary",
+      "kind": "text",
+      "tier": "public",
+      "default": "#1d4ed8",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.color_accent",
+      "kind": "text",
+      "tier": "public",
+      "default": "#0f766e",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.theme",
+      "kind": "text",
+      "tier": "public",
+      "default": "auto",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.font_heading",
+      "kind": "text",
+      "tier": "public",
+      "default": "sans",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.font_body",
+      "kind": "text",
+      "tier": "public",
+      "default": "sans",
+      "reload": "hot"
+    },
+    {
+      "key": "brand.footer_text",
+      "kind": "text",
+      "tier": "public",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "nav.items",
+      "kind": "text",
+      "tier": "public",
+      "default": "tasks:/tasks,progress:/progress",
+      "reload": "hot"
+    },
+    {
+      "key": "nav.hidden_items",
+      "kind": "text",
+      "tier": "public",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.page_size",
+      "kind": "int",
+      "tier": "operator",
+      "default": "25",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.editor_theme",
+      "kind": "text",
+      "tier": "public",
+      "default": "light",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.editor_font_size",
+      "kind": "int",
+      "tier": "operator",
+      "default": "14",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.show_leaderboard",
+      "kind": "bool",
+      "tier": "public",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.show_scores_during_contest",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "false",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.show_hints",
+      "kind": "bool",
+      "tier": "public",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.solutions_visible_after",
+      "kind": "text",
+      "tier": "operator",
+      "default": "accept",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.timer_visible",
+      "kind": "bool",
+      "tier": "public",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "ui.excerpt_length",
+      "kind": "int",
+      "tier": "operator",
+      "default": "240",
+      "reload": "hot"
+    },
+    {
+      "key": "content.max_upload_bytes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "10485760",
+      "reload": "hot"
+    },
+    {
+      "key": "content.allowed_image_types",
+      "kind": "text",
+      "tier": "operator",
+      "default": "image/png,image/jpeg,image/webp,image/svg+xml",
+      "reload": "hot"
+    },
+    {
+      "key": "content.image_max_dimension",
+      "kind": "int",
+      "tier": "operator",
+      "default": "2048",
+      "reload": "hot"
+    },
+    {
+      "key": "content.image_quality",
+      "kind": "int",
+      "tier": "operator",
+      "default": "82",
+      "reload": "hot"
+    },
+    {
+      "key": "content.slug_pattern",
+      "kind": "text",
+      "tier": "operator",
+      "default": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "reload": "hot"
+    },
+    {
+      "key": "content.markdown_enabled",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "content.assets_path",
+      "kind": "text",
+      "tier": "public",
+      "default": "/cdn",
+      "reload": "hot"
+    },
+    {
+      "key": "content.assets_cache_seconds",
+      "kind": "int",
+      "tier": "operator",
+      "default": "31536000",
+      "reload": "hot"
+    },
+    {
+      "key": "storage.endpoint",
+      "kind": "text",
+      "tier": "operator",
+      "default": "http://objects:8333",
+      "reload": "restart"
+    },
+    {
+      "key": "storage.region",
+      "kind": "text",
+      "tier": "operator",
+      "default": "us-east-1",
+      "reload": "restart"
+    },
+    {
+      "key": "storage.bucket_public",
+      "kind": "text",
+      "tier": "operator",
+      "default": "cmslearn-public",
+      "reload": "hot"
+    },
+    {
+      "key": "storage.bucket_private",
+      "kind": "text",
+      "tier": "operator",
+      "default": "cmslearn-private",
+      "reload": "hot"
+    },
+    {
+      "key": "storage.key_prefix",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "storage.path_style",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "restart"
+    },
+    {
+      "key": "storage.object_max_bytes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "268435456",
+      "reload": "hot"
+    },
+    {
+      "key": "storage.presign_ttl_seconds",
+      "kind": "int",
+      "tier": "operator",
+      "default": "0",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.enabled",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.concurrency",
+      "kind": "int",
+      "tier": "operator",
+      "default": "4",
+      "reload": "restart"
+    },
+    {
+      "key": "judge.time_limit_ms",
+      "kind": "int",
+      "tier": "operator",
+      "default": "2000",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.wall_limit_ms",
+      "kind": "int",
+      "tier": "operator",
+      "default": "10000",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.memory_bytes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "268435456",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.stack_bytes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "67108864",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.disk_bytes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "67108864",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.process_limit",
+      "kind": "int",
+      "tier": "operator",
+      "default": "32",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.compile_timeout_ms",
+      "kind": "int",
+      "tier": "operator",
+      "default": "20000",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.output_limit_bytes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "1048576",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.queue_depth_limit",
+      "kind": "int",
+      "tier": "operator",
+      "default": "256",
+      "reload": "hot"
+    },
+    {
+      "key": "judge.max_attempts",
+      "kind": "int",
+      "tier": "operator",
+      "default": "3",
+      "reload": "hot"
+    },
+    {
+      "key": "identity.session_idle_minutes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "30",
+      "reload": "hot"
+    },
+    {
+      "key": "identity.session_absolute_hours",
+      "kind": "int",
+      "tier": "operator",
+      "default": "12",
+      "reload": "hot"
+    },
+    {
+      "key": "identity.password_min_length",
+      "kind": "int",
+      "tier": "operator",
+      "default": "12",
+      "reload": "hot"
+    },
+    {
+      "key": "identity.lockout_threshold",
+      "kind": "int",
+      "tier": "operator",
+      "default": "10",
+      "reload": "hot"
+    },
+    {
+      "key": "identity.lockout_minutes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "15",
+      "reload": "hot"
+    },
+    {
+      "key": "identity.elevation_minutes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "10",
+      "reload": "hot"
+    },
+    {
+      "key": "identity.revoke_on_password_change",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "identity.argon2_memory_kib",
+      "kind": "int",
+      "tier": "operator",
+      "default": "65536",
+      "reload": "restart"
+    },
+    {
+      "key": "identity.argon2_iterations",
+      "kind": "int",
+      "tier": "operator",
+      "default": "3",
+      "reload": "restart"
+    },
+    {
+      "key": "http.request_timeout_seconds",
+      "kind": "int",
+      "tier": "operator",
+      "default": "15",
+      "reload": "hot"
+    },
+    {
+      "key": "http.max_body_bytes",
+      "kind": "int",
+      "tier": "operator",
+      "default": "1048576",
+      "reload": "hot"
+    },
+    {
+      "key": "http.trust_proxy_hops",
+      "kind": "int",
+      "tier": "operator",
+      "default": "1",
+      "reload": "hot"
+    },
+    {
+      "key": "http.hsts_max_age",
+      "kind": "int",
+      "tier": "operator",
+      "default": "31536000",
+      "reload": "hot"
+    },
+    {
+      "key": "http.csp_report_only",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "false",
+      "reload": "hot"
+    },
+    {
+      "key": "http.cors_origins",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "http.workers",
+      "kind": "int",
+      "tier": "operator",
+      "default": "4",
+      "reload": "restart"
+    },
+    {
+      "key": "observability.log_level",
+      "kind": "text",
+      "tier": "operator",
+      "default": "info",
+      "reload": "hot"
+    },
+    {
+      "key": "observability.metrics_enabled",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "observability.metrics_path",
+      "kind": "text",
+      "tier": "operator",
+      "default": "/metrics",
+      "reload": "restart"
+    },
+    {
+      "key": "observability.trace_sample_per_mille",
+      "kind": "int",
+      "tier": "operator",
+      "default": "0",
+      "reload": "hot"
+    },
+    {
+      "key": "observability.alert_queue_depth",
+      "kind": "int",
+      "tier": "operator",
+      "default": "64",
+      "reload": "hot"
+    },
+    {
+      "key": "observability.alert_latency_p95_ms",
+      "kind": "int",
+      "tier": "operator",
+      "default": "500",
+      "reload": "hot"
+    },
+    {
+      "key": "audit.retention_days",
+      "kind": "int",
+      "tier": "operator",
+      "default": "365",
+      "reload": "hot"
+    },
+    {
+      "key": "audit.record_client_ip",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "false",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.enabled",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.schedule",
+      "kind": "text",
+      "tier": "operator",
+      "default": "0 3 * * *",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.retention_daily",
+      "kind": "int",
+      "tier": "operator",
+      "default": "7",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.retention_weekly",
+      "kind": "int",
+      "tier": "operator",
+      "default": "4",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.retention_monthly",
+      "kind": "int",
+      "tier": "operator",
+      "default": "3",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.age_recipient",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.offsite_url",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.offsite_access_key_id",
+      "kind": "text",
+      "tier": "secret",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "backup.offsite_secret_access_key",
+      "kind": "text",
+      "tier": "secret",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "features.contests",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "features.practice",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "features.forum",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "false",
+      "reload": "hot"
+    },
+    {
+      "key": "features.certificates",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "false",
+      "reload": "hot"
+    },
+    {
+      "key": "features.search",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
+      "key": "features.profile_editing",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    }
   ]
 }

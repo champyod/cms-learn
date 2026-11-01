@@ -33,16 +33,14 @@ case "$password_tag" in
   *) fail "the password input is not bound to the setting key" ;;
 esac
 
-# A secret may not declare a default: a credential in a committed file is a credential in git.
-while IFS= read -r line; do
-  case "$line" in
-    *'"tier": "secret"'*)
-      case "$line" in
-        *'"default": ""'*) ;;
-        *) fail "a secret setting declares a default: $(printf '%s' "$line" | cut -c1-80)" ;;
-      esac
-      ;;
-  esac
-done <"$catalogue"
+# A secret may not declare a default: a credential in a committed file is a credential in git. The catalogue
+# is generated JSON, one field per line, so it is read as JSON rather than scanned as text.
+secret_defaults="$(bun -e '
+const fs = require("node:fs");
+const catalogue = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+for (const entry of catalogue.settings) {
+  if (entry.tier === "secret" && entry.default !== "") console.log(entry.key);
+}' "$catalogue" 2>/dev/null)"
+[ -z "$secret_defaults" ] || fail "a secret setting declares a default: $secret_defaults"
 
 printf 'settings gate: OK — the secret tier has no read-back path\n'
