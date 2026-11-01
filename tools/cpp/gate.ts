@@ -233,7 +233,12 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   }
 
   if (tested.status !== 0) {
-    const failed = [...tested.output.matchAll(/^\s*\d+\s+-\s+(\S+)/gm)].map((m) => m[1]);
+    // Only (Failed) lines are failures. Matching every numbered line also counted the (Skipped) ones, so
+    // a tree with skips reported them as red. The name runs to the status, not to its first word —
+    // `(\S+)` turned three failing names beginning with "a" into the reason "a, a, a".
+    const failed = [...tested.output.matchAll(/^\s*\d+\s+-\s+(.+?)\s+\((?:Failed|Timeout|Exception)\)\s*$/gm)].map(
+      (match) => match[1].trim(),
+    );
     const detail = failed.length > 0 ? failed.slice(0, 3).join(", ") : "see output";
     report.reasons.push(`ctest failed${failed.length > 3 ? ` (+${failed.length - 3} more)` : ""}: ${detail}`);
     // A sanitizer report on stdout/stderr of the test is not in the ctest summary — surface it, with its
