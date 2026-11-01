@@ -1,3 +1,5 @@
+#include "live_database.hpp"
+
 #include <cms/api/settings_view.hpp>
 #include <cms/api/settings_write.hpp>
 #include <cms/db/connection.hpp>
@@ -6,30 +8,18 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <cstdlib>
-#include <memory>
 #include <string>
 #include <vector>
 
-#include <drogon/orm/DbClient.h>
 #include <sqlpp23/sqlpp23.h>
 
 namespace {
 
+using cms::test::has_live_database;
+using cms::test::live_client;
+using cms::test::live_database;
+
 auto catalogue_path() -> std::string { return std::string{CMS_CATALOGUE_FILE}; }
-
-auto has_live_database() -> bool { return std::getenv("CMSLEAN_TEST_DSN") != nullptr; }
-
-auto live_client() -> const std::shared_ptr<::drogon::orm::DbClient>& {
-  const auto* dsn = std::getenv("CMSLEAN_TEST_DSN");
-  static const auto client = ::drogon::orm::DbClient::newPgClient(dsn, 4);
-  return client;
-}
-
-auto live_database() -> cms::db::connection {
-  return cms::db::connection{std::make_shared<const cms::db::connection_config>(
-      cms::db::connection_config{.client = live_client()})};
-}
 
 /// The generated catalogue cannot change while the binary runs, so it is parsed once: a case that re-read it
 /// would parse 108 entries for the answer the previous case already had.
