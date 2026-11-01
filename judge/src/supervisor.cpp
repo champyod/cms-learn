@@ -6,12 +6,9 @@
 #include <chrono>
 #include <csignal>
 #include <cstddef>
-#include <cstdlib>
 #include <fstream>
 #include <limits>
-#include <optional>
 #include <string>
-#include <utility>
 #include <vector>
 
 #include <poll.h>
