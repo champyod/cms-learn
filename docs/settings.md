@@ -186,6 +186,18 @@ image from the one the release names is a defect, not a preference.
 | `identity.argon2_memory_kib` | int | operator | `65536` | restart |
 | `identity.argon2_iterations` | int | operator | `3` | restart |
 
+### Mail
+
+| Key | Kind | Tier | Default | Reload |
+|---|---|---|---|---|
+| `mail.enabled` | bool | operator | `false` | hot |
+| `mail.host` | text | operator | empty | hot |
+| `mail.port` | int | operator | `587` | hot |
+| `mail.username` | text | operator | empty | hot |
+| `mail.password` | text | secret | empty | hot |
+| `mail.from_address` | text | operator | empty | hot |
+| `mail.starttls` | bool | operator | `true` | hot |
+
 ### HTTP
 
 | Key | Kind | Tier | Default | Reload |

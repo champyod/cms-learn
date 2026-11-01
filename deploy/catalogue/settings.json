@@ -500,6 +500,55 @@
       "reload": "restart"
     },
     {
+      "key": "mail.enabled",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "false",
+      "reload": "hot"
+    },
+    {
+      "key": "mail.host",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "mail.port",
+      "kind": "int",
+      "tier": "operator",
+      "default": "587",
+      "reload": "hot"
+    },
+    {
+      "key": "mail.username",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "mail.password",
+      "kind": "text",
+      "tier": "secret",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "mail.from_address",
+      "kind": "text",
+      "tier": "operator",
+      "default": "",
+      "reload": "hot"
+    },
+    {
+      "key": "mail.starttls",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
       "key": "http.request_timeout_seconds",
       "kind": "int",
       "tier": "operator",

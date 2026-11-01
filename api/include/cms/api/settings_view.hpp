@@ -15,8 +15,9 @@ struct VisibleSetting {
   std::string key;
   std::string kind;
   std::string tier;
-  /// The stored value, or the redaction marker when the tier is secret.
-  std::string value;
+  /// The stored value, or the redaction marker when the tier is secret. Defaulted so a caller can build the
+  /// first three fields at once and fill the value afterwards.
+  std::string value{};
 };
 
 /// @brief The catalogue: every key the build knows, with its kind and tier.
