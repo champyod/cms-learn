@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cctype>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -61,15 +60,6 @@ auto random_token() -> std::string {
   return to_hex(bytes);
 }
 
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
-
-auto stamp_after(std::int64_t seconds) -> cms::db::timestamp {
-  return now_stamp() + std::chrono::seconds{seconds};
-}
-
 auto domain_of(std::string_view email) -> std::string {
   const auto at = email.rfind('@');
   if (at == std::string_view::npos || at + 1 >= email.size()) {
@@ -125,7 +115,7 @@ auto issue_verification(db::connection& database, std::string_view principal_id)
         db::principalTokens.principalId = std::string{principal_id},
         db::principalTokens.purpose = std::string{PURPOSE_VERIFY_EMAIL},
         db::principalTokens.tokenHash = hash_token(token),
-        db::principalTokens.expiresAt = stamp_after(VERIFICATION_LIFETIME_SECONDS)));
+        db::principalTokens.expiresAt = db::stamp_after(VERIFICATION_LIFETIME_SECONDS)));
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }
@@ -184,7 +174,7 @@ auto verify_email(db::connection& database, const SettingsSnapshot& settings, st
                                              db::principalTokens.purpose ==
                                                  std::string{PURPOSE_VERIFY_EMAIL} &&
                                              db::principalTokens.usedAt.is_null() &&
-                                             db::principalTokens.expiresAt > now_stamp()))) {
+                                             db::principalTokens.expiresAt > db::now_stamp()))) {
     principal_id = std::string{row.principalId};
   }
   if (principal_id.empty()) {
@@ -196,10 +186,10 @@ auto verify_email(db::connection& database, const SettingsSnapshot& settings, st
   const auto status = requires_approval ? "pending" : "active";
   try {
     database(sqlpp::update(db::principalTokens)
-                 .set(db::principalTokens.usedAt = now_stamp())
+                 .set(db::principalTokens.usedAt = db::now_stamp())
                  .where(db::principalTokens.tokenHash == hash));
     database(sqlpp::update(db::principals)
-                 .set(db::principals.emailVerifiedAt = now_stamp(),
+                 .set(db::principals.emailVerifiedAt = db::now_stamp(),
                       db::principals.status = std::string{status})
                  .where(db::principals.id == principal_id));
     record_audit(database, principal_id, INVOKED_BY, ACTION_VERIFY, principal_id);
@@ -248,7 +238,7 @@ auto create_session(db::connection& database, std::string_view principal_id,
 
     database(sqlpp::insert_into(db::sessions).set(
         db::sessions.id = session_id, db::sessions.principalId = std::string{principal_id},
-        db::sessions.expiresAt = stamp_after(lifetime_seconds)));
+        db::sessions.expiresAt = db::stamp_after(lifetime_seconds)));
     record_audit(database, principal_id, INVOKED_BY, ACTION_SESSION, session_id);
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
@@ -284,7 +274,7 @@ auto bootstrap(db::connection& database, std::string_view admin_email, std::stri
         db::principals.id = admin_id, db::principals.kind = std::string{"user"},
         db::principals.handle = std::string{admin_handle},
         db::principals.email = std::string{admin_email},
-        db::principals.emailVerifiedAt = now_stamp(),
+        db::principals.emailVerifiedAt = db::now_stamp(),
         db::principals.status = std::string{"active"}));
     record_audit(database, admin_id, INVOKED_BY, "bootstrap.completed", admin_id);
     return admin_id;

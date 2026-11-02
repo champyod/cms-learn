@@ -8,8 +8,6 @@
 #include <utility>
 #include <vector>
 
-#include <chrono>
-
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/db/tables.hpp>
@@ -21,11 +19,6 @@ namespace {
 
 /// A task row key, so a lookup cannot pair an id with the wrong version.
 using TaskKey = std::pair<std::string, std::int32_t>;
-
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
 
 struct SeedState {
   std::int64_t version{0};
@@ -93,7 +86,7 @@ auto write_task_row(db::connection& database, const Task& task, bool is_update) 
                       db::tasks.verification = task.verification_status,
                       db::tasks.solution = task.solution,
                       db::tasks.contentHash = task.content_hash,
-                      db::tasks.seeded = true, db::tasks.seededAt = now_stamp())
+                      db::tasks.seeded = true, db::tasks.seededAt = db::now_stamp())
                  .where(db::tasks.id == task.id && db::tasks.version == task.version));
     return;
   }
@@ -143,13 +136,13 @@ auto write_state(db::connection& database, const SeedState& state, const Bank& b
     database(sqlpp::update(db::contentSeed)
                  .set(db::contentSeed.version = version,
                       db::contentSeed.contentHash = bank.content_hash,
-                      db::contentSeed.seededAt = now_stamp())
+                      db::contentSeed.seededAt = db::now_stamp())
                  .where(db::contentSeed.singleton == true));
     return;
   }
   database(sqlpp::insert_into(db::contentSeed).set(
       db::contentSeed.version = version, db::contentSeed.contentHash = bank.content_hash,
-      db::contentSeed.seededAt = now_stamp()));
+      db::contentSeed.seededAt = db::now_stamp()));
 }
 
 auto existing_topic_ids(db::connection& database) -> std::map<std::string, bool> {

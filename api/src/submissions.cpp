@@ -1,6 +1,5 @@
 #include <cms/api/submissions.hpp>
 
-#include <chrono>
 #include <exception>
 #include <string>
 #include <string_view>
@@ -31,11 +30,6 @@ WHERE sessions.id = $2
   AND tasks.status = 'published'
 )";
 
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
-
 /// The session is the cookie. A row that has expired or been revoked is not a session, and the query says so
 /// rather than leaving the caller to remember.
 auto account_of(db::connection& database, std::string_view session_id) -> std::string {
@@ -44,7 +38,7 @@ auto account_of(db::connection& database, std::string_view session_id) -> std::s
                                       .from(db::sessions)
                                       .where(db::sessions.id == std::string{session_id} &&
                                              db::sessions.revokedAt.is_null() &&
-                                             db::sessions.expiresAt > now_stamp()))) {
+                                             db::sessions.expiresAt > db::now_stamp()))) {
     account = std::string{row.principalId};
   }
   return account;
@@ -79,7 +73,7 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
   try {
     const auto written = database.execute_text(
         std::string{SUBMIT_SQL},
-        {std::string{source}, std::string{session_id}, now_stamp(), std::string{task_id}});
+        {std::string{source}, std::string{session_id}, db::now_stamp(), std::string{task_id}});
     if (written == 1) {
       return Submission{.id = {}, .task_id = std::string{task_id}};
     }

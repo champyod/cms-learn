@@ -1,6 +1,5 @@
 #include <cms/api/elevation.hpp>
 
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
@@ -26,15 +25,6 @@ constexpr std::string_view PURPOSE_POLICY_KEY = "identity.elevation_minutes";
 constexpr std::string_view ACTION_GRANTED = "elevation.granted";
 constexpr std::string_view ACTION_APPROVED = "elevation.approved";
 constexpr std::string_view INVOKED_BY = "admin_socket";
-
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
-
-auto stamp_after(std::int64_t seconds) -> cms::db::timestamp {
-  return now_stamp() + std::chrono::seconds{seconds};
-}
 
 auto is_blank(std::string_view text) -> bool {
   return text.find_first_not_of(" \t\r\n") == std::string_view::npos;
@@ -144,7 +134,7 @@ auto check_approvable(const ElevationRow& row, std::string_view approved_by,
     return std::unexpected(Error::make(ErrorCode::permission_denied,
                                        "the account that granted an elevation cannot approve it"));
   }
-  if (row.expires_at <= now_stamp()) {
+  if (row.expires_at <= db::now_stamp()) {
     return refusal("that elevation expired before anyone approved it");
   }
   return {};
@@ -181,7 +171,7 @@ auto grant_elevation(db::connection& database, const SettingsSnapshot& settings,
         db::elevations.principalId = request.principal_id,
         db::elevations.capability = std::string{capability_name(*capability)},
         db::elevations.grantedBy = request.granted_by,
-        db::elevations.expiresAt = stamp_after(*minutes * SECONDS_PER_MINUTE),
+        db::elevations.expiresAt = db::stamp_after(*minutes * SECONDS_PER_MINUTE),
         db::elevations.reason = request.reason));
     record_audit(database, request.granted_by, INVOKED_BY, ACTION_GRANTED, elevation_id);
     return ElevationGrant{.id = elevation_id, .minutes = *minutes, .is_live = false};
@@ -226,7 +216,7 @@ auto load_elevated_capabilities(db::connection& database, std::string_view princ
                       .where(db::elevations.principalId == std::string{principal_id} &&
                              !db::elevations.approvedBy.is_null() &&
                              db::elevations.consumedAt.is_null() &&
-                             db::elevations.expiresAt > now_stamp()))) {
+                             db::elevations.expiresAt > db::now_stamp()))) {
       // A stored name the core does not define grants nothing, the same rule roles follow: an unknown
       // value must never widen authority.
       if (const auto known = capability_from_name(row.capability)) {

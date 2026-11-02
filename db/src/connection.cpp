@@ -165,6 +165,14 @@ auto require_value(const ::drogon::orm::Field& field) -> ::drogon::orm::Field {
 
 }  // namespace
 
+auto now_stamp() -> timestamp {
+  return std::chrono::time_point_cast<timestamp::duration>(std::chrono::system_clock::now());
+}
+
+auto stamp_after(std::int64_t seconds) -> timestamp {
+  return now_stamp() + std::chrono::seconds{seconds};
+}
+
 auto format_timestamp(timestamp value) -> std::string {
   const auto micros = value.time_since_epoch().count();
   auto seconds = micros / MICROS_PER_SECOND;

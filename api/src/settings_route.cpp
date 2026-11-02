@@ -1,6 +1,5 @@
 #include <cms/api/settings_route.hpp>
 
-#include <chrono>
 #include <cstddef>
 #include <exception>
 #include <memory>
@@ -17,11 +16,6 @@
 namespace cms::api {
 namespace {
 
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
-
 }  // namespace
 
 auto principal_of_session(db::connection& database, std::string_view session_id)
@@ -36,7 +30,7 @@ auto principal_of_session(db::connection& database, std::string_view session_id)
                                         .from(db::sessions)
                                         .where(db::sessions.id == std::string{session_id} &&
                                                db::sessions.revokedAt.is_null() &&
-                                               db::sessions.expiresAt > now_stamp()))) {
+                                               db::sessions.expiresAt > db::now_stamp()))) {
       return std::string{row.principalId};
     }
   } catch (const std::exception& error) {

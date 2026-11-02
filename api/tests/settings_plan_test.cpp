@@ -9,7 +9,6 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -46,15 +45,6 @@ auto live_config() -> const std::shared_ptr<const cms::db::connection_config>& {
   static const auto config = std::make_shared<const cms::db::connection_config>(
       cms::db::connection_config{.client = live_client()});
   return config;
-}
-
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
-
-auto stamp_after(std::int64_t seconds) -> cms::db::timestamp {
-  return now_stamp() + std::chrono::seconds{seconds};
 }
 
 /// Creates the planning principal if it is not there. Idempotent because the cases share one database and
@@ -214,8 +204,8 @@ TEST_CASE("an expired plan is refused", "[settings][plan][live]") {
       cms::db::settingsPlans.id = id, cms::db::settingsPlans.authorId = std::string{PLANNER},
       cms::db::settingsPlans.changes =
           std::string{R"({"key":"judge.enabled","value":"true"})"},
-      cms::db::settingsPlans.createdAt = stamp_after(-3600),
-      cms::db::settingsPlans.expiresAt = stamp_after(-60)));
+      cms::db::settingsPlans.createdAt = cms::db::stamp_after(-3600),
+      cms::db::settingsPlans.expiresAt = cms::db::stamp_after(-60)));
 
   const auto refused = cms::api::apply_plan(live_config(), shared_catalogue(), id, PLANNER);
   REQUIRE(!refused.has_value());

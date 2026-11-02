@@ -23,6 +23,15 @@ using timestamp = std::chrono::time_point<std::chrono::system_clock, std::chrono
 /// @brief Renders a timestamp as PostgreSQL text with an explicit UTC offset.
 [[nodiscard]] auto format_timestamp(timestamp value) -> std::string;
 
+/// @brief The current instant as the value a `timestamp` column carries.
+///
+/// Every writer stamps its own rows, and the value has to be the same shape the driver reads back, so the
+/// conversion lives here once instead of in each service that needs "now".
+[[nodiscard]] auto now_stamp() -> timestamp;
+
+/// @brief @p seconds from now, in the same shape.
+[[nodiscard]] auto stamp_after(std::int64_t seconds) -> timestamp;
+
 /// @brief One positional parameter, still typed: the driver turns it into text only when it binds it.
 using bound_value = std::variant<std::nullptr_t, bool, std::int64_t, std::string, timestamp>;
 

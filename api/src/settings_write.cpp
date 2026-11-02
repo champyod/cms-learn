@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <chrono>
 #include <exception>
 #include <string>
 #include <string_view>
@@ -14,11 +13,6 @@
 
 namespace cms::api {
 namespace {
-
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
 
 auto is_integer(std::string_view text) -> bool {
   if (text.empty()) {
@@ -56,7 +50,7 @@ auto store(db::connection& database, const CatalogueEntry& entry, std::string_vi
     database(sqlpp::update(db::settings)
                  .set(db::settings.valueText = std::string{value},
                       db::settings.kind = entry.kind, db::settings.tier = entry.tier,
-                      db::settings.updatedAt = now_stamp(),
+                      db::settings.updatedAt = db::now_stamp(),
                       db::settings.updatedBy = std::string{actor_id})
                  .where(db::settings.key == entry.key));
     return;

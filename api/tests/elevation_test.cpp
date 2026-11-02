@@ -1,6 +1,5 @@
 #include "live_database.hpp"
 
-#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -27,15 +26,6 @@ constexpr std::string_view BENEFICIARY_B = "77777777-8888-4999-8aaa-bbbbbbbbbbb2
 constexpr std::string_view BENEFICIARY_C = "77777777-8888-4999-8aaa-bbbbbbbbbbb3";
 constexpr std::string_view BENEFICIARY_D = "77777777-8888-4999-8aaa-bbbbbbbbbbb4";
 constexpr std::string_view BENEFICIARY_E = "77777777-8888-4999-8aaa-bbbbbbbbbbb5";
-
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
-
-auto stamp_after(std::int64_t seconds) -> cms::db::timestamp {
-  return now_stamp() + std::chrono::seconds{seconds};
-}
 
 auto ensure_principal(cms::db::connection& database, std::string_view id, std::string_view handle) {
   auto found = false;
@@ -160,7 +150,7 @@ TEST_CASE("the database refuses a row that names the same person twice", "[eleva
       cms::db::elevations.capability = std::string{"settings:read"},
       cms::db::elevations.grantedBy = std::string{GRANTOR},
       cms::db::elevations.approvedBy = std::string{GRANTOR},
-      cms::db::elevations.expiresAt = stamp_after(300),
+      cms::db::elevations.expiresAt = cms::db::stamp_after(300),
       cms::db::elevations.reason = std::string{"self-approved"})));
 }
 
@@ -215,8 +205,8 @@ TEST_CASE("an elevation that expired before approval cannot go live", "[elevatio
       cms::db::elevations.principalId = std::string{BENEFICIARY_E},
       cms::db::elevations.capability = std::string{"settings:write"},
       cms::db::elevations.grantedBy = std::string{GRANTOR},
-      cms::db::elevations.grantedAt = stamp_after(-7200),
-      cms::db::elevations.expiresAt = stamp_after(-3600),
+      cms::db::elevations.grantedAt = cms::db::stamp_after(-7200),
+      cms::db::elevations.expiresAt = cms::db::stamp_after(-3600),
       cms::db::elevations.reason = std::string{"left open by the previous operator"}));
 
   const auto approved = cms::api::approve_elevation(database, stale_id, WITNESS);

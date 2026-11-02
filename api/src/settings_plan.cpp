@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <chrono>
 #include <cstddef>
 #include <exception>
 #include <format>
@@ -25,11 +24,6 @@ namespace {
 constexpr std::string_view SECRET_TIER = "secret";
 /// The first code point JSON cannot carry literally; it needs the `\u` form instead.
 constexpr unsigned char LOWEST_CONTROL_CHARACTER = 0x20;
-
-auto now_stamp() -> cms::db::timestamp {
-  return std::chrono::time_point_cast<cms::db::timestamp::duration>(
-      std::chrono::system_clock::now());
-}
 
 auto entry_for(const std::vector<CatalogueEntry>& catalogue, std::string_view key)
     -> const CatalogueEntry* {
@@ -170,7 +164,7 @@ auto check_applicable(const PlanRow& plan, std::string_view plan_id) -> Result<v
   if (plan.is_applied) {
     return std::unexpected(Error::make(ErrorCode::conflict, "plan " + id + " was already applied"));
   }
-  if (plan.expires_at <= now_stamp()) {
+  if (plan.expires_at <= db::now_stamp()) {
     return std::unexpected(Error::make(ErrorCode::conflict,
                                        "plan " + id + " expired at " +
                                            cms::db::format_timestamp(plan.expires_at) +
@@ -234,7 +228,7 @@ auto apply_inside(db::connection& database, const std::vector<CatalogueEntry>& c
   }
   const auto id = std::string{plan_id};
   database(sqlpp::update(db::settingsPlans)
-               .set(db::settingsPlans.appliedAt = now_stamp())
+               .set(db::settingsPlans.appliedAt = db::now_stamp())
                .where(db::settingsPlans.id == id && db::settingsPlans.appliedAt.is_null()));
   return AppliedPlan{.id = id, .key = changes->key};
 }
