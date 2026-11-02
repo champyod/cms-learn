@@ -144,6 +144,8 @@ class result {
   [[nodiscard]] auto integral(std::size_t field_index) const -> std::int64_t;
   [[nodiscard]] auto boolean(std::size_t field_index) const -> bool;
   [[nodiscard]] auto stamp(std::size_t field_index) const -> timestamp;
+  /// @brief How many rows the statement changed, which is the whole answer for an insert or an update.
+  [[nodiscard]] auto affected_rows() const -> std::size_t;
 
  private:
   ::drogon::orm::Result rows_{nullptr};
@@ -280,9 +282,7 @@ class connection_base : public ::sqlpp::connection {
   /// otherwise have to be assembled by concatenating a caller's values into text. These parameters travel
   /// the same path a typed statement's do, so a value is never part of the SQL.
   auto execute_text(std::string sql, std::vector<bound_value> parameters) -> std::size_t {
-    return ::cms::db::run(_handle, serialized_statement{.sql = std::move(sql),
-                                                        .parameters = std::move(parameters)})
-        .affectedRows();
+    return query_text(std::move(sql), std::move(parameters)).affected_rows();
   }
 
   /// @brief Runs a statement written as text whose rows are the answer, as `UPDATE … RETURNING` is.

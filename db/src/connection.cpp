@@ -208,6 +208,8 @@ auto result::integral(std::size_t field_index) const -> std::int64_t {
   return require_value(rows_[current_row_][field_index]).as<std::int64_t>();
 }
 
+auto result::affected_rows() const -> std::size_t { return rows_.affectedRows(); }
+
 auto result::boolean(std::size_t field_index) const -> bool {
   return require_value(rows_[current_row_][field_index]).as<bool>();
 }
