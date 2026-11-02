@@ -69,6 +69,8 @@ auto run_program(const std::string& program, const std::filesystem::path& input,
   }
   ::dup2(input_fd, STDIN_FILENO);
   ::dup2(output_fd, STDOUT_FILENO);
+  // Only the three standard streams belong to the reference; everything else the verifier holds stays out.
+  ::closefrom(3);
   ::execl(program.c_str(), program.c_str(), static_cast<char*>(nullptr));
   ::_exit(127);
 }

@@ -43,6 +43,8 @@ auto spawn(const std::vector<std::string>& values, int stdout_fd) -> pid_t {
   if (stdout_fd >= 0) {
     ::dup2(stdout_fd, STDOUT_FILENO);
   }
+  // The sandbox gets the three standard streams and nothing else the supervisor holds open.
+  ::closefrom(3);
   auto pointers = to_arguments(values);
   ::execvp(pointers[0], pointers.data());
   ::_exit(127);

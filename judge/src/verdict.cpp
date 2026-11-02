@@ -1,7 +1,9 @@
 #include <cms/judge/verdict.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstddef>
 #include <cstdlib>
 #include <string>
 #include <string_view>
@@ -55,9 +57,16 @@ auto spawn_checker(const std::string& checker, const std::string& input, const s
     return child;
   }
   ::dup2(write_fd, STDERR_FILENO);
+  // The checker is content-supplied. Nothing the judge holds should be reachable from it.
+  ::closefrom(3);
   ::execl(checker.c_str(), checker.c_str(), input.c_str(), output.c_str(), answer.c_str(), nullptr);
   ::_exit(127);
 }
+
+/// A checker's standard error is untrusted: it comes from task content, and a bug or a hostile checker can
+/// write without end. The pipe is still drained so the child never blocks on a full buffer, but nothing past
+/// this limit is kept.
+constexpr std::size_t CHECKER_STDERR_BYTES = 8 * 1024;
 
 auto drain(int read_fd, std::string& collected) -> void {
   auto buffer = std::array<char, 4096>{};
@@ -66,7 +75,9 @@ auto drain(int read_fd, std::string& collected) -> void {
     if (count <= 0) {
       return;
     }
-    collected.append(buffer.data(), static_cast<std::size_t>(count));
+    const auto room = collected.size() < CHECKER_STDERR_BYTES ? CHECKER_STDERR_BYTES - collected.size() : 0;
+    const auto kept = std::min(static_cast<std::size_t>(count), room);
+    collected.append(buffer.data(), kept);
   }
 }
 
