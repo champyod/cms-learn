@@ -2,7 +2,8 @@
 # must build and be gated without the HTTP service, and it must never link back into it.
 
 add_library(cms_judge_verdict STATIC src/verdict.cpp src/manifest.cpp src/supervisor.cpp
-                                 src/verify.cpp src/generate.cpp src/promote.cpp)
+                                 src/verify.cpp src/generate.cpp src/promote.cpp
+                                 src/child_watch.cpp)
 add_library(cms::judge_verdict ALIAS cms_judge_verdict)
 
 target_include_directories(cms_judge_verdict PUBLIC

@@ -1,20 +1,16 @@
 #include <cms/judge/supervisor.hpp>
 
-#include <algorithm>
 #include <array>
-#include <cerrno>
-#include <chrono>
 #include <csignal>
 #include <cstddef>
 #include <fstream>
-#include <limits>
 #include <string>
 #include <vector>
 
-#include <poll.h>
-#include <sys/syscall.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include <cms/judge/child_watch.hpp>
 
 namespace cms::judge {
 namespace {
@@ -64,90 +60,18 @@ auto capture(int fd, std::size_t limit) -> std::string {
   return collected;
 }
 
-auto now() -> std::chrono::steady_clock::time_point { return std::chrono::steady_clock::now(); }
-
-/// Opens a pidfd for @p child, or returns a negative value when the kernel does not provide one.
-///
-/// Called through `syscall` rather than `pidfd_open`: glibc declares that function with C++ linkage instead
-/// of `extern "C"`, so the declared call links against a mangled name no C library exports.
-auto open_process_descriptor(pid_t child) -> int {
-  return static_cast<int>(::syscall(SYS_pidfd_open, child, 0));
-}
-
-/// Signals the process @p descriptor refers to. The kernel resolves the pid once, so a recycled pid can
-/// never receive this signal.
-auto signal_process_descriptor(int descriptor, int signal_number) -> bool {
-  return ::syscall(SYS_pidfd_send_signal, descriptor, signal_number, nullptr, 0) == 0;
-}
-
-/// The child's pidfd: a descriptor bound to that one process for its whole life, so a signal sent through it
-/// cannot reach a pid the kernel has already recycled. That is the race the pid-based kill leaves open.
-class process_descriptor {
- public:
-  explicit process_descriptor(pid_t child) : child_(child), descriptor_(open_process_descriptor(child)) {}
-  ~process_descriptor() {
-    if (descriptor_ >= 0) {
-      ::close(descriptor_);
-    }
-  }
-
-  process_descriptor(const process_descriptor&) = delete;
-  process_descriptor& operator=(const process_descriptor&) = delete;
-  process_descriptor(process_descriptor&&) = delete;
-  process_descriptor& operator=(process_descriptor&&) = delete;
-
-  [[nodiscard]] auto is_open() const -> bool { return descriptor_ >= 0; }
-  [[nodiscard]] auto child() const -> pid_t { return child_; }
-  [[nodiscard]] auto descriptor() const -> int { return descriptor_; }
-
-  /// Sends @p signal_number to this process alone, never to a process that inherited its pid.
-  auto send(int signal_number) const -> bool {
-    return signal_process_descriptor(descriptor_, signal_number);
-  }
-
- private:
-  pid_t child_;
-  int descriptor_;
-};
-
-/// Waits up to @p milliseconds for @p child. Returns false when the deadline passed first.
-///
-/// The wait is a poll over the child's pidfd, which becomes readable when the child exits: no tick, and no
-/// wake-up at all while the program is still running.
-auto wait_within(const process_descriptor& child, std::int64_t milliseconds) -> bool {
-  const auto deadline = now() + std::chrono::milliseconds{milliseconds};
-  auto status = 0;
-  while (true) {
-    const auto seen = ::waitpid(child.child(), &status, WNOHANG);
-    if (seen == child.child() || (seen < 0 && errno != EINTR)) {
-      return true;
-    }
-    const auto remaining = deadline - now();
-    if (remaining <= std::chrono::steady_clock::duration::zero()) {
-      return false;
-    }
-    const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
-    const auto timeout = static_cast<int>(
-        std::min(left, static_cast<std::int64_t>(std::numeric_limits<int>::max())));
-    auto watch = ::pollfd{.fd = child.descriptor(), .events = POLLIN, .revents = 0};
-    if (::poll(&watch, 1, timeout) < 0 && errno != EINTR) {
-      return false;
-    }
-  }
-}
-
 /// Sends SIGTERM to the group, waits the grace period, then SIGKILL. This is the escalation the
 /// fork-bomb test exists for: a program that ignores the polite request still ends.
-auto terminate(const process_descriptor& child) -> void {
+auto terminate(const child_process& child) -> void {
   // The group kill reaches the sandbox's descendants; the pidfd signal reaches the child itself.
   ::kill(-child.child(), SIGTERM);
   (void)child.send(SIGTERM);
-  if (wait_within(child, TERMINATION_GRACE_MILLISECONDS)) {
+  auto status = 0;
+  if (wait_within(child, TERMINATION_GRACE_MILLISECONDS, &status)) {
     return;
   }
   ::kill(-child.child(), SIGKILL);
   (void)child.send(SIGKILL);
-  auto status = 0;
   ::waitpid(child.child(), &status, 0);
 }
 
@@ -270,7 +194,7 @@ auto run_sandboxed(const RunSpec& spec, const std::string& isolate_path) -> Resu
         Error::make(ErrorCode::unavailable, "the sandbox could not be started"));
   }
 
-  const auto descriptor = process_descriptor{child};
+  const auto descriptor = child_process{child};
   if (!descriptor.is_open()) {
     // Without a pidfd the wall limit could only be enforced by waking up to poll, and a supervisor that
     // cannot enforce it must say so rather than let the program run unsupervised.

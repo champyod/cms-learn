@@ -16,8 +16,13 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <cms/judge/child_watch.hpp>
+
 namespace cms::judge {
 namespace {
+
+/// A reference solution is content, and a looping one must fail its case rather than freeze the verifier.
+constexpr std::int64_t REFERENCE_TIMEOUT_MILLISECONDS = 60'000;
 
 constexpr std::size_t HEX_DIGITS_PER_BYTE = 2;
 constexpr unsigned NIBBLE_SHIFT = 4;
@@ -55,11 +60,17 @@ auto run_program(const std::string& program, const std::filesystem::path& input,
     if (child < 0) {
       return -1;
     }
+    const auto descriptor = child_process{child};
     auto status = 0;
-    if (::waitpid(child, &status, 0) != child || !WIFEXITED(status)) {
+    if (!descriptor.is_open() ||
+        !wait_within(descriptor, REFERENCE_TIMEOUT_MILLISECONDS, &status)) {
+      // A reference that never exits would otherwise hang every caller of verify_task, and promote_task
+      // verifies before it publishes.
+      ::kill(child, SIGKILL);
+      ::waitpid(child, &status, 0);
       return -1;
     }
-    return WEXITSTATUS(status);
+    return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
   }
 
   const auto input_fd = ::open(input.c_str(), O_RDONLY);
