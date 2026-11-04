@@ -14,7 +14,7 @@
     "check:stack": "bun run tools/render-stack.ts --check",
     "check:stack:falsify": "bun run tools/falsify/runner.ts stack",
     "check:deploy": "bash tools/check-deploy.sh",
-    "check:deploy:falsify": "bash tools/falsify-deploy-gate.sh",
+    "check:deploy:falsify": "bun run tools/falsify/runner.ts deploy",
     "check:upgrade": "bash tools/check-upgrade.sh",
     "check:upgrade:falsify": "bash tools/falsify-upgrade-gate.sh",
     "check:security": "bash tools/security-scan.sh",
