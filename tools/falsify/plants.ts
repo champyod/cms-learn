@@ -127,12 +127,13 @@ function appendTo(ref: JsonRef, value: JsonValue, where: string): void {
   target.push(value);
 }
 
-function removeFrom(ref: JsonRef, value: JsonValue, where: string): void {
+function removeFrom(ref: JsonRef, value: JsonValue, where: string): number {
   const target = readRef(ref);
   if (!Array.isArray(target)) throw new Error(`${where}: the pointer must resolve to an array`);
   const kept = target.filter((item) => !deepEqual(item, value));
-  if (kept.length === target.length) throw new Error(`${where}: removeValue matched no element`);
-  target.splice(0, target.length, ...kept);
+  const removed = target.length - kept.length;
+  if (removed > 0) target.splice(0, target.length, ...kept);
+  return removed;
 }
 
 function applyJsonEdit(document: JsonValue, edit: JsonEdit, where: string): JsonValue {
@@ -151,10 +152,12 @@ function applyJsonEdit(document: JsonValue, edit: JsonEdit, where: string): Json
     for (const ref of resolveRefs(document, edit.pointer, where)) appendTo(ref, value, where);
     return document;
   }
+  let removed = 0;
   for (const ref of resolveRefs(document, edit.pointer, where)) {
     if (edit.kind === "append") appendTo(ref, edit.value, where);
-    else removeFrom(ref, edit.value, where);
+    else removed += removeFrom(ref, edit.value, where);
   }
+  if (edit.kind === "removeValue" && removed === 0) throw new Error(`${where}: removeValue matched no element`);
   return document;
 }
 

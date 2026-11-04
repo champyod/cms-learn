@@ -1,4 +1,5 @@
 import type { Gate } from "./contract.ts";
+import { CONTENT_GATE } from "./cases/content.ts";
 import { DEPLOY_GATE } from "./cases/deploy.ts";
 import { PM_GATE } from "./cases/pm.ts";
 import { REFERENCES_GATE } from "./cases/references.ts";
@@ -16,6 +17,7 @@ export const GATES: readonly Gate[] = [
   DEPLOY_GATE,
   UPGRADE_GATE,
   SECURITY_GATE,
+  CONTENT_GATE,
 ];
 
 const assertUniqueIds = (gates: readonly Gate[]): void => {
