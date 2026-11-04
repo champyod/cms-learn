@@ -56,6 +56,30 @@ make them overwrite each other. Then:
 If a lane is cut, say so in `STATE.md`; otherwise a reader has to guess whether a missing branch means
 "not started" or "not needed".
 
+## Agent crew
+
+Canonical user-global rules: `~/.agents/AGENTS.md`; skills `crew-workflow`,
+`coding-preferences`, `git-workflow` under `~/.agents/skills/`. Read-only roles survey and review;
+the builder is the only writer; the checker verifies on command output, not self-reports. Claims
+live in `~/.agents/agent-hub/<slug>/CLAIMS.md` and apply here like anywhere else.
+
+## Git truth (verified 2026-11-04)
+
+- `main` is the only branch, local and remote; work lands there, one commit per step.
+- A lane exists only when two agents must change one component at once: branch
+  `learn/<area>/<topic>`, worktree `<workspace>/.worktrees/learn-<area>-<topic>`, cut from `main`,
+  base stated in the lane's first commit. No lane exists as of this date.
+- Commit subject: sentence-case imperative, no `type(scope)` prefix (matches `git log`). The body
+  carries the why and, on a lane's first commit, the base it was cut from.
+- One intent per commit; no trailers; no secrets; run the gates above before a content commit.
+- Re-verify with `git -C cms-learn branch -a` and `git -C cms-learn worktree list` before trusting
+  this section.
+
+## Local overlay
+
+`AGENTS.local.md` is gitignored and holds machine-specific paths and personal notes only. Nothing
+from it is ever copied into a tracked file.
+
 ## Orchestration
 
 One deliverable is one epic; an epic is steps; a step ends in exactly one commit. Inside a step several
