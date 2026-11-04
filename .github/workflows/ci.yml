@@ -59,11 +59,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
       - name: build and run every reference against its own examples
         run: bash tools/check-references.sh
 
       - name: reference gate falsifiability
-        run: bash tools/falsify-references-gate.sh
+        run: bun run check:references:falsify
 
   # The compose file is a security contract: ports, isolation, pinning, the Caddyfile and the
   # Prometheus config are asserted here, and the assertion is itself proven to fail.
@@ -73,11 +77,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
       - name: deployment invariants
         run: bash tools/check-deploy.sh
 
       - name: deploy gate falsifiability
-        run: bash tools/falsify-deploy-gate.sh
+        run: bun run check:deploy:falsify
 
   # Scanning is a gate, not a report someone reads later: a leaked token or a root-user Dockerfile
   # fails the build, and the scan is itself proven to catch planted defects.
@@ -87,11 +95,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
       - name: secrets, vulnerable dependencies, deployment hardening
         run: bash tools/security-scan.sh
 
       - name: scan falsifiability
-        run: bash tools/falsify-security-gate.sh
+        run: bun run check:security:falsify
 
   # C++ sits on the internet-facing path (ADR 0006), so its safety is a gate and not a promise. CMake
   # presets own the sanitizer and warning flags, ctest owns pass/fail per example, clang-tidy owns the

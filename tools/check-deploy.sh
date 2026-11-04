@@ -3,7 +3,7 @@
 #
 # The compose file is a security contract as much as a description of services, so it is checked the
 # same way the content is: by asserting the invariants that make it safe, and by proving the check
-# fails when one is broken (tools/falsify-deploy-gate.sh).
+# fails when one is broken (tools/falsify/cases/deploy.ts).
 #
 # What is asserted:
 #   1. nothing but the proxy publishes a port on a public interface
