@@ -76,6 +76,18 @@ function runCase(testCase: FalsifyCase, gate: Gate): Outcome {
   }
 }
 
+/** Runs every case of one gate in its own staged tree and returns the verdict line for each, printing nothing. */
+export function evaluateGate(gate: Gate): Outcome[] {
+  const release = openScratch();
+  const outcomes: Outcome[] = [];
+  try {
+    for (const testCase of gate.cases) outcomes.push(runCase(testCase, gate));
+  } finally {
+    release();
+  }
+  return outcomes;
+}
+
 const printCases = (gate: Gate): void => {
   for (const item of gate.cases) console.log(`${gate.id}\t${item.name}`);
 };
@@ -85,21 +97,11 @@ function gateByIdOrExit(id: string): Gate | null {
 }
 
 function runGate(gate: Gate): number {
-  const release = openScratch();
-  let behaved = 0;
-  let failed = 0;
-  try {
-    for (const item of gate.cases) {
-      const outcome = runCase(item, gate);
-      console.log(outcome.line);
-      if (outcome.ok) behaved += 1;
-      else failed += 1;
-    }
-  } finally {
-    release();
-  }
-  console.log(summaryLine(behaved, failed));
-  return failed === 0 ? 0 : 1;
+  const outcomes = evaluateGate(gate);
+  outcomes.forEach((outcome) => console.log(outcome.line));
+  const behaved = outcomes.filter((outcome) => outcome.ok).length;
+  console.log(summaryLine(behaved, outcomes.length - behaved));
+  return behaved === outcomes.length ? 0 : 1;
 }
 
 function main(argv: readonly string[]): number {
@@ -123,4 +125,4 @@ function main(argv: readonly string[]): number {
   return runGate(gate);
 }
 
-process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exit(main(process.argv.slice(2)));
