@@ -84,8 +84,10 @@ hardcoded in a service.
 
 ## Getting started
 
-Requirements: **Bun 1.3.14** (the gates and their falsification harnesses are TypeScript), `g++` to
-build seed references, plus `cmake`, `ninja` and `vcpkg` for the C++ workspace.
+Requirements: **Bun 1.3.14** (the gates and their falsification harnesses are TypeScript), `python3`
+for the four shell gates that read JSON — `check-deploy.sh`, `check-content-db.sh`, `check-scaffold.sh`
+and `falsify-vocab-gate.sh` — `g++` to build seed references, plus `cmake`, `ninja` and `vcpkg` for
+the C++ workspace.
 
 ```bash
 git clone https://github.com/champyod/cms-learn.git
