@@ -54,7 +54,9 @@
     "check:content:db": "bash tools/check-content-db.sh",
     "check:unseen": "bash tools/check-unseen-task.sh",
     "check:visibility": "bash tools/check-visibility.sh",
-    "check:visibility:falsify": "bun run tools/falsify/runner.ts visibility"
+    "check:visibility:falsify": "bun run tools/falsify/runner.ts visibility",
+    "check:judge": "bash tools/check-judge.sh",
+    "check:judge:falsify": "bun run tools/falsify/runner.ts judge"
   },
   "devDependencies": {
     "@codemirror/commands": "6.11.1",

@@ -3,7 +3,7 @@
 
 add_library(cms_judge_verdict STATIC src/verdict.cpp src/manifest.cpp src/supervisor.cpp
                                  src/verify.cpp src/generate.cpp src/promote.cpp
-                                 src/child_watch.cpp)
+                                 src/child_watch.cpp src/run.cpp)
 add_library(cms::judge_verdict ALIAS cms_judge_verdict)
 
 target_include_directories(cms_judge_verdict PUBLIC
@@ -24,6 +24,13 @@ if(TARGET cms::db)
   cms_apply_warnings(cms_judge_worker PRIVATE)
   cms_apply_hardening(cms_judge_worker)
   cms_apply_sanitizers(cms_judge_worker)
+
+  # One invocation claims one row, judges it and finishes it: the process the worker loop runs.
+  add_executable(cms_judge_run src/run_main.cpp)
+  target_link_libraries(cms_judge_run PRIVATE cms::judge_worker cms::db_drogon)
+  cms_apply_warnings(cms_judge_run PRIVATE)
+  cms_apply_hardening(cms_judge_run)
+  cms_apply_sanitizers(cms_judge_run)
 endif()
 
 # The verifier is the one code path CI and an author both run, so a manifest cannot describe cases that

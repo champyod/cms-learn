@@ -38,6 +38,13 @@ WHERE verdict IS NULL
   AND claimed_at < now() - make_interval(mins => $1::int)
 )release";
 
+constexpr std::string_view FINISH_SQL = R"finish(
+UPDATE submissions
+SET verdict = $1::verdict_status, verdict_detail = $2, judged_at = now(),
+    claimed_by = NULL, claimed_at = NULL
+WHERE id = $3 AND verdict IS NULL
+)finish";
+
 // The RETURNING list read as a row, in the order the statement returns it. A result row names its members
 // through a name tag, and the column's tag type is the one the generated header already declares. The uuid
 // columns travel as text, so they decode as a string_view into the driver's row and are copied out before
@@ -84,6 +91,24 @@ auto release_stale_claims(cms::db::connection& database, std::chrono::minutes ag
     -> Result<std::size_t> {
   try {
     return database.execute_text(std::string{RELEASE_SQL}, {std::int64_t{age.count()}});
+  } catch (const std::exception& failure) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, failure.what()));
+  }
+}
+
+auto finish_submission(cms::db::connection& database, std::string_view submission_id,
+                       const Judgement& judgement) -> Result<void> {
+  try {
+    const auto written = database.execute_text(
+        std::string{FINISH_SQL},
+        {std::string{database_verdict(judgement.verdict)}, judgement.detail,
+         std::string{submission_id}});
+    if (written != 1) {
+      return std::unexpected(Error::make(
+          ErrorCode::conflict, "submission " + std::string{submission_id} +
+                                   " is no longer an unjudged claimed row"));
+    }
+    return {};
   } catch (const std::exception& failure) {
     return std::unexpected(Error::make(ErrorCode::unavailable, failure.what()));
   }

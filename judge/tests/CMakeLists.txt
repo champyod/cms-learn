@@ -21,6 +21,13 @@ if(Catch2_FOUND)
   include(Catch)
   catch_discover_tests(cms_judge_verdict_tests)
 
+  add_executable(cms_judge_run_tests run_test.cpp)
+  target_link_libraries(cms_judge_run_tests PRIVATE cms::judge_verdict Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_judge_run_tests PRIVATE)
+  cms_apply_hardening(cms_judge_run_tests)
+  cms_apply_sanitizers(cms_judge_run_tests)
+  catch_discover_tests(cms_judge_run_tests)
+
   add_executable(cms_judge_supervisor_tests supervisor_test.cpp)
   target_link_libraries(cms_judge_supervisor_tests PRIVATE cms::judge_verdict
                                                          Catch2::Catch2WithMain)

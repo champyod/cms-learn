@@ -18,6 +18,8 @@ struct RunSpec {
   std::filesystem::path box_dir;
   /// The program to run, relative to the box directory.
   std::string program{"./solution"};
+  /// Arguments the program is run with, after @c program and inside the sandbox.
+  std::vector<std::string> arguments;
   /// CPU time the program may use, in milliseconds.
   std::int64_t time_limit_ms{1000};
   /// How long the supervisor waits before escalating, in milliseconds. Deliberately larger than the CPU

@@ -44,7 +44,14 @@ TEST_CASE("anything a checker says that is not a verdict is a failed check", "[v
   CHECK(cms::judge::parse_checker_output("", 0) == Verdict::check_failed);
   CHECK(cms::judge::parse_checker_output("   \n\t", 0) == Verdict::check_failed);
   CHECK(cms::judge::parse_checker_output("ok", 3) == Verdict::check_failed);
-  CHECK(cms::judge::parse_checker_output("wrong answer", 1) == Verdict::check_failed);
+  // The verdict token must agree with the exit code testlib gives it: `_wa` exits 1, `_pe` exits 2,
+  // `_fail` exits 3. A mismatch means the checker did not end the way its own verdict says it did.
+  CHECK(cms::judge::parse_checker_output("wrong answer", 1) == Verdict::wrong_answer);
+  CHECK(cms::judge::parse_checker_output("wrong answer", 0) == Verdict::wrong_answer);
+  CHECK(cms::judge::parse_checker_output("wrong output format", 2) == Verdict::wrong_format);
+  CHECK(cms::judge::parse_checker_output("FAIL cannot open the answer", 3) == Verdict::failed);
+  CHECK(cms::judge::parse_checker_output("ok", 1) == Verdict::check_failed);
+  CHECK(cms::judge::parse_checker_output("wrong answer", 3) == Verdict::check_failed);
 }
 
 TEST_CASE("the judge reports the verdict it read, and never invents one", "[verdict][unit]") {

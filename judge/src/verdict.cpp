@@ -82,20 +82,20 @@ auto drain(int read_fd, std::string& collected) -> void {
 }
 
 /// Runs the checker with the three files testlib expects and collects its standard error.
-/// Returns false when the checker did not exit zero, which the caller reads as a failed check.
+/// Returns its exit status, or -1 when it could not be run or waited for.
 auto capture_checker_error(const std::string& checker, const std::string& input,
                            const std::string& output, const std::string& answer,
-                           std::string& collected) -> bool {
+                           std::string& collected) -> int {
   auto ends = std::array<int, 2>{-1, -1};
   if (::pipe(ends.data()) != 0) {
-    return false;
+    return -1;
   }
   const auto child =
       spawn_checker(checker, input, output, answer, ends[1]);
   if (child < 0) {
     ::close(ends[0]);
     ::close(ends[1]);
-    return false;
+    return -1;
   }
   ::close(ends[1]);
   drain(ends[0], collected);
@@ -103,25 +103,47 @@ auto capture_checker_error(const std::string& checker, const std::string& input,
 
   auto status = 0;
   if (::waitpid(child, &status, 0) != child) {
-    return false;
+    return -1;
   }
-  return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+  return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+}
+
+/// Testlib's own exit codes for each verdict, from the vendored header's defaults.
+auto exit_code_fits(Verdict verdict, int exit_code) -> bool {
+  switch (verdict) {
+    case Verdict::ok:
+      return exit_code == 0;
+    case Verdict::wrong_answer:
+      return exit_code == 1;
+    case Verdict::wrong_format:
+      return exit_code == 2 || exit_code == 4;
+    case Verdict::partially_correct:
+      return exit_code >= 7;
+    case Verdict::failed:
+      return exit_code == 3;
+    case Verdict::check_failed:
+      return false;
+  }
+  return false;
 }
 
 }  // namespace
 
 auto parse_checker_output(std::string_view last_line, int exit_code) -> Verdict {
-  if (exit_code != 0) {
-    return Verdict::check_failed;
-  }
   const auto line = lowered(trimmed(last_line));
   if (line.empty()) {
     return Verdict::check_failed;
   }
   for (const auto& token : TOKENS) {
-    if (line.starts_with(token.text)) {
+    if (!line.starts_with(token.text)) {
+      continue;
+    }
+    // A clean exit is a checker that reported a verdict; a non-zero one must be that verdict's own
+    // testlib code, so a checker that said "ok" and then crashed stays a failed check.
+    if (exit_code == 0 || exit_code_fits(token.verdict, exit_code)) {
       return token.verdict;
     }
+    return Verdict::check_failed;
   }
   return Verdict::check_failed;
 }
@@ -129,7 +151,7 @@ auto parse_checker_output(std::string_view last_line, int exit_code) -> Verdict 
 auto run_checker(const std::string& checker, const std::string& input, const std::string& output,
                  const std::string& answer) -> Result<Verdict> {
   auto collected = std::string{};
-  const auto is_clean = capture_checker_error(checker, input, output, answer, collected);
+  const auto exit_code = capture_checker_error(checker, input, output, answer, collected);
 
   const auto trimmed_output = trimmed(collected);
   const auto last_break = trimmed_output.rfind('\n');
@@ -137,11 +159,11 @@ auto run_checker(const std::string& checker, const std::string& input, const std
                              ? trimmed_output
                              : trimmed(trimmed_output.substr(last_break + 1));
 
-  if (collected.empty() && !is_clean) {
+  if (collected.empty() && exit_code != 0) {
     return std::unexpected(Error::make(ErrorCode::unavailable,
                                        "the checker " + checker + " produced no verdict"));
   }
-  return parse_checker_output(last_line, is_clean ? 0 : 1);
+  return parse_checker_output(last_line, exit_code < 0 ? 255 : exit_code);
 }
 
 auto verdict_name(Verdict verdict) -> std::string_view {

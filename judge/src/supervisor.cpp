@@ -16,7 +16,6 @@ namespace cms::judge {
 namespace {
 
 constexpr int TERMINATION_GRACE_MILLISECONDS = 200;
-constexpr std::size_t META_BYTES = 64 * 1024;
 constexpr std::size_t CAPTURE_BYTES = 8 * 1024;
 
 auto to_arguments(const std::vector<std::string>& values) -> std::vector<char*> {
@@ -181,6 +180,7 @@ auto run_sandboxed(const RunSpec& spec, const std::string& isolate_path) -> Resu
   arguments.push_back("--run");
   arguments.push_back("--");
   arguments.push_back(spec.program);
+  arguments.insert(arguments.end(), spec.arguments.begin(), spec.arguments.end());
 
   // A report from an earlier run in the same box must not be read as this run's. Removing it first makes
   // "no status" mean what it says.

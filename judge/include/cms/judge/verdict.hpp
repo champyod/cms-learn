@@ -28,7 +28,9 @@ enum class Verdict : std::uint8_t {
 /// @brief The verdict a checker's last line and exit status amount to.
 ///
 /// @param last_line The last non-empty line the checker wrote to standard error.
-/// @param exit_code The checker's exit status. Anything but zero is a failed check.
+/// @param exit_code The checker's exit status. A verdict's own testlib exit code is accepted; a mismatch
+/// (a checker that said "ok" and then died, or any non-zero status with no recognised line) is
+/// check_failed.
 /// @return A verdict, never inferred from silence: an unrecognised line is check_failed.
 [[nodiscard]] Verdict parse_checker_output(std::string_view last_line, int exit_code);
 

@@ -9,6 +9,7 @@
 
 #include <cms/db/connection.hpp>
 #include <cms/error.hpp>
+#include <cms/judge/run.hpp>
 
 namespace cms::judge {
 
@@ -51,5 +52,18 @@ struct ClaimedSubmission {
 /// operator reading the table cannot tell a worker that is mid-run from one that died an hour ago.
 [[nodiscard]] Result<std::size_t> release_stale_claims(cms::db::connection& database,
                                                       std::chrono::minutes age);
+
+/// @brief Writes a judgement into the claimed row and clears the claim, in one update.
+///
+/// @param database The connection the update runs on.
+/// @param submission_id The row this worker claimed.
+/// @param judgement What the run decided, and the sentence that explains it.
+/// @return Success, or an error when the row is no longer an unjudged claimed row.
+///
+/// One statement is the whole point: a row either gains a verdict and its moment together, or it keeps
+/// its claim and the lease eventually returns it to the queue.
+[[nodiscard]] Result<void> finish_submission(cms::db::connection& database,
+                                             std::string_view submission_id,
+                                             const Judgement& judgement);
 
 }  // namespace cms::judge
