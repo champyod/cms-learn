@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 
 import type { FalsifyCase, Gate, GateCommand } from "./contract.ts";
@@ -8,10 +8,11 @@ import { gateById, GATES } from "./cases.ts";
 import { applyPlant } from "./plants.ts";
 import { summaryLine, verdictFor, type CommandResult, type Outcome } from "./report.ts";
 import { openCaseRoot, openScratch } from "./scratch.ts";
+import { reason } from "./text.ts";
 
-const REPO = join(import.meta.dir, "../..");
+const REPO = realpathSync(join(import.meta.dir, "../.."));
+const COMMAND_NOT_FOUND = 127;
 
-const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 const substitute = (text: string, root: string): string => text.replaceAll("{root}", root).replaceAll("{repo}", REPO);
 
 function hashTree(root: string): string {
@@ -19,8 +20,10 @@ function hashTree(root: string): string {
   const walk = (dir: string): void => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = join(dir, entry.name);
-      if (entry.isDirectory()) walk(path);
-      else if (entry.isSymbolicLink()) lines.push(`${relative(root, path)}:link:${readlinkSync(path)}`);
+      if (entry.isDirectory()) {
+        lines.push(`${relative(root, path)}:dir`);
+        walk(path);
+      } else if (entry.isSymbolicLink()) lines.push(`${relative(root, path)}:link:${readlinkSync(path)}`);
       else lines.push(`${relative(root, path)}:${createHash("sha256").update(readFileSync(path)).digest("hex")}`);
     }
   };
@@ -47,7 +50,7 @@ function runCommand(command: GateCommand, root: string, env: NodeJS.ProcessEnv):
   const cwd = command.cwd === undefined ? root : substitute(command.cwd, root);
   const result = spawnSync(command.command, args, { cwd, env, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
   if (result.error !== undefined) throw new Error(`cannot run ${command.command}: ${result.error.message}`);
-  return { status: result.status ?? 127, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+  return { status: result.status ?? COMMAND_NOT_FOUND, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
 }
 
 function runCase(testCase: FalsifyCase, gate: Gate): Outcome {
@@ -97,7 +100,14 @@ function gateByIdOrExit(id: string): Gate | null {
 }
 
 function runGate(gate: Gate): number {
-  const outcomes = evaluateGate(gate);
+  let outcomes: Outcome[];
+  try {
+    outcomes = evaluateGate(gate);
+  } catch (error) {
+    console.error(`falsification run failed: ${reason(error)}`);
+    console.log(summaryLine(0, gate.cases.length));
+    return 1;
+  }
   outcomes.forEach((outcome) => console.log(outcome.line));
   const behaved = outcomes.filter((outcome) => outcome.ok).length;
   console.log(summaryLine(behaved, outcomes.length - behaved));
@@ -125,4 +135,4 @@ function main(argv: readonly string[]): number {
   return runGate(gate);
 }
 
-if (import.meta.main) process.exit(main(process.argv.slice(2)));
+if (import.meta.main) process.exitCode = main(process.argv.slice(2));

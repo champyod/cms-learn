@@ -9,6 +9,13 @@ const LOCK_NAME = "run.lock";
 
 interface LockHolder { pid: number; startedAt: string }
 
+class ScratchBusyError extends Error {
+  constructor(path: string, holder: string) {
+    super(`scratch root busy: ${path} is held by ${holder}`);
+    this.name = "ScratchBusyError";
+  }
+}
+
 const isRunning = (pid: number): boolean => {
   try { process.kill(pid, 0); return true; } catch (error) { return (error as NodeJS.ErrnoException).code !== "ESRCH"; }
 };
@@ -31,12 +38,10 @@ function acquireLock(root: string): () => void {
     } catch { holder = null; }
     // Only a dead pid proves that a run has finished; a lock whose holder cannot be read is never cleared.
     if (holder === null || isRunning(holder.pid)) {
-      const who = holder === null ? "a lock file that cannot be read" : `pid ${holder.pid} since ${holder.startedAt}`;
-      console.error(`scratch root busy: ${path} is held by ${who}`);
-      process.exit(1);
+      throw new ScratchBusyError(path, holder === null ? "a lock file that cannot be read" : `pid ${holder.pid} since ${holder.startedAt}`);
     }
     rmSync(path, { force: true });
-    if (!tryCreate(path)) throw new Error(`could not retake the lock at ${path} after clearing pid ${holder.pid}`);
+    if (!tryCreate(path)) throw new ScratchBusyError(path, "a run that took the lock while the stale holder was cleared");
   }
   writeFileSync(path, `${process.pid}\n${new Date().toISOString()}\n`);
   return (): void => rmSync(path, { force: true });

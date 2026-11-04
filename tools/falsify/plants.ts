@@ -3,11 +3,10 @@ import { appendFileSync, existsSync, lstatSync, mkdirSync, readFileSync, realpat
 import { dirname, isAbsolute, join, sep } from "node:path";
 
 import type { JsonEdit, JsonPath, JsonValue, Plant } from "./contract.ts";
+import { firstLine, reason } from "./text.ts";
 
 type JsonRef = { kind: "array"; container: JsonValue[]; index: number } | { kind: "object"; container: Record<string, JsonValue>; key: string };
 
-const reason = (error: unknown): string => (error instanceof Error ? error.message : String(error));
-const firstLine = (output: string): string => output.split("\n").map((line) => line.trim()).find((line) => line !== "") ?? "(no output)";
 const isRecord = (value: JsonValue): value is Record<string, JsonValue> => typeof value === "object" && value !== null && !Array.isArray(value);
 const readRef = (ref: JsonRef): JsonValue => (ref.kind === "array" ? ref.container[ref.index] : ref.container[ref.key]);
 
@@ -64,9 +63,19 @@ function plantRemove(plant: { kind: "remove"; path: string }, root: string): voi
   rmSync(target, { recursive: true });
 }
 
-function plantRun(plant: { kind: "run"; script: string }, root: string, env: NodeJS.ProcessEnv): void {
-  const result = spawnSync("bash", ["-c", plant.script], { cwd: root, env, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
-  if (result.status !== 0) throw new Error(`plant script failed: exit ${result.status ?? "none"}: ${firstLine(`${result.stdout ?? ""}${result.stderr ?? ""}`)}`);
+const runBash = (script: string, root: string, env: NodeJS.ProcessEnv): { status: number; output: string } => {
+  const result = spawnSync("bash", ["-c", script], { cwd: root, env, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+  if (result.error !== undefined) throw new Error(`cannot run bash -c: ${result.error.message}`);
+  return { status: result.status ?? 1, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
+};
+
+function plantRun(plant: { kind: "run"; script: string; verify: string }, root: string, env: NodeJS.ProcessEnv): void {
+  const script = runBash(plant.script, root, env);
+  if (script.status !== 0) throw new Error(`plant script failed: exit ${script.status}: ${firstLine(script.output)}`);
+  const witness = runBash(plant.verify, root, env);
+  if (witness.status !== 0) {
+    throw new Error(`plant witness failed: exit ${witness.status} for "${plant.verify}": ${firstLine(witness.output)}`);
+  }
 }
 
 function selectRefs(node: JsonValue, segment: JsonPath[number], where: string): JsonRef[] {

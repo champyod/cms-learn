@@ -16,7 +16,7 @@ export type Plant =
   | { kind: "replaceAll"; path: string; find: string; replace: string; matches: number }
   | { kind: "remove"; path: string }
   | { kind: "json"; path: string; edits: readonly JsonEdit[] }
-  | { kind: "run"; script: string };
+  | { kind: "run"; script: string; verify: string };
 
 /** `cwd` defaults to the staged root; `{root}` and `{repo}` in `args`, `cwd` and `env` values are replaced, and no other placeholder exists. */
 export interface GateCommand {
