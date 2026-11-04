@@ -183,9 +183,10 @@ Rust — for the same reason: it buys language purity, not a better gate.
 - **Check what `/tmp` is before trusting it.** On a machine where `findmnt -no FSTYPE /tmp` prints
   `tmpfs`, every staged tree and every build under it is RAM. Point scratch elsewhere:
   `export TMPDIR=$HOME/.cache/cms-learn-tmp`.
-- **The falsification harness owns `~/.cache/cms-learn/falsify`**, keeps a `run.lock` there, and
-  refuses to start below 8 GiB free. If it says the root is busy, a run is live — wait. Never delete
-  a tree it is holding.
+- **Two falsification harnesses share `~/.cache/cms-learn/falsify`.** `tools/cpp/falsify.ts` owns the
+  root's `run.lock` and refuses to start below 8 GiB free; `tools/falsify/runner.ts` owns the `tools/`
+  subdirectory, its `tools/run.lock` and the `tools/cms-learn-tools-falsify-*` trees it stages, and has
+  no free-space floor. If a root is busy, a run is live — wait. Never delete a tree either is holding.
 - **Do not poll a background job with `sleep N`.** Launch it in the background and let the completion
   notice arrive: a sleeping shell holds a slot for minutes and can read a half-written file.
 
@@ -241,11 +242,11 @@ fall back to the pinned release binary for the detected OS and architecture.
 | `content/tasks/<slug>/` | `task.json`, one statement per locale, reference solution |
 | `content/schema/` | JSON Schemas — strict, `additionalProperties: false` |
 | `tools/validate-content.ts` | the content gate |
-| `tools/falsify-content-gate.sh` | proof that the gate can fail |
+| `tools/falsify/cases/content.ts` | proof that the content gate can fail (14 defects + the honest bank) |
 | `tools/check-deploy.sh` | the deployment contract: exposure, isolation, pinning, Caddyfile, Prometheus |
-| `tools/falsify-deploy-gate.sh` | proof that the deployment contract can fail (7 cases) |
+| `tools/falsify/cases/deploy.ts` | proof that the deployment contract can fail (7 cases) |
 | `tools/security-scan.sh` | Trivy: secrets, fixable CVEs, deployment hardening |
-| `tools/falsify-security-gate.sh` | proof the scan catches planted defects (3 red, 1 clean control) |
+| `tools/falsify/cases/security.ts` | proof the scan catches planted defects (3 red, 1 clean control) |
 | `core/` | the shared C++ library: capabilities, settings, schema access, errors |
 | `references/` | testlib checkers and reference solutions, built and run by `check:cpp` |
 | `cmake/` | compiler options and sanitizer configuration, declared once |

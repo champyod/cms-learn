@@ -106,5 +106,5 @@ unseen task by one indexed query.
 - One commit per step, `WIP:` until the step is finished; the finishing commit drops the prefix.
 - No host-side scripting and no host environment variable beyond the four bootstrap facts. Production
   is containers, pinned by digest.
-- Every gate has a falsification case in `tools/falsify-*`.
+- Every gate has a falsification case in `tools/falsify/cases/*.ts`.
 - A step delivered in a different shape than agreed is a broken finding, reported as such.

@@ -24,7 +24,7 @@ A competitive-programming learning platform: one shared task bank, two student-c
 | Area | State | Where |
 |---|---|---|
 | Content model | **shipped** — 33 tags, 2 routes, 8 stages of tags with difficulty bands, TH+EN labels | `content/` |
-| Content gate | **shipped** — schema and reference integrity, 11/11 falsification cases | `tools/validate-content.ts` |
+| Content gate | **shipped** — schema and reference integrity, 15/15 falsification cases | `tools/validate-content.ts` |
 | Seed tasks | **2 drafts**, bilingual, references reproduce their own examples | `content/tasks/` |
 | Design tokens | **shipped** — `judge mono`, contrast measured, Thai rules in the token layer | `web/tokens.css` |
 | Identity | **shipped** — the mark, its favicon, mono and tile builds | `design/logo.svg` |
@@ -84,8 +84,8 @@ hardcoded in a service.
 
 ## Getting started
 
-Requirements: **Bun 1.3.14** (the gates are TypeScript), `python3` for the falsification harness,
-`g++` to build seed references, plus `cmake`, `ninja` and `vcpkg` for the C++ workspace.
+Requirements: **Bun 1.3.14** (the gates and their falsification harnesses are TypeScript), `g++` to
+build seed references, plus `cmake`, `ninja` and `vcpkg` for the C++ workspace.
 
 ```bash
 git clone https://github.com/champyod/cms-learn.git
@@ -118,7 +118,7 @@ with `logo-16`, `logo-mono` and `logo-tile` beside it for the favicon, single-co
 | Gate | Proves |
 |---|---|
 | `bun run validate` | every reference resolves; no tag twice in a stage; every tag placed by a stage; no published task without machine evidence; every task reachable by a stage |
-| `bun run validate:falsify` | the gate exits non-zero on 11 real defects, including an empty bank |
+| `bun run validate:falsify` | the gate exits non-zero on 14 real defects, including an empty bank |
 | `bun run check:references` | every reference compiles under `-Werror` and reproduces its own examples |
 | `bun run check:deploy` | only the proxy is public, the judge has no egress, every image is pinned, and the Caddyfile and Prometheus config are valid for the exact versions in compose |
 | `bun run check:security` | no secret in the tree, no dependency with a fixed CVE, no deployment misconfiguration at MEDIUM+ |

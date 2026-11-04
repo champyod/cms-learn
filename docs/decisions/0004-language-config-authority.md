@@ -118,4 +118,4 @@ Why not Atlas, `pg-schema-diff`, `psqldef`, `migra`, `pgroll`, `pgquarrel` or `@
   against its declaration.
 - `check:release` — `release.toml` matches the tag, and every image carries a digest.
 
-Each ships with a falsification case that plants the defect, matching `tools/falsify-*.sh`.
+Each ships with a falsification case that plants the defect, matching `tools/falsify/cases/*.ts`.

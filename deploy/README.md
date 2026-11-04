@@ -4,7 +4,7 @@ Everything here is a **container**; nothing is installed on the host. The two ho
 are allowed are read-only mounts (`/proc`, `/sys`, `/`) and the cgroup tree `isolate` needs.
 
 `tools/check-deploy.sh` asserts the contract below on every push, and
-`tools/falsify-deploy-gate.sh` proves the gate can fail. If you change a port, a network, an image tag
+`tools/falsify/cases/deploy.ts` proves the gate can fail. If you change a port, a network, an image tag
 or the Caddyfile, run both.
 
 ## How `docker-compose.yml` is produced

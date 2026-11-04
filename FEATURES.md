@@ -85,11 +85,11 @@ Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 | F-062 | Ingress and TLS | C | ● | `deploy/Caddyfile` + `deploy/proxy/Dockerfile` — Caddy 2.11.7, auto-ACME, HSTS, per-IP rate limits; `caddy validate` run inside the built image |
 | F-063 | Backups with a restore drill | A | ● | `deploy/backup/run.sh`, `restore-drill.sh` — verified end to end against Postgres 18.6 (250 users / 1000 submissions restored, live DB untouched) |
 | F-064 | Observability: judge queue depth, submission latency, error rate | C | ◐ | `deploy/prometheus/prometheus.yml` — scrape targets and Grafana pinned; the api/judge `/metrics` endpoints do not exist yet |
-| F-065 | Image and dependency CVE scanning | C | ● | `tools/security-scan.sh` — Trivy 0.66.0 for secrets, fixable CVEs and deployment hardening; `falsify-security-gate.sh` catches 3 planted defects and keeps a clean file green |
+| F-065 | Image and dependency CVE scanning | C | ● | `tools/security-scan.sh` — Trivy 0.66.0 for secrets, fixable CVEs and deployment hardening; `tools/falsify/cases/security.ts` catches 3 planted defects and keeps a clean file green |
 | F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | C | ○ | ADR 0001 §1 |
 | F-067 | Discord failure notification from CI (secret set by the operator) | C | ◐ | `.github/workflows/ci.yml` — wired and exercised via `simulate_failure`, `DISCORD_WEBHOOK_URL` not yet set |
 | F-068 | Deploy job, gated on a tag rather than on every push | C | ○ | needs the three service images; CI reports "no target yet" |
-| F-069 | Single-server exposure contract: only the proxy is public, db/dashboards loopback, judge has no egress | A | ● | `tools/check-deploy.sh` + `tools/falsify-deploy-gate.sh` — 7/7 broken stacks rejected |
+| F-069 | Single-server exposure contract: only the proxy is public, db/dashboards loopback, judge has no egress | A | ● | `tools/check-deploy.sh` + `tools/falsify/cases/deploy.ts` — 7/7 broken stacks rejected |
 | F-070 | WAF + IP reputation at the edge, CRS evaluated **in-band** so the attack itself gets 403 | C | ● | `deploy/crowdsec/` — verified `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
 | F-071 | Encrypted offsite backups whose private key never touches the server | A | ● | `deploy/backup/run.sh` — `age` recipient only; refuses to run without a public key |
 | F-072 | Registration and approval as runtime switches (no email dependency) | C | ○ | ADR 0003 §4 — env contract exists in `deploy/.env.example`, api not built |

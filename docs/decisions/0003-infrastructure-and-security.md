@@ -47,13 +47,13 @@ database, network or volume
 | The proxy image builds with both modules | `docker build deploy/proxy`, whose `caddy list-modules` guard passes |
 | The Caddyfile is valid for that binary | `caddy validate` → `Valid configuration` |
 | Only the proxy is public | `docker compose config --format json`, asserted in `tools/check-deploy.sh` |
-| The deploy contract can fail | `tools/falsify-deploy-gate.sh` → 7/7 caught |
+| The deploy contract can fail | `tools/falsify/cases/deploy.ts` → 7/7 caught |
 | Backups restore, not just dump | `pg_dump \| age` then `restore-drill.sh` → 250 users / 1000 submissions into a scratch DB |
 | A corrupt archive and an unencrypted dump both fail | random bytes → exit 1; no `AGE_PUBLIC_KEY` → exit 1 |
 | The drill refuses the live database | `SCRATCH_DB=cmslearn` → exit 1 |
 | CrowdSec loads in-band CRS | `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
 | Prometheus config parses | `promtool check config` → SUCCESS |
-| The scan finds nothing and can fail | `security-scan.sh` green; `falsify-security-gate.sh` caught 4/4 planted defects |
+| The scan finds nothing and can fail | `security-scan.sh` green; `tools/falsify/cases/security.ts` caught 4/4 planted defects |
 
 ## Open
 
