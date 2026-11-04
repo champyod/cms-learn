@@ -20,7 +20,7 @@
     "check:security": "bash tools/security-scan.sh",
     "check:security:falsify": "bash tools/falsify-security-gate.sh",
     "check:schema": "bash tools/check-schema.sh",
-    "check:schema:falsify": "bash tools/falsify-schema-gate.sh",
+    "check:schema:falsify": "bun run tools/falsify/runner.ts schema",
     "check:db": "bash tools/check-db.sh",
     "check:db:falsify": "bash tools/falsify-db-gate.sh",
     "check:verify": "bash tools/check-verify.sh",
