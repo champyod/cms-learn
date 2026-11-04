@@ -56,7 +56,7 @@ tool and is not counted.
 | `tools/check-island-fallback.sh` | shell | 44 | assertion | gate — the submission form posts without the editor island |
 | `tools/check-isolation.sh` | shell | 65 | assertion | gate — a fork bomb is contained by the sandbox and the box is torn down |
 | `tools/check-judge.sh` | shell | 139 | assertion | gate — a claimed submission is compiled, run, checked and written back as one verdict |
-| `tools/check-live.sh` | shell | 150 | assertion | gate — every `[live]` case runs against a scratch cluster, and selecting nothing fails |
+| `tools/check-live.sh` | shell | 151 | assertion | gate — every `[live]` case runs against a scratch cluster, and selecting nothing fails |
 | `tools/check-pm.sh` | shell | 57 | assertion | gate — exactly one lockfile, and it is `bun.lock` |
 | `tools/check-publish.sh` | shell | 89 | assertion | gate — a draft becomes published only through machine evidence |
 | `tools/check-references.sh` | shell | 82 | assertion | gate — every reference builds at `-O2` under `-Werror` and reproduces its examples |
@@ -64,7 +64,7 @@ tool and is not counted.
 | `tools/check-scaffold.sh` | shell | 138 | assertion | gate — headers compile standalone, manifests match overlay ports, then the defect is planted |
 | `tools/check-schema.sh` | shell | 85 | assertion | gate — `deploy/plan` renders from `deploy/schema/main.sql` and applies to no further change |
 | `tools/check-settings.sh` | shell | 48 | assertion | gate — a secret setting has no read-back path in template or catalogue |
-| `tools/check-settings.ts` | typescript | 71 | orchestration | answers both settings questions from one parse of the catalogue |
+| `tools/check-settings.ts` | typescript | 193 | orchestration | answers both settings questions from one parse of the catalogue |
 | `tools/check-templates.sh` | shell | 21 | assertion | gate — `api/templates` is what the design package renders, with no orphan template |
 | `tools/check-unseen-task.sh` | shell | 134 | assertion | gate — the unseen-task query is served by `progress_account_task_idx` |
 | `tools/check-upgrade.sh` | shell | 170 | assertion | gate — deploy order and health gate, with `docker`, `bun`, `curl` and `sleep` stubbed |
@@ -99,7 +99,7 @@ tool and is not counted.
 | `tools/falsify-generator-gate.sh` | shell | 69 | assertion | gate — the generator gate goes red on a draft the loader could not read |
 | `tools/falsify-island-gate.sh` | shell | 82 | assertion | gate — the island-fallback gate goes red on a form that cannot post |
 | `tools/falsify-publish-gate.sh` | shell | 55 | assertion | gate — the publish gate goes red on a draft without machine evidence |
-| `tools/falsify-settings-gate.sh` | shell | 63 | assertion | gate — the settings gate goes red on a secret that can be read back |
+| `tools/falsify-settings-gate.sh` | shell | 88 | assertion | gate — the settings gate goes red on a secret that can be read back |
 | `tools/falsify-templates-gate.sh` | shell | 46 | assertion | gate — the template gate goes red on a stale or orphaned template |
 | `tools/falsify-vocab-gate.sh` | shell | 172 | assertion | gate — the vocabulary gate goes red on an unresolved, ambiguous or looping tag |
 | `tools/port-templates.ts` | typescript | 59 | orchestration | renders the design package into `api/templates` |
@@ -116,9 +116,9 @@ tool and is not counted.
 
 | Language | Files | Lines |
 |---|---|---|
-| shell | 37 | 3 630 |
-| typescript | 31 | 3 589 |
-| total | 68 | 7 219 |
+| shell | 37 | 3 656 |
+| typescript | 31 | 3 711 |
+| total | 68 | 7 367 |
 
 ## Gates and falsifiers
 
@@ -129,7 +129,8 @@ A crash also exits non-zero, and a crash proves nothing. A gate without a falsif
 falsification case is never weakened to reach green. `AGENTS.md` states the rule under "Gates" and
 under "Never"; this section records which pairs exist.
 
-Fifteen gates have a falsifier of their own, all reachable from `package.json`:
+Every `check:` gate except `check:catalogue` and `check:isolation` has a falsifier, all reachable from
+`package.json` (and `validate` and `vocab:gate` have one too):
 
 | Gate | Falsifier |
 |---|---|
@@ -148,12 +149,17 @@ Fifteen gates have a falsifier of their own, all reachable from `package.json`:
 | `check:templates` | `falsify:templates` — `tools/falsify-templates-gate.sh` |
 | `check:island` | `falsify:island` — `tools/falsify-island-gate.sh` |
 | `check:settings` | `falsify:settings` — `tools/falsify-settings-gate.sh` |
+| `check:cli` | `check:cli:falsify` — `tools/falsify-cli-gate.sh` |
+| `check:db` | `check:db:falsify` — `tools/falsify-db-gate.sh` |
+| `check:generator` | `falsify:generator` — `tools/falsify-generator-gate.sh` |
+| `check:publish` | `falsify:publish` — `tools/falsify-publish-gate.sh` |
+| `vocab:gate` | `vocab:gate:falsify` — `tools/falsify-vocab-gate.sh` |
 
-The last three break the naming pattern rather than the pairing: the gate is a `check:` and the
-falsifier is a `falsify:`, because `templates`, `island` and `settings` do not have a colon-separated
+Three of them break the naming pattern rather than the pairing: `templates`, `island` and `settings`
+name the gate `check:` but the falsifier `falsify:`, because none of the three has a colon-separated
 area to nest under.
 
-The eight runner-backed falsifiers share one skeleton. `tools/falsify/runner.ts` stages the entries a
+The eleven runner-backed falsifiers share one skeleton. `tools/falsify/runner.ts` stages the entries a
 gate lists in `stage`, symlinks the ones it lists in `link`, applies the case's plants in order, hashes
 the tree before and after to prove the defect actually landed, runs the gate and prints one verdict
 line per case. The cases are data in `tools/falsify/cases/<id>.ts` and are registered in
@@ -170,13 +176,12 @@ Four more gates carry their falsification inside the gate file itself, so they n
 verifier at a reference that prints nothing, `check-content-db.sh` requires its second seed to write
 nothing, and `check-unseen-task.sh` drops `progress_account_task_idx` and requires a sequential scan.
 
-Three gate scripts have no falsification at all, in a script or in the file:
+Two gates have no falsification at all, in a script or in the file:
 
 | Gate | Script |
 |---|---|
-| `check:cli` | `tools/check-cli.sh` |
-| `check:db` | `tools/check-db.sh` |
-| `vocab:gate` | `tools/vocab/gate.ts` |
+| `check:catalogue` | `tools/render-catalogue.ts --check` |
+| `check:isolation` | `tools/check-isolation.sh` |
 
 They are green on the tree and they have never been shown red. By the rule above they are not done.
 Closing that gap is adding the case, not adding a row to this document.

@@ -24,6 +24,9 @@ bun run check:deploy       # compose contract: exposure, isolation, pinning, Cad
 bun run check:deploy:falsify
 bun run check:cpp          # CMake presets build under ASan+UBSan, ctest runs the examples, clang-tidy analyses
 bun run check:cpp:falsify  # proves the gate catches a use-after-free, an overflow, a warning and a tidy-only defect
+bun run check:live         # every [live] case against a scratch PostgreSQL cluster, and an empty selection fails
+bun run check:judge        # a claimed submission becomes one verdict through compile, run and checker
+bun run check:visibility   # the serving query hides a task visible to nobody and serves a granted one
 bun run gate               # content + references, in that order — this is what CI runs
 bun run gate:all           # the above plus the deployment contract (needs docker) and C++ safety
 ```
@@ -237,8 +240,7 @@ fall back to the pinned release binary for the detected OS and architecture.
 | Path | Holds |
 |---|---|
 | `content/topics.json` | controlled topic vocabulary (id + TH/EN labels) |
-| `content/modules.json` | areas + modules (`topics`, `prereqs`) |
-| `content/tracks.json` | tracks → stages (`modules`, `difficulty` band) |
+| `content/tracks.json` | tracks → stages (`tags`, `difficulty` band) |
 | `content/tasks/<slug>/` | `task.json`, one statement per locale, reference solution |
 | `content/schema/` | JSON Schemas — strict, `additionalProperties: false` |
 | `tools/validate-content.ts` | the content gate |

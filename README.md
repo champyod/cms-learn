@@ -104,6 +104,9 @@ bun run check:references    # every reference builds under -Werror and reproduce
 bun run check:deploy        # exposure, isolation, pinning, Caddyfile, Prometheus
 bun run check:security      # secrets, fixable CVEs, deployment hardening
 bun run check:cpp           # every C++ unit in the preset under ASan + UBSan, warnings fatal, runnable ones executed
+bun run check:live          # every [live] case runs against a scratch PostgreSQL cluster
+bun run check:judge         # a claimed submission becomes one verdict: compile, run, checker, row
+bun run check:visibility    # the serving query hides a task visible to nobody and serves a granted one
 bun run check:scaffold      # the C++ workspace and the pinned dependency set
 ```
 
@@ -126,6 +129,9 @@ with `logo-16`, `logo-mono` and `logo-tile` beside it for the favicon, single-co
 | `bun run check:security` | no secret in the tree, no dependency with a fixed CVE, no deployment misconfiguration at MEDIUM+ |
 | `bun run check:cpp` | every unit in the chosen preset compiles under ASan + UBSan with `-Werror` and `_GLIBCXX_ASSERTIONS`, and every runnable one is executed — the `safety-core` lane, no api build, on a pull request; the `safety` lane, api built, on a push, the nightly run and a manual run |
 | `bun run check:cpp:falsify` | a use-after-free, a signed overflow, an out-of-bounds read and a warning each fail with the right reason; a clean file stays green |
+| `bun run check:live` | every `[live]` case runs against a scratch cluster; a run that selects nothing fails |
+| `bun run check:judge` | a claimed submission is compiled, run through the sandbox, checked and written back as one verdict |
+| `bun run check:visibility` | the real serving query hides a task with no visibility row and serves a task granted to the viewer; a session uuid binds to its serial id |
 | `bun run check:scaffold` | the C++ workspace configures, the overlay ports are present, the dependency manifest resolves, and the CLI crate is well formed |
 
 A green run prints what it scanned, so an empty bank cannot pass as coverage. Every falsification
