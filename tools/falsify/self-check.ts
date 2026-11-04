@@ -53,10 +53,15 @@ const isHonest = (outcome: Outcome, expected: Expected): boolean =>
 function main(): number {
   let failed = 0;
   for (const check of CHECKS) {
-    const outcomes = evaluateGate(check.gate);
-    const outcome = outcomes.length === 1 ? outcomes[0] : undefined;
+    const evaluation = evaluateGate(check.gate);
+    if (evaluation.failure !== null) {
+      console.log(`FAIL  ${check.what} — the run failed: ${evaluation.failure}`);
+      failed += 1;
+      continue;
+    }
+    const outcome = evaluation.outcomes.length === 1 ? evaluation.outcomes[0] : undefined;
     if (outcome === undefined) {
-      console.log(`FAIL  ${check.what} — got ${outcomes.length} case outcome(s), expected exactly 1`);
+      console.log(`FAIL  ${check.what} — got ${evaluation.outcomes.length} case outcome(s), expected exactly 1`);
       failed += 1;
       continue;
     }

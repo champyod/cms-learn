@@ -12,6 +12,13 @@ import { reason } from "./text.ts";
 
 const REPO = realpathSync(join(import.meta.dir, "../.."));
 const COMMAND_NOT_FOUND = 127;
+const GATE_TIMEOUT_MS = 10 * 60_000;
+
+/** What one gate run produced: every verdict it computed, plus the run-level failure that stopped it, if any. */
+export interface GateEvaluation {
+  outcomes: readonly Outcome[];
+  failure: string | null;
+}
 
 const substitute = (text: string, root: string): string => text.replaceAll("{root}", root).replaceAll("{repo}", REPO);
 
@@ -45,26 +52,30 @@ function stageTree(gate: Gate, root: string): void {
   }
 }
 
+function caseEnv(command: GateCommand, root: string): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const [key, value] of Object.entries(command.env ?? {})) env[key] = substitute(value, root);
+  return env;
+}
+
 function runCommand(command: GateCommand, root: string, env: NodeJS.ProcessEnv): CommandResult {
   const args = command.args.map((arg) => substitute(arg, root));
   const cwd = command.cwd === undefined ? root : substitute(command.cwd, root);
-  const result = spawnSync(command.command, args, { cwd, env, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
-  if (result.error !== undefined) throw new Error(`cannot run ${command.command}: ${result.error.message}`);
+  const result = spawnSync(command.command, args, { cwd, env, encoding: "utf8", maxBuffer: 32 * 1024 * 1024, timeout: GATE_TIMEOUT_MS });
+  if (result.error !== undefined) {
+    if ((result.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
+      throw new Error(`the gate command timed out after ${GATE_TIMEOUT_MS} ms: ${command.command} ${args.join(" ")}`);
+    }
+    throw new Error(`cannot run ${command.command}: ${result.error.message}`);
+  }
   return { status: result.status ?? COMMAND_NOT_FOUND, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
 }
 
-function runCase(testCase: FalsifyCase, gate: Gate): Outcome {
-  let root: string;
-  try {
-    root = openCaseRoot();
-  } catch (error) {
-    return { line: `SETUP FAILED  ${testCase.name} — cannot create a case tree: ${reason(error)}`, ok: false };
-  }
+function judgeCase(testCase: FalsifyCase, gate: Gate, root: string): Outcome {
   try {
     stageTree(gate, root);
     const command = testCase.command ?? gate.command;
-    const env: NodeJS.ProcessEnv = { ...process.env };
-    for (const [key, value] of Object.entries(command.env ?? {})) env[key] = substitute(value, root);
+    const env = caseEnv(command, root);
     const before = hashTree(root);
     const plants = testCase.plant ?? [];
     for (const plant of plants) applyPlant(plant, root, env);
@@ -74,21 +85,55 @@ function runCase(testCase: FalsifyCase, gate: Gate): Outcome {
     return verdictFor(testCase, runCommand(command, root, env));
   } catch (error) {
     return { line: `SETUP FAILED  ${testCase.name} — ${reason(error)}`, ok: false };
-  } finally {
-    rmSync(root, { recursive: true, force: true });
   }
 }
 
-/** Runs every case of one gate in its own staged tree and returns the verdict line for each, printing nothing. */
-export function evaluateGate(gate: Gate): Outcome[] {
-  const release = openScratch();
-  const outcomes: Outcome[] = [];
+function runCase(testCase: FalsifyCase, gate: Gate): Outcome {
+  let root: string;
   try {
-    for (const testCase of gate.cases) outcomes.push(runCase(testCase, gate));
-  } finally {
-    release();
+    root = openCaseRoot();
+  } catch (error) {
+    return { line: `SETUP FAILED  ${testCase.name} — cannot create a case tree: ${reason(error)}`, ok: false };
   }
-  return outcomes;
+  const state: { outcome: Outcome | null; teardown: string | null } = { outcome: null, teardown: null };
+  try {
+    state.outcome = judgeCase(testCase, gate, root);
+  } finally {
+    try {
+      rmSync(root, { recursive: true, force: true });
+    } catch (error) {
+      state.teardown = reason(error);
+    }
+  }
+  if (state.teardown !== null) {
+    return { line: `SETUP FAILED  ${testCase.name} — teardown failed: ${state.teardown}`, ok: false };
+  }
+  if (state.outcome === null) {
+    return { line: `SETUP FAILED  ${testCase.name} — the case produced no verdict`, ok: false };
+  }
+  return state.outcome;
+}
+
+/** Runs every case in its own staged tree, collecting verdicts; a run-level failure is returned, never thrown. */
+export function evaluateGate(gate: Gate): GateEvaluation {
+  const outcomes: Outcome[] = [];
+  let failure: string | null = null;
+  let release: (() => void) | null = null;
+  try {
+    release = openScratch();
+    for (const testCase of gate.cases) outcomes.push(runCase(testCase, gate));
+  } catch (error) {
+    failure = reason(error);
+  } finally {
+    if (release !== null) {
+      try {
+        release();
+      } catch (error) {
+        failure = failure === null ? reason(error) : `${failure}; ${reason(error)}`;
+      }
+    }
+  }
+  return { outcomes, failure };
 }
 
 const printCases = (gate: Gate): void => {
@@ -100,18 +145,12 @@ function gateByIdOrExit(id: string): Gate | null {
 }
 
 function runGate(gate: Gate): number {
-  let outcomes: Outcome[];
-  try {
-    outcomes = evaluateGate(gate);
-  } catch (error) {
-    console.error(`falsification run failed: ${reason(error)}`);
-    console.log(summaryLine(0, gate.cases.length));
-    return 1;
-  }
-  outcomes.forEach((outcome) => console.log(outcome.line));
-  const behaved = outcomes.filter((outcome) => outcome.ok).length;
-  console.log(summaryLine(behaved, outcomes.length - behaved));
-  return behaved === outcomes.length ? 0 : 1;
+  const evaluation = evaluateGate(gate);
+  evaluation.outcomes.forEach((outcome) => console.log(outcome.line));
+  if (evaluation.failure !== null) console.error(`falsification run failed: ${evaluation.failure}`);
+  const behaved = evaluation.outcomes.filter((outcome) => outcome.ok).length;
+  console.log(summaryLine(behaved, evaluation.outcomes.length - behaved));
+  return evaluation.failure === null && behaved === evaluation.outcomes.length ? 0 : 1;
 }
 
 function main(argv: readonly string[]): number {

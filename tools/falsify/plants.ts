@@ -63,16 +63,23 @@ function plantRemove(plant: { kind: "remove"; path: string }, root: string): voi
   rmSync(target, { recursive: true });
 }
 
-const runBash = (script: string, root: string, env: NodeJS.ProcessEnv): { status: number; output: string } => {
-  const result = spawnSync("bash", ["-c", script], { cwd: root, env, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
-  if (result.error !== undefined) throw new Error(`cannot run bash -c: ${result.error.message}`);
+const PLANT_TIMEOUT_MS = 60_000;
+
+const runBash = (what: string, script: string, root: string, env: NodeJS.ProcessEnv): { status: number; output: string } => {
+  const result = spawnSync("bash", ["-c", script], { cwd: root, env, encoding: "utf8", maxBuffer: 16 * 1024 * 1024, timeout: PLANT_TIMEOUT_MS });
+  if (result.error !== undefined) {
+    if ((result.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
+      throw new Error(`the ${what} timed out after ${PLANT_TIMEOUT_MS} ms: ${script}`);
+    }
+    throw new Error(`cannot run the ${what}: ${result.error.message}`);
+  }
   return { status: result.status ?? 1, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
 };
 
 function plantRun(plant: { kind: "run"; script: string; verify: string }, root: string, env: NodeJS.ProcessEnv): void {
-  const script = runBash(plant.script, root, env);
+  const script = runBash("plant script", plant.script, root, env);
   if (script.status !== 0) throw new Error(`plant script failed: exit ${script.status}: ${firstLine(script.output)}`);
-  const witness = runBash(plant.verify, root, env);
+  const witness = runBash("plant witness", plant.verify, root, env);
   if (witness.status !== 0) {
     throw new Error(`plant witness failed: exit ${witness.status} for "${plant.verify}": ${firstLine(witness.output)}`);
   }
