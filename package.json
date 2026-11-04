@@ -16,7 +16,7 @@
     "check:deploy": "bash tools/check-deploy.sh",
     "check:deploy:falsify": "bun run tools/falsify/runner.ts deploy",
     "check:upgrade": "bash tools/check-upgrade.sh",
-    "check:upgrade:falsify": "bash tools/falsify-upgrade-gate.sh",
+    "check:upgrade:falsify": "bun run tools/falsify/runner.ts upgrade",
     "check:security": "bash tools/security-scan.sh",
     "check:security:falsify": "bash tools/falsify-security-gate.sh",
     "check:schema": "bash tools/check-schema.sh",
