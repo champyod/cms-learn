@@ -59,5 +59,30 @@ else
   ok "a secret with a default is refused"
 fi
 
+# E2.2: a setting declared in code whose key deploy/schema/settings.sql can never store. The row the
+# service reads cannot exist, so the gate has to name the key instead of accepting the declaration. The
+# catalogue copy gains the same key first, so the older "not in the catalogue" rule cannot be the one that
+# fires — the refusal must come from the schema comparison.
+probe_key="Probe.bad"
+bun -e '
+const fs = require("node:fs");
+const catalogue = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+catalogue.settings.push({ key: process.argv[3], kind: "text", tier: "operator", default: "", reload: "hot" });
+fs.writeFileSync(process.argv[2], JSON.stringify(catalogue, null, 2));
+' "$catalogue" "$work/catalogue.json" "$probe_key"
+printf 'inline constexpr std::array k_probe_defaults{SettingDefault{"%s", ""}};\n' "$probe_key" \
+  >"$work/settings_defaults.hpp"
+if bun run "$repo/tools/check-settings.ts" "$work/catalogue.json" "$work/settings_defaults.hpp" \
+  >"$work/schema-check.log" 2>&1; then
+  bad "a setting the schema cannot store is refused and named" \
+      "the gate accepted a key settings_key_shape rejects"
+elif grep -q "$probe_key" "$work/schema-check.log" \
+  && grep -q "settings_key_shape" "$work/schema-check.log"; then
+  ok "a setting the schema cannot store is refused and named"
+else
+  bad "a setting the schema cannot store is refused and named" \
+      "$(head -2 "$work/schema-check.log")"
+fi
+
 printf '\n%s assertion(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
