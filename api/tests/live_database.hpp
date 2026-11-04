@@ -17,7 +17,12 @@ namespace cms::test {
 [[nodiscard]] inline auto live_client() -> const std::shared_ptr<::drogon::orm::DbClient>& {
   const auto* dsn = std::getenv("CMSLEAN_TEST_DSN");
   REQUIRE(dsn != nullptr);
-  static const auto client = ::drogon::orm::DbClient::newPgClient(dsn, 4);
+  // Leaked on purpose: Drogon's pool teardown deadlocks ("Resource deadlock avoided") when no case ever
+  // issued a query, and one pool left to process exit is not a defect. Keeping it reachable means the
+  // destructor never runs, so a query-free case exits like every other one instead of racing teardown.
+  static const auto* const owner =
+      new std::shared_ptr<::drogon::orm::DbClient>(::drogon::orm::DbClient::newPgClient(dsn, 4));
+  static const auto client = *owner;
   return client;
 }
 

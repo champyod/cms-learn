@@ -56,7 +56,9 @@
     "check:visibility": "bash tools/check-visibility.sh",
     "check:visibility:falsify": "bun run tools/falsify/runner.ts visibility",
     "check:judge": "bash tools/check-judge.sh",
-    "check:judge:falsify": "bun run tools/falsify/runner.ts judge"
+    "check:judge:falsify": "bun run tools/falsify/runner.ts judge",
+    "check:live": "bash tools/check-live.sh",
+    "check:live:falsify": "bun run tools/falsify/runner.ts live"
   },
   "devDependencies": {
     "@codemirror/commands": "6.11.1",

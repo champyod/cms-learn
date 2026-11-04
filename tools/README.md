@@ -1,6 +1,6 @@
 # Tools — one job per language
 
-Sixty-six files under `tools/`: thirty-six shell, thirty TypeScript. C++ owns a fourth kind of
+Sixty-eight files under `tools/`: thirty-seven shell, thirty-one TypeScript. C++ owns a fourth kind of
 work and owns no file here. The three rows below say which language does which job, and every file in
 the inventory maps to exactly one of them.
 
@@ -56,6 +56,7 @@ tool and is not counted.
 | `tools/check-island-fallback.sh` | shell | 44 | assertion | gate — the submission form posts without the editor island |
 | `tools/check-isolation.sh` | shell | 65 | assertion | gate — a fork bomb is contained by the sandbox and the box is torn down |
 | `tools/check-judge.sh` | shell | 139 | assertion | gate — a claimed submission is compiled, run, checked and written back as one verdict |
+| `tools/check-live.sh` | shell | 150 | assertion | gate — every `[live]` case runs against a scratch cluster, and selecting nothing fails |
 | `tools/check-pm.sh` | shell | 57 | assertion | gate — exactly one lockfile, and it is `bun.lock` |
 | `tools/check-publish.sh` | shell | 89 | assertion | gate — a draft becomes published only through machine evidence |
 | `tools/check-references.sh` | shell | 82 | assertion | gate — every reference builds at `-O2` under `-Werror` and reproduces its examples |
@@ -73,10 +74,11 @@ tool and is not counted.
 | `tools/cpp/diagnostics.ts` | typescript | 92 | orchestration | parses GCC and clang-tidy text diagnostics into typed findings |
 | `tools/cpp/falsify.ts` | typescript | 547 | orchestration | runs the C++ gate against staged trees, one planted defect per case |
 | `tools/cpp/gate.ts` | typescript | 370 | orchestration | drives cmake, ctest and clang-tidy, then reports what they said |
-| `tools/falsify/cases.ts` | typescript | 44 | orchestration | registry — every migrated gate and its cases as data |
+| `tools/falsify/cases.ts` | typescript | 46 | orchestration | registry — every migrated gate and its cases as data |
 | `tools/falsify/cases/content.ts` | typescript | 149 | orchestration | the content gate's 14 defects plus the honest baseline bank |
 | `tools/falsify/cases/deploy.ts` | typescript | 55 | orchestration | the deployment contract's 7 defects, no control case |
 | `tools/falsify/cases/judge.ts` | typescript | 29 | orchestration | the judge gate's 1 defect: a wrong-answer submission that is accepted |
+| `tools/falsify/cases/live.ts` | typescript | 24 | orchestration | the live gate's 1 defect: the `[live]` tag selects nothing |
 | `tools/falsify/cases/pm.ts` | typescript | 23 | orchestration | the package-manager gate's 2 defects plus the untouched control |
 | `tools/falsify/cases/references.ts` | typescript | 33 | orchestration | the reference gate's 4 defects plus the control |
 | `tools/falsify/cases/schema.ts` | typescript | 66 | orchestration | the schema gate's 6 defects plus the control |
@@ -114,9 +116,9 @@ tool and is not counted.
 
 | Language | Files | Lines |
 |---|---|---|
-| shell | 36 | 3 480 |
-| typescript | 30 | 3 563 |
-| total | 66 | 7 043 |
+| shell | 37 | 3 630 |
+| typescript | 31 | 3 589 |
+| total | 68 | 7 219 |
 
 ## Gates and falsifiers
 
@@ -127,7 +129,7 @@ A crash also exits non-zero, and a crash proves nothing. A gate without a falsif
 falsification case is never weakened to reach green. `AGENTS.md` states the rule under "Gates" and
 under "Never"; this section records which pairs exist.
 
-Fourteen gates have a falsifier of their own, all reachable from `package.json`:
+Fifteen gates have a falsifier of their own, all reachable from `package.json`:
 
 | Gate | Falsifier |
 |---|---|
@@ -142,6 +144,7 @@ Fourteen gates have a falsifier of their own, all reachable from `package.json`:
 | `check:pm` | `check:pm:falsify` — `tools/falsify/cases/pm.ts`, `bun run tools/falsify/runner.ts pm` |
 | `check:visibility` | `check:visibility:falsify` — `tools/falsify/cases/visibility.ts`, `bun run tools/falsify/runner.ts visibility` |
 | `check:judge` | `check:judge:falsify` — `tools/falsify/cases/judge.ts`, `bun run tools/falsify/runner.ts judge` |
+| `check:live` | `check:live:falsify` — `tools/falsify/cases/live.ts`, `bun run tools/falsify/runner.ts live` |
 | `check:templates` | `falsify:templates` — `tools/falsify-templates-gate.sh` |
 | `check:island` | `falsify:island` — `tools/falsify-island-gate.sh` |
 | `check:settings` | `falsify:settings` — `tools/falsify-settings-gate.sh` |

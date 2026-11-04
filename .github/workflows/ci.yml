@@ -87,6 +87,15 @@ jobs:
       - name: deploy gate falsifiability
         run: bun run check:deploy:falsify
 
+      - name: upgrade order and health gate
+        run: |
+          bun run check:upgrade
+          bun run check:upgrade:falsify
+
+      # The isolation gate drives the sandbox container, so it belongs with the lane that already runs docker.
+      - name: sandbox isolation
+        run: bun run check:isolation
+
   # Scanning is a gate, not a report someone reads later: a leaked token or a root-user Dockerfile
   # fails the build, and the scan is itself proven to catch planted defects.
   security:
@@ -104,6 +113,61 @@ jobs:
 
       - name: scan falsifiability
         run: bun run check:security:falsify
+
+  # Every gate that needs only bun, a PostgreSQL server and pgschema. The gates that need the C++ build run
+  # in the full lane after it builds; the ones that need docker run in the deploy and security jobs. A gate
+  # in no job is a gate nobody runs, which is the state this matrix exists to end.
+  gates:
+    name: gate matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: install
+        run: bun install --frozen-lockfile
+
+      # The database gates start a scratch cluster, so they need the server binaries rather than a client.
+      - name: postgres server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql
+
+      - name: schema gate
+        run: |
+          bun run check:schema
+          bun run check:schema:falsify
+
+      - name: package manager gate
+        run: |
+          bun run check:pm
+          bun run check:pm:falsify
+
+      - name: control client gate
+        run: |
+          bun run check:cli
+          bun run check:cli:falsify
+
+      - name: template and island gates
+        run: |
+          bun run check:templates
+          bun run falsify:templates
+          bun run check:island
+          bun run falsify:island
+
+      - name: settings and catalogue gates
+        run: |
+          bun run check:settings
+          bun run falsify:settings
+          bun run check:catalogue
+
+      - name: stack gate
+        run: |
+          bun run check:stack
+          bun run check:stack:falsify
 
   # C++ sits on the internet-facing path (ADR 0006), so its safety is a gate and not a promise. CMake
   # presets own the sanitizer and warning flags, ctest owns pass/fail per example, clang-tidy owns the
@@ -200,6 +264,11 @@ jobs:
       - name: vcpkg bootstrap
         run: $VCPKG_ROOT/bootstrap-vcpkg.sh -disableMetrics
 
+      - name: postgres server
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends postgresql postgresql-client
+
       - uses: oven-sh/setup-bun@v2
 
       - name: build, run and analyse
@@ -207,6 +276,36 @@ jobs:
 
       - name: safety gate falsifiability
         run: bun run check:cpp:falsify
+
+      # The gates below read the binaries this lane just built, which is why they live here rather than in
+      # the matrix job: a gate that skips for want of a binary is a gate that proves nothing.
+      - name: database, content and query gates
+        run: |
+          bun run check:db
+          bun run check:content:db
+          bun run check:unseen
+          bun run check:visibility
+          bun run check:visibility:falsify
+
+      - name: verifier, judge and render gates
+        run: |
+          bun run check:verify
+          bun run check:judge
+          bun run check:judge:falsify
+          bun run check:render
+
+      - name: live database cases
+        run: bun run check:live
+
+      - name: generation and publish gates
+        run: |
+          bun run check:generator
+          bun run falsify:generator
+          bun run check:publish
+          bun run falsify:publish
+
+      - name: workspace scaffold gate
+        run: bun run check:scaffold
 
   # CD is not wired yet: there is no image to build and no host to deploy to (F-061/F-062 are
   # planned). This job exists so a deploy step has one obvious place to land, and so CI says so out
