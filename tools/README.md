@@ -1,6 +1,6 @@
 # Tools — one job per language
 
-Sixty files under `tools/`: thirty-three shell, twenty-seven TypeScript. C++ owns a fourth kind of
+Sixty-one files under `tools/`: thirty-four shell, twenty-seven TypeScript. C++ owns a fourth kind of
 work and owns no file here. The three rows below say which language does which job, and every file in
 the inventory maps to exactly one of them.
 
@@ -35,7 +35,8 @@ Inside each row there are two shapes, and they are named in the inventory:
 - A **driver** performs the single mutation whose result a gate then asserts, or that production runs
   directly. `apply-plan.sh` applies a reviewed schema plan after checking its digest; `render-tables.sh`
   prints the header `check-db.sh` compares byte for byte; `render-assets.sh` turns SVG masters into
-  rasters; `upgrade.sh` deploys the release `release.toml` names.
+  rasters; `render-plan.sh` produces the committed plan `check-schema.sh` compares against; `upgrade.sh`
+  deploys the release `release.toml` names.
 
 ## Inventory
 
@@ -75,7 +76,7 @@ tool and is not counted.
 | `tools/falsify/cases/pm.ts` | typescript | 23 | orchestration | the package-manager gate's 2 defects plus the untouched control |
 | `tools/falsify/cases/references.ts` | typescript | 33 | orchestration | the reference gate's 4 defects plus the control |
 | `tools/falsify/cases/schema.ts` | typescript | 66 | orchestration | the schema gate's 6 defects plus the control |
-| `tools/falsify/cases/security.ts` | typescript | 61 | orchestration | the scan's 3 planted defects plus the clean control |
+| `tools/falsify/cases/security.ts` | typescript | 62 | orchestration | the scan's 3 planted defects plus the clean control |
 | `tools/falsify/cases/stack.ts` | typescript | 57 | orchestration | the stack gate's 6 defects plus the control |
 | `tools/falsify/cases/upgrade.ts` | typescript | 55 | orchestration | the upgrade gate's 6 defects plus the control |
 | `tools/falsify/contract.ts` | typescript | 43 | orchestration | the case, plant and JSON-pointer types every case file implements |
@@ -97,6 +98,7 @@ tool and is not counted.
 | `tools/port-templates.ts` | typescript | 59 | orchestration | renders the design package into `api/templates` |
 | `tools/render-assets.sh` | shell | 99 | assertion | driver — renders rasters from the SVG masters, with a `--check` comparison |
 | `tools/render-catalogue.ts` | typescript | 94 | orchestration | turns the settings catalogue into the data the form and the service consume |
+| `tools/render-plan.sh` | shell | 55 | assertion | driver — renders `deploy/plan` from `deploy/schema/main.sql` through `pgschema` |
 | `tools/render-stack.ts` | typescript | 223 | orchestration | renders `deploy/docker-compose.yml` from `release.toml` and the stack template |
 | `tools/render-tables.sh` | shell | 188 | assertion | driver — prints `db/include/cms/db/tables.hpp` from `information_schema.columns` |
 | `tools/security-scan.sh` | shell | 52 | assertion | gate — Trivy for secrets and fixable CVEs, plus deployment hardening rules |
@@ -107,9 +109,9 @@ tool and is not counted.
 
 | Language | Files | Lines |
 |---|---|---|
-| shell | 33 | 3 007 |
-| typescript | 27 | 3 336 |
-| total | 60 | 6 343 |
+| shell | 34 | 3 062 |
+| typescript | 27 | 3 337 |
+| total | 61 | 6 399 |
 
 ## Gates and falsifiers
 
