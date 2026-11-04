@@ -1,8 +1,12 @@
 #include <cms/api/submissions.hpp>
 
+#include <cstddef>
+#include <cstdint>
 #include <exception>
+#include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include <sqlpp23/sqlpp23.h>
@@ -13,12 +17,15 @@
 namespace cms::api {
 namespace {
 
+/// The statement's fixed parameters come first, so the audience's placeholders start after them.
+constexpr std::size_t FIRST_AUDIENCE_PARAMETER = 5;
+
 /// One statement writes the row and re-checks what the row depends on at the moment it runs.
 ///
-/// A lookup followed by an insert leaves a window between the two: a session can be revoked or a task
-/// unpublished after the read that authorised the write. Here the row exists only if both conditions hold
-/// inside the statement that inserts it, so there is no window at all.
-constexpr std::string_view SUBMIT_SQL = R"(
+/// A lookup followed by an insert leaves a window between the two: a session can be revoked, a task
+/// unpublished or its audience narrowed after the read that authorised the write. Here the row exists only
+/// if every condition holds inside the statement that inserts it, so there is no window at all.
+constexpr std::string_view SUBMIT_HEAD = R"(
 INSERT INTO submissions (account_id, task_id, task_version, source)
 SELECT sessions.principal_id, tasks.id, tasks.version, $1
 FROM sessions
@@ -28,7 +35,30 @@ WHERE sessions.id = $2
   AND sessions.expires_at > $3
   AND tasks.id = $4
   AND tasks.status = 'published'
-)";
+  AND EXISTS (SELECT 1 FROM task_visibility v
+              WHERE v.task_id = tasks.id
+                AND v.principal_id IN ()";
+constexpr std::string_view SUBMIT_TAIL = "))";
+
+/// The audience is a list whose length is only known at run time, so its placeholders are counted here.
+/// The values still travel as bound parameters; nothing a caller supplied is part of the statement text.
+auto audience_placeholders(std::size_t count) -> std::string {
+  auto text = std::string{};
+  for (auto index = std::size_t{0}; index < count; ++index) {
+    if (index != 0) {
+      text += ", ";
+    }
+    text += "$" + std::to_string(FIRST_AUDIENCE_PARAMETER + index);
+  }
+  return text;
+}
+
+auto submit_sql(std::size_t audience_size) -> std::string {
+  auto sql = std::string{SUBMIT_HEAD};
+  sql += audience_placeholders(audience_size);
+  sql += SUBMIT_TAIL;
+  return sql;
+}
 
 /// The session is the cookie. A row that has expired or been revoked is not a session, and the query says so
 /// rather than leaving the caller to remember.
@@ -44,12 +74,22 @@ auto account_of(db::connection& database, std::string_view session_id) -> std::s
   return account;
 }
 
-auto published_version(db::connection& database, std::string_view task_id) -> std::int32_t {
+/// The same published-and-visible lookup the task page uses, so a refusal can name the reason the caller can
+/// act on without a second, weaker query.
+auto published_version(db::connection& database, std::string_view task_id,
+                       const std::vector<std::int64_t>& principals) -> std::int32_t {
+  const auto is_visible = sqlpp::exists(
+      sqlpp::select(db::taskVisibility.taskId)
+          .from(db::taskVisibility)
+          .where(db::taskVisibility.taskId == db::tasks.id &&
+                 db::taskVisibility.principalId.in(principals)));
+
   auto version = 0;
   for (const auto& row : database(sqlpp::select(db::tasks.version)
                                       .from(db::tasks)
                                       .where(db::tasks.id == std::string{task_id} &&
-                                             db::tasks.status == std::string{"published"}))) {
+                                             db::tasks.status == std::string{"published"} &&
+                                             is_visible))) {
     version = static_cast<std::int32_t>(row.version);
   }
   return version;
@@ -58,10 +98,15 @@ auto published_version(db::connection& database, std::string_view task_id) -> st
 }  // namespace
 
 auto submit_solution(db::connection& database, std::string_view session_id, std::string_view task_id,
-                     std::string_view source) -> Result<Submission> {
+                     std::string_view source, std::span<const std::int64_t> audience)
+    -> Result<Submission> {
   if (source.empty()) {
     return std::unexpected(
         Error::make(ErrorCode::invalid_argument, "a submission needs a program"));
+  }
+  if (audience.empty()) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument, "the audience is empty; every request carries the everyone entry"));
   }
   // The cookie is client input. An absent one arrives here as an empty string, and anything that is not a
   // uuid cannot name a session, so both are refused here rather than cast against a uuid column: that raises
@@ -71,9 +116,13 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
         Error::make(ErrorCode::permission_denied, "no live session; sign in before submitting"));
   }
   try {
-    const auto written = database.execute_text(
-        std::string{SUBMIT_SQL},
-        {std::string{source}, std::string{session_id}, db::now_stamp(), std::string{task_id}});
+    const auto principals = std::vector<std::int64_t>(audience.begin(), audience.end());
+    auto parameters = std::vector<db::bound_value>{std::string{source}, std::string{session_id},
+                                                   db::now_stamp(), std::string{task_id}};
+    for (const auto principal : principals) {
+      parameters.emplace_back(principal);
+    }
+    const auto written = database.execute_text(submit_sql(principals.size()), std::move(parameters));
     if (written == 1) {
       return Submission{.id = {}, .task_id = std::string{task_id}};
     }
@@ -83,7 +132,7 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
       return std::unexpected(
           Error::make(ErrorCode::permission_denied, "no live session; sign in before submitting"));
     }
-    if (published_version(database, task_id) == 0) {
+    if (published_version(database, task_id, principals) == 0) {
       return std::unexpected(
           Error::make(ErrorCode::not_found, "no published task called " + std::string{task_id}));
     }

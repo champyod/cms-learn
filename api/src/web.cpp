@@ -31,6 +31,11 @@ struct Words {
   std::string_view band;
   std::string_view start;
   std::string_view empty;
+  std::string_view limit_label;
+  std::string_view example_label;
+  std::string_view source_label;
+  std::string_view submit_label;
+  std::string_view verdict_pending;
 };
 
 constexpr Words THAI_WORDS{.curriculum = "หลักสูตร",
@@ -42,7 +47,12 @@ constexpr Words THAI_WORDS{.curriculum = "หลักสูตร",
                            .lede = "เลือกเส้นทางและเริ่มจากขั้นที่ตรงกับคุณ",
                            .band = "ระดับความยาก",
                            .start = "เริ่มขั้นนี้",
-                           .empty = "ยังไม่มีหลักสูตร"};
+                           .empty = "ยังไม่มีหลักสูตร",
+                           .limit_label = "ขีดจำกัด",
+                           .example_label = "ตัวอย่าง",
+                           .source_label = "โค้ดของคุณ",
+                           .submit_label = "ส่งคำตอบ",
+                           .verdict_pending = "ยังไม่มีผลการตรวจ"};
 
 constexpr Words ENGLISH_WORDS{.curriculum = "Curriculum",
                               .submissions = "Submissions",
@@ -53,7 +63,12 @@ constexpr Words ENGLISH_WORDS{.curriculum = "Curriculum",
                               .lede = "Pick a route and start at the stage that fits you",
                               .band = "Difficulty",
                               .start = "Start this stage",
-                              .empty = "No curriculum yet"};
+                              .empty = "No curriculum yet",
+                              .limit_label = "Limits",
+                              .example_label = "Example",
+                              .source_label = "Your code",
+                              .submit_label = "Submit",
+                              .verdict_pending = "No verdict yet"};
 
 auto lower(std::string_view text) -> std::string {
   auto result = std::string{};
@@ -66,6 +81,26 @@ auto lower(std::string_view text) -> std::string {
 
 auto words_for(const Locale& locale) -> const Words& {
   return locale.code == THAI ? THAI_WORDS : ENGLISH_WORDS;
+}
+
+/// The shell fields every page fills the same way: locale, the language switch, the site name, navigation
+/// and footer. One function so a second page cannot present a different shell than the first.
+auto shell_model(const Locale& locale, std::string_view site_name) -> nlohmann::json {
+  const auto& words = words_for(locale);
+  const auto other_words = words_for(Locale{.code = locale.other, .other = locale.code});
+
+  auto data = nlohmann::json{};
+  data["locale"] = locale.code;
+  data["other_locale"] = locale.other;
+  data["other_locale_label"] = std::string{other_words.heading};
+  data["site_name"] = std::string{site_name};
+  data["is_signed_in"] = false;
+  data["nav"] = {{"curriculum", std::string{words.curriculum}},
+                 {"submissions", std::string{words.submissions}},
+                 {"settings", std::string{words.settings}},
+                 {"sign_in", std::string{words.sign_in}}};
+  data["footer"] = {{"notice", std::string{words.notice}}};
+  return data;
 }
 
 /// Component-wise, so `/srv/web` does not admit `/srv/webevil`, and a candidate that is the root itself is
@@ -110,24 +145,12 @@ auto label(const Locale& locale, std::string_view english, std::string_view thai
 auto home_model(const Locale& locale, const std::vector<bank::Track>& tracks,
                 std::string_view site_name) -> nlohmann::json {
   const auto& words = words_for(locale);
-  const auto other_words = words_for(Locale{.code = locale.other, .other = locale.code});
-
-  auto data = nlohmann::json{};
-  data["locale"] = locale.code;
-  data["other_locale"] = locale.other;
-  data["other_locale_label"] = std::string{other_words.heading};
-  data["site_name"] = std::string{site_name};
-  data["is_signed_in"] = false;
+  auto data = shell_model(locale, site_name);
   data["heading"] = std::string{words.heading};
   data["lede"] = std::string{words.lede};
   data["band_label"] = std::string{words.band};
   data["start_label"] = std::string{words.start};
   data["empty_label"] = std::string{words.empty};
-  data["nav"] = {{"curriculum", std::string{words.curriculum}},
-                 {"submissions", std::string{words.submissions}},
-                 {"settings", std::string{words.settings}},
-                 {"sign_in", std::string{words.sign_in}}};
-  data["footer"] = {{"notice", std::string{words.notice}}};
 
   data["tracks"] = nlohmann::json::array();
   for (const auto& track : tracks) {
@@ -147,6 +170,27 @@ auto home_model(const Locale& locale, const std::vector<bank::Track>& tracks,
     }
     data["tracks"].push_back(std::move(entry));
   }
+  return data;
+}
+
+auto task_model(const Locale& locale, const TaskPage& task, std::string_view site_name)
+    -> nlohmann::json {
+  const auto& words = words_for(locale);
+  auto data = shell_model(locale, site_name);
+  data["example_label"] = std::string{words.example_label};
+  data["source_label"] = std::string{words.source_label};
+  data["submit_label"] = std::string{words.submit_label};
+  data["verdict_pending"] = std::string{words.verdict_pending};
+  data["submit_action"] = "/tasks/" + task.id + "/submit";
+  data["verdict_url"] = "/tasks/" + task.id + "/verdict";
+  data["task"] = {{"title", label(locale, task.title_en, task.title_th)},
+                  {"limit_label", std::string{words.limit_label}},
+                  {"time_ms", task.time_limit_ms},
+                  {"memory_mb", task.memory_limit_mb},
+                  {"statement", label(locale, task.statement_en, task.statement_th)},
+                  {"example_input", task.example_input},
+                  {"example_output", task.example_output},
+                  {"starter_source", ""}};
   return data;
 }
 

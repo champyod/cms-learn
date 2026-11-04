@@ -52,6 +52,25 @@ auto home_page(const cms::api::Locale& locale) -> cms::Result<std::string> {
                                cms::api::home_model(locale, sample_curriculum(), "CMS Learn"));
 }
 
+auto sample_task() -> cms::api::TaskPage {
+  auto task = cms::api::TaskPage{};
+  task.id = "range-sum-query";
+  task.title_en = "Range Sum Queries";
+  task.title_th = "ผลรวมของช่วงข้อมูล";
+  task.time_limit_ms = 1500;
+  task.memory_limit_mb = 200;
+  task.statement_en = "# Range Sum Queries\n\nAnswer each query in order.";
+  task.statement_th = "# ผลรวมของช่วงข้อมูล\n\nจงตอบผลรวมของแต่ละช่วง";
+  task.example_input = "3 2\n1 2 3\n1 2\n2 3\n";
+  task.example_output = "3\n5\n";
+  return task;
+}
+
+auto task_page(const cms::api::Locale& locale) -> cms::Result<std::string> {
+  return cms::api::render_page(template_root(), "task.html",
+                               cms::api::task_model(locale, sample_task(), "CMS Learn"));
+}
+
 /// A published tree with one asset, and one file beside it that no request may reach.
 class ScratchTree {
  public:
@@ -160,4 +179,62 @@ TEST_CASE("a path that resolves outside the published root is refused", "[web][u
   CHECK(!cms::api::static_file(root, "link.txt").has_value());
   CHECK(!cms::api::static_file(root, "").has_value());
   CHECK(!cms::api::static_file(root, "absent.css").has_value());
+}
+
+TEST_CASE("the task page renders its title and first example", "[web][unit]") {
+  const auto page = task_page(cms::api::choose_locale("th", ""));
+  REQUIRE(page.has_value());
+
+  CHECK(contains(*page, "ผลรวมของช่วงข้อมูล"));
+  CHECK(contains(*page, "1500"));
+  CHECK(contains(*page, "200"));
+  CHECK(contains(*page, "1 2 3"));
+  CHECK(contains(*page, "3\n5"));
+}
+
+TEST_CASE("the task page follows the requested locale", "[web][unit]") {
+  const auto page = task_page(cms::api::choose_locale("en", ""));
+  REQUIRE(page.has_value());
+
+  CHECK(contains(*page, "<html lang=\"en\" data-theme=\"cms\">"));
+  CHECK(contains(*page, "Range Sum Queries"));
+  CHECK(contains(*page, "Answer each query in order."));
+  CHECK(contains(*page, "?lang=th"));
+}
+
+TEST_CASE("a missing statement locale falls back to the other one", "[web][unit]") {
+  auto task = sample_task();
+  task.statement_th = "";
+  const auto page = cms::api::render_page(
+      template_root(), "task.html",
+      cms::api::task_model(cms::api::choose_locale("th", ""), task, "CMS Learn"));
+  REQUIRE(page.has_value());
+
+  CHECK(contains(*page, "Answer each query in order."));
+  CHECK(!contains(*page, "<article class=\"prose mt-6 max-w-none\"><div></div></article>"));
+}
+
+TEST_CASE("the task model carries no reference solution and no starter source", "[web][unit]") {
+  const auto model = cms::api::task_model(cms::api::choose_locale("th", ""), sample_task(),
+                                          "CMS Learn");
+
+  CHECK(!model.contains("solution"));
+  CHECK(!model["task"].contains("solution"));
+  CHECK(model["task"].contains("starter_source"));
+  CHECK(model["task"]["starter_source"] == "");
+  CHECK(model["submit_action"] == "/tasks/range-sum-query/submit");
+  CHECK(model["verdict_url"] == "/tasks/range-sum-query/verdict");
+}
+
+TEST_CASE("a statement carrying markup is shown as text, never injected into the page",
+          "[web][unit]") {
+  auto task = sample_task();
+  task.statement_en = "<script>alert(1)</script>";
+  const auto page = cms::api::render_page(
+      template_root(), "task.html",
+      cms::api::task_model(cms::api::choose_locale("en", ""), task, "CMS Learn"));
+  REQUIRE(page.has_value());
+
+  CHECK(contains(*page, "&lt;script&gt;alert(1)&lt;/script&gt;"));
+  CHECK(!contains(*page, "<script>alert(1)</script>"));
 }

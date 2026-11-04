@@ -14,13 +14,13 @@
 #include <cms/api/authorize.hpp>
 #include <cms/api/form_body.hpp>
 #include <cms/api/host_config.hpp>
+#include <cms/api/page_routes.hpp>
 #include <cms/api/settings_route.hpp>
 #include <cms/api/settings_source.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/api/settings_watcher.hpp>
 #include <cms/api/submissions.hpp>
-#include <cms/api/web.hpp>
-#include <cms/bank/curriculum.hpp>
+#include <cms/api/task_view.hpp>
 #include <cms/capability.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
@@ -90,16 +90,23 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
       {drogon::Get});
 
   // The task page posts here. The account comes from the session cookie, never from the body, so a client
-  // cannot submit as somebody else by editing a form field.
+  // cannot submit as somebody else by editing a form field. The audience is composed from that same cookie,
+  // so a task hidden from the viewer is refused by the insert rather than by a check the handler could miss.
   app.registerHandler(
       "/tasks/{}/submit",
       [database_config](const drogon::HttpRequestPtr& request,
                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                         std::string_view task_id) {
         auto database = cms::db::connection{database_config};
-        const auto submitted = cms::api::submit_solution(
-            database, request->getCookie("cms_session"), task_id,
-            cms::api::form_field(request->body(), "source"));
+        const auto audience =
+            cms::api::audience_of_session(database, request->getCookie("cms_session"));
+        if (!audience) {
+          callback(text_response(audience.error().message, drogon::k500InternalServerError));
+          return;
+        }
+        const auto submitted =
+            cms::api::submit_solution(database, request->getCookie("cms_session"), task_id,
+                                      cms::api::form_field(request->body(), "source"), *audience);
 
         if (!submitted) {
           callback(text_response(submitted.error().message, drogon::k400BadRequest));
@@ -144,51 +151,6 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
         callback(drogon::HttpResponse::newRedirectionResponse("/settings", drogon::k303SeeOther));
       },
       {drogon::Post});
-}
-
-/// The installation's own name, as the settings row publishes it. Empty when the row is absent, because a
-/// heading with no name is still a page.
-auto site_name_of(const cms::SettingsStore& store) -> std::string {
-  const auto settings = store.load();
-  return settings == nullptr
-             ? std::string{}
-             : cms::setting_value<std::string>(*settings, "site.name").value_or("");
-}
-
-/// Serves the curriculum page. The curriculum is read per request, so a route imported into the database
-/// appears here without a restart and an unreachable database is reported rather than served as a stale
-/// page.
-auto register_home_route(const std::shared_ptr<cms::SettingsStore>& store,
-                         const std::shared_ptr<const cms::db::connection_config>& database_config,
-                         std::string_view template_root) -> void {
-  drogon::app().registerHandler(
-      "/",
-      [store, database_config, template_root = std::string{template_root}](
-          const drogon::HttpRequestPtr& request,
-          std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
-        auto database = cms::db::connection{database_config};
-        const auto curriculum = cms::bank::read_curriculum(database);
-        if (!curriculum) {
-          callback(text_response(curriculum.error().message, drogon::k500InternalServerError));
-          return;
-        }
-
-        const auto locale = cms::api::choose_locale(request->getParameter("lang"),
-                                                    request->getHeader("accept-language"));
-        const auto page = cms::api::render_page(
-            template_root, "home.html",
-            cms::api::home_model(locale, *curriculum, site_name_of(*store)));
-        if (!page) {
-          callback(text_response(page.error().message, drogon::k500InternalServerError));
-          return;
-        }
-
-        auto response = drogon::HttpResponse::newHttpResponse();
-        response->setContentTypeString("text/html; charset=utf-8");
-        response->setBody(*page);
-        callback(response);
-      },
-      {drogon::Get});
 }
 
 /// Serves the published assets. One route covers the whole tree, and the path it names is resolved before
@@ -236,7 +198,8 @@ auto run() -> int {
 
   auto store = std::make_shared<cms::SettingsStore>(*snapshot);
   register_routes(store, database_config, *catalogue);
-  register_home_route(store, database_config, config->template_root);
+  cms::api::register_home_route(store, database_config, config->template_root);
+  cms::api::register_task_route(store, database_config, config->template_root);
   register_asset_route(config->static_root);
 
   auto watcher = cms::api::SettingsWatcher{database, store, config->database_url,

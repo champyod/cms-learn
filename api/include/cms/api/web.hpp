@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -45,6 +46,36 @@ struct Locale {
 /// @return The model, with every word the locale cannot supply replaced by the other locale's.
 [[nodiscard]] nlohmann::json home_model(const Locale& locale,
                                         const std::vector<bank::Track>& tracks,
+                                        std::string_view site_name);
+
+/// @brief One task as its page reads it: metadata, both statement locales and the first example.
+///
+/// The reference solution is deliberately absent: the page never carries it, so no model builder can leak
+/// what it was never given. A task with no statement or no example is an error, never a placeholder.
+/// A statement travels as the text the author wrote, because the shipped template autoescapes its slot and
+/// HTML handed to the model would reach the reader as visible tags.
+struct TaskPage {
+  std::string id;
+  std::string title_en;
+  std::string title_th;
+  std::int32_t time_limit_ms{0};
+  std::int32_t memory_limit_mb{0};
+  std::string statement_en;
+  std::string statement_th;
+  std::string example_input;
+  std::string example_output;
+};
+
+/// @brief Builds the model `task.html` renders from.
+///
+/// @param locale The locale to render in.
+/// @param task The task the route resolved and may serve.
+/// @param site_name The installation's own name.
+/// @return The model, with the same locale fallback the home page uses.
+///
+/// `starter_source` is always empty: the content model defines no starter file, and the field must never
+/// fall back to the reference solution.
+[[nodiscard]] nlohmann::json task_model(const Locale& locale, const TaskPage& task,
                                         std::string_view site_name);
 
 /// @brief Renders one template of @p template_root against @p model.

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -20,13 +22,16 @@ struct Submission {
 /// @param session_id The opaque cookie value, which is the session's primary key.
 /// @param task_id The task the submission is for.
 /// @param source The submitted program.
+/// @param audience The encoded principals this request runs with, always starting with the everyone entry.
 /// @return The new submission, or the reason it was refused.
 ///
 /// The account is derived from the session, never from the body: a client that could name its own account
 /// could submit as anyone. A session that is absent, expired or revoked is refused here rather than by a
-/// check the handler might forget.
+/// check the handler might forget. A task is writable only when it is published and a visibility row
+/// matches @p audience, so a hidden or unpublished task cannot be submitted to.
 [[nodiscard]] Result<Submission> submit_solution(db::connection& database, std::string_view session_id,
                                                  std::string_view task_id,
-                                                 std::string_view source);
+                                                 std::string_view source,
+                                                 std::span<const std::int64_t> audience);
 
 }  // namespace cms::api

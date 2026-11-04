@@ -6,10 +6,15 @@ set -uo pipefail
 
 binary="${1:?usage: submit_e2e.sh <path to cms_api>}"
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+principal_value="${2:-$(cd "$(dirname "$binary")/.." && pwd)/bank/cms_principal_value}"
 
 for tool in initdb pg_ctl psql curl; do
   command -v "$tool" >/dev/null 2>&1 || { echo "  skipped: $tool is not installed"; exit 77; }
 done
+if [ ! -x "$principal_value" ]; then
+  echo "  skipped: this tree has no cms_principal_value at $principal_value"
+  exit 77
+fi
 
 work="$(mktemp -d)"
 port=$((57000 + (RANDOM % 400)))
@@ -42,14 +47,19 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
   bash "$repo/tools/apply-plan.sh" >"$work/apply.log" 2>&1 \
   || { echo "  [!!] apply-plan failed"; tail -5 "$work/apply.log"; exit 1; }
 
-# A learner, a live session and a published task: the three facts the route needs.
+# A learner, a live session and a published task the learner may see: the facts the route needs. The second
+# task is published but has no visibility row, so it must be unreachable for submission.
+everyone="$("$principal_value" everyone)"
 psql_db <<SQL >/dev/null 2>&1
 INSERT INTO principals (id, kind, handle, status) VALUES ('$account', 'user', 'submitter', 'active');
 INSERT INTO sessions (id, principal_id, expires_at) VALUES ('$session', '$account', now() + interval '1 hour');
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
 VALUES ('probe-task', 1, 'published', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original',
-        'verified', 'int main() {}', repeat('a', 64));
+        'verified', 'int main() {}', repeat('a', 64)),
+       ('hidden-task', 1, 'published', 'Hidden', 'ซ่อน', 900, 1000, 256, 'token', 'original',
+        'verified', 'int main() {}', repeat('b', 64));
+INSERT INTO task_visibility (task_id, principal_id) VALUES ('probe-task', $everyone);
 SQL
 
 cat >"$work/host.env" <<ENV
@@ -99,6 +109,16 @@ status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
 count="$(psql_db -c "SELECT count(*) FROM submissions")"
 [ "$count" = "1" ] && ok "the refused submission wrote no row" \
   || bad "the refused submission wrote no row" "$count row(s)"
+
+# A published task with no visibility row is not servable, so it is not writable either.
+status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+  -X POST "http://127.0.0.1:$listen_port/tasks/hidden-task/submit" \
+  --data "source=int main() { return 0; }" -H "Cookie: cms_session=$session")"
+[ "$status" = "400" ] && ok "a submission to a task with no visibility row is refused" \
+  || bad "a submission to a task with no visibility row is refused" "HTTP $status"
+count="$(psql_db -c "SELECT count(*) FROM submissions")"
+[ "$count" = "1" ] && ok "the hidden task's refused submission wrote no row" \
+  || bad "the hidden task's refused submission wrote no row" "$count row(s)"
 
 printf '\n%s assertion(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
