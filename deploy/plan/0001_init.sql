@@ -108,6 +108,7 @@ CREATE TABLE IF NOT EXISTS content_seed (
 
 CREATE TABLE IF NOT EXISTS principals (
     id uuid DEFAULT gen_random_uuid(),
+    serial_id bigint GENERATED ALWAYS AS IDENTITY,
     kind principal_kind NOT NULL,
     handle text NOT NULL,
     email text,
@@ -119,6 +120,7 @@ CREATE TABLE IF NOT EXISTS principals (
     CONSTRAINT principals_email_key UNIQUE (email),
     CONSTRAINT principals_handle_key UNIQUE (handle),
     CONSTRAINT principals_id_kind_key UNIQUE (id, kind),
+    CONSTRAINT principals_serial_id_key UNIQUE (serial_id),
     CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),
     CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)
 );
@@ -294,6 +296,13 @@ CREATE TABLE IF NOT EXISTS settings_plans (
     CONSTRAINT settings_plans_pkey PRIMARY KEY (id),
     CONSTRAINT settings_plans_author_id_fkey FOREIGN KEY (author_id) REFERENCES principals (id),
     CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at)
+);
+
+CREATE TABLE IF NOT EXISTS task_visibility (
+    task_id text,
+    principal_id bigint,
+    CONSTRAINT task_visibility_pkey PRIMARY KEY (task_id, principal_id),
+    CONSTRAINT task_visibility_principal_range CHECK (principal_id = 0 OR principal_id >= (1::bigint << 48) AND principal_id < (2::bigint << 48) OR principal_id >= (2::bigint << 48) AND principal_id < (3::bigint << 48) OR principal_id >= (3::bigint << 48) AND principal_id < (4::bigint << 48))
 );
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -626,6 +635,8 @@ GRANT EXECUTE ON FUNCTION current_actor() TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE audit_events_id_seq TO cmslearn_app;
 
+GRANT SELECT, USAGE ON SEQUENCE principals_serial_id_seq TO cmslearn_app;
+
 GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE settings_audit_id_seq TO cmslearn_app;
@@ -675,6 +686,10 @@ GRANT SELECT ON TABLE task_examples TO cmslearn_judge;
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_statements TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_topics TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_visibility TO cmslearn_app;
+
+GRANT SELECT ON TABLE task_visibility TO cmslearn_judge;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tasks TO cmslearn_app;
 

@@ -1,6 +1,6 @@
 # Tools — one job per language
 
-Sixty-one files under `tools/`: thirty-four shell, twenty-seven TypeScript. C++ owns a fourth kind of
+Sixty-four files under `tools/`: thirty-five shell, twenty-nine TypeScript. C++ owns a fourth kind of
 work and owns no file here. The three rows below say which language does which job, and every file in
 the inventory maps to exactly one of them.
 
@@ -46,13 +46,14 @@ tool and is not counted.
 | File | Language | Lines | Row | Shape |
 |---|---|---|---|---|
 | `tools/apply-plan.sh` | shell | 32 | assertion | driver — checks the plan digest, then applies it through pgschema |
+| `tools/build-island.ts` | typescript | 158 | orchestration | builds the editor island bundle and its licence, with a `--check` comparison |
 | `tools/check-claim.sh` | shell | 117 | assertion | gate — a claim is exclusive and a dead worker's claim expires |
 | `tools/check-cli.sh` | shell | 44 | assertion | gate — `cmsctl`'s dependency list cannot reach the database |
 | `tools/check-content-db.sh` | shell | 160 | assertion | gate — seeds the bank twice into a scratch cluster and requires the second seed to write nothing |
 | `tools/check-db.sh` | shell | 111 | assertion | gate — `db/include/cms/db/tables.hpp` is byte-identical to a fresh render |
 | `tools/check-deploy.sh` | shell | 149 | assertion | gate — compose exposure, isolation, pinning, Caddyfile, Prometheus |
 | `tools/check-generator.sh` | shell | 72 | assertion | gate — a generated draft is the shape the loader reads, and two runs are identical |
-| `tools/check-island-fallback.sh` | shell | 32 | assertion | gate — the submission form posts without the editor island |
+| `tools/check-island-fallback.sh` | shell | 44 | assertion | gate — the submission form posts without the editor island |
 | `tools/check-isolation.sh` | shell | 65 | assertion | gate — a fork bomb is contained by the sandbox and the box is torn down |
 | `tools/check-pm.sh` | shell | 57 | assertion | gate — exactly one lockfile, and it is `bun.lock` |
 | `tools/check-publish.sh` | shell | 89 | assertion | gate — a draft becomes published only through machine evidence |
@@ -66,11 +67,12 @@ tool and is not counted.
 | `tools/check-unseen-task.sh` | shell | 134 | assertion | gate — the unseen-task query is served by `progress_account_task_idx` |
 | `tools/check-upgrade.sh` | shell | 170 | assertion | gate — deploy order and health gate, with `docker`, `bun`, `curl` and `sleep` stubbed |
 | `tools/check-verify.sh` | shell | 66 | assertion | gate — every task's cases are what its own reference solution produces |
+| `tools/check-visibility.sh` | shell | 247 | assertion | gate — a task with no visibility row is never served; a session uuid binds to its serial id |
 | `tools/compare-plan.ts` | typescript | 122 | orchestration | parses two `pgschema` plan documents and names the first field that moved |
 | `tools/cpp/diagnostics.ts` | typescript | 92 | orchestration | parses GCC and clang-tidy text diagnostics into typed findings |
 | `tools/cpp/falsify.ts` | typescript | 547 | orchestration | runs the C++ gate against staged trees, one planted defect per case |
 | `tools/cpp/gate.ts` | typescript | 370 | orchestration | drives cmake, ctest and clang-tidy, then reports what they said |
-| `tools/falsify/cases.ts` | typescript | 40 | orchestration | registry — every migrated gate and its cases as data |
+| `tools/falsify/cases.ts` | typescript | 42 | orchestration | registry — every migrated gate and its cases as data |
 | `tools/falsify/cases/content.ts` | typescript | 149 | orchestration | the content gate's 14 defects plus the honest baseline bank |
 | `tools/falsify/cases/deploy.ts` | typescript | 55 | orchestration | the deployment contract's 7 defects, no control case |
 | `tools/falsify/cases/pm.ts` | typescript | 23 | orchestration | the package-manager gate's 2 defects plus the untouched control |
@@ -79,6 +81,7 @@ tool and is not counted.
 | `tools/falsify/cases/security.ts` | typescript | 62 | orchestration | the scan's 3 planted defects plus the clean control |
 | `tools/falsify/cases/stack.ts` | typescript | 57 | orchestration | the stack gate's 6 defects plus the control |
 | `tools/falsify/cases/upgrade.ts` | typescript | 55 | orchestration | the upgrade gate's 6 defects plus the control |
+| `tools/falsify/cases/visibility.ts` | typescript | 28 | orchestration | the visibility gate's 1 defect: a serving query that lost its filter |
 | `tools/falsify/contract.ts` | typescript | 43 | orchestration | the case, plant and JSON-pointer types every case file implements |
 | `tools/falsify/plants.ts` | typescript | 184 | orchestration | applies one data plant to the staged tree, naming the file and reason when it cannot |
 | `tools/falsify/report.ts` | typescript | 31 | orchestration | turns a gate's exit status and output into one verdict line |
@@ -90,7 +93,7 @@ tool and is not counted.
 | `tools/falsify-cli-gate.sh` | shell | 98 | assertion | gate — the control-client gate goes red on a hidden database driver |
 | `tools/falsify-db-gate.sh` | shell | 100 | assertion | gate — the database-layer gate goes red on a drifted header |
 | `tools/falsify-generator-gate.sh` | shell | 69 | assertion | gate — the generator gate goes red on a draft the loader could not read |
-| `tools/falsify-island-gate.sh` | shell | 51 | assertion | gate — the island-fallback gate goes red on a form that cannot post |
+| `tools/falsify-island-gate.sh` | shell | 82 | assertion | gate — the island-fallback gate goes red on a form that cannot post |
 | `tools/falsify-publish-gate.sh` | shell | 55 | assertion | gate — the publish gate goes red on a draft without machine evidence |
 | `tools/falsify-settings-gate.sh` | shell | 63 | assertion | gate — the settings gate goes red on a secret that can be read back |
 | `tools/falsify-templates-gate.sh` | shell | 46 | assertion | gate — the template gate goes red on a stale or orphaned template |
@@ -98,7 +101,7 @@ tool and is not counted.
 | `tools/port-templates.ts` | typescript | 59 | orchestration | renders the design package into `api/templates` |
 | `tools/render-assets.sh` | shell | 99 | assertion | driver — renders rasters from the SVG masters, with a `--check` comparison |
 | `tools/render-catalogue.ts` | typescript | 94 | orchestration | turns the settings catalogue into the data the form and the service consume |
-| `tools/render-plan.sh` | shell | 55 | assertion | driver — renders `deploy/plan` from `deploy/schema/main.sql` through `pgschema` |
+| `tools/render-plan.sh` | shell | 61 | assertion | driver — renders `deploy/plan` from `deploy/schema/main.sql` through `pgschema` |
 | `tools/render-stack.ts` | typescript | 223 | orchestration | renders `deploy/docker-compose.yml` from `release.toml` and the stack template |
 | `tools/render-tables.sh` | shell | 188 | assertion | driver — prints `db/include/cms/db/tables.hpp` from `information_schema.columns` |
 | `tools/security-scan.sh` | shell | 52 | assertion | gate — Trivy for secrets and fixable CVEs, plus deployment hardening rules |
@@ -109,9 +112,9 @@ tool and is not counted.
 
 | Language | Files | Lines |
 |---|---|---|
-| shell | 34 | 3 062 |
-| typescript | 27 | 3 337 |
-| total | 61 | 6 399 |
+| shell | 35 | 3 358 |
+| typescript | 29 | 3 525 |
+| total | 64 | 6 883 |
 
 ## Gates and falsifiers
 
@@ -122,7 +125,7 @@ A crash also exits non-zero, and a crash proves nothing. A gate without a falsif
 falsification case is never weakened to reach green. `AGENTS.md` states the rule under "Gates" and
 under "Never"; this section records which pairs exist.
 
-Twelve gates have a falsifier of their own, all reachable from `package.json`:
+Thirteen gates have a falsifier of their own, all reachable from `package.json`:
 
 | Gate | Falsifier |
 |---|---|
@@ -135,6 +138,7 @@ Twelve gates have a falsifier of their own, all reachable from `package.json`:
 | `check:security` | `check:security:falsify` — `tools/falsify/cases/security.ts`, `bun run tools/falsify/runner.ts security` |
 | `check:cpp` | `check:cpp:falsify` — `tools/cpp/falsify.ts`, `bun run tools/cpp/falsify.ts` |
 | `check:pm` | `check:pm:falsify` — `tools/falsify/cases/pm.ts`, `bun run tools/falsify/runner.ts pm` |
+| `check:visibility` | `check:visibility:falsify` — `tools/falsify/cases/visibility.ts`, `bun run tools/falsify/runner.ts visibility` |
 | `check:templates` | `falsify:templates` — `tools/falsify-templates-gate.sh` |
 | `check:island` | `falsify:island` — `tools/falsify-island-gate.sh` |
 | `check:settings` | `falsify:settings` — `tools/falsify-settings-gate.sh` |

@@ -1,5 +1,7 @@
 CREATE TABLE principals (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- The one numeric id (ADR 0010): a task's encoded audience value carries this, not the uuid.
+  serial_id bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
   kind principal_kind NOT NULL,
   handle text NOT NULL UNIQUE,
   email text UNIQUE,

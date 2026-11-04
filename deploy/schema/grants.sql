@@ -16,6 +16,8 @@ GRANT SELECT ON settings, settings_meta TO cmslearn_judge;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON topics, tasks, task_topics, task_statements,
   task_examples TO cmslearn_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON task_visibility TO cmslearn_app;
+GRANT SELECT ON task_visibility TO cmslearn_judge;
 GRANT SELECT, INSERT, UPDATE ON content_seed TO cmslearn_app;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON tracks, track_stages, stage_tags TO cmslearn_app;

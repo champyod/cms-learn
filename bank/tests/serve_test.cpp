@@ -1,6 +1,7 @@
 #include <cms/bank/bank.hpp>
 #include <cms/bank/seed.hpp>
 #include <cms/bank/serve.hpp>
+#include <cms/bank/visibility.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/db/transaction.hpp>
 #include <cms/db/tables.hpp>
@@ -39,8 +40,9 @@ auto live_database() -> cms::db::connection {
 }
 
 /// A task the query can find: published, one topic, one difficulty, and an id that sorts predictably.
-auto given_task(cms::db::connection& database, std::string_view id, std::int32_t difficulty,
-                std::string_view topic) {
+/// The row is inserted without a visibility row; a caller that wants it served grants it explicitly.
+auto given_hidden_task(cms::db::connection& database, std::string_view id, std::int32_t difficulty,
+                       std::string_view topic) {
   const auto identifier = std::string{id};
   database(sqlpp::insert_into(cms::db::tasks).set(
       cms::db::tasks.id = identifier, cms::db::tasks.version = 1,
@@ -55,6 +57,21 @@ auto given_task(cms::db::connection& database, std::string_view id, std::int32_t
   database(sqlpp::insert_into(cms::db::taskTopics).set(
       cms::db::taskTopics.taskId = identifier, cms::db::taskTopics.taskVersion = 1,
       cms::db::taskTopics.topic = std::string{topic}));
+}
+
+/// The audience a viewer runs with: everyone plus themselves.
+auto viewer_audience() -> std::vector<std::int64_t> {
+  const auto audience = cms::bank::audience_for(7, {});
+  REQUIRE(audience.has_value());
+  return *audience;
+}
+
+auto given_task(cms::db::connection& database, std::string_view id, std::int32_t difficulty,
+                std::string_view topic) {
+  given_hidden_task(database, id, difficulty, topic);
+  database(sqlpp::insert_into(cms::db::taskVisibility).set(
+      cms::db::taskVisibility.taskId = std::string{id},
+      cms::db::taskVisibility.principalId = cms::bank::everyone()));
 }
 
 auto attempted(cms::db::connection& database, std::string_view account, std::string_view id) {
@@ -104,14 +121,15 @@ TEST_CASE("the next task is the one in band the account has not touched", "[serv
   given_task(database, "probe-high", 1100, "io");
 
   const auto band = stage(800, 900);
-  const auto first = cms::bank::next_unseen_task(database, account, band);
+  const auto audience = viewer_audience();
+  const auto first = cms::bank::next_unseen_task(database, account, band, audience);
   REQUIRE(first.has_value());
   REQUIRE(first->has_value());
   CHECK((*first)->id == "probe-easy");
   CHECK(!(*first)->is_widened);
 
   attempted(database, account, "probe-easy");
-  const auto second = cms::bank::next_unseen_task(database, account, band);
+  const auto second = cms::bank::next_unseen_task(database, account, band, audience);
   REQUIRE(second.has_value());
   REQUIRE(second->has_value());
   CHECK((*second)->id == "probe-mid");
@@ -119,14 +137,14 @@ TEST_CASE("the next task is the one in band the account has not touched", "[serv
 
   // The band is exhausted, so it widens once: 600..1100 reaches the harder task and nothing else.
   attempted(database, account, "probe-mid");
-  const auto widened = cms::bank::next_unseen_task(database, account, band);
+  const auto widened = cms::bank::next_unseen_task(database, account, band, audience);
   REQUIRE(widened.has_value());
   REQUIRE(widened->has_value());
   CHECK((*widened)->id == "probe-high");
   CHECK((*widened)->is_widened);
 
   attempted(database, account, "probe-high");
-  const auto exhausted = cms::bank::next_unseen_task(database, account, band);
+  const auto exhausted = cms::bank::next_unseen_task(database, account, band, audience);
   REQUIRE(exhausted.has_value());
   CHECK(!exhausted->has_value());
 }
@@ -148,8 +166,30 @@ TEST_CASE("a draft task is never served", "[serve][live]") {
                .set(cms::db::tasks.status = std::string{"draft"})
                .where(cms::db::tasks.id == std::string{"probe-draft"}));
 
-  // A tag set of its own, so the published tasks the previous case left behind cannot answer.
-  const auto result = cms::bank::next_unseen_task(database, account, stage(800, 1200, {"sorting"}));
+  const auto audience = viewer_audience();
+  const auto result = cms::bank::next_unseen_task(database, account, stage(800, 1200, {"sorting"}),
+                                                  audience);
+  REQUIRE(result.has_value());
+  CHECK(!result->has_value());
+}
+
+TEST_CASE("a task with no visibility row is never served", "[serve][live]") {
+  if (!has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = live_database();
+  ensure_seeded();
+  const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee3"};
+  database(sqlpp::insert_into(cms::db::principals).set(
+      cms::db::principals.id = account, cms::db::principals.kind = std::string{"user"},
+      cms::db::principals.handle = std::string{"serve_three"},
+      cms::db::principals.status = std::string{"active"}));
+
+  given_hidden_task(database, "probe-hidden", 800, "geometry");
+
+  // A tag set of its own, so the tasks the other cases left behind cannot answer.
+  const auto result =
+      cms::bank::next_unseen_task(database, account, stage(800, 1200, {"geometry"}), viewer_audience());
   REQUIRE(result.has_value());
   CHECK(!result->has_value());
 }

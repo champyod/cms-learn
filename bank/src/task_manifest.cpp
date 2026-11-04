@@ -27,7 +27,6 @@ constexpr std::array<std::string_view, 3> VERIFICATION_STATUSES{"pending", "veri
 constexpr std::array<std::string_view, 4> CHECKER_KINDS{"standard", "token", "testlib",
                                                         "interactive"};
 constexpr std::array<std::string_view, 3> ORIGIN_KINDS{"original", "imported", "ai"};
-constexpr std::array<std::string_view, 2> LOCALES{"en", "th"};
 constexpr std::int64_t MINIMUM_DIFFICULTY = 800;
 constexpr std::int64_t MAXIMUM_DIFFICULTY = 3500;
 constexpr std::int64_t DIFFICULTY_STEP = 100;

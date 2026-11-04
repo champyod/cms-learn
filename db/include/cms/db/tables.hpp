@@ -216,6 +216,11 @@ struct Principals_ {
     using data_type = ::sqlpp::text;
     using has_default = std::true_type;
   };
+  struct SerialId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(serial_id, serialId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
   struct Kind {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(kind, kind);
     using data_type = ::sqlpp::text;
@@ -254,7 +259,7 @@ struct Principals_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(principals, principals);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, Kind, Handle, Email, EmailVerifiedAt, PasswordHash, Status, CreatedAt>;
+      sqlpp::table_columns<T, Id, SerialId, Kind, Handle, Email, EmailVerifiedAt, PasswordHash, Status, CreatedAt>;
   using _required_insert_columns = sqlpp::detail::type_set<Kind, Handle, Status>;
 };
 
@@ -742,6 +747,24 @@ struct TaskTopics_ {
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Topic>;
 };
 
+struct TaskVisibility_ {
+  struct TaskId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct PrincipalId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(principal_id, principalId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_visibility, taskVisibility);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, TaskId, PrincipalId>;
+  using _required_insert_columns = sqlpp::detail::type_set<TaskId, PrincipalId>;
+};
+
 struct Tasks_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -963,6 +986,7 @@ using Submissions = ::sqlpp::table_t<Submissions_>;
 using TaskExamples = ::sqlpp::table_t<TaskExamples_>;
 using TaskStatements = ::sqlpp::table_t<TaskStatements_>;
 using TaskTopics = ::sqlpp::table_t<TaskTopics_>;
+using TaskVisibility = ::sqlpp::table_t<TaskVisibility_>;
 using Tasks = ::sqlpp::table_t<Tasks_>;
 using Topics = ::sqlpp::table_t<Topics_>;
 using TrackStages = ::sqlpp::table_t<TrackStages_>;
@@ -987,6 +1011,7 @@ inline const Submissions submissions{};
 inline const TaskExamples taskExamples{};
 inline const TaskStatements taskStatements{};
 inline const TaskTopics taskTopics{};
+inline const TaskVisibility taskVisibility{};
 inline const Tasks tasks{};
 inline const Topics topics{};
 inline const TrackStages trackStages{};

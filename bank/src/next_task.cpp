@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <exception>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -18,10 +19,20 @@ constexpr std::int32_t LOWEST_DIFFICULTY = 800;
 constexpr std::int32_t HIGHEST_DIFFICULTY = 3500;
 constexpr std::int32_t WIDENING_STEP = 200;
 
-/// One candidate: published, carries a topic of the stage, inside the band, and not yet attempted by the
-/// account. Written as two anti-joins so the planner can use progress's index for the second one.
+/// One candidate: published, visible to one of the audience's principals, carries a topic of the stage,
+/// inside the band, and not yet attempted by the account. Written as anti-joins so the planner can use
+/// progress's index for the last one.
 auto find_in_band(db::connection& database, std::string_view account_id, const Stage& stage,
-                  std::int32_t minimum, std::int32_t maximum) -> std::optional<NextTask> {
+                  std::span<const std::int64_t> audience, std::int32_t minimum,
+                  std::int32_t maximum) -> std::optional<NextTask> {
+  const auto principals = std::vector<std::int64_t>(audience.begin(), audience.end());
+
+  const auto is_visible = sqlpp::exists(
+      sqlpp::select(db::taskVisibility.taskId)
+          .from(db::taskVisibility)
+          .where(db::taskVisibility.taskId == db::tasks.id &&
+                 db::taskVisibility.principalId.in(principals)));
+
   const auto carries_stage_topic = sqlpp::exists(
       sqlpp::select(db::taskTopics.taskId)
           .from(db::taskTopics)
@@ -41,7 +52,7 @@ auto find_in_band(db::connection& database, std::string_view account_id, const S
                     .from(db::tasks)
                     .where(db::tasks.status == std::string{"published"} &&
                            db::tasks.difficulty >= minimum && db::tasks.difficulty <= maximum &&
-                           carries_stage_topic && !is_attempted)
+                           is_visible && carries_stage_topic && !is_attempted)
                     .order_by(db::tasks.difficulty.asc(), db::tasks.id.asc())
                     .limit(1))) {
     return NextTask{.id = std::string{row.id},
@@ -59,10 +70,15 @@ auto widen(std::int32_t minimum, std::int32_t maximum) -> std::pair<std::int32_t
 
 }  // namespace
 
-auto next_unseen_task(db::connection& database, std::string_view account_id, const Stage& stage)
+auto next_unseen_task(db::connection& database, std::string_view account_id, const Stage& stage,
+                      std::span<const std::int64_t> audience)
     -> Result<std::optional<NextTask>> {
+  if (audience.empty()) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument, "the audience is empty; every request carries the everyone entry"));
+  }
   try {
-    const auto in_band = find_in_band(database, account_id, stage, stage.difficulty_min,
+    const auto in_band = find_in_band(database, account_id, stage, audience, stage.difficulty_min,
                                       stage.difficulty_max);
     if (in_band) {
       return *in_band;
@@ -74,7 +90,7 @@ auto next_unseen_task(db::connection& database, std::string_view account_id, con
     if (lower == stage.difficulty_min && upper == stage.difficulty_max) {
       return std::optional<NextTask>{};
     }
-    auto widened = find_in_band(database, account_id, stage, lower, upper);
+    auto widened = find_in_band(database, account_id, stage, audience, lower, upper);
     if (!widened) {
       return std::optional<NextTask>{};
     }

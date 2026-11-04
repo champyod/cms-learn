@@ -9,7 +9,7 @@ cms_learn_align_jsoncpp()
 
 add_library(cms_bank STATIC src/bank.cpp src/curriculum.cpp src/task_files.cpp
                           src/task_manifest.cpp src/track_stage.cpp src/tracks.cpp src/seed.cpp
-                          src/seed_curriculum.cpp src/next_task.cpp)
+                          src/seed_curriculum.cpp src/next_task.cpp src/visibility.cpp)
 add_library(cms::bank ALIAS cms_bank)
 
 target_include_directories(cms_bank PUBLIC
@@ -27,6 +27,14 @@ target_link_libraries(cms_seed_content PRIVATE cms::bank)
 cms_apply_warnings(cms_seed_content PRIVATE)
 cms_apply_hardening(cms_seed_content)
 cms_apply_sanitizers(cms_seed_content)
+
+# The one printable view of the encoded audience values, so a shell gate can build them without
+# re-deriving 2^48.
+add_executable(cms_principal_value src/principal_value_main.cpp)
+target_link_libraries(cms_principal_value PRIVATE cms::bank)
+cms_apply_warnings(cms_principal_value PRIVATE)
+cms_apply_hardening(cms_principal_value)
+cms_apply_sanitizers(cms_principal_value)
 
 if(CMS_BUILD_TESTS)
   add_subdirectory(tests)

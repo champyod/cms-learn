@@ -7,6 +7,7 @@ import { SCHEMA_GATE } from "./cases/schema.ts";
 import { SECURITY_GATE } from "./cases/security.ts";
 import { STACK_GATE } from "./cases/stack.ts";
 import { UPGRADE_GATE } from "./cases/upgrade.ts";
+import { VISIBILITY_GATE } from "./cases/visibility.ts";
 
 /** Every gate the runner knows, in the order it reports them. */
 export const GATES: readonly Gate[] = [
@@ -18,6 +19,7 @@ export const GATES: readonly Gate[] = [
   UPGRADE_GATE,
   SECURITY_GATE,
   CONTENT_GATE,
+  VISIBILITY_GATE,
 ];
 
 const assertUniqueIds = (gates: readonly Gate[]): void => {

@@ -7,6 +7,7 @@
 \i settings_functions.sql
 \i settings_triggers.sql
 \i content.sql
+\i visibility.sql
 \i curriculum.sql
 \i progress.sql
 \i submissions.sql

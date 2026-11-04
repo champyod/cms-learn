@@ -105,7 +105,7 @@
           "path": "public.content_seed"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS principals (\n    id uuid DEFAULT gen_random_uuid(),\n    kind principal_kind NOT NULL,\n    handle text NOT NULL,\n    email text,\n    email_verified_at timestamptz,\n    password_hash text,\n    status principal_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principals_pkey PRIMARY KEY (id),\n    CONSTRAINT principals_email_key UNIQUE (email),\n    CONSTRAINT principals_handle_key UNIQUE (handle),\n    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),\n    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),\n    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS principals (\n    id uuid DEFAULT gen_random_uuid(),\n    serial_id bigint GENERATED ALWAYS AS IDENTITY,\n    kind principal_kind NOT NULL,\n    handle text NOT NULL,\n    email text,\n    email_verified_at timestamptz,\n    password_hash text,\n    status principal_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principals_pkey PRIMARY KEY (id),\n    CONSTRAINT principals_email_key UNIQUE (email),\n    CONSTRAINT principals_handle_key UNIQUE (handle),\n    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),\n    CONSTRAINT principals_serial_id_key UNIQUE (serial_id),\n    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),\n    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.principals"
@@ -229,6 +229,12 @@
           "type": "table",
           "operation": "create",
           "path": "public.settings_plans"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS task_visibility (\n    task_id text,\n    principal_id bigint,\n    CONSTRAINT task_visibility_pkey PRIMARY KEY (task_id, principal_id),\n    CONSTRAINT task_visibility_principal_range CHECK (principal_id = 0 OR principal_id >= (1::bigint << 48) AND principal_id < (2::bigint << 48) OR principal_id >= (2::bigint << 48) AND principal_id < (3::bigint << 48) OR principal_id >= (3::bigint << 48) AND principal_id < (4::bigint << 48))\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.task_visibility"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS tasks (\n    id text,\n    version integer,\n    status task_status NOT NULL,\n    title_en text NOT NULL,\n    title_th text NOT NULL,\n    difficulty integer NOT NULL,\n    time_limit_ms integer NOT NULL,\n    memory_limit_mb integer NOT NULL,\n    checker task_checker_kind NOT NULL,\n    checker_path text DEFAULT '' NOT NULL,\n    origin task_origin_kind NOT NULL,\n    verification task_verification_status NOT NULL,\n    solution text NOT NULL,\n    content_hash text NOT NULL,\n    seeded boolean DEFAULT true NOT NULL,\n    seeded_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT tasks_pkey PRIMARY KEY (id, version),\n    CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),\n    CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),\n    CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),\n    CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),\n    CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),\n    CONSTRAINT tasks_title_th_check CHECK (length(btrim(title_th)) > 0)\n);",
@@ -429,6 +435,12 @@
           "path": "privileges.SEQUENCE.audit_events_id_seq.cmslearn_app"
         },
         {
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE principals_serial_id_seq TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.SEQUENCE.principals_serial_id_seq.cmslearn_app"
+        },
+        {
           "sql": "GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
@@ -577,6 +589,18 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.task_topics.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_visibility TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_visibility.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE task_visibility TO cmslearn_judge;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_visibility.cmslearn_judge"
         },
         {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tasks TO cmslearn_app;",

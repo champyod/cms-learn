@@ -2,10 +2,12 @@
 
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
 #include <cms/bank/bank.hpp>
+#include <cms/bank/visibility.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/error.hpp>
 
@@ -19,11 +21,12 @@ struct NextTask {
   bool is_widened{false};
 };
 
-/// @brief The next task an account has not touched, chosen from a stage's tag set and band.
+/// @brief The next task an account has not touched and may see, chosen from a stage's tag set and band.
 ///
 /// @param database The connection to read through.
 /// @param account_id The learner.
 /// @param stage The route stage: its tags select, its band filters.
+/// @param audience The encoded principals this request runs with; it always starts with the everyone entry.
 /// @return The task, or nothing when even the widened band holds nothing unseen.
 ///
 /// The band widens exactly once, by one step at each end, because a stage whose every task is done should
@@ -31,6 +34,7 @@ struct NextTask {
 /// order is deterministic so two accounts asking the same question get the same answer.
 [[nodiscard]] Result<std::optional<NextTask>> next_unseen_task(db::connection& database,
                                                               std::string_view account_id,
-                                                              const Stage& stage);
+                                                              const Stage& stage,
+                                                              std::span<const std::int64_t> audience);
 
 }  // namespace cms::bank

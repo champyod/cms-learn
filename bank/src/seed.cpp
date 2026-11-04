@@ -166,6 +166,8 @@ auto import_tasks(db::connection& database, const Bank& bank, const std::map<Tas
     if (found != existing.end() && found->second.content_hash == task.content_hash) {
       continue;
     }
+    // An imported task is administrator-owned: no visibility rows is the ADR default, and a grant an
+    // administrator made to a re-imported task must survive the import.
     const auto is_update = found != existing.end();
     write_task_row(database, task, is_update);
     replace_children(database, task, is_update);
