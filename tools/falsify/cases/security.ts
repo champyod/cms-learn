@@ -1,6 +1,7 @@
 import type { Gate, GateCommand } from "../contract.ts";
 
-const TRIVY_IMAGE = "aquasec/trivy:0.66.0";
+// An empty TRIVY_IMAGE means unset, so the fallback is || and not ??.
+const TRIVY_IMAGE = process.env.TRIVY_IMAGE || "aquasec/trivy:0.66.0";
 
 const SECRETS_SCAN: GateCommand = {
   command: "docker",
