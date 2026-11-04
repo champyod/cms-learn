@@ -12,7 +12,7 @@
     "check:references": "bash tools/check-references.sh",
     "check:references:falsify": "bun run tools/falsify/runner.ts references",
     "check:stack": "bun run tools/render-stack.ts --check",
-    "check:stack:falsify": "bash tools/falsify-stack-gate.sh",
+    "check:stack:falsify": "bun run tools/falsify/runner.ts stack",
     "check:deploy": "bash tools/check-deploy.sh",
     "check:deploy:falsify": "bash tools/falsify-deploy-gate.sh",
     "check:upgrade": "bash tools/check-upgrade.sh",

@@ -2,9 +2,10 @@ import type { Gate } from "./contract.ts";
 import { PM_GATE } from "./cases/pm.ts";
 import { REFERENCES_GATE } from "./cases/references.ts";
 import { SCHEMA_GATE } from "./cases/schema.ts";
+import { STACK_GATE } from "./cases/stack.ts";
 
 /** Every gate the runner knows, in the order it reports them. */
-export const GATES: readonly Gate[] = [PM_GATE, REFERENCES_GATE, SCHEMA_GATE];
+export const GATES: readonly Gate[] = [PM_GATE, REFERENCES_GATE, SCHEMA_GATE, STACK_GATE];
 
 const assertUniqueIds = (gates: readonly Gate[]): void => {
   const seen = new Set<string>();
