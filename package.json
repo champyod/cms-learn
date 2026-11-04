@@ -18,7 +18,7 @@
     "check:upgrade": "bash tools/check-upgrade.sh",
     "check:upgrade:falsify": "bun run tools/falsify/runner.ts upgrade",
     "check:security": "bash tools/security-scan.sh",
-    "check:security:falsify": "bash tools/falsify-security-gate.sh",
+    "check:security:falsify": "bun run tools/falsify/runner.ts security",
     "check:schema": "bash tools/check-schema.sh",
     "check:schema:falsify": "bun run tools/falsify/runner.ts schema",
     "check:db": "bash tools/check-db.sh",
