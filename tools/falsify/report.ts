@@ -1,11 +1,10 @@
 import type { FalsifyCase } from "./contract.ts";
+import { firstLine } from "./text.ts";
 
 export interface CommandResult { status: number; output: string }
 export interface Outcome { line: string; ok: boolean }
 
 const WRONG_REASON_OUTPUT_LIMIT = 160;
-
-const firstLine = (output: string): string => output.split("\n").map((line) => line.trim()).find((line) => line !== "") ?? "(no output)";
 
 /** The one line the runner prints for a case, and whether the gate behaved the way the case expects. */
 export function verdictFor(testCase: FalsifyCase, result: CommandResult): Outcome {
