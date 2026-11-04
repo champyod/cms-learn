@@ -88,30 +88,29 @@ function judgeCase(testCase: FalsifyCase, gate: Gate, root: string): Outcome {
   }
 }
 
-function runCase(testCase: FalsifyCase, gate: Gate): Outcome {
+interface CaseResult {
+  outcome: Outcome;
+  teardown: string | null;
+}
+
+const removeCaseRoot = (root: string): string | null => {
+  try {
+    rmSync(root, { recursive: true, force: true });
+    return null;
+  } catch (error) {
+    return reason(error);
+  }
+};
+
+function runCase(testCase: FalsifyCase, gate: Gate): CaseResult {
   let root: string;
   try {
     root = openCaseRoot();
   } catch (error) {
-    return { line: `SETUP FAILED  ${testCase.name} — cannot create a case tree: ${reason(error)}`, ok: false };
+    return { outcome: { line: `SETUP FAILED  ${testCase.name} — cannot create a case tree: ${reason(error)}`, ok: false }, teardown: null };
   }
-  const state: { outcome: Outcome | null; teardown: string | null } = { outcome: null, teardown: null };
-  try {
-    state.outcome = judgeCase(testCase, gate, root);
-  } finally {
-    try {
-      rmSync(root, { recursive: true, force: true });
-    } catch (error) {
-      state.teardown = reason(error);
-    }
-  }
-  if (state.teardown !== null) {
-    return { line: `SETUP FAILED  ${testCase.name} — teardown failed: ${state.teardown}`, ok: false };
-  }
-  if (state.outcome === null) {
-    return { line: `SETUP FAILED  ${testCase.name} — the case produced no verdict`, ok: false };
-  }
-  return state.outcome;
+  const outcome = judgeCase(testCase, gate, root);
+  return { outcome, teardown: removeCaseRoot(root) };
 }
 
 /** Runs every case in its own staged tree, collecting verdicts; a run-level failure is returned, never thrown. */
@@ -121,7 +120,14 @@ export function evaluateGate(gate: Gate): GateEvaluation {
   let release: (() => void) | null = null;
   try {
     release = openScratch();
-    for (const testCase of gate.cases) outcomes.push(runCase(testCase, gate));
+    for (const testCase of gate.cases) {
+      const result = runCase(testCase, gate);
+      outcomes.push(result.outcome);
+      if (result.teardown !== null) {
+        const named = `teardown failed for ${testCase.name}: ${result.teardown}`;
+        failure = failure === null ? named : `${failure}; ${named}`;
+      }
+    }
   } catch (error) {
     failure = reason(error);
   } finally {
