@@ -61,6 +61,9 @@ export function Task({ mode, data }: { mode: Mode; data: TaskFixture }) {
             </button>
           </form>
 
+          {/* Outside the form: the submission must never depend on the island loading. */}
+          <script src="/static/island.js" defer />
+
           {/* Polling is an htmx attribute on the panel; without JavaScript the page simply does not refresh,
               and the verdict is still there on the next load. */}
           <section
