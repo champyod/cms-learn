@@ -109,6 +109,8 @@ task is unseen for one account and solved by another, and a flag on the task wou
 - No per-page content: a route page, a task page and a review page all render from the same schema
   through shared components.
 - No second difficulty vocabulary: one integer scale (`800..3500`, step 100), not a level enum plus
-  a difficulty enum that can disagree.
+  a difficulty enum that can disagree. A rung name shown in the interface is computed from that number
+  — four bands cut at 1500, 1900 and 2500 — so a name and a number cannot disagree; see
+  `docs/decisions/0013-difficulty-rungs.md`.
 - No fallback content: a missing statement or an unverified task fails the request loudly rather
   than degrading to a placeholder a student would read as real material.
