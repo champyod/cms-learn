@@ -83,26 +83,6 @@ auto words_for(const Locale& locale) -> const Words& {
   return locale.code == THAI ? THAI_WORDS : ENGLISH_WORDS;
 }
 
-/// The shell fields every page fills the same way: locale, the language switch, the site name, navigation
-/// and footer. One function so a second page cannot present a different shell than the first.
-auto shell_model(const Locale& locale, std::string_view site_name) -> nlohmann::json {
-  const auto& words = words_for(locale);
-  const auto other_words = words_for(Locale{.code = locale.other, .other = locale.code});
-
-  auto data = nlohmann::json{};
-  data["locale"] = locale.code;
-  data["other_locale"] = locale.other;
-  data["other_locale_label"] = std::string{other_words.heading};
-  data["site_name"] = std::string{site_name};
-  data["is_signed_in"] = false;
-  data["nav"] = {{"curriculum", std::string{words.curriculum}},
-                 {"submissions", std::string{words.submissions}},
-                 {"settings", std::string{words.settings}},
-                 {"sign_in", std::string{words.sign_in}}};
-  data["footer"] = {{"notice", std::string{words.notice}}};
-  return data;
-}
-
 /// Component-wise, so `/srv/web` does not admit `/srv/webevil`, and a candidate that is the root itself is
 /// not inside it: a directory is not an asset.
 auto is_inside(const std::filesystem::path& root, const std::filesystem::path& candidate) -> bool {
@@ -141,6 +121,27 @@ auto label(const Locale& locale, std::string_view english, std::string_view thai
   }
   return std::string{fallback};
 }
+
+/// The shell fields every page fills the same way: locale, the language switch, the site name, navigation
+/// and footer. One function so a second page cannot present a different shell than the first.
+auto shell_model(const Locale& locale, std::string_view site_name) -> nlohmann::json {
+  const auto& words = words_for(locale);
+  const auto other_words = words_for(Locale{.code = locale.other, .other = locale.code});
+
+  auto data = nlohmann::json{};
+  data["locale"] = locale.code;
+  data["other_locale"] = locale.other;
+  data["other_locale_label"] = std::string{other_words.heading};
+  data["site_name"] = std::string{site_name};
+  data["is_signed_in"] = false;
+  data["nav"] = {{"curriculum", std::string{words.curriculum}},
+                 {"submissions", std::string{words.submissions}},
+                 {"settings", std::string{words.settings}},
+                 {"sign_in", std::string{words.sign_in}}};
+  data["footer"] = {{"notice", std::string{words.notice}}};
+  return data;
+}
+
 
 auto home_model(const Locale& locale, const std::vector<bank::Track>& tracks,
                 std::string_view site_name) -> nlohmann::json {

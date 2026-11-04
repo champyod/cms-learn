@@ -11,6 +11,7 @@
 #include <drogon/drogon.h>
 
 #include <cms/api/admin_socket.hpp>
+#include <cms/api/auth_routes.hpp>
 #include <cms/api/authorize.hpp>
 #include <cms/api/form_body.hpp>
 #include <cms/api/host_config.hpp>
@@ -197,9 +198,13 @@ auto run() -> int {
   }
 
   auto store = std::make_shared<cms::SettingsStore>(*snapshot);
+  auto settings_view = std::make_shared<cms::api::SettingsView>(*catalogue);
   register_routes(store, database_config, *catalogue);
   cms::api::register_home_route(store, database_config, config->template_root);
   cms::api::register_task_route(store, database_config, config->template_root);
+  cms::api::register_settings_route(store, database_config, settings_view,
+                                    config->template_root);
+  cms::api::register_auth_routes(store, database_config, config->template_root, config->tls_mode);
   register_asset_route(config->static_root);
 
   auto watcher = cms::api::SettingsWatcher{database, store, config->database_url,

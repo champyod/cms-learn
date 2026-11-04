@@ -38,6 +38,14 @@ struct Locale {
 [[nodiscard]] std::string label(const Locale& locale, std::string_view english,
                                 std::string_view thai);
 
+/// @brief The fields every page's shell reads: locale, the language switch, the site name, navigation and
+/// footer.
+///
+/// @param locale The locale the page is rendered in.
+/// @param site_name The installation's own name.
+/// @return The shared part of a page model, built once so a second page cannot present a different shell.
+[[nodiscard]] nlohmann::json shell_model(const Locale& locale, std::string_view site_name);
+
 /// @brief Builds the model `home.html` renders from.
 ///
 /// @param locale The locale to render in.

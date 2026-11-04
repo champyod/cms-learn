@@ -99,3 +99,50 @@ export const homeFixture: PageFixture = {
     },
   ],
 };
+
+export interface SigninFixture {
+  site_name: string;
+  title: string;
+  lede: string;
+  email_label: string;
+  password_label: string;
+  submit_label: string;
+  signup_label: string;
+  /// The canned message a failed attempt or a completed verification shows; empty on a first visit.
+  message: string;
+}
+
+export interface SignupFixture {
+  site_name: string;
+  title: string;
+  lede: string;
+  email_label: string;
+  handle_label: string;
+  password_label: string;
+  submit_label: string;
+  signin_label: string;
+  message: string;
+}
+
+export const signinFixture: SigninFixture = {
+  site_name: "CMS Learn",
+  title: "เข้าสู่ระบบ",
+  lede: "ใช้บัญชีที่ยืนยันอีเมลแล้วเพื่อเข้าสู่ระบบ",
+  email_label: "อีเมล",
+  password_label: "รหัสผ่าน",
+  submit_label: "เข้าสู่ระบบ",
+  signup_label: "ยังไม่มีบัญชี? สมัครสมาชิก",
+  message: "",
+};
+
+export const signupFixture: SignupFixture = {
+  site_name: "CMS Learn",
+  title: "สมัครสมาชิก",
+  lede: "สร้างบัญชี แล้วยืนยันอีเมลของคุณก่อนเข้าสู่ระบบ",
+  email_label: "อีเมล",
+  handle_label: "ชื่อผู้ใช้",
+  password_label: "รหัสผ่าน",
+  submit_label: "สมัครสมาชิก",
+  signin_label: "มีบัญชีอยู่แล้ว? เข้าสู่ระบบ",
+  message: "",
+};

@@ -8,9 +8,14 @@
 
 #include <drogon/drogon.h>
 
+#include <cms/api/authorize.hpp>
+#include <cms/api/settings_page.hpp>
+#include <cms/api/settings_route.hpp>
+#include <cms/api/settings_view.hpp>
 #include <cms/api/task_view.hpp>
 #include <cms/api/web.hpp>
 #include <cms/bank/curriculum.hpp>
+#include <cms/capability.hpp>
 
 namespace cms::api {
 namespace {
@@ -30,17 +35,16 @@ auto text_response(std::string body, drogon::HttpStatusCode status) -> drogon::H
   return response;
 }
 
-/// The installation's own name, as the settings row publishes it. Empty when the row is absent, because a
-/// heading with no name is still a page.
-auto site_name_of(const SettingsStore& store) -> std::string {
-  const auto settings = store.load();
-  return settings == nullptr ? std::string{}
-                             : setting_value<std::string>(*settings, "site.name").value_or("");
-}
-
 /// The one body an unknown, draft and hidden task all get back. A caller cannot tell which it hit, so the
 /// route is not an oracle for the ids of tasks it may not see.
 constexpr std::string_view NO_TASK = "no such task\n";
+
+constexpr std::string_view SIGN_IN_PATH = "/signin";
+
+auto redirect(std::string_view location) -> drogon::HttpResponsePtr {
+  return drogon::HttpResponse::newRedirectionResponse(std::string{location},
+                                                     drogon::k303SeeOther);
+}
 
 }  // namespace
 
@@ -102,6 +106,60 @@ auto register_task_route(const std::shared_ptr<SettingsStore>& store,
                                           request->getHeader("accept-language"));
         const auto page = render_page(template_root, "task.html",
                                       task_model(locale, **task, site_name_of(*store)));
+        if (!page) {
+          callback(text_response(page.error().message, drogon::k500InternalServerError));
+          return;
+        }
+
+        callback(html_response(*page));
+      },
+      {drogon::Get});
+}
+
+
+/// Serves the settings page. An unauthenticated request is redirected to the sign-in page because it is not
+/// forbidden, it is unauthenticated; a session without `settings_read` is forbidden. The values come from the
+/// cached visible list, so a secret is redacted before this route ever sees it.
+auto register_settings_route(const std::shared_ptr<SettingsStore>& store,
+                             const std::shared_ptr<const db::connection_config>& database_config,
+                             const std::shared_ptr<const SettingsView>& view,
+                             std::string_view template_root) -> void {
+  drogon::app().registerHandler(
+      "/settings",
+      [store, database_config, view, template_root = std::string{template_root}](
+          const drogon::HttpRequestPtr& request,
+          std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        auto database = db::connection{database_config};
+        const auto principal = principal_of_session(database, request->getCookie("cms_session"));
+        if (!principal) {
+          callback(text_response(principal.error().message, drogon::k500InternalServerError));
+          return;
+        }
+        if (principal->empty()) {
+          callback(redirect(SIGN_IN_PATH));
+          return;
+        }
+        const auto permitted = authorize(database, *principal, Capability::settings_read);
+        if (!permitted) {
+          const auto status = permitted.error().code == ErrorCode::permission_denied
+                                  ? drogon::k403Forbidden
+                                  : drogon::k500InternalServerError;
+          callback(text_response(permitted.error().message, status));
+          return;
+        }
+
+        const auto snapshot = store->load();
+        if (snapshot == nullptr) {
+          callback(text_response("the settings snapshot is not loaded",
+                                 drogon::k500InternalServerError));
+          return;
+        }
+        const auto locale = choose_locale(request->getParameter("lang"),
+                                          request->getHeader("accept-language"));
+        const auto page = render_page(
+            template_root, "settings.html",
+            settings_model(locale, site_name_of(*store), *view->for_snapshot(*snapshot),
+                           request->getParameter("group")));
         if (!page) {
           callback(text_response(page.error().message, drogon::k500InternalServerError));
           return;

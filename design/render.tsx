@@ -1,8 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { settingsFixture } from "./catalogue.ts";
-import { homeFixture, taskFixture } from "./fixtures.ts";
+import { homeFixture, signinFixture, signupFixture, taskFixture } from "./fixtures.ts";
 import { Home } from "./pages/home.tsx";
 import { Settings } from "./pages/settings.tsx";
+import { Signin } from "./pages/signin.tsx";
+import { Signup } from "./pages/signup.tsx";
 import { Task } from "./pages/task.tsx";
 import type { Mode } from "./slots.ts";
 
@@ -11,6 +13,8 @@ import type { Mode } from "./slots.ts";
 export const pages: Record<string, (mode: Mode) => React.ReactElement> = {
   home: (mode) => <Home mode={mode} data={homeFixture} />,
   settings: (mode) => <Settings mode={mode} data={settingsFixture} />,
+  signin: (mode) => <Signin mode={mode} data={signinFixture} />,
+  signup: (mode) => <Signup mode={mode} data={signupFixture} />,
   task: (mode) => <Task mode={mode} data={taskFixture} />,
 };
 

@@ -84,6 +84,15 @@ if(Catch2_FOUND)
   cms_apply_hardening(cms_api_web_tests)
   cms_apply_sanitizers(cms_api_web_tests)
   catch_discover_tests(cms_api_web_tests)
+
+  add_executable(cms_api_auth_pages_tests auth_pages_test.cpp)
+  target_link_libraries(cms_api_auth_pages_tests PRIVATE cms::api_web Catch2::Catch2WithMain)
+  target_compile_definitions(cms_api_auth_pages_tests PRIVATE
+    CMS_TEMPLATE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../templates")
+  cms_apply_warnings(cms_api_auth_pages_tests PRIVATE)
+  cms_apply_hardening(cms_api_auth_pages_tests)
+  cms_apply_sanitizers(cms_api_auth_pages_tests)
+  catch_discover_tests(cms_api_auth_pages_tests)
 endif()
 
 add_test(
@@ -104,6 +113,11 @@ add_test(
   NAME api_task_route_e2e
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/task_route_e2e.sh" "$<TARGET_FILE:cms_api>")
 set_tests_properties(api_task_route_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
+
+add_test(
+  NAME api_auth_e2e
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/auth_e2e.sh" "$<TARGET_FILE:cms_api>")
+set_tests_properties(api_auth_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120)
 
 add_test(
   NAME api_settings_route_e2e
