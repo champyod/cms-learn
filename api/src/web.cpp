@@ -207,6 +207,20 @@ auto render_page(const std::string& template_root, std::string_view page,
   }
 }
 
+auto render_fragment(std::string_view source, const nlohmann::json& model) -> Result<std::string> {
+  try {
+    auto environment = inja::Environment{};
+    environment.set_html_autoescape(true);
+    return environment.render(source, model);
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::internal, error.what()));
+  }
+}
+
+auto verdict_pending_label(const Locale& locale) -> std::string {
+  return std::string{words_for(locale).verdict_pending};
+}
+
 auto static_file(std::string_view static_root, std::string_view relative)
     -> std::optional<std::string> {
   if (relative.empty()) {

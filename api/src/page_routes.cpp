@@ -4,11 +4,12 @@
 #include <memory>
 #include <string>
 #include <string_view>
-#include <utility>
 
 #include <drogon/drogon.h>
 
 #include <cms/api/authorize.hpp>
+#include <cms/api/http.hpp>
+#include <cms/api/route_text.hpp>
 #include <cms/api/settings_page.hpp>
 #include <cms/api/settings_route.hpp>
 #include <cms/api/settings_view.hpp>
@@ -20,31 +21,7 @@
 namespace cms::api {
 namespace {
 
-auto html_response(std::string body) -> drogon::HttpResponsePtr {
-  auto response = drogon::HttpResponse::newHttpResponse();
-  response->setContentTypeString("text/html; charset=utf-8");
-  response->setBody(std::move(body));
-  return response;
-}
-
-auto text_response(std::string body, drogon::HttpStatusCode status) -> drogon::HttpResponsePtr {
-  auto response = drogon::HttpResponse::newHttpResponse();
-  response->setStatusCode(status);
-  response->setContentTypeString("text/plain; charset=utf-8");
-  response->setBody(std::move(body));
-  return response;
-}
-
-/// The one body an unknown, draft and hidden task all get back. A caller cannot tell which it hit, so the
-/// route is not an oracle for the ids of tasks it may not see.
-constexpr std::string_view NO_TASK = "no such task\n";
-
 constexpr std::string_view SIGN_IN_PATH = "/signin";
-
-auto redirect(std::string_view location) -> drogon::HttpResponsePtr {
-  return drogon::HttpResponse::newRedirectionResponse(std::string{location},
-                                                     drogon::k303SeeOther);
-}
 
 }  // namespace
 
@@ -59,7 +36,8 @@ auto register_home_route(const std::shared_ptr<SettingsStore>& store,
         auto database = db::connection{database_config};
         const auto curriculum = bank::read_curriculum(database);
         if (!curriculum) {
-          callback(text_response(curriculum.error().message, drogon::k500InternalServerError));
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
           return;
         }
 
@@ -68,7 +46,8 @@ auto register_home_route(const std::shared_ptr<SettingsStore>& store,
         const auto page = render_page(template_root, "home.html",
                                       home_model(locale, *curriculum, site_name_of(*store)));
         if (!page) {
-          callback(text_response(page.error().message, drogon::k500InternalServerError));
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
           return;
         }
 
@@ -87,18 +66,31 @@ auto register_task_route(const std::shared_ptr<SettingsStore>& store,
           std::function<void(const drogon::HttpResponsePtr&)>&& callback,
           std::string_view task_id) {
         auto database = db::connection{database_config};
-        const auto audience = audience_of_session(database, request->getCookie("cms_session"));
-        if (!audience) {
-          callback(text_response(audience.error().message, drogon::k500InternalServerError));
+        const auto viewer = task_viewer(database, request->getCookie("cms_session"));
+        if (!viewer) {
+          if (viewer.error().code == ErrorCode::permission_denied) {
+            callback(redirect(SIGN_IN_PATH));
+          } else {
+            callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                   drogon::k500InternalServerError));
+          }
           return;
         }
-        const auto task = read_task_page(database, task_id, *audience);
+        const auto permitted = authorize(database, viewer->principal_id, Capability::content_read);
+        if (!permitted && permitted.error().code != ErrorCode::permission_denied) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
+        const auto task =
+            read_task_page(database, task_id, viewer->audience, permitted.has_value());
         if (!task) {
-          callback(text_response(task.error().message, drogon::k500InternalServerError));
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
           return;
         }
         if (!*task) {
-          callback(text_response(std::string{NO_TASK}, drogon::k404NotFound));
+          callback(text_response(std::string{NO_TASK_BODY}, drogon::k404NotFound));
           return;
         }
 
@@ -107,7 +99,8 @@ auto register_task_route(const std::shared_ptr<SettingsStore>& store,
         const auto page = render_page(template_root, "task.html",
                                       task_model(locale, **task, site_name_of(*store)));
         if (!page) {
-          callback(text_response(page.error().message, drogon::k500InternalServerError));
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
           return;
         }
 
@@ -115,7 +108,6 @@ auto register_task_route(const std::shared_ptr<SettingsStore>& store,
       },
       {drogon::Get});
 }
-
 
 /// Serves the settings page. An unauthenticated request is redirected to the sign-in page because it is not
 /// forbidden, it is unauthenticated; a session without `settings_read` is forbidden. The values come from the
@@ -132,7 +124,8 @@ auto register_settings_route(const std::shared_ptr<SettingsStore>& store,
         auto database = db::connection{database_config};
         const auto principal = principal_of_session(database, request->getCookie("cms_session"));
         if (!principal) {
-          callback(text_response(principal.error().message, drogon::k500InternalServerError));
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
           return;
         }
         if (principal->empty()) {
@@ -141,16 +134,18 @@ auto register_settings_route(const std::shared_ptr<SettingsStore>& store,
         }
         const auto permitted = authorize(database, *principal, Capability::settings_read);
         if (!permitted) {
-          const auto status = permitted.error().code == ErrorCode::permission_denied
-                                  ? drogon::k403Forbidden
-                                  : drogon::k500InternalServerError;
-          callback(text_response(permitted.error().message, status));
+          if (permitted.error().code != ErrorCode::permission_denied) {
+            callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                   drogon::k500InternalServerError));
+          } else {
+            callback(text_response(permitted.error().message, drogon::k403Forbidden));
+          }
           return;
         }
 
         const auto snapshot = store->load();
         if (snapshot == nullptr) {
-          callback(text_response("the settings snapshot is not loaded",
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
           return;
         }
@@ -161,7 +156,8 @@ auto register_settings_route(const std::shared_ptr<SettingsStore>& store,
             settings_model(locale, site_name_of(*store), *view->for_snapshot(*snapshot),
                            request->getParameter("group")));
         if (!page) {
-          callback(text_response(page.error().message, drogon::k500InternalServerError));
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
           return;
         }
 

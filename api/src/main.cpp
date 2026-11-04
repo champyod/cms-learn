@@ -15,13 +15,16 @@
 #include <cms/api/authorize.hpp>
 #include <cms/api/form_body.hpp>
 #include <cms/api/host_config.hpp>
+#include <cms/api/http.hpp>
 #include <cms/api/page_routes.hpp>
+#include <cms/api/route_text.hpp>
 #include <cms/api/settings_route.hpp>
 #include <cms/api/settings_source.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/api/settings_watcher.hpp>
 #include <cms/api/submissions.hpp>
 #include <cms/api/task_view.hpp>
+#include <cms/api/verdict_routes.hpp>
 #include <cms/capability.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
@@ -56,14 +59,7 @@ auto load_from_environment() -> cms::Result<cms::api::HostConfig> {
   return cms::api::load_host_config(path);
 }
 
-auto text_response(std::string body, drogon::HttpStatusCode status = drogon::k200OK)
-    -> drogon::HttpResponsePtr {
-  auto response = drogon::HttpResponse::newHttpResponse();
-  response->setStatusCode(status);
-  response->setContentTypeString("text/plain; charset=utf-8");
-  response->setBody(std::move(body));
-  return response;
-}
+using cms::api::text_response;
 
 auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
                      const std::shared_ptr<const cms::db::connection_config>& database_config,
@@ -99,15 +95,21 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
                         std::function<void(const drogon::HttpResponsePtr&)>&& callback,
                         std::string_view task_id) {
         auto database = cms::db::connection{database_config};
-        const auto audience =
-            cms::api::audience_of_session(database, request->getCookie("cms_session"));
-        if (!audience) {
-          callback(text_response(audience.error().message, drogon::k500InternalServerError));
+        const auto viewer = cms::api::task_viewer(database, request->getCookie("cms_session"));
+        if (!viewer) {
+          if (viewer.error().code == cms::ErrorCode::permission_denied) {
+            callback(text_response("no live session; sign in before submitting",
+                                   drogon::k400BadRequest));
+          } else {
+            callback(text_response(std::string{cms::api::INTERNAL_ERROR_BODY},
+                                   drogon::k500InternalServerError));
+          }
           return;
         }
         const auto submitted =
             cms::api::submit_solution(database, request->getCookie("cms_session"), task_id,
-                                      cms::api::form_field(request->body(), "source"), *audience);
+                                      cms::api::form_field(request->body(), "source"),
+                                      viewer->audience);
 
         if (!submitted) {
           callback(text_response(submitted.error().message, drogon::k400BadRequest));
@@ -205,6 +207,7 @@ auto run() -> int {
   cms::api::register_settings_route(store, database_config, settings_view,
                                     config->template_root);
   cms::api::register_auth_routes(store, database_config, config->template_root, config->tls_mode);
+  cms::api::register_verdict_route(database_config);
   register_asset_route(config->static_root);
 
   auto watcher = cms::api::SettingsWatcher{database, store, config->database_url,

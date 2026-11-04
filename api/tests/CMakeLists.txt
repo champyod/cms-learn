@@ -93,6 +93,13 @@ if(Catch2_FOUND)
   cms_apply_hardening(cms_api_auth_pages_tests)
   cms_apply_sanitizers(cms_api_auth_pages_tests)
   catch_discover_tests(cms_api_auth_pages_tests)
+
+  add_executable(cms_api_verdict_view_tests verdict_view_test.cpp)
+  target_link_libraries(cms_api_verdict_view_tests PRIVATE cms::api_web Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_api_verdict_view_tests PRIVATE)
+  cms_apply_hardening(cms_api_verdict_view_tests)
+  cms_apply_sanitizers(cms_api_verdict_view_tests)
+  catch_discover_tests(cms_api_verdict_view_tests)
 endif()
 
 add_test(

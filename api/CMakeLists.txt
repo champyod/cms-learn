@@ -45,7 +45,8 @@ cms_apply_sanitizers(cms_api_config)
 
 # The web layer is its own library so a page can be rendered and an asset path resolved without a
 # server, a database or a listening socket.
-add_library(cms_api_web STATIC src/auth_view.cpp src/settings_page.cpp src/web.cpp)
+add_library(cms_api_web STATIC src/auth_view.cpp src/settings_page.cpp src/verdict_view.cpp
+                             src/web.cpp)
 add_library(cms::api_web ALIAS cms_api_web)
 
 target_include_directories(cms_api_web PUBLIC
@@ -73,8 +74,8 @@ cms_apply_warnings(cms_api_authority PUBLIC)
 cms_apply_hardening(cms_api_authority)
 cms_apply_sanitizers(cms_api_authority)
 
-add_executable(cms_api src/auth_routes.cpp src/main.cpp src/page_routes.cpp
-                       src/settings_source.cpp src/settings_watcher.cpp)
+add_executable(cms_api src/auth_routes.cpp src/http.cpp src/main.cpp src/page_routes.cpp
+                       src/settings_source.cpp src/settings_watcher.cpp src/verdict_routes.cpp)
 
 # The catalogue is a build input, not operator configuration: a key this binary was not compiled against is
 # not a setting it can honour, so the build names the file it was built from rather than letting a runtime

@@ -49,3 +49,24 @@ see what a learner cannot.
 Two helpers, in one module, build and decode a principal value. Nothing else may compute `2^48`.
 Without that rule the encoding spreads across the codebase and a single wrong shift is invisible
 until a viewer disappears from a list.
+
+## 5. Serving needs a principal (operator decision, 2026-11-04)
+
+An anonymous request has **no audience**. `{0}` alone is not a set of principals a serving request runs
+with: it is one row a task may carry, and a request that carries no principal has no business being
+compared against it.
+
+- `GET /tasks/{id}` requires an **approved, signed-in** account. No session, an expired or revoked
+  session, and a session whose account is not active all answer 303 to `/signin`: they are
+  unauthenticated, not forbidden. The page route and `POST /tasks/{id}/submit` resolve the session
+  through the same helper, so the two cannot drift.
+- A task with **no visibility rows** (the administrator-created default in §3) is visible only to a
+  session holding `content:read`. That is the permission §3 names (`tasks:read` in the operator's
+  wording); being an administrator is not the trigger, and an administrator without the capability
+  still sees no hidden task. The capability check and the audience check are the same read: a row
+  matches the audience, or the viewer holds the capability.
+- The page renders the **published version** — the highest `published` version of the task, the same
+  one the submission write stores against — so a version that is being edited is never half-rendered.
+- `/tasks/{id}/verdict`, which the page polls, answers under the same session and visibility rules,
+  and uses the page's one indistinguishable 404 body. A server error answers one generic body that
+  names neither the principal nor the task.

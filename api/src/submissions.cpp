@@ -9,8 +9,7 @@
 #include <utility>
 #include <vector>
 
-#include <sqlpp23/sqlpp23.h>
-
+#include <cms/api/task_view.hpp>
 #include <cms/api/uuid.hpp>
 #include <cms/db/tables.hpp>
 
@@ -18,13 +17,15 @@ namespace cms::api {
 namespace {
 
 /// The statement's fixed parameters come first, so the audience's placeholders start after them.
-constexpr std::size_t FIRST_AUDIENCE_PARAMETER = 5;
+constexpr std::size_t FIRST_AUDIENCE_PARAMETER = 6;
 
 /// One statement writes the row and re-checks what the row depends on at the moment it runs.
 ///
 /// A lookup followed by an insert leaves a window between the two: a session can be revoked, a task
 /// unpublished or its audience narrowed after the read that authorised the write. Here the row exists only
-/// if every condition holds inside the statement that inserts it, so there is no window at all.
+/// if every condition holds inside the statement that inserts it, so there is no window at all. The version
+/// is bound rather than read from the joined row, so it is the same version the page renders; a publish
+/// between the read and this write changes no row and the client retries.
 constexpr std::string_view SUBMIT_HEAD = R"(
 INSERT INTO submissions (account_id, task_id, task_version, source)
 SELECT sessions.principal_id, tasks.id, tasks.version, $1
@@ -34,6 +35,7 @@ WHERE sessions.id = $2
   AND sessions.revoked_at IS NULL
   AND sessions.expires_at > $3
   AND tasks.id = $4
+  AND tasks.version = $5
   AND tasks.status = 'published'
   AND EXISTS (SELECT 1 FROM task_visibility v
               WHERE v.task_id = tasks.id
@@ -74,27 +76,6 @@ auto account_of(db::connection& database, std::string_view session_id) -> std::s
   return account;
 }
 
-/// The same published-and-visible lookup the task page uses, so a refusal can name the reason the caller can
-/// act on without a second, weaker query.
-auto published_version(db::connection& database, std::string_view task_id,
-                       const std::vector<std::int64_t>& principals) -> std::int32_t {
-  const auto is_visible = sqlpp::exists(
-      sqlpp::select(db::taskVisibility.taskId)
-          .from(db::taskVisibility)
-          .where(db::taskVisibility.taskId == db::tasks.id &&
-                 db::taskVisibility.principalId.in(principals)));
-
-  auto version = 0;
-  for (const auto& row : database(sqlpp::select(db::tasks.version)
-                                      .from(db::tasks)
-                                      .where(db::tasks.id == std::string{task_id} &&
-                                             db::tasks.status == std::string{"published"} &&
-                                             is_visible))) {
-    version = static_cast<std::int32_t>(row.version);
-  }
-  return version;
-}
-
 }  // namespace
 
 auto submit_solution(db::connection& database, std::string_view session_id, std::string_view task_id,
@@ -105,8 +86,8 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
         Error::make(ErrorCode::invalid_argument, "a submission needs a program"));
   }
   if (audience.empty()) {
-    return std::unexpected(Error::make(
-        ErrorCode::invalid_argument, "the audience is empty; every request carries the everyone entry"));
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "the audience is empty; a request carries its viewer"));
   }
   // The cookie is client input. An absent one arrives here as an empty string, and anything that is not a
   // uuid cannot name a session, so both are refused here rather than cast against a uuid column: that raises
@@ -115,10 +96,19 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
     return std::unexpected(
         Error::make(ErrorCode::permission_denied, "no live session; sign in before submitting"));
   }
+  const auto version = published_version(database, task_id);
+  if (!version) {
+    return std::unexpected(version.error());
+  }
+  if (!*version) {
+    return std::unexpected(
+        Error::make(ErrorCode::not_found, "no published task called " + std::string{task_id}));
+  }
   try {
     const auto principals = std::vector<std::int64_t>(audience.begin(), audience.end());
     auto parameters = std::vector<db::bound_value>{std::string{source}, std::string{session_id},
-                                                   db::now_stamp(), std::string{task_id}};
+                                                   db::now_stamp(), std::string{task_id},
+                                                   static_cast<std::int64_t>(**version)};
     for (const auto principal : principals) {
       parameters.emplace_back(principal);
     }
@@ -132,7 +122,8 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
       return std::unexpected(
           Error::make(ErrorCode::permission_denied, "no live session; sign in before submitting"));
     }
-    if (published_version(database, task_id, principals) == 0) {
+    const auto current = published_version(database, task_id);
+    if (!current || !*current) {
       return std::unexpected(
           Error::make(ErrorCode::not_found, "no published task called " + std::string{task_id}));
     }

@@ -12,6 +12,8 @@
 #include <cms/api/auth.hpp>
 #include <cms/api/auth_view.hpp>
 #include <cms/api/form_body.hpp>
+#include <cms/api/http.hpp>
+#include <cms/api/route_text.hpp>
 #include <cms/api/settings_defaults.hpp>
 #include <cms/api/settings_page.hpp>
 #include <cms/api/web.hpp>
@@ -27,28 +29,6 @@ constexpr std::string_view FORWARDED_PROTO_HEADER = "x-forwarded-proto";
 constexpr std::string_view SIGN_IN_PATH = "/signin";
 constexpr std::string_view HOME_PATH = "/";
 constexpr std::int64_t SECONDS_PER_HOUR = 60 * 60;
-
-auto html_response(std::string body, drogon::HttpStatusCode status = drogon::k200OK)
-    -> drogon::HttpResponsePtr {
-  auto response = drogon::HttpResponse::newHttpResponse();
-  response->setStatusCode(status);
-  response->setContentTypeString("text/html; charset=utf-8");
-  response->setBody(std::move(body));
-  return response;
-}
-
-auto text_response(std::string body, drogon::HttpStatusCode status) -> drogon::HttpResponsePtr {
-  auto response = drogon::HttpResponse::newHttpResponse();
-  response->setStatusCode(status);
-  response->setContentTypeString("text/plain; charset=utf-8");
-  response->setBody(std::move(body));
-  return response;
-}
-
-auto redirect(std::string_view location) -> drogon::HttpResponsePtr {
-  return drogon::HttpResponse::newRedirectionResponse(std::string{location},
-                                                     drogon::k303SeeOther);
-}
 
 /// Secure follows the connection the request arrived on: a direct TLS socket says so itself, and behind the
 /// proxy the forwarded protocol does. Without TLS the flag stays off, so a local development login still works.
@@ -81,7 +61,7 @@ auto render_signin(const std::string& template_root, const Locale& locale,
   const auto page = render_page(template_root, "signin.html",
                                 signin_model(locale, site_name, message));
   if (!page) {
-    return text_response(page.error().message, drogon::k500InternalServerError);
+    return text_response(std::string{INTERNAL_ERROR_BODY}, drogon::k500InternalServerError);
   }
   return html_response(*page, status);
 }
@@ -92,7 +72,7 @@ auto render_signup(const std::string& template_root, const Locale& locale,
   const auto page = render_page(template_root, "signup.html",
                                 signup_model(locale, site_name, message));
   if (!page) {
-    return text_response(page.error().message, drogon::k500InternalServerError);
+    return text_response(std::string{INTERNAL_ERROR_BODY}, drogon::k500InternalServerError);
   }
   return html_response(*page, status);
 }
@@ -171,7 +151,7 @@ auto register_auth_routes(const std::shared_ptr<SettingsStore>& store,
         const auto settings = store->load();
         const auto seconds = settings == nullptr ? std::int64_t{0} : session_seconds(*settings);
         if (seconds <= 0) {
-          callback(text_response("identity.session_absolute_hours must be positive",
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
           return;
         }
@@ -210,7 +190,7 @@ auto register_auth_routes(const std::shared_ptr<SettingsStore>& store,
                                           request->getHeader("accept-language"));
         const auto settings = store->load();
         if (settings == nullptr) {
-          callback(text_response("the settings snapshot is not loaded",
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
           return;
         }
@@ -233,7 +213,8 @@ auto register_auth_routes(const std::shared_ptr<SettingsStore>& store,
         }
         const auto stored = set_password(database, *settings, signup->principal_id, password);
         if (!stored) {
-          callback(text_response(stored.error().message, drogon::k500InternalServerError));
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
           return;
         }
         callback(redirect(std::string{SIGN_IN_PATH} + "?registered=" + std::string{ENABLED_FLAG}));
@@ -252,7 +233,7 @@ auto register_auth_routes(const std::shared_ptr<SettingsStore>& store,
         }
         const auto settings = store->load();
         if (settings == nullptr) {
-          callback(text_response("the settings snapshot is not loaded",
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
           return;
         }
@@ -276,7 +257,8 @@ auto register_auth_routes(const std::shared_ptr<SettingsStore>& store,
         const auto session_id = request->getCookie(std::string{SESSION_COOKIE});
         const auto ended = end_session(database, session_id);
         if (!ended) {
-          callback(text_response(ended.error().message, drogon::k500InternalServerError));
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
           return;
         }
         auto response = redirect(HOME_PATH);

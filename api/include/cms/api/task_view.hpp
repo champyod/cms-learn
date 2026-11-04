@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 
 #include <cms/api/web.hpp>
@@ -12,29 +13,50 @@
 
 namespace cms::api {
 
-/// @brief The audience a request runs with, read from its session cookie.
+/// @brief The principal a request runs as, and the audience its visibility is decided with.
+struct TaskViewer {
+  std::string principal_id;
+  bank::Audience audience;
+};
+
+/// @brief Resolves a session cookie to an approved principal and its audience.
 ///
 /// @param database The connection to read through.
 /// @param session_id The opaque cookie value; empty when the request carried none.
-/// @return `{everyone()}` when no live session names a principal, otherwise the everyone entry plus the
-/// viewer's own encoded value. An absent or dead session is not an error: it still sees shared tasks.
+/// @return The viewer, or a permission_denied error for an absent, expired or revoked session, or for an
+/// account that is not active. A request without a live approved session has no audience at all.
 ///
 /// The encoding belongs to `bank::visibility`; this function only decides which principal the cookie names.
-[[nodiscard]] Result<bank::Audience> audience_of_session(db::connection& database,
-                                                         std::string_view session_id);
+[[nodiscard]] Result<TaskViewer> task_viewer(db::connection& database,
+                                            std::string_view session_id);
 
-/// @brief Reads the published task @p task_id when @p audience may see it.
+/// @brief The version the bank serves for @p task_id: the highest `published` one.
+///
+/// @return The version, nothing when no version of the task is published, or the reason the read failed.
+///
+/// One definition so the page and the submission write cannot pick different versions of the same task.
+[[nodiscard]] Result<std::optional<std::int32_t>> published_version(db::connection& database,
+                                                                    std::string_view task_id);
+
+/// @brief The published version of @p task_id the request may see.
 ///
 /// @param database The connection to read through.
 /// @param task_id The id the route asked for.
-/// @param audience The encoded principals this request runs with, always starting with the everyone entry.
-/// @return The page data, nothing when the task is unknown, not `published`, or has no visibility row the
-/// audience matches, or the reason a read failed.
+/// @param audience The encoded principals this request runs with.
+/// @param may_read_hidden True when the viewer holds `content:read`, the capability that reveals a task with
+/// no visibility rows.
+/// @return The servable version, nothing when the task is unknown, not published, or has no visibility row
+/// the audience matches, or the reason the read failed.
+[[nodiscard]] Result<std::optional<std::int32_t>> servable_version(
+    db::connection& database, std::string_view task_id, std::span<const std::int64_t> audience,
+    bool may_read_hidden);
+
+/// @brief Reads the page data for the servable version of @p task_id.
 ///
-/// Unknown, draft and hidden are one answer on purpose: the route must not distinguish them, so it cannot
-/// be used to enumerate hidden ids.
+/// @return The page data, nothing under the same conditions as `servable_version`, or the reason the read
+/// failed. Unknown, draft and hidden are one answer on purpose: the route must not distinguish them.
 [[nodiscard]] Result<std::optional<TaskPage>> read_task_page(
-    db::connection& database, std::string_view task_id,
-    std::span<const std::int64_t> audience);
+    db::connection& database, std::string_view task_id, std::span<const std::int64_t> audience,
+    bool may_read_hidden);
 
 }  // namespace cms::api

@@ -99,6 +99,17 @@ struct TaskPage {
                                               std::string_view page,
                                               const nlohmann::json& model);
 
+/// @brief Renders @p source as an Inja fragment against @p model.
+///
+/// The htmx fragments are not pages: the design port generates one full document per page, so a fragment
+/// that is a single element keeps its source beside its model. Autoescape is the same one `render_page`
+/// sets, so a value interpolated here can never become markup.
+[[nodiscard]] Result<std::string> render_fragment(std::string_view source,
+                                                  const nlohmann::json& model);
+
+/// @brief The phrase the task page and its verdict fragment both show while no verdict has arrived.
+[[nodiscard]] std::string verdict_pending_label(const Locale& locale);
+
 /// @brief The file a request for @p relative under @p static_root may serve.
 ///
 /// @param static_root The directory the operator published assets in.
