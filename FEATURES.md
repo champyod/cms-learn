@@ -46,9 +46,10 @@ Counts at last update: **20 shipped · 4 partial · 27 planned** (51 features).
 | F-020 | `isolate` sandbox in a container with delegated cgroup v2 | A | ○ | ADR 0001 §1 |
 | F-021 | C++ judge core with `testlib` checkers | A | ○ | ADR 0001 §2 |
 | F-022 | Language runtimes: C++ only, several standard versions with C++17 as the baseline | A | ○ | — no runner exists |
-| F-023 | Interactive problem protocol | A | ○ | task schema has `checker.kind: interactive` |
+| F-023 | Interactive problem protocol: the pipeline generates a testlib interactor per task | C | ○ | task schema has `checker.kind: interactive`; testlib documents `registerInteraction` |
 | F-024 | Submission queue with per-submission status | A | ○ | — |
 | F-025 | Abuse controls: egress disabled, fork bomb, output cap, wall-clock kill | A | ○ | — |
+| F-026 | Function-style submission: a generated harness wraps the contestant's function, chosen per task | C | ○ | — |
 
 ## Web
 
