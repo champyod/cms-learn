@@ -29,7 +29,7 @@ enum class AuthorKind : std::uint8_t { learner, administrator };
 /// @brief The encoded value that grants a task to everyone.
 [[nodiscard]] auto everyone() -> std::int64_t;
 
-/// @brief The largest identifier one encoded kind can carry; an id at or above it cannot be encoded.
+/// @brief The largest identifier one encoded kind can carry; an id above it is refused.
 [[nodiscard]] auto identifier_limit() -> std::int64_t;
 
 /// @brief Encodes @p id under @p kind into the one integer `task_visibility` stores.

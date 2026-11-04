@@ -68,7 +68,7 @@ tool and is not counted.
 | `tools/check-unseen-task.sh` | shell | 134 | assertion | gate — the unseen-task query is served by `progress_account_task_idx` |
 | `tools/check-upgrade.sh` | shell | 170 | assertion | gate — deploy order and health gate, with `docker`, `bun`, `curl` and `sleep` stubbed |
 | `tools/check-verify.sh` | shell | 66 | assertion | gate — every task's cases are what its own reference solution produces |
-| `tools/check-visibility.sh` | shell | 247 | assertion | gate — a task with no visibility row is never served; a session uuid binds to its serial id |
+| `tools/check-visibility.sh` | shell | 230 | assertion | gate — the real serving query hides a task with no visibility row and serves a granted one; a session uuid binds to its serial id |
 | `tools/compare-plan.ts` | typescript | 122 | orchestration | parses two `pgschema` plan documents and names the first field that moved |
 | `tools/cpp/diagnostics.ts` | typescript | 92 | orchestration | parses GCC and clang-tidy text diagnostics into typed findings |
 | `tools/cpp/falsify.ts` | typescript | 547 | orchestration | runs the C++ gate against staged trees, one planted defect per case |
@@ -83,7 +83,7 @@ tool and is not counted.
 | `tools/falsify/cases/security.ts` | typescript | 62 | orchestration | the scan's 3 planted defects plus the clean control |
 | `tools/falsify/cases/stack.ts` | typescript | 57 | orchestration | the stack gate's 6 defects plus the control |
 | `tools/falsify/cases/upgrade.ts` | typescript | 55 | orchestration | the upgrade gate's 6 defects plus the control |
-| `tools/falsify/cases/visibility.ts` | typescript | 28 | orchestration | the visibility gate's 1 defect: a serving query that lost its filter |
+| `tools/falsify/cases/visibility.ts` | typescript | 35 | orchestration | the visibility gate's 1 defect: the serving predicate removed in `bank/src/next_task.cpp` |
 | `tools/falsify/contract.ts` | typescript | 43 | orchestration | the case, plant and JSON-pointer types every case file implements |
 | `tools/falsify/plants.ts` | typescript | 184 | orchestration | applies one data plant to the staged tree, naming the file and reason when it cannot |
 | `tools/falsify/report.ts` | typescript | 31 | orchestration | turns a gate's exit status and output into one verdict line |
@@ -114,9 +114,9 @@ tool and is not counted.
 
 | Language | Files | Lines |
 |---|---|---|
-| shell | 36 | 3 497 |
-| typescript | 30 | 3 556 |
-| total | 66 | 7 053 |
+| shell | 36 | 3 480 |
+| typescript | 30 | 3 563 |
+| total | 66 | 7 043 |
 
 ## Gates and falsifiers
 

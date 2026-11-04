@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
-# The task-visibility gate: the audience ranges the schema enforces, and one serving query.
+# The task-visibility gate: the audience ranges the schema enforces, and the real serving query.
 #
 # The encoded audience values come from cms_principal_value, the one module allowed to compute 2^48, so
-# this gate never writes one by hand. The serving half mirrors bank::next_unseen_task against the real
-# plan: a task with no visibility row is hidden, and a task with the everyone row is served.
+# this gate never writes one by hand. The serving half rebuilds cms_serve_tests from this tree's
+# bank/src/next_task.cpp and runs its live-database cases against the real plan: a task with no
+# visibility row is hidden, and a task granted to everyone is served. The rebuild is what lets the
+# falsification case plant a defect in the predicate and see this gate go red (about ten seconds).
 #
-# Skips (exit 77) when the PostgreSQL server binaries are not installed.
+# Skips (exit 77) when the PostgreSQL server binaries or the C++ build are not installed.
 set -uo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 seeder="${1:-$repo/build/safety/bank/cms_seed_content}"
 principal_value="${2:-$repo/build/safety/bank/cms_principal_value}"
+build="${3:-$repo/build/safety}"
 
-for tool in initdb pg_ctl psql; do
+for tool in initdb pg_ctl psql g++ ar; do
   command -v "$tool" >/dev/null 2>&1 || { echo "  skipped: $tool is not installed"; exit 77; }
 done
 for binary in "$seeder" "$principal_value"; do
@@ -23,7 +26,6 @@ done
 work="$(mktemp -d)"
 port=$((56200 + (RANDOM % 300)))
 database=cmslearn_visibility_gate
-account="11111111-2222-4333-8444-555555555555"
 
 cleanup() {
   pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1
@@ -45,10 +47,17 @@ pg_ctl -D "$work/data" -o "-c listen_addresses='' -c unix_socket_directories=$wo
 sleep 1
 psql -X -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 -f "$repo/deploy/roles.sql" >/dev/null 2>&1 \
   || { echo "  [!!] deploy/roles.sql failed"; exit 1; }
-psql -X -h "$work" -p "$port" -U postgres -q -c "CREATE DATABASE $database" >/dev/null 2>&1
-PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
-  bash "$repo/tools/apply-plan.sh" >"$work/apply.log" 2>&1 \
-  || { echo "  [!!] apply-plan failed"; tail -5 "$work/apply.log"; exit 1; }
+
+apply_plan_to() {
+  local target="$1"
+  psql -X -h "$work" -p "$port" -U postgres -q -c "CREATE DATABASE $target" >/dev/null 2>&1
+  PGHOST="$work" PGPORT="$port" PGDATABASE="$target" PGUSER=postgres \
+    bash "$repo/tools/apply-plan.sh" >"$work/apply-$target.log" 2>&1 \
+    || { echo "  [!!] apply-plan failed for $target"; tail -5 "$work/apply-$target.log"; exit 1; }
+}
+
+apply_plan_to "$database"
+database_url="host=$work port=$port dbname=$database user=postgres"
 
 everyone="$("$principal_value" everyone)"
 limit="$("$principal_value" limit)"
@@ -81,7 +90,7 @@ else
   bad "an administrator-created task carries no rows" "$("$principal_value" default administrator)"
 fi
 
-CMSLEARN_DATABASE_URL="host=$work port=$port dbname=$database user=postgres" \
+CMSLEARN_DATABASE_URL="$database_url" \
   "$seeder" --content "$repo/content" >"$work/seed.log" 2>&1 \
   || { echo "  [!!] the seeder failed"; tail -5 "$work/seed.log"; exit 1; }
 imported="$(psql_db -c "SELECT count(*) FROM task_visibility")"
@@ -124,68 +133,73 @@ for value in "-1" "1" "$above_max"; do
   fi
 done
 
-insert_task hidden-task
-insert_task public-task
-insert_task other-user-task
-insert_task team-task
-insert_task learner-task
-psql_db -c "INSERT INTO task_visibility (task_id, principal_id) VALUES ('public-task', $everyone)" >/dev/null 2>&1
-psql_db -c "INSERT INTO task_visibility (task_id, principal_id) VALUES ('other-user-task', $user7 + 1)" >/dev/null 2>&1
-psql_db -c "INSERT INTO task_visibility (task_id, principal_id) VALUES ('team-task', $team9)" >/dev/null 2>&1
-psql_db -c "INSERT INTO task_visibility (task_id, principal_id) VALUES ('learner-task', $("$principal_value" default learner))" >/dev/null 2>&1
+rebuild_serve_tests() {
+  local flags_make="$build/bank/CMakeFiles/cms_bank.dir/flags.make"
+  local archive="$build/bank/libcms_bank.a"
+  local tests_dir="$build/bank/tests"
+  local link_file="$tests_dir/CMakeFiles/cms_serve_tests.dir/link.txt"
+  local source="$repo/bank/src/next_task.cpp"
+  local file
+  for file in "$flags_make" "$archive" "$link_file" "$source"; do
+    [ -f "$file" ] || {
+      echo "  [!!] cannot rebuild the serve tests: missing $file; build with: cmake --build --preset safety --target cms_serve_tests" >&2
+      exit 1
+    }
+  done
+  mkdir -p "$work/relink"
+  local defines includes compiler_flags
+  defines="$(sed -n 's/^CXX_DEFINES = //p' "$flags_make")"
+  includes="$(sed -n 's/^CXX_INCLUDES = //p' "$flags_make")"
+  compiler_flags="$(sed -n 's/^CXX_FLAGS = //p' "$flags_make")"
+  eval "/usr/bin/g++ $defines $includes $compiler_flags -c \"$source\" -o \"$work/relink/next_task.cpp.o\"" \
+    || { echo "  [!!] this tree's next_task.cpp does not compile" >&2; exit 1; }
+  cp "$archive" "$work/relink/libcms_bank.a"
+  ar r "$work/relink/libcms_bank.a" "$work/relink/next_task.cpp.o" >/dev/null 2>&1 \
+    || { echo "  [!!] cannot replace next_task in the bank archive" >&2; exit 1; }
+  local link_command
+  link_command="$(sed -e "s|\.\./libcms_bank\.a|\"$work/relink/libcms_bank.a\"|" \
+                       -e "s|-o cms_serve_tests|-o \"$work/relink/cms_serve_tests\"|" "$link_file")"
+  ( cd "$tests_dir" && eval "$link_command" ) >"$work/relink/link.log" 2>&1 \
+    || { echo "  [!!] cannot relink the serve tests"; tail -3 "$work/relink/link.log" >&2; exit 1; }
+  [ -x "$work/relink/cms_serve_tests" ] \
+    || { echo "  [!!] the rebuilt serve tests are missing" >&2; exit 1; }
+  printf '%s' "$work/relink/cms_serve_tests"
+}
 
-visibility_filter="EXISTS (SELECT 1 FROM task_visibility AS v WHERE v.task_id = t.id AND v.principal_id = ANY(ARRAY[$everyone, $user7, $team9]::bigint[]))"
-read -r -d '' query <<SQL
-SELECT t.id
-FROM tasks AS t
-WHERE t.status = 'published'
-  AND t.difficulty >= 800 AND t.difficulty <= 1200
-  AND EXISTS (SELECT 1 FROM task_topics AS tt
-              WHERE tt.task_id = t.id AND tt.task_version = t.version AND tt.topic IN ('io'))
-  AND NOT EXISTS (SELECT 1 FROM progress AS p
-                  WHERE p.account_id = '$account' AND p.task_id = t.id AND p.task_version = t.version)
-  AND $visibility_filter
-ORDER BY t.difficulty, t.id
-SQL
-served="$(psql_db -c "$query")"
+serve_tests="$(rebuild_serve_tests)"
 
-if grep -qx 'public-task' <<<"$served"; then
-  ok "a task with the everyone row is served to a learner"
-else
-  bad "a task with the everyone row is served to a learner" "served: ${served:-none}"
-fi
-if grep -qx 'team-task' <<<"$served"; then
-  ok "a task granted to the learner's team is served"
-else
-  bad "a task granted to the learner's team is served" "served: ${served:-none}"
-fi
-if grep -qx 'learner-task' <<<"$served"; then
-  ok "a learner-created task is served to everyone"
-else
-  bad "a learner-created task is served to everyone" "served: ${served:-none}"
-fi
-if grep -qx 'hidden-task' <<<"$served"; then
-  bad "a task with no visibility row is not served" "served: $served"
-else
-  ok "a task with no visibility row is not served"
-fi
-if grep -qx 'other-user-task' <<<"$served"; then
-  bad "a task granted to another learner is not served" "served: $served"
-else
-  ok "a task granted to another learner is not served"
-fi
+# Each live case gets its own database: a case that inserts tasks must not change which task another case
+# sees, and every case seeds the shipped bank itself.
+live_cases=0
+run_live_case() {
+  local name="$1"
+  live_cases=$((live_cases + 1))
+  local case_database="cmslearn_visibility_case_$live_cases"
+  apply_plan_to "$case_database"
+  local output status
+  output="$(CMSLEAN_TEST_DSN="host=$work port=$port dbname=$case_database user=postgres" \
+    "$serve_tests" "$name" 2>&1)"
+  status=$?
+  if [ "$status" -eq 0 ] && ! grep -qi 'skipped' <<<"$output"; then
+    ok "$name"
+  else
+    bad "$name" "$(printf '%s' "$output" | tail -6)"
+  fi
+}
+
+run_live_case "the serving query follows the audience composed from a principal"
+run_live_case "a task with no visibility row is never served"
+run_live_case "the next task is the one in band the account has not touched"
 
 # A session uuid must bind to the row's serial id, and the composed audience must follow that binding.
 principal_a="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee01"
 principal_b="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee02"
 unknown_principal="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee03"
-database_url="host=$work port=$port dbname=$database user=postgres"
 psql_db -c "INSERT INTO principals (id, kind, handle, status)
             VALUES ('$principal_a', 'user', 'visibility_a', 'active')" >/dev/null 2>&1
 psql_db -c "INSERT INTO principals (id, kind, handle, status)
             VALUES ('$principal_b', 'user', 'visibility_b', 'active')" >/dev/null 2>&1
 serial_a_stored="$(psql_db -c "SELECT serial_id FROM principals WHERE id = '$principal_a'")"
-serial_b_stored="$(psql_db -c "SELECT serial_id FROM principals WHERE id = '$principal_b'")"
 serial_a="$(CMSLEARN_DATABASE_URL="$database_url" "$principal_value" serial "$principal_a")"
 if [ -n "$serial_a" ] && [ "$serial_a" = "$serial_a_stored" ]; then
   ok "a session uuid resolves to its stored serial id"
@@ -195,41 +209,10 @@ fi
 
 learner_a="$("$principal_value" encode learner "$serial_a")"
 audience_a="$(CMSLEARN_DATABASE_URL="$database_url" "$principal_value" audience "$principal_a" | tr ' ' ',')"
-audience_b="$(CMSLEARN_DATABASE_URL="$database_url" "$principal_value" audience "$principal_b" | tr ' ' ',')"
 if [ "$audience_a" = "$everyone,$learner_a" ]; then
   ok "the request audience is everyone plus the encoded viewer"
 else
   bad "the request audience is everyone plus the encoded viewer" "audience '$audience_a'"
-fi
-
-insert_task bound-task
-psql_db -c "INSERT INTO task_visibility (task_id, principal_id) VALUES ('bound-task', $learner_a)" >/dev/null 2>&1
-binding_query() {
-  psql_db -c "SELECT t.id
-              FROM tasks AS t
-              WHERE t.status = 'published'
-                AND t.difficulty >= 800 AND t.difficulty <= 1200
-                AND EXISTS (SELECT 1 FROM task_topics AS tt
-                            WHERE tt.task_id = t.id AND tt.task_version = t.version
-                              AND tt.topic IN ('io'))
-                AND NOT EXISTS (SELECT 1 FROM progress AS p
-                                WHERE p.account_id = '$account'
-                                  AND p.task_id = t.id AND p.task_version = t.version)
-                AND EXISTS (SELECT 1 FROM task_visibility AS v
-                            WHERE v.task_id = t.id
-                              AND v.principal_id = ANY(ARRAY[$1]::bigint[]))"
-}
-served_a="$(binding_query "$audience_a")"
-served_b="$(binding_query "$audience_b")"
-if grep -qx 'bound-task' <<<"$served_a"; then
-  ok "a learner's serial grant serves that learner"
-else
-  bad "a learner's serial grant serves that learner" "served: ${served_a:-none}"
-fi
-if grep -qx 'bound-task' <<<"$served_b"; then
-  bad "a learner's serial grant does not serve another learner" "served: $served_b"
-else
-  ok "a learner's serial grant does not serve another learner"
 fi
 
 if CMSLEARN_DATABASE_URL="$database_url" "$principal_value" serial "$unknown_principal" >/dev/null 2>&1; then

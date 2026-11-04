@@ -193,3 +193,30 @@ TEST_CASE("a task with no visibility row is never served", "[serve][live]") {
   REQUIRE(result.has_value());
   CHECK(!result->has_value());
 }
+
+TEST_CASE("the serving query follows the audience composed from a principal", "[serve][live]") {
+  if (!has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = live_database();
+  ensure_seeded();
+  const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee4"};
+  database(sqlpp::insert_into(cms::db::principals).set(
+      cms::db::principals.id = account, cms::db::principals.kind = std::string{"user"},
+      cms::db::principals.handle = std::string{"serve_four"},
+      cms::db::principals.status = std::string{"active"}));
+
+  // The lower task has no visibility row; the higher one is granted to everyone. A query that lost its
+  // predicate returns the lower id, so the returned id names the defect.
+  given_hidden_task(database, "probe-composed-hidden", 1000, "io");
+  given_task(database, "probe-composed-public", 1100, "io");
+
+  const auto audience = cms::bank::request_audience(database, account);
+  REQUIRE(audience.has_value());
+  const auto result = cms::bank::next_unseen_task(database, account, stage(950, 1200, {"io"}),
+                                                  *audience);
+  REQUIRE(result.has_value());
+  REQUIRE(result->has_value());
+  CHECK((*result)->id != "probe-composed-hidden");
+  CHECK((*result)->id == "probe-composed-public");
+}
