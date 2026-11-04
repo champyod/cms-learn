@@ -41,7 +41,7 @@
     "check:cpp": "bun run tools/cpp/gate.ts",
     "check:cpp:falsify": "bun run tools/cpp/falsify.ts",
     "check:pm": "bash tools/check-pm.sh",
-    "check:pm:falsify": "bash tools/falsify-pm-gate.sh",
+    "check:pm:falsify": "bun run tools/falsify/runner.ts pm",
     "gate": "bun run check:schema && bun run check:schema:falsify && bun run validate && bun run vocab:build && bun run vocab:gate && bun run check:references && bun run validate:falsify && bun run check:references:falsify",
     "gate:schema": "bun run check:schema && bun run check:schema:falsify",
     "gate:deploy": "bun run check:stack && bun run check:stack:falsify && bun run check:deploy && bun run check:deploy:falsify && bun run check:upgrade && bun run check:upgrade:falsify",

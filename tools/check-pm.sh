@@ -43,7 +43,7 @@ note "no package-lock.json, yarn.lock or pnpm-lock.yaml in the tree"
 # invocation scan skips; every other file under tools/ is in scope.
 mapfile -t scanned < <(
   printf '%s\n' package.json Makefile
-  find tools -type f ! -name 'check-pm.sh' ! -name 'falsify-pm-gate.sh' | sort
+  find tools -type f ! -name 'check-pm.sh' ! -path 'tools/falsify/cases/pm.ts' | sort
 )
 
 invocations="$(grep -nE '(^|[^[:alnum:]_.-])(npm|npx|yarn|pnpm)([^[:alnum:]_.-]|$)' "${scanned[@]}" || true)"
