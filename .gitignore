@@ -23,3 +23,7 @@ CMakeUserPresets.json
 # Which release this server is running, and the one before it. Both describe a host, not the repo.
 deploy/.deployed-compose.yml
 deploy/.previous-compose.yml
+
+# Agent local overlays — machine-specific, never published
+AGENTS.local.md
+CLAUDE.local.md
