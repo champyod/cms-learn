@@ -7,6 +7,7 @@
     "th": "ผลรวมของช่วงข้อมูล"
   },
   "topics": ["prefix-sums", "complexity"],
+  "technique": "prefix-sums",
   "difficulty": 900,
   "locales": ["en", "th"],
   "limits": { "time_ms": 1000, "memory_mb": 256 },

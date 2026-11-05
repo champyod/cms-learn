@@ -26,6 +26,11 @@ export const CONTENT_GATE: Gate = {
       expect: { status: "non-zero" },
     },
     {
+      name: "technique outside the task's topics",
+      plant: [{ kind: "json", path: GRID_TASK, edits: [{ kind: "set", pointer: ["technique"], value: "dijkstra" }] }],
+      expect: { status: "non-zero" },
+    },
+    {
       name: "stage names a tag outside the vocabulary",
       plant: [
         {

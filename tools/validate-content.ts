@@ -183,6 +183,7 @@ interface Task {
   version: number;
   status: "draft" | "verified" | "published" | "rejected";
   topics: string[];
+  technique: string;
   difficulty: number;
   locales: string[];
   checker: { kind: string; path?: string };
@@ -225,6 +226,10 @@ if (existsSync(tasksDir)) {
 
     for (const topic of task.topics ?? []) {
       if (!vocabulary.has(topic)) violations.push(`${rel(taskPath)}: unknown topic "${topic}"`);
+    }
+    // The technique selects the proof template, so it has to be one of the task's own tags.
+    if (!(task.topics ?? []).includes(task.technique)) {
+      violations.push(`${rel(taskPath)}: technique "${task.technique}" is not one of its topics`);
     }
     if (entry !== task.id) violations.push(`${rel(taskPath)}: id "${task.id}" does not match its directory "${entry}"`);
     if (!reachable(task)) {

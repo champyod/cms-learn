@@ -10,6 +10,7 @@
     "status",
     "title",
     "topics",
+    "technique",
     "difficulty",
     "locales",
     "limits",
@@ -35,6 +36,7 @@
       "minItems": 1,
       "items": { "type": "string", "minLength": 1 }
     },
+    "technique": { "type": "string", "minLength": 1 },
     "difficulty": { "type": "integer", "minimum": 800, "maximum": 3500, "multipleOf": 100 },
     "locales": {
       "type": "array",
