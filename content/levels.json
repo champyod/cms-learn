@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "note": "The level list a learner works at, as bands over the one difficulty scale (800-3500, step 100). This file is the default an installation starts from; an administrator replaces the stored values at `content.levels` and `content.levels.default`. A task's level is derived from its difficulty and never stored on the task. The bands must be contiguous, non-overlapping and cover the whole scale, which the content gate checks. The names are the stage columns of the POSN syllabus (seed/vocab/raw/posn.json), so they are sourced rather than invented.",
+  "levels": [
+    {
+      "id": "toi-zero",
+      "title": { "en": "TOI-Zero" },
+      "min": 800,
+      "max": 1400
+    },
+    {
+      "id": "camp-1",
+      "title": { "en": "Camp 1" },
+      "min": 1500,
+      "max": 1800
+    },
+    {
+      "id": "camp-2",
+      "title": { "en": "Camp 2" },
+      "min": 1900,
+      "max": 2400
+    },
+    {
+      "id": "toi-ioi",
+      "title": { "en": "TOI-IOI" },
+      "min": 2500,
+      "max": 3500
+    }
+  ]
+}

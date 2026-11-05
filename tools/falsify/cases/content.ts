@@ -4,6 +4,7 @@ const RANGE_TASK = "content/tasks/range-sum-query/task.json";
 const GRID_TASK = "content/tasks/grid-shortest-path/task.json";
 const TRACKS = "content/tracks.json";
 const PREREQS = "content/prereqs.json";
+const LEVELS = "content/levels.json";
 
 export const CONTENT_GATE: Gate = {
   id: "content",
@@ -28,6 +29,26 @@ export const CONTENT_GATE: Gate = {
     {
       name: "technique outside the task's topics",
       plant: [{ kind: "json", path: GRID_TASK, edits: [{ kind: "set", pointer: ["technique"], value: "dijkstra" }] }],
+      expect: { status: "non-zero" },
+    },
+    {
+      name: "a gap between two level bands",
+      plant: [{ kind: "json", path: LEVELS, edits: [{ kind: "set", pointer: ["levels", 2, "min"], value: 2000 }] }],
+      expect: { status: "non-zero" },
+    },
+    {
+      name: "two level bands overlapping",
+      plant: [{ kind: "json", path: LEVELS, edits: [{ kind: "set", pointer: ["levels", 1, "max"], value: 1900 }] }],
+      expect: { status: "non-zero" },
+    },
+    {
+      name: "level bands that stop short of the scale",
+      plant: [{ kind: "json", path: LEVELS, edits: [{ kind: "set", pointer: ["levels", 3, "max"], value: 3400 }] }],
+      expect: { status: "non-zero" },
+    },
+    {
+      name: "level band inverted",
+      plant: [{ kind: "json", path: LEVELS, edits: [{ kind: "set", pointer: ["levels", 1, "max"], value: 1200 }] }],
       expect: { status: "non-zero" },
     },
     {

@@ -47,6 +47,46 @@ if (topicsFile) {
   }
 }
 
+// ── levels ───────────────────────────────────────────────────────────────────────────────────
+interface Level { id: string; title: { en: string }; min: number; max: number }
+
+const SCALE_MIN = 800;
+const SCALE_MAX = 3500;
+
+const levelsPath = join(contentDir, "levels.json");
+const levelsFile = readJson<{ version: number; levels: Level[] }>(levelsPath);
+let levelCount = 0;
+
+if (levelsFile) {
+  const validate = ajv.compile(readJson<object>(join(contentDir, "schema/levels.schema.json")) ?? {});
+  if (!validate(levelsFile)) schemaErrors(levelsPath, validate.errors);
+
+  const levelIds = new Set<string>();
+  const ordered = [...(levelsFile.levels ?? [])].sort((left, right) => left.min - right.min);
+
+  for (const level of ordered) {
+    levelCount += 1;
+    if (levelIds.has(level.id)) violations.push(`levels: duplicate level id "${level.id}"`);
+    levelIds.add(level.id);
+    if (level.min > level.max) {
+      violations.push(`level ${level.id}: band ${level.min}-${level.max} is inverted`);
+    }
+  }
+
+  // The bands must partition the scale: a task outside every band would have no level to show, and an
+  // overlap would let one difficulty carry two, which is the ambiguity the whole rule exists to remove.
+  let expected = SCALE_MIN;
+  for (const level of ordered) {
+    if (level.min !== expected) {
+      violations.push(`level ${level.id}: starts at ${level.min}, but the scale expects ${expected}`);
+    }
+    expected = level.max + 100;
+  }
+  if (ordered.length > 0 && ordered[ordered.length - 1].max !== SCALE_MAX) {
+    violations.push(`levels: the last band ends at ${ordered[ordered.length - 1].max}, not ${SCALE_MAX}`);
+  }
+}
+
 // ── tracks ────────────────────────────────────────────────────────────────────────────────────
 interface Stage { id: string; title: { en: string; th: string }; tags: string[]; difficulty: { min: number; max: number } }
 interface Track { id: string; title: { en: string; th: string }; description: { en: string; th: string }; stages: Stage[] }
@@ -275,7 +315,7 @@ if (existsSync(tasksDir)) {
 // ── verdict ───────────────────────────────────────────────────────────────────────────────────
 const scanned =
   `topics ${vocabulary.size} · tracks ${trackCount} · ` +
-  `stages ${stageCount} · tasks ${taskCount} (draft ${taskCounts.draft}, verified ${taskCounts.verified}, ` +
+  `stages ${stageCount} · levels ${levelCount} · tasks ${taskCount} (draft ${taskCounts.draft}, verified ${taskCounts.verified}, ` +
   `published ${taskCounts.published}, rejected ${taskCounts.rejected}) · ` +
   `prereqs ${prereqTagCount} tag(s), ${prereqTagsWithEdges} with edges ` +
   `(${prereqUsacoEdges} usaco-guide, ${prereqAuthoredEdges} authored)`;
