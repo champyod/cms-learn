@@ -37,6 +37,12 @@ auto refuse_incomplete(const TaskSpec& spec) -> Result<void> {
   if (spec.title_en.empty()) return missing("an English title");
   if (spec.title_th.empty()) return missing("a Thai title");
   if (spec.topics.empty()) return missing("at least one topic");
+  if (spec.technique.empty()) return missing("the technique");
+  const auto is_technique = std::find(spec.topics.begin(), spec.topics.end(), spec.technique) != spec.topics.end();
+  if (!is_technique) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "the technique must be one of the task's topics"));
+  }
   if (spec.checker.empty()) return missing("a checker");
   if (spec.statement_en.empty()) return missing("an English statement");
   if (spec.statement_th.empty()) return missing("a Thai statement");
@@ -67,6 +73,7 @@ auto manifest_text(const TaskSpec& spec) -> std::string {
   text += "  \"status\": \"draft\",\n";
   text += "  \"title\": { \"en\": \"" + spec.title_en + "\", \"th\": \"" + spec.title_th + "\" },\n";
   text += "  \"topics\": [" + topics + "],\n";
+  text += "  \"technique\": \"" + spec.technique + "\",\n";
   text += "  \"difficulty\": " + std::to_string(spec.difficulty) + ",\n";
   text += "  \"locales\": [\"en\", \"th\"],\n";
   text += "  \"limits\": { \"time_ms\": " + std::to_string(spec.time_ms) + ", \"memory_mb\": " +

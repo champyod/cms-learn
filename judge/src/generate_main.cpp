@@ -19,7 +19,7 @@ namespace {
 
 constexpr std::string_view USAGE =
     "usage: cms_generate_task --out <dir> --id <id> --title-en <t> --title-th <t> --topics <a,b>\\n"
-    "         --difficulty <n> --time-ms <n> --memory-mb <n> --checker <kind>\\n"
+    "         --technique <tag> --difficulty <n> --time-ms <n> --memory-mb <n> --checker <kind>\\n"
     "         --statement-en <file> --statement-th <file> --example-in <file>\\n"
     "         --example-out <file> --solution <file>";
 
@@ -71,6 +71,7 @@ auto run(int argc, char** argv) -> int {
     else if (flag == "--title-en") spec.title_en = value;
     else if (flag == "--title-th") spec.title_th = value;
     else if (flag == "--topics") spec.topics = split_topics(value);
+    else if (flag == "--technique") spec.technique = value;
     else if (flag == "--difficulty") spec.difficulty = std::stoi(value);
     else if (flag == "--time-ms") spec.time_ms = std::stoi(value);
     else if (flag == "--memory-mb") spec.memory_mb = std::stoi(value);

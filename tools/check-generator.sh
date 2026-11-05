@@ -26,7 +26,7 @@ printf '#include <iostream>\nint main() { return 0; }\n' >"$work/main.cpp"
 
 generate() {
   "$generator" --out "$1" --id probe-task --title-en "Probe" --title-th "ทดสอบ" \
-    --topics "prefix-sums,complexity" --difficulty 900 --time-ms 1000 --memory-mb 256 \
+    --topics "prefix-sums,complexity" --technique prefix-sums --difficulty 900 --time-ms 1000 --memory-mb 256 \
     --checker token --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
     --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp"
 }
@@ -40,7 +40,7 @@ done
 [ -f "$work/one/task.json" ] && ok "the draft holds every file the loader reads"
 
 missing_field=0
-for field in '"id"' '"version"' '"status"' '"title"' '"topics"' '"difficulty"' '"locales"' '"limits"' '"checker"' '"origin"' '"verification"'; do
+for field in '"id"' '"version"' '"status"' '"title"' '"topics"' '"technique"' '"difficulty"' '"locales"' '"limits"' '"checker"' '"origin"' '"verification"'; do
   grep -q "$field" "$work/one/task.json" || { missing_field=1; echo "    missing $field"; }
 done
 [ "$missing_field" = "0" ] && ok "the manifest carries every field the schema requires" \
@@ -66,6 +66,16 @@ if ( cd "$repo" && bun run validate >/dev/null 2>&1 ); then
   ok "the repository bank still passes the content gate"
 else
   bad "the repository bank still passes the content gate" "bun run validate failed"
+fi
+
+if "$generator" --out "$work/off-topic" --id probe-task --title-en "Probe" --title-th "ทดสอบ" \
+  --topics "prefix-sums,complexity" --technique bfs --difficulty 900 --time-ms 1000 --memory-mb 256 \
+  --checker token --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
+  --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp" \
+  >/dev/null 2>&1; then
+  bad "a technique outside the topics is refused" "the generator wrote a task the content gate rejects"
+else
+  ok "a technique outside the topics is refused"
 fi
 
 printf '\n%s assertion(s) behaved, %s did not\n' "$pass" "$fail"

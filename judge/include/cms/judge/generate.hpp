@@ -18,6 +18,7 @@ struct TaskSpec {
   std::string title_en;
   std::string title_th;
   std::vector<std::string> topics;
+  std::string technique;
   std::int32_t difficulty{0};
   std::int32_t time_ms{0};
   std::int32_t memory_mb{0};
