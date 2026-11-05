@@ -25,7 +25,7 @@ export const SCHEMA_GATE: Gate = {
           path: "deploy/plan/0001_init.json",
           find: "\"operation\": \"create\"",
           replace: "\"operation\": \"update\"",
-          matches: 99,
+          matches: 108,
         },
       ],
       command: APPLY_PLAN,
