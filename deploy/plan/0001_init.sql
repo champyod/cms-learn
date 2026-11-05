@@ -106,6 +106,33 @@ CREATE TABLE IF NOT EXISTS content_seed (
     CONSTRAINT content_seed_single_row CHECK (singleton)
 );
 
+CREATE TABLE IF NOT EXISTS levels (
+    id text,
+    position integer NOT NULL,
+    difficulty_min integer NOT NULL,
+    difficulty_max integer NOT NULL,
+    icon text NOT NULL,
+    description_en text DEFAULT '' NOT NULL,
+    CONSTRAINT levels_pkey PRIMARY KEY (id),
+    CONSTRAINT levels_position_unique UNIQUE (position),
+    CONSTRAINT levels_band CHECK (difficulty_min <= difficulty_max),
+    CONSTRAINT levels_difficulty_band CHECK (difficulty_min >= 800 AND difficulty_min <= 3500 AND difficulty_max >= 800 AND difficulty_max <= 3500 AND (difficulty_min % 100) = 0 AND (difficulty_max % 100) = 0),
+    CONSTRAINT levels_icon_shape CHECK (icon ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text),
+    CONSTRAINT levels_id_shape CHECK (id ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS levels_order_idx ON levels (difficulty_min, difficulty_max);
+
+CREATE TABLE IF NOT EXISTS level_titles (
+    level_id text,
+    language text,
+    title text NOT NULL,
+    CONSTRAINT level_titles_pkey PRIMARY KEY (level_id, language),
+    CONSTRAINT level_titles_level_id_fkey FOREIGN KEY (level_id) REFERENCES levels (id) ON DELETE CASCADE,
+    CONSTRAINT level_titles_language_shape CHECK (language ~ '^[a-z]{2}(-[A-Za-z0-9]{2,8})*$'::text),
+    CONSTRAINT level_titles_title_check CHECK (length(btrim(title)) > 0)
+);
+
 CREATE TABLE IF NOT EXISTS principals (
     id uuid DEFAULT gen_random_uuid(),
     serial_id bigint GENERATED ALWAYS AS IDENTITY,
@@ -479,6 +506,30 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION levels_partition_the_scale()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+AS $$
+DECLARE
+  expected integer := 800;
+  current_min integer;
+BEGIN
+  FOR current_min IN SELECT difficulty_min FROM levels ORDER BY difficulty_min LOOP
+    IF current_min <> expected THEN
+      RAISE EXCEPTION 'level list is not a partition of 800..3500: a band starts at %, expected %',
+        current_min, expected;
+    END IF;
+    expected := (SELECT difficulty_max + 100 FROM levels WHERE difficulty_min = current_min);
+  END LOOP;
+  IF expected - 100 <> 3500 THEN
+    RAISE EXCEPTION 'level list is not a partition of 800..3500: the last band ends at %, expected 3500',
+      expected - 100;
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION reject_mutation()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -599,6 +650,12 @@ CREATE OR REPLACE TRIGGER audit_events_append_only
     BEFORE UPDATE OR DELETE ON audit_events
     FOR EACH ROW
     EXECUTE FUNCTION reject_mutation();
+
+CREATE CONSTRAINT TRIGGER levels_partition_check
+    AFTER INSERT OR UPDATE OR DELETE ON levels
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION levels_partition_the_scale();
 
 CREATE OR REPLACE TRIGGER settings_audit_append_only
     BEFORE UPDATE OR DELETE ON settings_audit

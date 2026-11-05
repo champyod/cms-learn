@@ -9,6 +9,7 @@
 \i content.sql
 \i visibility.sql
 \i curriculum.sql
+\i levels.sql
 \i progress.sql
 \i submissions.sql
 \i grants.sql

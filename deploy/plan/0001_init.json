@@ -105,6 +105,24 @@
           "path": "public.content_seed"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS levels (\n    id text,\n    position integer NOT NULL,\n    difficulty_min integer NOT NULL,\n    difficulty_max integer NOT NULL,\n    icon text NOT NULL,\n    description_en text DEFAULT '' NOT NULL,\n    CONSTRAINT levels_pkey PRIMARY KEY (id),\n    CONSTRAINT levels_position_unique UNIQUE (position),\n    CONSTRAINT levels_band CHECK (difficulty_min <= difficulty_max),\n    CONSTRAINT levels_difficulty_band CHECK (difficulty_min >= 800 AND difficulty_min <= 3500 AND difficulty_max >= 800 AND difficulty_max <= 3500 AND (difficulty_min % 100) = 0 AND (difficulty_max % 100) = 0),\n    CONSTRAINT levels_icon_shape CHECK (icon ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text),\n    CONSTRAINT levels_id_shape CHECK (id ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.levels"
+        },
+        {
+          "sql": "CREATE UNIQUE INDEX IF NOT EXISTS levels_order_idx ON levels (difficulty_min, difficulty_max);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.levels.levels_order_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS level_titles (\n    level_id text,\n    language text,\n    title text NOT NULL,\n    CONSTRAINT level_titles_pkey PRIMARY KEY (level_id, language),\n    CONSTRAINT level_titles_level_id_fkey FOREIGN KEY (level_id) REFERENCES levels (id) ON DELETE CASCADE,\n    CONSTRAINT level_titles_language_shape CHECK (language ~ '^[a-z]{2}(-[A-Za-z0-9]{2,8})*$'::text),\n    CONSTRAINT level_titles_title_check CHECK (length(btrim(title)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.level_titles"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS principals (\n    id uuid DEFAULT gen_random_uuid(),\n    serial_id bigint GENERATED ALWAYS AS IDENTITY,\n    kind principal_kind NOT NULL,\n    handle text NOT NULL,\n    email text,\n    email_verified_at timestamptz,\n    password_hash text,\n    status principal_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principals_pkey PRIMARY KEY (id),\n    CONSTRAINT principals_email_key UNIQUE (email),\n    CONSTRAINT principals_handle_key UNIQUE (handle),\n    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),\n    CONSTRAINT principals_serial_id_key UNIQUE (serial_id),\n    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),\n    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)\n);",
           "type": "table",
           "operation": "create",
@@ -339,6 +357,12 @@
           "path": "public.current_actor"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION levels_partition_the_scale()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nAS $$\nDECLARE\n  expected integer := 800;\n  current_min integer;\nBEGIN\n  FOR current_min IN SELECT difficulty_min FROM levels ORDER BY difficulty_min LOOP\n    IF current_min <> expected THEN\n      RAISE EXCEPTION 'level list is not a partition of 800..3500: a band starts at %, expected %',\n        current_min, expected;\n    END IF;\n    expected := (SELECT difficulty_max + 100 FROM levels WHERE difficulty_min = current_min);\n  END LOOP;\n  IF expected - 100 <> 3500 THEN\n    RAISE EXCEPTION 'level list is not a partition of 800..3500: the last band ends at %, expected 3500',\n      expected - 100;\n  END IF;\n  RETURN NULL;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.levels_partition_the_scale"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION reject_mutation()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  RAISE EXCEPTION '% is append-only; % is not permitted', TG_TABLE_NAME, TG_OP\n    USING ERRCODE = 'restrict_violation';\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -373,6 +397,12 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.audit_events.audit_events_append_only"
+        },
+        {
+          "sql": "CREATE CONSTRAINT TRIGGER levels_partition_check\n    AFTER INSERT OR UPDATE OR DELETE ON levels\n    DEFERRABLE INITIALLY DEFERRED\n    FOR EACH ROW\n    EXECUTE FUNCTION levels_partition_the_scale();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.levels.levels_partition_check"
         },
         {
           "sql": "CREATE OR REPLACE TRIGGER settings_audit_append_only\n    BEFORE UPDATE OR DELETE ON settings_audit\n    FOR EACH ROW\n    EXECUTE FUNCTION reject_mutation();",
