@@ -14,12 +14,16 @@ nothing else; each gate is machine-checkable.
 | 3 | Proof agent | the chosen plan | a formal specification, a machine proof, and the limits for the whole task and for each subtask | the verifier accepts; a limit is derived from complexity and bounds, never loosened by hand |
 | 4 | Statement writer | **input, output and constraints only — no solution, no technique** | statement in TH and EN, and the constraints section | anti-`brief-leak` and anti-`algo-leak`, plus an input that could not leak because it never held the approach |
 | 5 | Solution writer | the theory (specification and proof) | the reference solution, and each subtask's solution | the reference agrees with brute force on the small cases; the weakest subtask's solution passes its own group and fails at least one test outside it |
-| 6 | Test case writer | the per-subtask limits from step 3 | generator code, the checker, low-resource cases first | the checker accepts the reference and rejects a planted wrong answer; the generator is deterministic under the recorded seed |
+| 6 | Test case writer | the per-subtask limits from step 3 | generator code, the checker, low-resource cases first | the checker accepts the reference and rejects a planted wrong answer; the generator is deterministic under the recorded seed; the sandbox produces every one of the nine verdict kinds |
 | 7 | Certifier | all evidence | provenance, digest, the version | every earlier gate is re-run, and nothing reaches a learner before it does |
 
 The reference is certified by brute force on low-resource cases *before* its answers are used to
 generate the full test set — the ordering matters, because a reference that is wrong and used as an
 oracle produces a test set that is wrong in the same way.
+
+This describes the admin path, which always generates and never reads a cache. The participant path
+puts the cache lookup of `docs/content-model.md` in front of the same seven steps and is otherwise
+unchanged.
 
 ## 2. Parallelism is sharding, never redundancy
 
@@ -62,8 +66,10 @@ traps.
 
 ## 6. The statement arrives first, and the state that makes that honest
 
-The statement and its outline reach the administrator first. The outline and the inner information —
-the approach, the proof, the subtask intents — are never rendered to a learner, only to an admin.
+The statement and the task's outline reach the administrator first, where the outline is the summary an
+admin reads before the tests exist: the chosen approach, the proof's conclusion, the limits and the
+subtask intents. The outline and that inner information are never rendered to a learner, only to an
+admin.
 
 Test generation then runs after that, asynchronously. This creates a state the vocabulary must name: a
 draft whose statement exists and whose tests do not. It remains `draft`, because `published` requires
@@ -78,7 +84,9 @@ learner ever waits on a pipeline.
 ## 7. What this supersedes
 
 - The six stages in `methodology.typ:168-184` describe a different order and no planner or judge step.
-  They are replaced by these seven; the document edit is the next step and is not done here.
+  They are replaced by these seven. The document now says seven steps (`cms-learn-doc` `5250feb`),
+  promises up to six brief fields with two required (`5e45889`), and states the generation queue
+  (`3f484a8`).
 - `docs/task-generation.md` loses `solutions/decoy.cpp` (`:125`), the decoy score gate (`:190`) and
   the `misdirection` example that assumes it, and gains the coherence check of §5.
 - The generation input loses `track` and `stage` on the admin path (`0014`), which that document still

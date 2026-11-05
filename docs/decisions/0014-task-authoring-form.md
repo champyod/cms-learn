@@ -29,7 +29,7 @@ required.
 | misdirection | on or off; optionally pin `lean_to` | on, generator chooses `lean_to` | no |
 | title | `en` and `th`, generated first | generated | no |
 | description | one line for the admin | generated | no |
-| locale | languages the task ships | English only | English fixed |
+| locale | languages the task ships | English only | English always; Thai optional |
 | brief | free text, never published | empty | no |
 | cast | people, naming, role | the template's | no |
 
@@ -76,9 +76,10 @@ predicted is never published.
 ## 7. Misdirection is on unless switched off
 
 Every generated task reads as if `lean_to` were the intended approach. The teacher may switch it off,
-and may pin `lean_to` to a vocabulary node. Two gates already guard it and are unchanged: the decoy must
-score above zero and strictly below full, and the statement must not name `lean_to` or the intended
-algorithm outside the allowed hint level.
+and may pin `lean_to` to a vocabulary node. The statement must not name `lean_to` or the intended
+algorithm outside the allowed hint level. The trap's fairness is no longer a separate program's score:
+`0015-generation-pipeline.md` §5 makes the weakest subtask's solution the evidence and replaces the
+decoy-score gate with one coherence check.
 
 ## 8. Title, description, cast
 

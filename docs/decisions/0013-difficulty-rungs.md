@@ -43,7 +43,9 @@ The four rungs cut 800–3500 at three thresholds:
 The bands are contiguous, so every difficulty belongs to exactly one rung and a task can carry one
 level badge without ambiguity. The thresholds are a decision, not a measurement of what these contests
 contain; they are written here because they have to be defensible and changeable in one place. Nothing
-computes a number from a rung — the rung is computed from the number.
+derives a stored difficulty from a rung — the rung is computed from the number. The one rung-to-number
+step is the authoring control, which writes the first step of a band once, at input
+(`0014-task-authoring-form.md` §4).
 
 ## 4. The account stores a number too
 
