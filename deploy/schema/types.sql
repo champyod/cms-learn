@@ -1,8 +1,14 @@
 CREATE TYPE setting_kind AS ENUM ('bool', 'int', 'text');
 
-CREATE TYPE principal_kind AS ENUM ('user', 'system');
 
 CREATE TYPE principal_status AS ENUM ('pending', 'active', 'suspended', 'closed');
+
+-- An administrator is never pending: the account exists because an administrator created it (ADR 0016).
+CREATE TYPE admin_status AS ENUM ('active', 'revoked');
+
+-- Which table an account id belongs to. Two ids from two tables are otherwise indistinguishable, so
+-- every row that can name an account of either kind carries this beside the id (ADR 0016).
+CREATE TYPE account_kind AS ENUM ('learner', 'admin', 'system');
 
 CREATE TYPE audit_operation AS ENUM ('insert', 'update', 'delete');
 

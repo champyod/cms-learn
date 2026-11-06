@@ -3,7 +3,7 @@
 
 CREATE TABLE submissions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_id uuid NOT NULL REFERENCES principals (id) ON DELETE CASCADE,
+  account_id uuid NOT NULL REFERENCES learner_accounts (id) ON DELETE CASCADE,
   task_id text NOT NULL,
   task_version integer NOT NULL,
   source text NOT NULL CHECK (length(source) > 0),

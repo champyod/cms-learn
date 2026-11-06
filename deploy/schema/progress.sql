@@ -5,7 +5,7 @@ CREATE TYPE progress_status AS ENUM ('attempted', 'solved');
 
 CREATE TABLE progress (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  account_id uuid NOT NULL REFERENCES principals (id) ON DELETE CASCADE,
+  account_id uuid NOT NULL REFERENCES learner_accounts (id) ON DELETE CASCADE,
   task_id text NOT NULL,
   task_version integer NOT NULL,
   status progress_status NOT NULL DEFAULT 'attempted',

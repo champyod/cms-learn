@@ -1,3 +1,14 @@
+CREATE TYPE account_kind AS ENUM (
+    'learner',
+    'admin',
+    'system'
+);
+
+CREATE TYPE admin_status AS ENUM (
+    'active',
+    'revoked'
+);
+
 CREATE TYPE audit_operation AS ENUM (
     'insert',
     'update',
@@ -24,11 +35,6 @@ CREATE TYPE capability AS ENUM (
 CREATE TYPE locale AS ENUM (
     'en',
     'th'
-);
-
-CREATE TYPE principal_kind AS ENUM (
-    'user',
-    'system'
 );
 
 CREATE TYPE principal_status AS ENUM (
@@ -97,6 +103,19 @@ CREATE TYPE verdict_status AS ENUM (
 
 ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;
 
+CREATE TABLE IF NOT EXISTS admin_accounts (
+    id uuid DEFAULT gen_random_uuid(),
+    handle text NOT NULL,
+    password_hash text,
+    status admin_status DEFAULT 'active'::admin_status NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    revoked_at timestamptz,
+    CONSTRAINT admin_accounts_pkey PRIMARY KEY (id),
+    CONSTRAINT admin_accounts_handle_key UNIQUE (handle),
+    CONSTRAINT admin_accounts_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text),
+    CONSTRAINT admin_accounts_revocation_shape CHECK ((status = 'revoked'::admin_status) = (revoked_at IS NOT NULL))
+);
+
 CREATE TABLE IF NOT EXISTS content_seed (
     singleton boolean DEFAULT true,
     version bigint DEFAULT 0 NOT NULL,
@@ -105,6 +124,29 @@ CREATE TABLE IF NOT EXISTS content_seed (
     CONSTRAINT content_seed_pkey PRIMARY KEY (singleton),
     CONSTRAINT content_seed_single_row CHECK (singleton)
 );
+
+CREATE TABLE IF NOT EXISTS elevations (
+    id uuid DEFAULT gen_random_uuid(),
+    admin_id uuid NOT NULL,
+    capability capability NOT NULL,
+    granted_by uuid NOT NULL,
+    approved_by uuid,
+    granted_at timestamptz DEFAULT now() NOT NULL,
+    expires_at timestamptz NOT NULL,
+    consumed_at timestamptz,
+    reason text NOT NULL,
+    CONSTRAINT elevations_pkey PRIMARY KEY (id),
+    CONSTRAINT elevations_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,
+    CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES admin_accounts (id),
+    CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES admin_accounts (id),
+    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),
+    CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> admin_id),
+    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),
+    CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),
+    CONSTRAINT elevations_two_people CHECK (approved_by IS NULL OR approved_by <> admin_id AND approved_by <> granted_by)
+);
+
+CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (admin_id, capability, expires_at) WHERE (consumed_at IS NULL);
 
 CREATE TABLE IF NOT EXISTS levels (
     id text,
@@ -123,6 +165,42 @@ CREATE TABLE IF NOT EXISTS levels (
 
 CREATE UNIQUE INDEX IF NOT EXISTS levels_order_idx ON levels (difficulty_min, difficulty_max);
 
+CREATE TABLE IF NOT EXISTS learner_accounts (
+    id uuid DEFAULT gen_random_uuid(),
+    serial_id bigint GENERATED ALWAYS AS IDENTITY,
+    handle text NOT NULL,
+    email text NOT NULL,
+    email_verified_at timestamptz,
+    password_hash text,
+    status principal_status NOT NULL,
+    level_id text,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT learner_accounts_pkey PRIMARY KEY (id),
+    CONSTRAINT learner_accounts_email_key UNIQUE (email),
+    CONSTRAINT learner_accounts_handle_key UNIQUE (handle),
+    CONSTRAINT learner_accounts_serial_id_key UNIQUE (serial_id),
+    CONSTRAINT learner_accounts_level_id_fkey FOREIGN KEY (level_id) REFERENCES levels (id),
+    CONSTRAINT learner_accounts_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text)
+);
+
+CREATE TABLE IF NOT EXISTS learner_tokens (
+    id uuid DEFAULT gen_random_uuid(),
+    learner_id uuid NOT NULL,
+    purpose token_purpose NOT NULL,
+    token_hash text NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    expires_at timestamptz NOT NULL,
+    used_at timestamptz,
+    CONSTRAINT learner_tokens_pkey PRIMARY KEY (id),
+    CONSTRAINT learner_tokens_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,
+    CONSTRAINT learner_tokens_expiry_after_creation CHECK (expires_at > created_at),
+    CONSTRAINT learner_tokens_hash_shape CHECK (token_hash ~ '^[0-9a-f]{64}$'::text)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS learner_tokens_hash_idx ON learner_tokens (token_hash);
+
+CREATE INDEX IF NOT EXISTS learner_tokens_live_idx ON learner_tokens (learner_id) WHERE (used_at IS NULL);
+
 CREATE TABLE IF NOT EXISTS level_titles (
     level_id text,
     language text,
@@ -132,83 +210,6 @@ CREATE TABLE IF NOT EXISTS level_titles (
     CONSTRAINT level_titles_language_shape CHECK (language ~ '^[a-z]{2}(-[A-Za-z0-9]{2,8})*$'::text),
     CONSTRAINT level_titles_title_check CHECK (length(btrim(title)) > 0)
 );
-
-CREATE TABLE IF NOT EXISTS principals (
-    id uuid DEFAULT gen_random_uuid(),
-    serial_id bigint GENERATED ALWAYS AS IDENTITY,
-    kind principal_kind NOT NULL,
-    handle text NOT NULL,
-    email text,
-    email_verified_at timestamptz,
-    password_hash text,
-    status principal_status NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    CONSTRAINT principals_pkey PRIMARY KEY (id),
-    CONSTRAINT principals_email_key UNIQUE (email),
-    CONSTRAINT principals_handle_key UNIQUE (handle),
-    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),
-    CONSTRAINT principals_serial_id_key UNIQUE (serial_id),
-    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),
-    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)
-);
-
-CREATE TABLE IF NOT EXISTS audit_events (
-    id bigint GENERATED ALWAYS AS IDENTITY,
-    occurred_at timestamptz DEFAULT now() NOT NULL,
-    actor_id uuid NOT NULL,
-    invoked_by text NOT NULL,
-    action text NOT NULL,
-    subject text DEFAULT '' NOT NULL,
-    detail jsonb DEFAULT '{}' NOT NULL,
-    client_address inet,
-    CONSTRAINT audit_events_pkey PRIMARY KEY (id),
-    CONSTRAINT audit_events_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES principals (id),
-    CONSTRAINT audit_events_action_check CHECK (action ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'::text),
-    CONSTRAINT audit_events_invoked_by_check CHECK (length(invoked_by) > 0)
-);
-
-CREATE INDEX IF NOT EXISTS audit_events_actor_idx ON audit_events (actor_id, occurred_at DESC);
-
-CREATE TABLE IF NOT EXISTS elevations (
-    id uuid DEFAULT gen_random_uuid(),
-    principal_id uuid NOT NULL,
-    capability capability NOT NULL,
-    granted_by uuid NOT NULL,
-    approved_by uuid,
-    granted_at timestamptz DEFAULT now() NOT NULL,
-    expires_at timestamptz NOT NULL,
-    consumed_at timestamptz,
-    reason text NOT NULL,
-    CONSTRAINT elevations_pkey PRIMARY KEY (id),
-    CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES principals (id),
-    CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),
-    CONSTRAINT elevations_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,
-    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),
-    CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> principal_id),
-    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),
-    CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),
-    CONSTRAINT elevations_two_people CHECK (approved_by IS NULL OR approved_by <> principal_id AND approved_by <> granted_by)
-);
-
-CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (principal_id, capability, expires_at) WHERE (consumed_at IS NULL);
-
-CREATE TABLE IF NOT EXISTS principal_tokens (
-    id uuid DEFAULT gen_random_uuid(),
-    principal_id uuid NOT NULL,
-    purpose token_purpose NOT NULL,
-    token_hash text NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    expires_at timestamptz NOT NULL,
-    used_at timestamptz,
-    CONSTRAINT principal_tokens_pkey PRIMARY KEY (id),
-    CONSTRAINT principal_tokens_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,
-    CONSTRAINT principal_tokens_expiry_after_creation CHECK (expires_at > created_at),
-    CONSTRAINT principal_tokens_hash_shape CHECK (token_hash ~ '^[0-9a-f]{64}$'::text)
-);
-
-CREATE UNIQUE INDEX IF NOT EXISTS principal_tokens_hash_idx ON principal_tokens (token_hash);
-
-CREATE INDEX IF NOT EXISTS principal_tokens_live_idx ON principal_tokens (principal_id) WHERE (used_at IS NULL);
 
 CREATE TABLE IF NOT EXISTS roles (
     id uuid DEFAULT gen_random_uuid(),
@@ -220,15 +221,15 @@ CREATE TABLE IF NOT EXISTS roles (
     CONSTRAINT roles_name_check CHECK (name ~ '^[a-z][a-z0-9_]{1,62}$'::text)
 );
 
-CREATE TABLE IF NOT EXISTS principal_roles (
-    principal_id uuid,
+CREATE TABLE IF NOT EXISTS admin_roles (
+    admin_id uuid,
     role_id uuid,
     granted_by uuid,
     granted_at timestamptz DEFAULT now() NOT NULL,
-    CONSTRAINT principal_roles_pkey PRIMARY KEY (principal_id, role_id),
-    CONSTRAINT principal_roles_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),
-    CONSTRAINT principal_roles_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,
-    CONSTRAINT principal_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE
+    CONSTRAINT admin_roles_pkey PRIMARY KEY (admin_id, role_id),
+    CONSTRAINT admin_roles_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,
+    CONSTRAINT admin_roles_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES admin_accounts (id),
+    CONSTRAINT admin_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS role_capabilities (
@@ -237,24 +238,6 @@ CREATE TABLE IF NOT EXISTS role_capabilities (
     CONSTRAINT role_capabilities_pkey PRIMARY KEY (role_id, capability),
     CONSTRAINT role_capabilities_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE
 );
-
-CREATE TABLE IF NOT EXISTS sessions (
-    id uuid DEFAULT gen_random_uuid(),
-    principal_id uuid NOT NULL,
-    principal_kind principal_kind DEFAULT 'user'::principal_kind NOT NULL,
-    created_at timestamptz DEFAULT now() NOT NULL,
-    last_seen_at timestamptz DEFAULT now() NOT NULL,
-    expires_at timestamptz NOT NULL,
-    revoked_at timestamptz,
-    user_agent text,
-    client_address inet,
-    CONSTRAINT sessions_pkey PRIMARY KEY (id),
-    CONSTRAINT sessions_principal_fk FOREIGN KEY (principal_id, principal_kind) REFERENCES principals (id, kind) ON DELETE CASCADE,
-    CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),
-    CONSTRAINT sessions_user_principal_only CHECK (principal_kind = 'user'::principal_kind)
-);
-
-CREATE INDEX IF NOT EXISTS sessions_live_idx ON sessions (principal_id, expires_at) WHERE (revoked_at IS NULL);
 
 CREATE TABLE IF NOT EXISTS settings (
     key text,
@@ -265,7 +248,7 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at timestamptz DEFAULT now() NOT NULL,
     updated_by uuid NOT NULL,
     CONSTRAINT settings_pkey PRIMARY KEY (key),
-    CONSTRAINT settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES principals (id),
+    CONSTRAINT settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES admin_accounts (id),
     CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,7}$'::text),
     CONSTRAINT settings_value_matches_kind CHECK (CASE kind
     WHEN 'bool'::setting_kind THEN value_text IN ('true'::text, 'false'::text)
@@ -296,10 +279,10 @@ CREATE TABLE IF NOT EXISTS settings_audit (
     new_value text,
     old_tier setting_tier,
     new_tier setting_tier,
+    actor_kind account_kind NOT NULL,
     actor_id uuid NOT NULL,
     invoked_by text DEFAULT '' NOT NULL,
     CONSTRAINT settings_audit_pkey PRIMARY KEY (id),
-    CONSTRAINT settings_audit_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES principals (id),
     CONSTRAINT settings_audit_update_has_old_state CHECK (operation <> 'update'::audit_operation OR old_kind IS NOT NULL AND new_kind IS NOT NULL)
 );
 
@@ -321,9 +304,67 @@ CREATE TABLE IF NOT EXISTS settings_plans (
     expires_at timestamptz DEFAULT (now() + '00:15:00'::interval) NOT NULL,
     applied_at timestamptz,
     CONSTRAINT settings_plans_pkey PRIMARY KEY (id),
-    CONSTRAINT settings_plans_author_id_fkey FOREIGN KEY (author_id) REFERENCES principals (id),
+    CONSTRAINT settings_plans_author_id_fkey FOREIGN KEY (author_id) REFERENCES admin_accounts (id),
     CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at)
 );
+
+CREATE TABLE IF NOT EXISTS system_accounts (
+    id uuid DEFAULT gen_random_uuid(),
+    handle text NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT system_accounts_pkey PRIMARY KEY (id),
+    CONSTRAINT system_accounts_handle_key UNIQUE (handle),
+    CONSTRAINT system_accounts_handle_shape CHECK (handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text)
+);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    occurred_at timestamptz DEFAULT now() NOT NULL,
+    actor_kind account_kind NOT NULL,
+    learner_actor_id uuid,
+    admin_actor_id uuid,
+    system_actor_id uuid,
+    invoked_by text NOT NULL,
+    action text NOT NULL,
+    subject text DEFAULT '' NOT NULL,
+    detail jsonb DEFAULT '{}' NOT NULL,
+    client_address inet,
+    CONSTRAINT audit_events_pkey PRIMARY KEY (id),
+    CONSTRAINT audit_events_admin_actor_id_fkey FOREIGN KEY (admin_actor_id) REFERENCES admin_accounts (id),
+    CONSTRAINT audit_events_learner_actor_id_fkey FOREIGN KEY (learner_actor_id) REFERENCES learner_accounts (id),
+    CONSTRAINT audit_events_system_actor_id_fkey FOREIGN KEY (system_actor_id) REFERENCES system_accounts (id),
+    CONSTRAINT audit_events_action_check CHECK (action ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$'::text),
+    CONSTRAINT audit_events_invoked_by_check CHECK (length(invoked_by) > 0),
+    CONSTRAINT audit_events_one_actor CHECK (actor_kind = 'learner'::account_kind AND learner_actor_id IS NOT NULL AND admin_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'admin'::account_kind AND admin_actor_id IS NOT NULL AND learner_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'system'::account_kind AND system_actor_id IS NOT NULL AND learner_actor_id IS NULL AND admin_actor_id IS NULL)
+);
+
+CREATE INDEX IF NOT EXISTS audit_events_admin_actor_idx ON audit_events (admin_actor_id, occurred_at DESC);
+
+CREATE INDEX IF NOT EXISTS audit_events_learner_actor_idx ON audit_events (learner_actor_id, occurred_at DESC);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    id uuid DEFAULT gen_random_uuid(),
+    account_kind account_kind NOT NULL,
+    learner_id uuid,
+    admin_id uuid,
+    system_id uuid,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    last_seen_at timestamptz DEFAULT now() NOT NULL,
+    expires_at timestamptz NOT NULL,
+    revoked_at timestamptz,
+    user_agent text,
+    client_address inet,
+    CONSTRAINT sessions_pkey PRIMARY KEY (id),
+    CONSTRAINT sessions_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,
+    CONSTRAINT sessions_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,
+    CONSTRAINT sessions_system_id_fkey FOREIGN KEY (system_id) REFERENCES system_accounts (id) ON DELETE CASCADE,
+    CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),
+    CONSTRAINT sessions_one_account CHECK (account_kind = 'learner'::account_kind AND learner_id IS NOT NULL AND admin_id IS NULL AND system_id IS NULL OR account_kind = 'admin'::account_kind AND admin_id IS NOT NULL AND learner_id IS NULL AND system_id IS NULL OR account_kind = 'system'::account_kind AND system_id IS NOT NULL AND learner_id IS NULL AND admin_id IS NULL)
+);
+
+CREATE INDEX IF NOT EXISTS sessions_live_admin_idx ON sessions (admin_id, expires_at) WHERE (revoked_at IS NULL);
+
+CREATE INDEX IF NOT EXISTS sessions_live_idx ON sessions (learner_id, expires_at) WHERE (revoked_at IS NULL);
 
 CREATE TABLE IF NOT EXISTS task_visibility (
     task_id text,
@@ -369,7 +410,7 @@ CREATE TABLE IF NOT EXISTS progress (
     attempted_at timestamptz DEFAULT now() NOT NULL,
     solved_at timestamptz,
     CONSTRAINT progress_pkey PRIMARY KEY (id),
-    CONSTRAINT progress_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,
+    CONSTRAINT progress_account_id_fkey FOREIGN KEY (account_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,
     CONSTRAINT progress_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
     CONSTRAINT progress_solved_has_time CHECK ((status = 'solved'::progress_status) = (solved_at IS NOT NULL))
 );
@@ -389,7 +430,7 @@ CREATE TABLE IF NOT EXISTS submissions (
     claimed_by text,
     claimed_at timestamptz,
     CONSTRAINT submissions_pkey PRIMARY KEY (id),
-    CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,
+    CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,
     CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
     CONSTRAINT submissions_claim_complete CHECK ((claimed_by IS NULL) = (claimed_at IS NULL)),
     CONSTRAINT submissions_source_check CHECK (length(source) > 0),
@@ -692,11 +733,15 @@ GRANT EXECUTE ON FUNCTION current_actor() TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE audit_events_id_seq TO cmslearn_app;
 
-GRANT SELECT, USAGE ON SEQUENCE principals_serial_id_seq TO cmslearn_app;
+GRANT SELECT, USAGE ON SEQUENCE learner_accounts_serial_id_seq TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE settings_audit_id_seq TO cmslearn_app;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE admin_accounts TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT ON TABLE admin_roles TO cmslearn_app;
 
 GRANT INSERT, SELECT ON TABLE audit_events TO cmslearn_app;
 
@@ -704,11 +749,9 @@ GRANT INSERT, SELECT, UPDATE ON TABLE content_seed TO cmslearn_app;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE elevations TO cmslearn_app;
 
-GRANT DELETE, INSERT, SELECT ON TABLE principal_roles TO cmslearn_app;
+GRANT INSERT, SELECT, UPDATE ON TABLE learner_accounts TO cmslearn_app;
 
-GRANT INSERT, SELECT, UPDATE ON TABLE principal_tokens TO cmslearn_app;
-
-GRANT INSERT, SELECT, UPDATE ON TABLE principals TO cmslearn_app;
+GRANT INSERT, SELECT, UPDATE ON TABLE learner_tokens TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE progress TO cmslearn_app;
 
@@ -735,6 +778,8 @@ GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE stage_tags TO cmslearn_app;
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE submissions TO cmslearn_app;
 
 GRANT SELECT, UPDATE ON TABLE submissions TO cmslearn_judge;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE system_accounts TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_examples TO cmslearn_app;
 

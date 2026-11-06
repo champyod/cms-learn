@@ -9,6 +9,18 @@
     {
       "steps": [
         {
+          "sql": "CREATE TYPE account_kind AS ENUM (\n    'learner',\n    'admin',\n    'system'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.account_kind"
+        },
+        {
+          "sql": "CREATE TYPE admin_status AS ENUM (\n    'active',\n    'revoked'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.admin_status"
+        },
+        {
           "sql": "CREATE TYPE audit_operation AS ENUM (\n    'insert',\n    'update',\n    'delete'\n);",
           "type": "type",
           "operation": "create",
@@ -25,12 +37,6 @@
           "type": "type",
           "operation": "create",
           "path": "public.locale"
-        },
-        {
-          "sql": "CREATE TYPE principal_kind AS ENUM (\n    'user',\n    'system'\n);",
-          "type": "type",
-          "operation": "create",
-          "path": "public.principal_kind"
         },
         {
           "sql": "CREATE TYPE principal_status AS ENUM (\n    'pending',\n    'active',\n    'suspended',\n    'closed'\n);",
@@ -99,10 +105,28 @@
           "path": "default_privileges.postgres.SEQUENCES.cmslearn_app"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS admin_accounts (\n    id uuid DEFAULT gen_random_uuid(),\n    handle text NOT NULL,\n    password_hash text,\n    status admin_status DEFAULT 'active'::admin_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    revoked_at timestamptz,\n    CONSTRAINT admin_accounts_pkey PRIMARY KEY (id),\n    CONSTRAINT admin_accounts_handle_key UNIQUE (handle),\n    CONSTRAINT admin_accounts_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text),\n    CONSTRAINT admin_accounts_revocation_shape CHECK ((status = 'revoked'::admin_status) = (revoked_at IS NOT NULL))\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.admin_accounts"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS content_seed (\n    singleton boolean DEFAULT true,\n    version bigint DEFAULT 0 NOT NULL,\n    content_hash text DEFAULT '' NOT NULL,\n    seeded_at timestamptz,\n    CONSTRAINT content_seed_pkey PRIMARY KEY (singleton),\n    CONSTRAINT content_seed_single_row CHECK (singleton)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.content_seed"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS elevations (\n    id uuid DEFAULT gen_random_uuid(),\n    admin_id uuid NOT NULL,\n    capability capability NOT NULL,\n    granted_by uuid NOT NULL,\n    approved_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    consumed_at timestamptz,\n    reason text NOT NULL,\n    CONSTRAINT elevations_pkey PRIMARY KEY (id),\n    CONSTRAINT elevations_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES admin_accounts (id),\n    CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES admin_accounts (id),\n    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),\n    CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> admin_id),\n    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),\n    CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),\n    CONSTRAINT elevations_two_people CHECK (approved_by IS NULL OR approved_by <> admin_id AND approved_by <> granted_by)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.elevations"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (admin_id, capability, expires_at) WHERE (consumed_at IS NULL);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.elevations.elevations_live_idx"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS levels (\n    id text,\n    position integer NOT NULL,\n    difficulty_min integer NOT NULL,\n    difficulty_max integer NOT NULL,\n    icon text NOT NULL,\n    description_en text DEFAULT '' NOT NULL,\n    CONSTRAINT levels_pkey PRIMARY KEY (id),\n    CONSTRAINT levels_position_unique UNIQUE (position),\n    CONSTRAINT levels_band CHECK (difficulty_min <= difficulty_max),\n    CONSTRAINT levels_difficulty_band CHECK (difficulty_min >= 800 AND difficulty_min <= 3500 AND difficulty_max >= 800 AND difficulty_max <= 3500 AND (difficulty_min % 100) = 0 AND (difficulty_max % 100) = 0),\n    CONSTRAINT levels_icon_shape CHECK (icon ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text),\n    CONSTRAINT levels_id_shape CHECK (id ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text)\n);",
@@ -117,58 +141,34 @@
           "path": "public.levels.levels_order_idx"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS learner_accounts (\n    id uuid DEFAULT gen_random_uuid(),\n    serial_id bigint GENERATED ALWAYS AS IDENTITY,\n    handle text NOT NULL,\n    email text NOT NULL,\n    email_verified_at timestamptz,\n    password_hash text,\n    status principal_status NOT NULL,\n    level_id text,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT learner_accounts_pkey PRIMARY KEY (id),\n    CONSTRAINT learner_accounts_email_key UNIQUE (email),\n    CONSTRAINT learner_accounts_handle_key UNIQUE (handle),\n    CONSTRAINT learner_accounts_serial_id_key UNIQUE (serial_id),\n    CONSTRAINT learner_accounts_level_id_fkey FOREIGN KEY (level_id) REFERENCES levels (id),\n    CONSTRAINT learner_accounts_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.learner_accounts"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS learner_tokens (\n    id uuid DEFAULT gen_random_uuid(),\n    learner_id uuid NOT NULL,\n    purpose token_purpose NOT NULL,\n    token_hash text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    used_at timestamptz,\n    CONSTRAINT learner_tokens_pkey PRIMARY KEY (id),\n    CONSTRAINT learner_tokens_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT learner_tokens_expiry_after_creation CHECK (expires_at > created_at),\n    CONSTRAINT learner_tokens_hash_shape CHECK (token_hash ~ '^[0-9a-f]{64}$'::text)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.learner_tokens"
+        },
+        {
+          "sql": "CREATE UNIQUE INDEX IF NOT EXISTS learner_tokens_hash_idx ON learner_tokens (token_hash);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.learner_tokens.learner_tokens_hash_idx"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS learner_tokens_live_idx ON learner_tokens (learner_id) WHERE (used_at IS NULL);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.learner_tokens.learner_tokens_live_idx"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS level_titles (\n    level_id text,\n    language text,\n    title text NOT NULL,\n    CONSTRAINT level_titles_pkey PRIMARY KEY (level_id, language),\n    CONSTRAINT level_titles_level_id_fkey FOREIGN KEY (level_id) REFERENCES levels (id) ON DELETE CASCADE,\n    CONSTRAINT level_titles_language_shape CHECK (language ~ '^[a-z]{2}(-[A-Za-z0-9]{2,8})*$'::text),\n    CONSTRAINT level_titles_title_check CHECK (length(btrim(title)) > 0)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.level_titles"
-        },
-        {
-          "sql": "CREATE TABLE IF NOT EXISTS principals (\n    id uuid DEFAULT gen_random_uuid(),\n    serial_id bigint GENERATED ALWAYS AS IDENTITY,\n    kind principal_kind NOT NULL,\n    handle text NOT NULL,\n    email text,\n    email_verified_at timestamptz,\n    password_hash text,\n    status principal_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principals_pkey PRIMARY KEY (id),\n    CONSTRAINT principals_email_key UNIQUE (email),\n    CONSTRAINT principals_handle_key UNIQUE (handle),\n    CONSTRAINT principals_id_kind_key UNIQUE (id, kind),\n    CONSTRAINT principals_serial_id_key UNIQUE (serial_id),\n    CONSTRAINT principals_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text OR kind = 'system'::principal_kind AND handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text),\n    CONSTRAINT principals_system_has_no_credential CHECK (kind <> 'system'::principal_kind OR password_hash IS NULL AND email IS NULL)\n);",
-          "type": "table",
-          "operation": "create",
-          "path": "public.principals"
-        },
-        {
-          "sql": "CREATE TABLE IF NOT EXISTS audit_events (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    occurred_at timestamptz DEFAULT now() NOT NULL,\n    actor_id uuid NOT NULL,\n    invoked_by text NOT NULL,\n    action text NOT NULL,\n    subject text DEFAULT '' NOT NULL,\n    detail jsonb DEFAULT '{}' NOT NULL,\n    client_address inet,\n    CONSTRAINT audit_events_pkey PRIMARY KEY (id),\n    CONSTRAINT audit_events_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES principals (id),\n    CONSTRAINT audit_events_action_check CHECK (action ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$'::text),\n    CONSTRAINT audit_events_invoked_by_check CHECK (length(invoked_by) > 0)\n);",
-          "type": "table",
-          "operation": "create",
-          "path": "public.audit_events"
-        },
-        {
-          "sql": "CREATE INDEX IF NOT EXISTS audit_events_actor_idx ON audit_events (actor_id, occurred_at DESC);",
-          "type": "table.index",
-          "operation": "create",
-          "path": "public.audit_events.audit_events_actor_idx"
-        },
-        {
-          "sql": "CREATE TABLE IF NOT EXISTS elevations (\n    id uuid DEFAULT gen_random_uuid(),\n    principal_id uuid NOT NULL,\n    capability capability NOT NULL,\n    granted_by uuid NOT NULL,\n    approved_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    consumed_at timestamptz,\n    reason text NOT NULL,\n    CONSTRAINT elevations_pkey PRIMARY KEY (id),\n    CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES principals (id),\n    CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),\n    CONSTRAINT elevations_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),\n    CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> principal_id),\n    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),\n    CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),\n    CONSTRAINT elevations_two_people CHECK (approved_by IS NULL OR approved_by <> principal_id AND approved_by <> granted_by)\n);",
-          "type": "table",
-          "operation": "create",
-          "path": "public.elevations"
-        },
-        {
-          "sql": "CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (principal_id, capability, expires_at) WHERE (consumed_at IS NULL);",
-          "type": "table.index",
-          "operation": "create",
-          "path": "public.elevations.elevations_live_idx"
-        },
-        {
-          "sql": "CREATE TABLE IF NOT EXISTS principal_tokens (\n    id uuid DEFAULT gen_random_uuid(),\n    principal_id uuid NOT NULL,\n    purpose token_purpose NOT NULL,\n    token_hash text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    used_at timestamptz,\n    CONSTRAINT principal_tokens_pkey PRIMARY KEY (id),\n    CONSTRAINT principal_tokens_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT principal_tokens_expiry_after_creation CHECK (expires_at > created_at),\n    CONSTRAINT principal_tokens_hash_shape CHECK (token_hash ~ '^[0-9a-f]{64}$'::text)\n);",
-          "type": "table",
-          "operation": "create",
-          "path": "public.principal_tokens"
-        },
-        {
-          "sql": "CREATE UNIQUE INDEX IF NOT EXISTS principal_tokens_hash_idx ON principal_tokens (token_hash);",
-          "type": "table.index",
-          "operation": "create",
-          "path": "public.principal_tokens.principal_tokens_hash_idx"
-        },
-        {
-          "sql": "CREATE INDEX IF NOT EXISTS principal_tokens_live_idx ON principal_tokens (principal_id) WHERE (used_at IS NULL);",
-          "type": "table.index",
-          "operation": "create",
-          "path": "public.principal_tokens.principal_tokens_live_idx"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS roles (\n    id uuid DEFAULT gen_random_uuid(),\n    name text NOT NULL,\n    description text DEFAULT '' NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT roles_pkey PRIMARY KEY (id),\n    CONSTRAINT roles_name_key UNIQUE (name),\n    CONSTRAINT roles_name_check CHECK (name ~ '^[a-z][a-z0-9_]{1,62}$'::text)\n);",
@@ -177,10 +177,10 @@
           "path": "public.roles"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS principal_roles (\n    principal_id uuid,\n    role_id uuid,\n    granted_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT principal_roles_pkey PRIMARY KEY (principal_id, role_id),\n    CONSTRAINT principal_roles_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES principals (id),\n    CONSTRAINT principal_roles_principal_id_fkey FOREIGN KEY (principal_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT principal_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS admin_roles (\n    admin_id uuid,\n    role_id uuid,\n    granted_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT admin_roles_pkey PRIMARY KEY (admin_id, role_id),\n    CONSTRAINT admin_roles_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT admin_roles_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES admin_accounts (id),\n    CONSTRAINT admin_roles_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE\n);",
           "type": "table",
           "operation": "create",
-          "path": "public.principal_roles"
+          "path": "public.admin_roles"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS role_capabilities (\n    role_id uuid,\n    capability capability,\n    CONSTRAINT role_capabilities_pkey PRIMARY KEY (role_id, capability),\n    CONSTRAINT role_capabilities_role_id_fkey FOREIGN KEY (role_id) REFERENCES roles (id) ON DELETE CASCADE\n);",
@@ -189,19 +189,7 @@
           "path": "public.role_capabilities"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS sessions (\n    id uuid DEFAULT gen_random_uuid(),\n    principal_id uuid NOT NULL,\n    principal_kind principal_kind DEFAULT 'user'::principal_kind NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    last_seen_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    revoked_at timestamptz,\n    user_agent text,\n    client_address inet,\n    CONSTRAINT sessions_pkey PRIMARY KEY (id),\n    CONSTRAINT sessions_principal_fk FOREIGN KEY (principal_id, principal_kind) REFERENCES principals (id, kind) ON DELETE CASCADE,\n    CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),\n    CONSTRAINT sessions_user_principal_only CHECK (principal_kind = 'user'::principal_kind)\n);",
-          "type": "table",
-          "operation": "create",
-          "path": "public.sessions"
-        },
-        {
-          "sql": "CREATE INDEX IF NOT EXISTS sessions_live_idx ON sessions (principal_id, expires_at) WHERE (revoked_at IS NULL);",
-          "type": "table.index",
-          "operation": "create",
-          "path": "public.sessions.sessions_live_idx"
-        },
-        {
-          "sql": "CREATE TABLE IF NOT EXISTS settings (\n    key text,\n    kind setting_kind NOT NULL,\n    value_text text NOT NULL,\n    tier setting_tier DEFAULT 'operator'::setting_tier NOT NULL,\n    description text DEFAULT '' NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    updated_by uuid NOT NULL,\n    CONSTRAINT settings_pkey PRIMARY KEY (key),\n    CONSTRAINT settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES principals (id),\n    CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,7}$'::text),\n    CONSTRAINT settings_value_matches_kind CHECK (CASE kind\n    WHEN 'bool'::setting_kind THEN value_text IN ('true'::text, 'false'::text)\n    WHEN 'int'::setting_kind THEN\n    CASE\n        WHEN value_text ~ '^-?(0|[1-9][0-9]{0,18})$'::text THEN value_text::numeric >= '-9223372036854775808'::bigint::numeric AND value_text::numeric <= '9223372036854775807'::bigint::numeric\n        ELSE false\n    END\n    WHEN 'text'::setting_kind THEN true\n    ELSE NULL::boolean\nEND)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS settings (\n    key text,\n    kind setting_kind NOT NULL,\n    value_text text NOT NULL,\n    tier setting_tier DEFAULT 'operator'::setting_tier NOT NULL,\n    description text DEFAULT '' NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    updated_by uuid NOT NULL,\n    CONSTRAINT settings_pkey PRIMARY KEY (key),\n    CONSTRAINT settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES admin_accounts (id),\n    CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,7}$'::text),\n    CONSTRAINT settings_value_matches_kind CHECK (CASE kind\n    WHEN 'bool'::setting_kind THEN value_text IN ('true'::text, 'false'::text)\n    WHEN 'int'::setting_kind THEN\n    CASE\n        WHEN value_text ~ '^-?(0|[1-9][0-9]{0,18})$'::text THEN value_text::numeric >= '-9223372036854775808'::bigint::numeric AND value_text::numeric <= '9223372036854775807'::bigint::numeric\n        ELSE false\n    END\n    WHEN 'text'::setting_kind THEN true\n    ELSE NULL::boolean\nEND)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.settings"
@@ -225,7 +213,7 @@
           "path": "public.settings.settings_judge_read"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS settings_audit (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    occurred_at timestamptz DEFAULT now() NOT NULL,\n    key text NOT NULL,\n    operation audit_operation NOT NULL,\n    old_kind setting_kind,\n    new_kind setting_kind,\n    old_value text,\n    new_value text,\n    old_tier setting_tier,\n    new_tier setting_tier,\n    actor_id uuid NOT NULL,\n    invoked_by text DEFAULT '' NOT NULL,\n    CONSTRAINT settings_audit_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_audit_actor_id_fkey FOREIGN KEY (actor_id) REFERENCES principals (id),\n    CONSTRAINT settings_audit_update_has_old_state CHECK (operation <> 'update'::audit_operation OR old_kind IS NOT NULL AND new_kind IS NOT NULL)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS settings_audit (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    occurred_at timestamptz DEFAULT now() NOT NULL,\n    key text NOT NULL,\n    operation audit_operation NOT NULL,\n    old_kind setting_kind,\n    new_kind setting_kind,\n    old_value text,\n    new_value text,\n    old_tier setting_tier,\n    new_tier setting_tier,\n    actor_kind account_kind NOT NULL,\n    actor_id uuid NOT NULL,\n    invoked_by text DEFAULT '' NOT NULL,\n    CONSTRAINT settings_audit_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_audit_update_has_old_state CHECK (operation <> 'update'::audit_operation OR old_kind IS NOT NULL AND new_kind IS NOT NULL)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.settings_audit"
@@ -243,10 +231,52 @@
           "path": "public.settings_meta"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS settings_plans (\n    id uuid DEFAULT gen_random_uuid(),\n    author_id uuid NOT NULL,\n    changes jsonb NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz DEFAULT (now() + '00:15:00'::interval) NOT NULL,\n    applied_at timestamptz,\n    CONSTRAINT settings_plans_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_plans_author_id_fkey FOREIGN KEY (author_id) REFERENCES principals (id),\n    CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS settings_plans (\n    id uuid DEFAULT gen_random_uuid(),\n    author_id uuid NOT NULL,\n    changes jsonb NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz DEFAULT (now() + '00:15:00'::interval) NOT NULL,\n    applied_at timestamptz,\n    CONSTRAINT settings_plans_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_plans_author_id_fkey FOREIGN KEY (author_id) REFERENCES admin_accounts (id),\n    CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.settings_plans"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS system_accounts (\n    id uuid DEFAULT gen_random_uuid(),\n    handle text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT system_accounts_pkey PRIMARY KEY (id),\n    CONSTRAINT system_accounts_handle_key UNIQUE (handle),\n    CONSTRAINT system_accounts_handle_shape CHECK (handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.system_accounts"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS audit_events (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    occurred_at timestamptz DEFAULT now() NOT NULL,\n    actor_kind account_kind NOT NULL,\n    learner_actor_id uuid,\n    admin_actor_id uuid,\n    system_actor_id uuid,\n    invoked_by text NOT NULL,\n    action text NOT NULL,\n    subject text DEFAULT '' NOT NULL,\n    detail jsonb DEFAULT '{}' NOT NULL,\n    client_address inet,\n    CONSTRAINT audit_events_pkey PRIMARY KEY (id),\n    CONSTRAINT audit_events_admin_actor_id_fkey FOREIGN KEY (admin_actor_id) REFERENCES admin_accounts (id),\n    CONSTRAINT audit_events_learner_actor_id_fkey FOREIGN KEY (learner_actor_id) REFERENCES learner_accounts (id),\n    CONSTRAINT audit_events_system_actor_id_fkey FOREIGN KEY (system_actor_id) REFERENCES system_accounts (id),\n    CONSTRAINT audit_events_action_check CHECK (action ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$'::text),\n    CONSTRAINT audit_events_invoked_by_check CHECK (length(invoked_by) > 0),\n    CONSTRAINT audit_events_one_actor CHECK (actor_kind = 'learner'::account_kind AND learner_actor_id IS NOT NULL AND admin_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'admin'::account_kind AND admin_actor_id IS NOT NULL AND learner_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'system'::account_kind AND system_actor_id IS NOT NULL AND learner_actor_id IS NULL AND admin_actor_id IS NULL)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.audit_events"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS audit_events_admin_actor_idx ON audit_events (admin_actor_id, occurred_at DESC);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.audit_events.audit_events_admin_actor_idx"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS audit_events_learner_actor_idx ON audit_events (learner_actor_id, occurred_at DESC);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.audit_events.audit_events_learner_actor_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS sessions (\n    id uuid DEFAULT gen_random_uuid(),\n    account_kind account_kind NOT NULL,\n    learner_id uuid,\n    admin_id uuid,\n    system_id uuid,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    last_seen_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    revoked_at timestamptz,\n    user_agent text,\n    client_address inet,\n    CONSTRAINT sessions_pkey PRIMARY KEY (id),\n    CONSTRAINT sessions_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_system_id_fkey FOREIGN KEY (system_id) REFERENCES system_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),\n    CONSTRAINT sessions_one_account CHECK (account_kind = 'learner'::account_kind AND learner_id IS NOT NULL AND admin_id IS NULL AND system_id IS NULL OR account_kind = 'admin'::account_kind AND admin_id IS NOT NULL AND learner_id IS NULL AND system_id IS NULL OR account_kind = 'system'::account_kind AND system_id IS NOT NULL AND learner_id IS NULL AND admin_id IS NULL)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.sessions"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS sessions_live_admin_idx ON sessions (admin_id, expires_at) WHERE (revoked_at IS NULL);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.sessions.sessions_live_admin_idx"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS sessions_live_idx ON sessions (learner_id, expires_at) WHERE (revoked_at IS NULL);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.sessions.sessions_live_idx"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS task_visibility (\n    task_id text,\n    principal_id bigint,\n    CONSTRAINT task_visibility_pkey PRIMARY KEY (task_id, principal_id),\n    CONSTRAINT task_visibility_principal_range CHECK (principal_id = 0 OR principal_id >= (1::bigint << 48) AND principal_id < (2::bigint << 48) OR principal_id >= (2::bigint << 48) AND principal_id < (3::bigint << 48) OR principal_id >= (3::bigint << 48) AND principal_id < (4::bigint << 48))\n);",
@@ -267,7 +297,7 @@
           "path": "public.tasks.tasks_published_idx"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS progress (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    status progress_status DEFAULT 'attempted'::progress_status NOT NULL,\n    attempted_at timestamptz DEFAULT now() NOT NULL,\n    solved_at timestamptz,\n    CONSTRAINT progress_pkey PRIMARY KEY (id),\n    CONSTRAINT progress_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT progress_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT progress_solved_has_time CHECK ((status = 'solved'::progress_status) = (solved_at IS NOT NULL))\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS progress (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    status progress_status DEFAULT 'attempted'::progress_status NOT NULL,\n    attempted_at timestamptz DEFAULT now() NOT NULL,\n    solved_at timestamptz,\n    CONSTRAINT progress_pkey PRIMARY KEY (id),\n    CONSTRAINT progress_account_id_fkey FOREIGN KEY (account_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT progress_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT progress_solved_has_time CHECK ((status = 'solved'::progress_status) = (solved_at IS NOT NULL))\n);",
           "type": "table",
           "operation": "create",
           "path": "public.progress"
@@ -279,7 +309,7 @@
           "path": "public.progress.progress_account_task_idx"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS submissions (\n    id uuid DEFAULT gen_random_uuid(),\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    source text NOT NULL,\n    submitted_at timestamptz DEFAULT now() NOT NULL,\n    verdict verdict_status,\n    verdict_detail text,\n    judged_at timestamptz,\n    claimed_by text,\n    claimed_at timestamptz,\n    CONSTRAINT submissions_pkey PRIMARY KEY (id),\n    CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES principals (id) ON DELETE CASCADE,\n    CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT submissions_claim_complete CHECK ((claimed_by IS NULL) = (claimed_at IS NULL)),\n    CONSTRAINT submissions_source_check CHECK (length(source) > 0),\n    CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL))\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS submissions (\n    id uuid DEFAULT gen_random_uuid(),\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    source text NOT NULL,\n    submitted_at timestamptz DEFAULT now() NOT NULL,\n    verdict verdict_status,\n    verdict_detail text,\n    judged_at timestamptz,\n    claimed_by text,\n    claimed_at timestamptz,\n    CONSTRAINT submissions_pkey PRIMARY KEY (id),\n    CONSTRAINT submissions_account_id_fkey FOREIGN KEY (account_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT submissions_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT submissions_claim_complete CHECK ((claimed_by IS NULL) = (claimed_at IS NULL)),\n    CONSTRAINT submissions_source_check CHECK (length(source) > 0),\n    CONSTRAINT submissions_verdict_has_time CHECK ((verdict IS NULL) = (judged_at IS NULL))\n);",
           "type": "table",
           "operation": "create",
           "path": "public.submissions"
@@ -465,10 +495,10 @@
           "path": "privileges.SEQUENCE.audit_events_id_seq.cmslearn_app"
         },
         {
-          "sql": "GRANT SELECT, USAGE ON SEQUENCE principals_serial_id_seq TO cmslearn_app;",
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE learner_accounts_serial_id_seq TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
-          "path": "privileges.SEQUENCE.principals_serial_id_seq.cmslearn_app"
+          "path": "privileges.SEQUENCE.learner_accounts_serial_id_seq.cmslearn_app"
         },
         {
           "sql": "GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;",
@@ -481,6 +511,18 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.SEQUENCE.settings_audit_id_seq.cmslearn_app"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE admin_accounts TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.admin_accounts.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT ON TABLE admin_roles TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.admin_roles.cmslearn_app"
         },
         {
           "sql": "GRANT INSERT, SELECT ON TABLE audit_events TO cmslearn_app;",
@@ -501,22 +543,16 @@
           "path": "privileges.TABLE.elevations.cmslearn_app"
         },
         {
-          "sql": "GRANT DELETE, INSERT, SELECT ON TABLE principal_roles TO cmslearn_app;",
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE learner_accounts TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
-          "path": "privileges.TABLE.principal_roles.cmslearn_app"
+          "path": "privileges.TABLE.learner_accounts.cmslearn_app"
         },
         {
-          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE principal_tokens TO cmslearn_app;",
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE learner_tokens TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
-          "path": "privileges.TABLE.principal_tokens.cmslearn_app"
-        },
-        {
-          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE principals TO cmslearn_app;",
-          "type": "privilege",
-          "operation": "create",
-          "path": "privileges.TABLE.principals.cmslearn_app"
+          "path": "privileges.TABLE.learner_tokens.cmslearn_app"
         },
         {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE progress TO cmslearn_app;",
@@ -595,6 +631,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.submissions.cmslearn_judge"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE system_accounts TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.system_accounts.cmslearn_app"
         },
         {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_examples TO cmslearn_app;",

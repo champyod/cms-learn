@@ -7,7 +7,7 @@ CREATE TABLE settings (
   tier setting_tier NOT NULL DEFAULT 'operator',
   description text NOT NULL DEFAULT '',
   updated_at timestamptz NOT NULL DEFAULT now(),
-  updated_by uuid NOT NULL REFERENCES principals (id),
+  updated_by uuid NOT NULL REFERENCES admin_accounts (id),
   CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,7}$'),
   -- Nested CASE: the cast runs only on text the WHEN already proved is an integer.
   CONSTRAINT settings_value_matches_kind CHECK (
@@ -33,7 +33,7 @@ CREATE TABLE settings_meta (
 
 CREATE TABLE settings_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  author_id uuid NOT NULL REFERENCES principals (id),
+  author_id uuid NOT NULL REFERENCES admin_accounts (id),
   changes jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL DEFAULT now() + interval '15 minutes',
@@ -52,7 +52,8 @@ CREATE TABLE settings_audit (
   new_value text,
   old_tier setting_tier,
   new_tier setting_tier,
-  actor_id uuid NOT NULL REFERENCES principals (id),
+  actor_kind account_kind NOT NULL,
+  actor_id uuid NOT NULL,
   invoked_by text NOT NULL DEFAULT '',
   CONSTRAINT settings_audit_update_has_old_state
     CHECK (operation <> 'update' OR (old_kind IS NOT NULL AND new_kind IS NOT NULL))
