@@ -51,17 +51,16 @@ auto live_config() -> const std::shared_ptr<const cms::db::connection_config>& {
 /// Catch2 may run them in any order, and a plan names its author through a foreign key.
 void given_planner() {
   auto database = live_database();
-  for (const auto& row : database(sqlpp::select(cms::db::principals.id)
-                                      .from(cms::db::principals)
-                                      .where(cms::db::principals.id == std::string{PLANNER}))) {
+  for (const auto& row : database(sqlpp::select(cms::db::adminAccounts.id)
+                                      .from(cms::db::adminAccounts)
+                                      .where(cms::db::adminAccounts.id == std::string{PLANNER}))) {
     (void)row;
     return;
   }
-  database(sqlpp::insert_into(cms::db::principals).set(
-      cms::db::principals.id = std::string{PLANNER},
-      cms::db::principals.kind = std::string{"user"},
-      cms::db::principals.handle = std::string{"settings_planner"},
-      cms::db::principals.status = std::string{"active"}));
+  database(sqlpp::insert_into(cms::db::adminAccounts).set(
+      cms::db::adminAccounts.id = std::string{PLANNER},
+      cms::db::adminAccounts.handle = std::string{"settings_planner"},
+      cms::db::adminAccounts.status = std::string{"active"}));
 }
 
 auto stored_value(std::string_view key) -> std::optional<std::string> {

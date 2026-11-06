@@ -44,16 +44,16 @@ constexpr std::string_view OPERATOR = "bbbbbbbb-cccc-4ddd-8eee-ffffffff0001";
 /// may run them in any order: a case that writes must not depend on another case having gone first.
 void given_operator() {
   auto database = live_database();
-  for (const auto& row : database(sqlpp::select(cms::db::principals.id)
-                                      .from(cms::db::principals)
-                                      .where(cms::db::principals.id == std::string{OPERATOR}))) {
+  for (const auto& row : database(sqlpp::select(cms::db::adminAccounts.id)
+                                      .from(cms::db::adminAccounts)
+                                      .where(cms::db::adminAccounts.id == std::string{OPERATOR}))) {
     (void)row;
     return;
   }
-  database(sqlpp::insert_into(cms::db::principals).set(
-      cms::db::principals.id = std::string{OPERATOR}, cms::db::principals.kind = std::string{"user"},
-      cms::db::principals.handle = std::string{"settings_writer"},
-      cms::db::principals.status = std::string{"active"}));
+  database(sqlpp::insert_into(cms::db::adminAccounts).set(
+      cms::db::adminAccounts.id = std::string{OPERATOR},
+      cms::db::adminAccounts.handle = std::string{"settings_writer"},
+      cms::db::adminAccounts.status = std::string{"active"}));
 }
 
 auto stored_settings() -> cms::SettingsSnapshot {

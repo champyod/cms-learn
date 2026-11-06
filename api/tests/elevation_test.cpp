@@ -27,19 +27,19 @@ constexpr std::string_view BENEFICIARY_C = "77777777-8888-4999-8aaa-bbbbbbbbbbb3
 constexpr std::string_view BENEFICIARY_D = "77777777-8888-4999-8aaa-bbbbbbbbbbb4";
 constexpr std::string_view BENEFICIARY_E = "77777777-8888-4999-8aaa-bbbbbbbbbbb5";
 
-auto ensure_principal(cms::db::connection& database, std::string_view id, std::string_view handle) {
+auto ensure_admin(cms::db::connection& database, std::string_view id, std::string_view handle) {
   auto found = false;
-  for (const auto& row : database(sqlpp::select(cms::db::principals.id)
-                                      .from(cms::db::principals)
-                                      .where(cms::db::principals.id == std::string{id}))) {
+  for (const auto& row : database(sqlpp::select(cms::db::adminAccounts.id)
+                                      .from(cms::db::adminAccounts)
+                                      .where(cms::db::adminAccounts.id == std::string{id}))) {
     (void)row;
     found = true;
   }
   if (!found) {
-    database(sqlpp::insert_into(cms::db::principals).set(
-        cms::db::principals.id = std::string{id}, cms::db::principals.kind = std::string{"user"},
-        cms::db::principals.handle = std::string{handle},
-        cms::db::principals.status = std::string{"active"}));
+    database(sqlpp::insert_into(cms::db::adminAccounts).set(
+        cms::db::adminAccounts.id = std::string{id},
+        cms::db::adminAccounts.handle = std::string{handle},
+        cms::db::adminAccounts.status = std::string{"active"}));
   }
 }
 
@@ -62,9 +62,9 @@ auto no_catalogue() -> const std::vector<cms::api::CatalogueEntry>& {
 /// Gives a beneficiary a known starting state: the account exists and holds no elevation, so a case can
 /// run more than once against one database and still assert what it says it asserts.
 auto prepare(cms::db::connection& database, std::string_view id, std::string_view handle) {
-  ensure_principal(database, id, handle);
+  ensure_admin(database, id, handle);
   database(sqlpp::delete_from(cms::db::elevations)
-               .where(cms::db::elevations.principalId == std::string{id}));
+               .where(cms::db::elevations.adminId == std::string{id}));
 }
 
 auto elevation_for(std::string_view principal_id, std::string_view capability, std::int64_t minutes)
@@ -85,8 +85,8 @@ TEST_CASE("a granted elevation changes no authority until a second person approv
   }
   auto database = cms::test::live_database();
   prepare(database, BENEFICIARY_A, "elevation_one");
-  ensure_principal(database, GRANTOR, "elevation_grantor");
-  ensure_principal(database, WITNESS, "elevation_witness");
+  ensure_admin(database, GRANTOR, "elevation_grantor");
+  ensure_admin(database, WITNESS, "elevation_witness");
 
   const auto granted =
       cms::api::grant_elevation(database, policy(), elevation_for(BENEFICIARY_A, "settings:write", 5));
@@ -112,8 +112,8 @@ TEST_CASE("two people means neither the grantor nor the beneficiary approves",
   }
   auto database = cms::test::live_database();
   prepare(database, BENEFICIARY_B, "elevation_two");
-  ensure_principal(database, GRANTOR, "elevation_grantor");
-  ensure_principal(database, WITNESS, "elevation_witness");
+  ensure_admin(database, GRANTOR, "elevation_grantor");
+  ensure_admin(database, WITNESS, "elevation_witness");
 
   const auto granted =
       cms::api::grant_elevation(database, policy(), elevation_for(BENEFICIARY_B, "user:read", 5));
@@ -140,13 +140,13 @@ TEST_CASE("the database refuses a row that names the same person twice", "[eleva
   }
   auto database = cms::test::live_database();
   prepare(database, BENEFICIARY_C, "elevation_three");
-  ensure_principal(database, GRANTOR, "elevation_grantor");
+  ensure_admin(database, GRANTOR, "elevation_grantor");
 
   // The constraint, not the function, is what makes two people a fact: a second writer that skipped
   // approve_elevation would have to violate this to be wrong, and it cannot.
   CHECK_THROWS(database(sqlpp::insert_into(cms::db::elevations).set(
       cms::db::elevations.id = std::string{"aaaaaaa1-bbbb-4ccc-8ddd-eeeeeeeeeee1"},
-      cms::db::elevations.principalId = std::string{BENEFICIARY_C},
+      cms::db::elevations.adminId = std::string{BENEFICIARY_C},
       cms::db::elevations.capability = std::string{"settings:read"},
       cms::db::elevations.grantedBy = std::string{GRANTOR},
       cms::db::elevations.approvedBy = std::string{GRANTOR},
@@ -160,7 +160,7 @@ TEST_CASE("an elevation is refused when it could not be a grant", "[elevation][l
   }
   auto database = cms::test::live_database();
   prepare(database, BENEFICIARY_D, "elevation_four");
-  ensure_principal(database, GRANTOR, "elevation_grantor");
+  ensure_admin(database, GRANTOR, "elevation_grantor");
 
   const auto refused_capability = cms::api::grant_elevation(
       database, policy(), elevation_for(BENEFICIARY_D, "settings:everything", 5));
@@ -196,13 +196,13 @@ TEST_CASE("an elevation that expired before approval cannot go live", "[elevatio
   }
   auto database = cms::test::live_database();
   prepare(database, BENEFICIARY_E, "elevation_five");
-  ensure_principal(database, GRANTOR, "elevation_grantor");
-  ensure_principal(database, WITNESS, "elevation_witness");
+  ensure_admin(database, GRANTOR, "elevation_grantor");
+  ensure_admin(database, WITNESS, "elevation_witness");
   const auto stale_id = std::string{"aaaaaaa2-bbbb-4ccc-8ddd-eeeeeeeeeee2"};
 
   database(sqlpp::insert_into(cms::db::elevations).set(
       cms::db::elevations.id = stale_id,
-      cms::db::elevations.principalId = std::string{BENEFICIARY_E},
+      cms::db::elevations.adminId = std::string{BENEFICIARY_E},
       cms::db::elevations.capability = std::string{"settings:write"},
       cms::db::elevations.grantedBy = std::string{GRANTOR},
       cms::db::elevations.grantedAt = cms::db::stamp_after(-7200),
@@ -225,7 +225,7 @@ TEST_CASE("the control protocol answers every action a client can send", "[proto
   auto database = cms::test::live_database();
   const auto settings = policy();
   prepare(database, BENEFICIARY_A, "elevation_one");
-  ensure_principal(database, GRANTOR, "elevation_grantor");
+  ensure_admin(database, GRANTOR, "elevation_grantor");
 
   CHECK(cms::api::dispatch_line(R"({"action":"ping"})", settings, live_config(), no_catalogue()) ==
         "{\"ok\":true,\"settings_version\":1}\n");
