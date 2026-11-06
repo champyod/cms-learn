@@ -15,13 +15,15 @@ namespace cms::api {
 /// answerable by reading the enumeration rather than by a rule. Any stored name the core does not know
 /// is ignored rather than invented, so a row cannot widen authority.
 /// @param database The connection to read through.
-/// @param principal_id The account whose authority is being loaded.
+/// @param account_kind Which account table the id names: "learner", "admin" or "system".
+/// @param account_id The account whose authority is being loaded.
 [[nodiscard]] Result<CapabilitySet> load_capabilities(db::connection& database,
-                                                     std::string_view principal_id);
+                                                     std::string_view account_kind,
+                                                     std::string_view account_id);
 
-/// @brief Checks that @p principal_id holds @p capability, and explains the refusal when it does not.
+/// @brief Checks that the named account holds @p capability, and explains the refusal when it does not.
 /// @return Success, or a permission_denied error naming the capability.
-[[nodiscard]] Result<void> authorize(db::connection& database, std::string_view principal_id,
-                                     Capability capability);
+[[nodiscard]] Result<void> authorize(db::connection& database, std::string_view account_kind,
+                                     std::string_view account_id, Capability capability);
 
 }  // namespace cms::api

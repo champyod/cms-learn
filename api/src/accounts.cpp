@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <exception>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -27,6 +28,7 @@ constexpr std::size_t TOKEN_BYTES = 32;
 constexpr std::size_t HEX_DIGITS_PER_BYTE = 2;
 constexpr unsigned NIBBLE_SHIFT = 4;
 constexpr unsigned NIBBLE_MASK = 0x0fu;
+constexpr std::int64_t FIRST_LEARNER_SERIAL = 1;
 
 constexpr std::string_view PURPOSE_VERIFY_EMAIL = "verify_email";
 constexpr std::string_view ACTION_SIGNUP = "account.signup";
@@ -34,6 +36,24 @@ constexpr std::string_view ACTION_VERIFY = "account.verify";
 constexpr std::string_view ACTION_APPROVE = "account.approve";
 constexpr std::string_view ACTION_SESSION = "session.create";
 constexpr std::string_view INVOKED_BY = "api";
+
+namespace serial_alias {
+SQLPP_CREATE_NAME_TAG(max_serial);
+}  // namespace serial_alias
+
+namespace count_alias {
+SQLPP_CREATE_NAME_TAG(row_count);
+}  // namespace count_alias
+
+constexpr std::string_view ACCOUNT_KIND_LEARNER = "learner";
+constexpr std::string_view ACCOUNT_KIND_ADMIN = "admin";
+constexpr std::string_view ACCOUNT_KIND_SYSTEM = "system";
+constexpr std::string_view ADMIN_STATUS_ACTIVE = "active";
+constexpr std::string_view BOOTSTRAP_SYSTEM_HANDLE = "system:bootstrap";
+constexpr std::string_view ACTION_BOOTSTRAP = "bootstrap.completed";
+
+constexpr std::string_view STATUS_PENDING = "pending";
+constexpr std::string_view STATUS_ACTIVE = "active";
 
 auto to_hex(std::span<const unsigned char> bytes) -> std::string {
   constexpr std::string_view DIGITS = "0123456789abcdef";
@@ -105,17 +125,62 @@ auto failure(std::string_view text) -> Error {
   return Error::make(ErrorCode::unavailable, text);
 }
 
+auto next_serial_id(db::connection& database) -> std::int64_t {
+  const auto serial = sqlpp::max(db::learnerAccounts.serialId).as(serial_alias::max_serial);
+  auto next = FIRST_LEARNER_SERIAL;
+  for (const auto& row : database(sqlpp::select(serial).from(db::learnerAccounts))) {
+    const auto& highest = row.max_serial;
+    if (highest.has_value()) {
+      next = static_cast<std::int64_t>(*highest) + 1;
+    }
+  }
+  return next;
+}
+
+auto counts_at_least_one(db::connection& database, const auto& statement) -> bool {
+  auto found = false;
+  for (const auto& row : database(statement)) {
+    found = row.row_count > 0;
+  }
+  return found;
+}
+
+auto learner_is_active(db::connection& database, std::string_view learner_id) -> bool {
+  const auto one = sqlpp::value(1);
+  return counts_at_least_one(
+      database, sqlpp::select(sqlpp::count(one).as(count_alias::row_count))
+                    .from(db::learnerAccounts)
+                    .where(db::learnerAccounts.id == std::string{learner_id} &&
+                           db::learnerAccounts.status == std::string{STATUS_ACTIVE}));
+}
+
+auto admin_is_active(db::connection& database, std::string_view admin_id) -> bool {
+  const auto one = sqlpp::value(1);
+  return counts_at_least_one(
+      database, sqlpp::select(sqlpp::count(one).as(count_alias::row_count))
+                    .from(db::adminAccounts)
+                    .where(db::adminAccounts.id == std::string{admin_id} &&
+                           db::adminAccounts.status == std::string{ADMIN_STATUS_ACTIVE}));
+}
+
+auto system_exists(db::connection& database, std::string_view system_id) -> bool {
+  const auto one = sqlpp::value(1);
+  return counts_at_least_one(database, sqlpp::select(sqlpp::count(one).as(count_alias::row_count))
+                                           .from(db::systemAccounts)
+                                           .where(db::systemAccounts.id == std::string{system_id}));
+}
+
 }  // namespace
 
 auto issue_verification(db::connection& database, std::string_view principal_id)
     -> Result<std::string> {
   auto token = random_token();
   try {
-    database(sqlpp::insert_into(db::principalTokens).set(
-        db::principalTokens.principalId = std::string{principal_id},
-        db::principalTokens.purpose = std::string{PURPOSE_VERIFY_EMAIL},
-        db::principalTokens.tokenHash = hash_token(token),
-        db::principalTokens.expiresAt = db::stamp_after(VERIFICATION_LIFETIME_SECONDS)));
+    database(sqlpp::insert_into(db::learnerTokens).set(
+        db::learnerTokens.learnerId = std::string{principal_id},
+        db::learnerTokens.purpose = std::string{PURPOSE_VERIFY_EMAIL},
+        db::learnerTokens.tokenHash = hash_token(token),
+        db::learnerTokens.expiresAt = db::stamp_after(VERIFICATION_LIFETIME_SECONDS)));
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }
@@ -140,11 +205,14 @@ auto sign_up(db::connection& database, const SettingsSnapshot& settings, std::st
 
   const auto principal_id = uuid_v4();
   try {
-    database(sqlpp::insert_into(db::principals).set(
-        db::principals.id = principal_id, db::principals.kind = std::string{"user"},
-        db::principals.handle = std::string{handle}, db::principals.email = std::string{email},
-        db::principals.status = std::string{"pending"}));
-    record_audit(database, principal_id, INVOKED_BY, ACTION_SIGNUP, principal_id);
+    database(sqlpp::insert_into(db::learnerAccounts).set(
+        db::learnerAccounts.id = principal_id,
+        db::learnerAccounts.serialId = next_serial_id(database),
+        db::learnerAccounts.handle = std::string{handle},
+        db::learnerAccounts.email = std::string{email},
+        db::learnerAccounts.status = std::string{STATUS_PENDING}));
+    record_audit(database, ACCOUNT_KIND_LEARNER, principal_id, INVOKED_BY, ACTION_SIGNUP,
+                 principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::conflict, error.what()));
   }
@@ -168,14 +236,14 @@ auto verify_email(db::connection& database, const SettingsSnapshot& settings, st
   const auto hash = hash_token(token);
 
   auto principal_id = std::string{};
-  for (const auto& row : database(sqlpp::select(db::principalTokens.principalId)
-                                      .from(db::principalTokens)
-                                      .where(db::principalTokens.tokenHash == hash &&
-                                             db::principalTokens.purpose ==
-                                                 std::string{PURPOSE_VERIFY_EMAIL} &&
-                                             db::principalTokens.usedAt.is_null() &&
-                                             db::principalTokens.expiresAt > db::now_stamp()))) {
-    principal_id = std::string{row.principalId};
+  for (const auto& row :
+       database(sqlpp::select(db::learnerTokens.learnerId)
+                    .from(db::learnerTokens)
+                    .where(db::learnerTokens.tokenHash == hash &&
+                           db::learnerTokens.purpose == std::string{PURPOSE_VERIFY_EMAIL} &&
+                           db::learnerTokens.usedAt.is_null() &&
+                           db::learnerTokens.expiresAt > db::now_stamp()))) {
+    principal_id = std::string{row.learnerId};
   }
   if (principal_id.empty()) {
     return std::unexpected(
@@ -183,16 +251,17 @@ auto verify_email(db::connection& database, const SettingsSnapshot& settings, st
   }
 
   const auto requires_approval = setting_bool(settings, "site.registration_requires_approval");
-  const auto status = requires_approval ? "pending" : "active";
+  const auto status = requires_approval ? STATUS_PENDING : STATUS_ACTIVE;
   try {
-    database(sqlpp::update(db::principalTokens)
-                 .set(db::principalTokens.usedAt = db::now_stamp())
-                 .where(db::principalTokens.tokenHash == hash));
-    database(sqlpp::update(db::principals)
-                 .set(db::principals.emailVerifiedAt = db::now_stamp(),
-                      db::principals.status = std::string{status})
-                 .where(db::principals.id == principal_id));
-    record_audit(database, principal_id, INVOKED_BY, ACTION_VERIFY, principal_id);
+    database(sqlpp::update(db::learnerTokens)
+                 .set(db::learnerTokens.usedAt = db::now_stamp())
+                 .where(db::learnerTokens.tokenHash == hash));
+    database(sqlpp::update(db::learnerAccounts)
+                 .set(db::learnerAccounts.emailVerifiedAt = db::now_stamp(),
+                      db::learnerAccounts.status = std::string{status})
+                 .where(db::learnerAccounts.id == principal_id));
+    record_audit(database, ACCOUNT_KIND_LEARNER, principal_id, INVOKED_BY, ACTION_VERIFY,
+                 principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }
@@ -202,85 +271,91 @@ auto verify_email(db::connection& database, const SettingsSnapshot& settings, st
 auto approve_account(db::connection& database, std::string_view principal_id,
                      std::string_view actor_id) -> Result<void> {
   try {
-    const auto changed = database(sqlpp::update(db::principals)
-                                      .set(db::principals.status = std::string{"active"})
-                                      .where(db::principals.id == std::string{principal_id} &&
-                                             !db::principals.emailVerifiedAt.is_null()));
+    const auto changed =
+        database(sqlpp::update(db::learnerAccounts)
+                     .set(db::learnerAccounts.status = std::string{STATUS_ACTIVE})
+                     .where(db::learnerAccounts.id == std::string{principal_id} &&
+                            !db::learnerAccounts.emailVerifiedAt.is_null()));
     if (changed == 0) {
       return std::unexpected(Error::make(
           ErrorCode::invalid_argument,
           "only an account that has verified its address can be approved"));
     }
-    record_audit(database, actor_id, INVOKED_BY, ACTION_APPROVE, principal_id);
+    record_audit(database, ACCOUNT_KIND_ADMIN, actor_id, INVOKED_BY, ACTION_APPROVE, principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }
   return {};
 }
 
-auto create_session(db::connection& database, std::string_view principal_id,
-                    std::int64_t lifetime_seconds) -> Result<std::string> {
+auto create_session(db::connection& database, std::string_view account_kind,
+                    std::string_view account_id, std::int64_t lifetime_seconds)
+    -> Result<std::string> {
+  const auto is_learner = account_kind == ACCOUNT_KIND_LEARNER;
+  const auto is_admin = account_kind == ACCOUNT_KIND_ADMIN;
+  const auto is_system = account_kind == ACCOUNT_KIND_SYSTEM;
+  if (!is_learner && !is_admin && !is_system) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "unknown account kind: " + std::string{account_kind}));
+  }
   auto session_id = uuid_v4();
   try {
-    auto active = database(sqlpp::select(db::principals.id)
-                                     .from(db::principals)
-                                     .where(db::principals.id == std::string{principal_id} &&
-                                            db::principals.status == std::string{"active"}));
-    auto found = false;
-    for (const auto& row : active) {
-      (void)row;
-      found = true;
-    }
-    if (!found) {
-      return std::unexpected(Error::make(ErrorCode::permission_denied,
-                                         "only an active account can open a session"));
+    const auto is_active = is_learner ? learner_is_active(database, account_id)
+                                      : (is_admin ? admin_is_active(database, account_id)
+                                                  : system_exists(database, account_id));
+    if (!is_active) {
+      return std::unexpected(
+          Error::make(ErrorCode::permission_denied, "only an active account can open a session"));
     }
 
     database(sqlpp::insert_into(db::sessions).set(
-        db::sessions.id = session_id, db::sessions.principalId = std::string{principal_id},
+        db::sessions.id = session_id, db::sessions.accountKind = std::string{account_kind},
+        db::sessions.learnerId =
+            is_learner ? std::optional<std::string>{std::string{account_id}} : std::nullopt,
+        db::sessions.adminId =
+            is_admin ? std::optional<std::string>{std::string{account_id}} : std::nullopt,
+        db::sessions.systemId =
+            is_system ? std::optional<std::string>{std::string{account_id}} : std::nullopt,
         db::sessions.expiresAt = db::stamp_after(lifetime_seconds)));
-    record_audit(database, principal_id, INVOKED_BY, ACTION_SESSION, session_id);
+    record_audit(database, account_kind, account_id, INVOKED_BY, ACTION_SESSION, session_id);
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }
   return session_id;
 }
 
-}  // namespace cms::api
-
-namespace cms::api {
-
 auto bootstrap(db::connection& database, std::string_view admin_email, std::string_view admin_handle)
     -> Result<std::string> {
+  (void)admin_email;
+  auto existing = std::int64_t{0};
   try {
-    auto existing = std::size_t{0};
-    auto rows = database(sqlpp::select(db::principals.id).from(db::principals));
-    for (const auto& row : rows) {
-      (void)row;
-      ++existing;
+    const auto one = sqlpp::value(1);
+    for (const auto& row : database(sqlpp::select(sqlpp::count(one).as(count_alias::row_count))
+                                        .from(db::adminAccounts))) {
+      existing = static_cast<std::int64_t>(row.row_count);
     }
-    if (existing != 0) {
-      return std::unexpected(
-          Error::make(ErrorCode::conflict, "this database already holds principals; bootstrap runs once"));
-    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  if (existing != 0) {
+    return std::unexpected(Error::make(
+        ErrorCode::conflict, "this database already holds administrators; bootstrap runs once"));
+  }
 
-    const auto system_id = uuid_v4();
-    auto admin_id = uuid_v4();
-    database(sqlpp::insert_into(db::principals).set(
-        db::principals.id = system_id, db::principals.kind = std::string{"system"},
-        db::principals.handle = std::string{"system:bootstrap"},
-        db::principals.status = std::string{"active"}));
-    database(sqlpp::insert_into(db::principals).set(
-        db::principals.id = admin_id, db::principals.kind = std::string{"user"},
-        db::principals.handle = std::string{admin_handle},
-        db::principals.email = std::string{admin_email},
-        db::principals.emailVerifiedAt = db::now_stamp(),
-        db::principals.status = std::string{"active"}));
-    record_audit(database, admin_id, INVOKED_BY, "bootstrap.completed", admin_id);
-    return admin_id;
+  const auto system_id = uuid_v4();
+  const auto admin_id = uuid_v4();
+  try {
+    database(sqlpp::insert_into(db::systemAccounts).set(
+        db::systemAccounts.id = system_id,
+        db::systemAccounts.handle = std::string{BOOTSTRAP_SYSTEM_HANDLE}));
+    database(sqlpp::insert_into(db::adminAccounts).set(
+        db::adminAccounts.id = admin_id, db::adminAccounts.handle = std::string{admin_handle},
+        db::adminAccounts.status = std::string{ADMIN_STATUS_ACTIVE}));
+    record_audit(database, ACCOUNT_KIND_SYSTEM, system_id, INVOKED_BY, ACTION_BOOTSTRAP, admin_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::conflict, error.what()));
   }
+  return admin_id;
 }
 
 }  // namespace cms::api

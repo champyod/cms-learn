@@ -5,6 +5,7 @@
 #include <string_view>
 #include <vector>
 
+#include <cms/api/auth.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/api/settings_write.hpp>
 #include <cms/db/connection.hpp>
@@ -21,8 +22,8 @@ namespace cms::api {
 ///
 /// A row that has expired or been revoked is not a session, so the condition lives in this query and every
 /// route that resolves a cookie inherits it rather than restating it.
-[[nodiscard]] Result<std::string> principal_of_session(db::connection& database,
-                                                       std::string_view session_id);
+[[nodiscard]] Result<Account> account_of_session(db::connection& database,
+                                                std::string_view session_id);
 
 /// @brief The changes a settings form carries, one per catalogued field.
 ///

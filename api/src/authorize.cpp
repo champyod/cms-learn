@@ -1,6 +1,7 @@
 #include <cms/api/authorize.hpp>
 
 #include <cstddef>
+#include <exception>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -12,13 +13,14 @@
 namespace cms::api {
 namespace {
 
-auto role_ids_of(db::connection& database, std::string_view principal_id)
-    -> std::vector<std::string> {
+constexpr std::string_view LEARNER_KIND = "learner";
+constexpr std::string_view SYSTEM_KIND = "system";
+
+auto role_ids_of(db::connection& database, std::string_view admin_id) -> std::vector<std::string> {
   auto ids = std::vector<std::string>{};
-  for (const auto& row : database(sqlpp::select(db::principalRoles.roleId)
-                                      .from(db::principalRoles)
-                                      .where(db::principalRoles.principalId ==
-                                             std::string{principal_id}))) {
+  for (const auto& row : database(sqlpp::select(db::adminRoles.roleId)
+                                      .from(db::adminRoles)
+                                      .where(db::adminRoles.adminId == std::string{admin_id}))) {
     ids.emplace_back(row.roleId);
   }
   return ids;
@@ -26,25 +28,31 @@ auto role_ids_of(db::connection& database, std::string_view principal_id)
 
 }  // namespace
 
-auto load_capabilities(db::connection& database, std::string_view principal_id)
-    -> Result<CapabilitySet> {
+auto load_capabilities(db::connection& database, std::string_view account_kind,
+                       std::string_view account_id) -> Result<CapabilitySet> {
   auto set = CapabilitySet{};
   try {
-    auto kind = std::string{};
-    for (const auto& row : database(sqlpp::select(db::principals.kind)
-                                        .from(db::principals)
-                                        .where(db::principals.id == std::string{principal_id}))) {
-      kind = std::string{row.kind};
+    // A learner holds no capabilities at all: its authority is its own progress and nothing else.
+    if (account_kind == LEARNER_KIND) {
+      return set;
     }
-    if (kind.empty()) {
-      return std::unexpected(
-          Error::make(ErrorCode::not_found, "no such principal: " + std::string{principal_id}));
-    }
-    if (kind == "system") {
+    if (account_kind == SYSTEM_KIND) {
       return all_capabilities();
     }
 
-    for (const auto& role_id : role_ids_of(database, principal_id)) {
+    auto is_admin = false;
+    for (const auto& row : database(sqlpp::select(db::adminAccounts.id)
+                                        .from(db::adminAccounts)
+                                        .where(db::adminAccounts.id == std::string{account_id}))) {
+      (void)row;
+      is_admin = true;
+    }
+    if (!is_admin) {
+      return std::unexpected(Error::make(ErrorCode::not_found,
+                                         "no such administrator: " + std::string{account_id}));
+    }
+
+    for (const auto& role_id : role_ids_of(database, account_id)) {
       for (const auto& row : database(sqlpp::select(db::roleCapabilities.capability)
                                           .from(db::roleCapabilities)
                                           .where(db::roleCapabilities.roleId == role_id))) {
@@ -61,9 +69,9 @@ auto load_capabilities(db::connection& database, std::string_view principal_id)
   return set;
 }
 
-auto authorize(db::connection& database, std::string_view principal_id, Capability capability)
-    -> Result<void> {
-  const auto held = load_capabilities(database, principal_id);
+auto authorize(db::connection& database, std::string_view account_kind,
+               std::string_view account_id, Capability capability) -> Result<void> {
+  const auto held = load_capabilities(database, account_kind, account_id);
   if (!held) {
     return std::unexpected(held.error());
   }

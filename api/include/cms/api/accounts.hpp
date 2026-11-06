@@ -45,8 +45,12 @@ struct SignupOutcome {
                                            std::string_view actor_id);
 
 /// @brief Opens a session for an active account and returns its id, which is also the opaque cookie.
-[[nodiscard]] Result<std::string> create_session(db::connection& database,
-                                                 std::string_view principal_id,
+///
+/// @param account_kind "learner", "admin" or "system"; the session row carries this beside exactly one
+/// id column, and the table's own check refuses a pair that does not match.
+/// @param account_id The account the session belongs to.
+[[nodiscard]] Result<std::string> create_session(db::connection& database, std::string_view account_kind,
+                                                 std::string_view account_id,
                                                  std::int64_t lifetime_seconds);
 
 /// @brief Creates the first system principal and the first administrator, exactly once.

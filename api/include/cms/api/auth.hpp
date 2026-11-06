@@ -31,13 +31,26 @@ namespace cms::api {
                                         std::string_view principal_id,
                                         std::string_view password);
 
-/// @brief Resolves an email and password to the account they belong to.
+/// @brief An authenticated account: which table its id names, and the id itself.
 ///
-/// @return The principal id, or a permission_denied error. An unknown email and a wrong password give the
-/// same error, so the route cannot be used to learn which addresses have accounts; an account that exists
-/// but is not active names the state it is in, because its owner has to know what to wait for.
-[[nodiscard]] Result<std::string> authenticate(db::connection& database, std::string_view email,
-                                               std::string_view password);
+/// The kind travels with the id because two ids from two tables are indistinguishable and every audit row
+/// has to name its kind.
+struct Account {
+  std::string kind;
+  std::string id;
+
+  /// @brief True when no account was resolved, which is what an absent cookie yields.
+  [[nodiscard]] auto empty() const -> bool { return kind.empty() && id.empty(); }
+};
+
+/// @brief Resolves an identifier and password to the account they belong to.
+///
+/// @param identifier A learner's email or an administrator's handle; the learner table is tried first.
+/// @return The account, or a permission_denied error. An unknown identifier, a wrong password and an
+/// inactive account give the same error, so the route cannot be used to learn which accounts exist or
+/// what state they are in.
+[[nodiscard]] Result<Account> authenticate(db::connection& database, std::string_view identifier,
+                                           std::string_view password);
 
 /// @brief Revokes the session named by @p session_id, ending it for every later request.
 [[nodiscard]] Result<void> end_session(db::connection& database, std::string_view session_id);

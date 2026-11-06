@@ -76,7 +76,7 @@ auto register_task_route(const std::shared_ptr<SettingsStore>& store,
           }
           return;
         }
-        const auto permitted = authorize(database, viewer->principal_id, Capability::content_read);
+        const auto permitted = authorize(database, viewer->account_kind, viewer->account_id, Capability::content_read);
         if (!permitted && permitted.error().code != ErrorCode::permission_denied) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
@@ -122,7 +122,7 @@ auto register_settings_route(const std::shared_ptr<SettingsStore>& store,
           const drogon::HttpRequestPtr& request,
           std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         auto database = db::connection{database_config};
-        const auto principal = principal_of_session(database, request->getCookie("cms_session"));
+        const auto principal = account_of_session(database, request->getCookie("cms_session"));
         if (!principal) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
@@ -132,7 +132,8 @@ auto register_settings_route(const std::shared_ptr<SettingsStore>& store,
           callback(redirect(SIGN_IN_PATH));
           return;
         }
-        const auto permitted = authorize(database, *principal, Capability::settings_read);
+        const auto permitted =
+            authorize(database, principal->kind, principal->id, Capability::settings_read);
         if (!permitted) {
           if (permitted.error().code != ErrorCode::permission_denied) {
             callback(text_response(std::string{INTERNAL_ERROR_BODY},

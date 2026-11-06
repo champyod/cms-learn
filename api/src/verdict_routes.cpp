@@ -70,7 +70,7 @@ auto register_verdict_route(const std::shared_ptr<const db::connection_config>& 
           }
           return;
         }
-        const auto permitted = authorize(database, viewer->principal_id, Capability::content_read);
+        const auto permitted = authorize(database, viewer->account_kind, viewer->account_id, Capability::content_read);
         if (!permitted && permitted.error().code != ErrorCode::permission_denied) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
@@ -86,7 +86,7 @@ auto register_verdict_route(const std::shared_ptr<const db::connection_config>& 
           callback(text_response(std::string{NO_TASK_BODY}, drogon::k404NotFound));
           return;
         }
-        const auto verdict = latest_verdict(database, viewer->principal_id, task_id, **version);
+        const auto verdict = latest_verdict(database, viewer->account_id, task_id, **version);
         if (!verdict) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));

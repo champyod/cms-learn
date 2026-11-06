@@ -18,25 +18,30 @@ namespace {
 
 }  // namespace
 
-auto principal_of_session(db::connection& database, std::string_view session_id)
-    -> Result<std::string> {
+auto account_of_session(db::connection& database, std::string_view session_id) -> Result<Account> {
   // An absent cookie is no session at all, and the id column is a uuid: comparing it with an empty string
   // raises rather than returning no rows.
   if (session_id.empty()) {
-    return std::string{};
+    return Account{};
   }
   try {
-    for (const auto& row : database(sqlpp::select(db::sessions.principalId)
+    for (const auto& row : database(sqlpp::select(db::sessions.accountKind, db::sessions.learnerId,
+                                                  db::sessions.adminId, db::sessions.systemId)
                                         .from(db::sessions)
                                         .where(db::sessions.id == std::string{session_id} &&
                                                db::sessions.revokedAt.is_null() &&
                                                db::sessions.expiresAt > db::now_stamp()))) {
-      return std::string{row.principalId};
+      auto account = Account{};
+      account.kind = std::string{row.accountKind};
+      if (row.learnerId.has_value()) account.id = std::string{*row.learnerId};
+      if (row.adminId.has_value()) account.id = std::string{*row.adminId};
+      if (row.systemId.has_value()) account.id = std::string{*row.systemId};
+      return account;
     }
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }
-  return std::string{};
+  return Account{};
 }
 
 auto setting_changes(std::string_view body, const std::vector<CatalogueEntry>& catalogue)

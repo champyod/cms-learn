@@ -20,6 +20,9 @@ constexpr std::string_view ACTIVE_STATUS = "active";
 constexpr std::string_view ACTION_PASSWORD = "account.password";
 constexpr std::string_view INVOKED_BY = "api";
 constexpr std::int64_t BYTES_PER_KIB = 1024;
+constexpr std::string_view LEARNER_KIND = "learner";
+constexpr std::string_view ADMIN_KIND = "admin";
+constexpr std::string_view SYSTEM_KIND = "system";
 
 auto random_generator_ready() -> bool {
   static const auto ready = sodium_init() >= 0;
@@ -61,6 +64,64 @@ auto stored_hash_check(const std::string& hash, std::string_view password) -> bo
   return crypto_pwhash_str_verify(hash.c_str(), password.data(), password.size()) == 0;
 }
 
+struct AccountRow {
+  std::string account_id;
+  std::string status;
+  std::string hash;
+};
+
+auto learner_row(db::connection& database, std::string_view email) -> AccountRow {
+  auto row = AccountRow{};
+  for (const auto& selected : database(sqlpp::select(db::learnerAccounts.id,
+                                                      db::learnerAccounts.status,
+                                                      db::learnerAccounts.passwordHash)
+                                           .from(db::learnerAccounts)
+                                           .where(db::learnerAccounts.email == std::string{email}))) {
+    row.account_id = std::string{selected.id};
+    row.status = std::string{selected.status};
+    // Copied out of the row: the connector's buffers do not outlive the loop.
+    row.hash = selected.passwordHash.has_value() ? std::string{*selected.passwordHash} : std::string{};
+  }
+  return row;
+}
+
+auto admin_row(db::connection& database, std::string_view handle) -> AccountRow {
+  auto row = AccountRow{};
+  for (const auto& selected : database(sqlpp::select(db::adminAccounts.id,
+                                                     db::adminAccounts.status,
+                                                     db::adminAccounts.passwordHash)
+                                          .from(db::adminAccounts)
+                                          .where(db::adminAccounts.handle == std::string{handle}))) {
+    row.account_id = std::string{selected.id};
+    row.status = std::string{selected.status};
+    row.hash = selected.passwordHash.has_value() ? std::string{*selected.passwordHash} : std::string{};
+  }
+  return row;
+}
+
+auto row_is_on(db::connection& database, const auto& table, std::string_view account_id) -> bool {
+  auto found = false;
+  for (const auto& selected : database(sqlpp::select(table.id).from(table).where(
+           table.id == std::string{account_id}))) {
+    (void)selected;
+    found = true;
+  }
+  return found;
+}
+
+/// The audit table's own CHECK refuses a row whose kind does not match its id column, so the table an id
+/// lives in is read here rather than inferred from the uuid.
+auto account_kind_of(db::connection& database, std::string_view account_id)
+    -> std::string_view {
+  if (row_is_on(database, db::learnerAccounts, account_id)) {
+    return LEARNER_KIND;
+  }
+  if (row_is_on(database, db::adminAccounts, account_id)) {
+    return ADMIN_KIND;
+  }
+  return SYSTEM_KIND;
+}
+
 }  // namespace
 
 auto validate_password(const SettingsSnapshot& settings, std::string_view password)
@@ -89,59 +150,61 @@ auto set_password(db::connection& database, const SettingsSnapshot& settings,
     return std::unexpected(hash.error());
   }
   try {
-    const auto changed =
-        database(sqlpp::update(db::principals)
-                     .set(db::principals.passwordHash = *hash)
-                     .where(db::principals.id == std::string{principal_id}));
-    if (changed == 0) {
-      return std::unexpected(
-          Error::make(ErrorCode::not_found, "no account called " + std::string{principal_id}));
+    const auto learner_changed =
+        database(sqlpp::update(db::learnerAccounts)
+                     .set(db::learnerAccounts.passwordHash = *hash)
+                     .where(db::learnerAccounts.id == std::string{principal_id}));
+    if (learner_changed == 0) {
+      const auto admin_changed =
+          database(sqlpp::update(db::adminAccounts)
+                       .set(db::adminAccounts.passwordHash = *hash)
+                       .where(db::adminAccounts.id == std::string{principal_id}));
+      if (admin_changed == 0) {
+        return std::unexpected(
+            Error::make(ErrorCode::not_found, "no account called " + std::string{principal_id}));
+      }
     }
-    record_audit(database, principal_id, INVOKED_BY, ACTION_PASSWORD, principal_id);
+    record_audit(database, account_kind_of(database, principal_id), principal_id, INVOKED_BY,
+                 ACTION_PASSWORD, principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }
   return {};
 }
 
-auto authenticate(db::connection& database, std::string_view email, std::string_view password)
-    -> Result<std::string> {
-  if (email.empty() || password.empty()) {
+auto authenticate(db::connection& database, std::string_view identifier,
+                  std::string_view password) -> Result<Account> {
+  if (identifier.empty() || password.empty()) {
     return std::unexpected(credentials_refused());
   }
   if (!random_generator_ready()) {
     return std::unexpected(Error::make(ErrorCode::unavailable, "libsodium did not initialise"));
   }
 
-  auto principal_id = std::string{};
-  auto status = std::string{};
-  auto hash = std::string{};
+  auto row = AccountRow{};
+  auto kind = std::string_view{};
   try {
-    for (const auto& row :
-         database(sqlpp::select(db::principals.id, db::principals.status,
-                                db::principals.passwordHash)
-                      .from(db::principals)
-                      .where(db::principals.email == std::string{email}))) {
-      principal_id = std::string{row.id};
-      status = std::string{row.status};
-      // Copied out of the row: the connector's buffers do not outlive the loop.
-      hash = row.passwordHash.has_value() ? std::string{*row.passwordHash} : std::string{};
+    row = learner_row(database, identifier);
+    if (!row.account_id.empty()) {
+      kind = LEARNER_KIND;
+    } else {
+      row = admin_row(database, identifier);
+      kind = ADMIN_KIND;
     }
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }
 
-  if (principal_id.empty() || hash.empty()) {
+  if (row.account_id.empty() || row.hash.empty()) {
     return std::unexpected(credentials_refused());
   }
-  if (!stored_hash_check(hash, password)) {
+  if (!stored_hash_check(row.hash, password)) {
     return std::unexpected(credentials_refused());
   }
-  if (status != ACTIVE_STATUS) {
-    return std::unexpected(Error::make(ErrorCode::permission_denied,
-                                       "this account is " + status + "; it cannot sign in"));
+  if (row.status != ACTIVE_STATUS) {
+    return std::unexpected(credentials_refused());
   }
-  return principal_id;
+  return Account{.kind = std::string{kind}, .id = row.account_id};
 }
 
 auto end_session(db::connection& database, std::string_view session_id) -> Result<void> {

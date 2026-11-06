@@ -137,7 +137,7 @@ auto register_auth_routes(const std::shared_ptr<SettingsStore>& store,
         auto database = db::connection{database_config};
         const auto locale = choose_locale(request->getParameter("lang"),
                                           request->getHeader("accept-language"));
-        const auto principal = authenticate(database, form_field(request->body(), "email"),
+        const auto principal = authenticate(database, form_field(request->body(), "identifier"),
                                             form_field(request->body(), "password"));
         if (!principal) {
           const auto status = principal.error().code == ErrorCode::permission_denied
@@ -155,7 +155,7 @@ auto register_auth_routes(const std::shared_ptr<SettingsStore>& store,
                                  drogon::k500InternalServerError));
           return;
         }
-        const auto session = create_session(database, *principal, seconds);
+        const auto session = create_session(database, principal->kind, principal->id, seconds);
         if (!session) {
           callback(render_signin(template_root, locale, site_name_of(*store),
                                  session.error().message, drogon::k403Forbidden));

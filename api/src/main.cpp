@@ -128,7 +128,7 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
                                    std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         auto database = cms::db::connection{database_config};
         const auto principal =
-            cms::api::principal_of_session(database, request->getCookie("cms_session"));
+            cms::api::account_of_session(database, request->getCookie("cms_session"));
         if (!principal) {
           callback(text_response(principal.error().message, drogon::k500InternalServerError));
           return;
@@ -138,15 +138,15 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
                                  drogon::k403Forbidden));
           return;
         }
-        const auto permitted =
-            cms::api::authorize(database, *principal, cms::Capability::settings_write);
+        const auto permitted = cms::api::authorize(database, principal->kind, principal->id,
+                                                   cms::Capability::settings_write);
         if (!permitted) {
           callback(text_response(permitted.error().message, drogon::k403Forbidden));
           return;
         }
         const auto changes = cms::api::setting_changes(request->body(), catalogue);
         const auto written =
-            cms::api::commit_settings(database_config, catalogue, changes, *principal);
+            cms::api::commit_settings(database_config, catalogue, changes, principal->id);
         if (!written) {
           callback(text_response(written.error().message, drogon::k400BadRequest));
           return;
