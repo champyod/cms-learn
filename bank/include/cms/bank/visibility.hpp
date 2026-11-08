@@ -45,20 +45,23 @@ enum class AuthorKind : std::uint8_t { learner, administrator };
 [[nodiscard]] auto audience_for(std::int64_t viewer_id, std::span<const std::int64_t> team_ids)
     -> Result<Audience>;
 
-/// @brief The numeric id `principals.serial_id` assigns to one principal.
+/// @brief The numeric id `learner_accounts.serial_id` assigns to one learner.
 /// @param database The connection to read through.
-/// @param principal_id The session principal's uuid.
-/// @return The serial id, or an error when no principal row carries that uuid.
-[[nodiscard]] auto serial_id_of(db::connection& database, std::string_view principal_id)
+/// @param learner_id The learner account's uuid.
+/// @return The serial id, or an error when no learner account carries that uuid.
+[[nodiscard]] auto serial_id_of(db::connection& database, std::string_view learner_id)
     -> Result<std::int64_t>;
 
-/// @brief The audience one session principal's requests run with: everyone, then the principal.
-/// @return The encoded audience, or an error naming the uuid when no principal row exists.
+/// @brief The audience one session's requests run with: everyone, then the account itself.
+/// @param account_kind The account kind the session carries: "learner", "admin" or "system".
+/// @param account_id The account's uuid.
+/// @return The encoded audience for a learner; none for an administrator or a system account, which
+/// reach a task through a capability instead (ADR 0017 §3); invalid_argument for an unknown kind.
 ///
 /// Teams are not modelled yet, so only the viewer's own value is composed; the everyone entry keeps a
 /// task granted to 0 reachable.
-[[nodiscard]] auto request_audience(db::connection& database, std::string_view principal_id)
-    -> Result<Audience>;
+[[nodiscard]] auto request_audience(db::connection& database, std::string_view account_kind,
+                                    std::string_view account_id) -> Result<Audience>;
 
 /// @brief The visibility rows a new task carries, by who created it.
 /// @return One everyone row for a learner-created task; no rows for an administrator-created one.

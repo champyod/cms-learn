@@ -25,8 +25,8 @@ constexpr std::string_view USAGE =
     "  decode <value>                  print the <kind> and <id> value carries\n"
     "  everyone                        print the value that grants a task to everyone\n"
     "  limit                           print the largest identifier a kind can carry\n"
-    "  serial <principal-id>           print the principal's numeric serial id\n"
-    "  audience <principal-id>         print the request audience, space separated\n"
+    "  serial <learner-id>             print the learner's numeric serial id\n"
+    "  audience <kind> <account-id>    print the request audience, space separated\n"
     "  default <learner|administrator> print the rows a new task carries, space separated";
 
 constexpr const char* DATABASE_VARIABLE = "CMSLEARN_DATABASE_URL";
@@ -149,12 +149,12 @@ auto run(int argc, char** argv) -> int {
     std::println("{}", *serial);
     return 0;
   }
-  if (command == "audience" && argc == 3) {
+  if (command == "audience" && argc == 4) {
     auto database = database_from_environment();
     if (!database) {
       return fail(DATABASE_HINT);
     }
-    const auto audience = cms::bank::request_audience(*database, argv[2]);
+    const auto audience = cms::bank::request_audience(*database, argv[2], argv[3]);
     if (!audience) {
       return fail(audience.error().message);
     }

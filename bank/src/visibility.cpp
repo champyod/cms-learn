@@ -119,21 +119,31 @@ auto default_visibility(AuthorKind author) -> Audience {
   return Audience{};
 }
 
-auto serial_id_of(db::connection& database, std::string_view principal_id)
+auto serial_id_of(db::connection& database, std::string_view learner_id)
     -> Result<std::int64_t> {
-  for (const auto& row : database(sqlpp::select(db::principals.serialId)
-                                      .from(db::principals)
-                                      .where(db::principals.id == std::string{principal_id}))) {
+  for (const auto& row : database(sqlpp::select(db::learnerAccounts.serialId)
+                                      .from(db::learnerAccounts)
+                                      .where(db::learnerAccounts.id == std::string{learner_id}))) {
     return static_cast<std::int64_t>(row.serialId);
   }
   return std::unexpected(Error::make(
       ErrorCode::not_found,
-      "no principal row for " + std::string{principal_id} + "; refusing to compose an audience"));
+      "no learner account for " + std::string{learner_id} + "; refusing to compose an audience"));
 }
 
-auto request_audience(db::connection& database, std::string_view principal_id)
-    -> Result<Audience> {
-  const auto serial = serial_id_of(database, principal_id);
+auto request_audience(db::connection& database, std::string_view account_kind,
+                      std::string_view account_id) -> Result<Audience> {
+  // Only a learner has a serial number to compose an audience from. An administrator reaches a task
+  // through a capability, so composing "everyone" here would be a widening the serving path must never
+  // perform on its own (ADR 0017).
+  if (account_kind == "admin" || account_kind == "system") {
+    return Audience{};
+  }
+  if (account_kind != "learner") {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "unknown account kind: " + std::string{account_kind}));
+  }
+  const auto serial = serial_id_of(database, account_id);
   if (!serial) {
     return std::unexpected(serial.error());
   }

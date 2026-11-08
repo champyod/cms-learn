@@ -99,16 +99,17 @@ TEST_CASE("a principal uuid binds to its serial id and composes an audience", "[
   }
   auto database = live_database();
   const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee90"};
-  database(sqlpp::insert_into(cms::db::principals).set(
-      cms::db::principals.id = account, cms::db::principals.kind = std::string{"user"},
-      cms::db::principals.handle = std::string{"visibility_one"},
-      cms::db::principals.status = std::string{"active"}));
+  database(sqlpp::insert_into(cms::db::learnerAccounts).set(
+      cms::db::learnerAccounts.id = account,
+      cms::db::learnerAccounts.handle = std::string{"visibility_one"},
+      cms::db::learnerAccounts.email = std::string{"visibility_one"} + std::string{"@example.org"},
+      cms::db::learnerAccounts.status = std::string{"active"}));
 
   const auto serial = cms::bank::serial_id_of(database, account);
   REQUIRE(serial.has_value());
   CHECK(*serial > 0);
 
-  const auto audience = cms::bank::request_audience(database, account);
+  const auto audience = cms::bank::request_audience(database, "learner", account);
   REQUIRE(audience.has_value());
   REQUIRE(audience->size() == 2);
   CHECK((*audience)[0] == cms::bank::everyone());
@@ -124,5 +125,5 @@ TEST_CASE("a uuid with no principal row cannot compose an audience", "[visibilit
   auto database = live_database();
   const auto unknown = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee91"};
   CHECK(!cms::bank::serial_id_of(database, unknown).has_value());
-  CHECK(!cms::bank::request_audience(database, unknown).has_value());
+  CHECK(!cms::bank::request_audience(database, "learner", unknown).has_value());
 }

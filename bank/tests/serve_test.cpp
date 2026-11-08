@@ -111,10 +111,11 @@ TEST_CASE("the next task is the one in band the account has not touched", "[serv
   ensure_seeded();
 
   const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee1"};
-  database(sqlpp::insert_into(cms::db::principals).set(
-      cms::db::principals.id = account, cms::db::principals.kind = std::string{"user"},
-      cms::db::principals.handle = std::string{"serve_one"},
-      cms::db::principals.status = std::string{"active"}));
+  database(sqlpp::insert_into(cms::db::learnerAccounts).set(
+      cms::db::learnerAccounts.id = account,
+      cms::db::learnerAccounts.handle = std::string{"serve_one"},
+      cms::db::learnerAccounts.email = std::string{"serve_one"} + std::string{"@example.org"},
+      cms::db::learnerAccounts.status = std::string{"active"}));
 
   given_task(database, "probe-easy", 800, "io");
   given_task(database, "probe-mid", 900, "io");
@@ -156,10 +157,11 @@ TEST_CASE("a draft task is never served", "[serve][live]") {
   auto database = live_database();
   ensure_seeded();
   const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2"};
-  database(sqlpp::insert_into(cms::db::principals).set(
-      cms::db::principals.id = account, cms::db::principals.kind = std::string{"user"},
-      cms::db::principals.handle = std::string{"serve_two"},
-      cms::db::principals.status = std::string{"active"}));
+  database(sqlpp::insert_into(cms::db::learnerAccounts).set(
+      cms::db::learnerAccounts.id = account,
+      cms::db::learnerAccounts.handle = std::string{"serve_two"},
+      cms::db::learnerAccounts.email = std::string{"serve_two"} + std::string{"@example.org"},
+      cms::db::learnerAccounts.status = std::string{"active"}));
 
   given_task(database, "probe-draft", 800, "sorting");
   database(sqlpp::update(cms::db::tasks)
@@ -180,10 +182,11 @@ TEST_CASE("a task with no visibility row is never served", "[serve][live]") {
   auto database = live_database();
   ensure_seeded();
   const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee3"};
-  database(sqlpp::insert_into(cms::db::principals).set(
-      cms::db::principals.id = account, cms::db::principals.kind = std::string{"user"},
-      cms::db::principals.handle = std::string{"serve_three"},
-      cms::db::principals.status = std::string{"active"}));
+  database(sqlpp::insert_into(cms::db::learnerAccounts).set(
+      cms::db::learnerAccounts.id = account,
+      cms::db::learnerAccounts.handle = std::string{"serve_three"},
+      cms::db::learnerAccounts.email = std::string{"serve_three"} + std::string{"@example.org"},
+      cms::db::learnerAccounts.status = std::string{"active"}));
 
   given_hidden_task(database, "probe-hidden", 800, "geometry");
 
@@ -201,17 +204,18 @@ TEST_CASE("the serving query follows the audience composed from a principal", "[
   auto database = live_database();
   ensure_seeded();
   const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee4"};
-  database(sqlpp::insert_into(cms::db::principals).set(
-      cms::db::principals.id = account, cms::db::principals.kind = std::string{"user"},
-      cms::db::principals.handle = std::string{"serve_four"},
-      cms::db::principals.status = std::string{"active"}));
+  database(sqlpp::insert_into(cms::db::learnerAccounts).set(
+      cms::db::learnerAccounts.id = account,
+      cms::db::learnerAccounts.handle = std::string{"serve_four"},
+      cms::db::learnerAccounts.email = std::string{"serve_four"} + std::string{"@example.org"},
+      cms::db::learnerAccounts.status = std::string{"active"}));
 
   // The lower task has no visibility row; the higher one is granted to everyone. A query that lost its
   // predicate returns the lower id, so the returned id names the defect.
   given_hidden_task(database, "probe-composed-hidden", 1000, "io");
   given_task(database, "probe-composed-public", 1100, "io");
 
-  const auto audience = cms::bank::request_audience(database, account);
+  const auto audience = cms::bank::request_audience(database, "learner", account);
   REQUIRE(audience.has_value());
   const auto result = cms::bank::next_unseen_task(database, account, stage(950, 1200, {"io"}),
                                                   *audience);
