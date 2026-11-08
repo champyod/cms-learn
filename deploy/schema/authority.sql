@@ -17,7 +17,7 @@ CREATE TABLE learner_accounts (
   -- The one numeric id (ADR 0010): a task's encoded audience value carries this, not the uuid.
   serial_id bigint GENERATED ALWAYS AS IDENTITY UNIQUE,
   handle text NOT NULL UNIQUE,
-  email text NOT NULL UNIQUE,
+  email text UNIQUE,
   email_verified_at timestamptz,
   password_hash text,
   status principal_status NOT NULL,

@@ -101,6 +101,13 @@
       "reload": "hot"
     },
     {
+      "key": "site.registration_requires_email",
+      "kind": "bool",
+      "tier": "operator",
+      "default": "true",
+      "reload": "hot"
+    },
+    {
       "key": "brand.logo_light",
       "kind": "text",
       "tier": "public",

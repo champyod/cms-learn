@@ -23,6 +23,7 @@ inline constexpr std::array k_setting_defaults{
     SettingDefault{"site.registration_open", "false"},
     SettingDefault{"site.registration_domain_allowlist", ""},
     SettingDefault{"site.registration_requires_approval", "true"},
+    SettingDefault{"site.registration_requires_email", "true"},
     SettingDefault{"identity.elevation_minutes", "10"},
     SettingDefault{"identity.session_absolute_hours", "12"},
     SettingDefault{"identity.password_min_length", "12"},

@@ -176,27 +176,40 @@ auto sign_up(db::connection& database, const SettingsSnapshot& settings, std::st
     return std::unexpected(Error::make(ErrorCode::permission_denied, "registration is closed"));
   }
 
-  const auto domain = domain_of(email);
-  if (domain.empty()) {
-    return std::unexpected(
-        Error::make(ErrorCode::invalid_argument, "the email address has no domain"));
-  }
-  if (!domain_allowed(domain, setting_text(settings, "site.registration_domain_allowlist"))) {
-    return std::unexpected(Error::make(ErrorCode::permission_denied,
-                                       "the email domain " + domain + " is not allowed to register"));
+  const auto requires_email = setting_bool(settings, "site.registration_requires_email");
+  if (requires_email) {
+    const auto domain = domain_of(email);
+    if (domain.empty()) {
+      return std::unexpected(
+          Error::make(ErrorCode::invalid_argument, "the email address has no domain"));
+    }
+    if (!domain_allowed(domain, setting_text(settings, "site.registration_domain_allowlist"))) {
+      return std::unexpected(Error::make(ErrorCode::permission_denied,
+                                         "the email domain " + domain + " is not allowed to register"));
+    }
   }
 
   const auto principal_id = uuid_v4();
   try {
-    database(sqlpp::insert_into(db::learnerAccounts).set(
-        db::learnerAccounts.id = principal_id,
-        db::learnerAccounts.handle = std::string{handle},
-        db::learnerAccounts.email = std::string{email},
-        db::learnerAccounts.status = std::string{STATUS_PENDING}));
+    if (email.empty()) {
+      database(sqlpp::insert_into(db::learnerAccounts).set(
+          db::learnerAccounts.id = principal_id, db::learnerAccounts.handle = std::string{handle},
+          db::learnerAccounts.status = std::string{STATUS_PENDING}));
+    } else {
+      database(sqlpp::insert_into(db::learnerAccounts).set(
+          db::learnerAccounts.id = principal_id, db::learnerAccounts.handle = std::string{handle},
+          db::learnerAccounts.email = std::string{email},
+          db::learnerAccounts.status = std::string{STATUS_PENDING}));
+    }
     record_audit(database, ACCOUNT_KIND_LEARNER, principal_id, INVOKED_BY, ACTION_SIGNUP,
                  principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::conflict, error.what()));
+  }
+
+  // Nothing to verify when no address was given, so no token is issued and no mail is attempted.
+  if (email.empty()) {
+    return SignupOutcome{.principal_id = principal_id, .mail_sent = false};
   }
 
   const auto token = issue_verification(database, principal_id);

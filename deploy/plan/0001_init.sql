@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS learner_accounts (
     id uuid DEFAULT gen_random_uuid(),
     serial_id bigint GENERATED ALWAYS AS IDENTITY,
     handle text NOT NULL,
-    email text NOT NULL,
+    email text,
     email_verified_at timestamptz,
     password_hash text,
     status principal_status NOT NULL,
