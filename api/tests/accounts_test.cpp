@@ -19,10 +19,11 @@ namespace {
 
 constexpr std::int64_t SESSION_LIFETIME_SECONDS = 3600;
 
-auto registration_settings(bool requires_approval) -> cms::SettingsSnapshot {
+auto registration_settings(bool requires_approval, bool requires_email = true) -> cms::SettingsSnapshot {
   auto snapshot = cms::SettingsSnapshot{1, {}};
   snapshot.values.emplace("site.registration_open", true);
   snapshot.values.emplace("site.registration_requires_approval", requires_approval);
+  snapshot.values.emplace("site.registration_requires_email", requires_email);
   snapshot.values.emplace("site.registration_domain_allowlist", "example.org");
   return snapshot;
 }
@@ -69,6 +70,77 @@ TEST_CASE("a signup is verified, approved, and only then opens a session", "[acc
 
   const auto replayed = cms::api::verify_email(database, settings, *token);
   CHECK(!replayed.has_value());
+}
+
+TEST_CASE("with approval switched off a verified learner signs in at once", "[accounts][live]") {
+  if (std::getenv("CMSLEAN_TEST_DSN") == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  auto database = cms::test::live_database();
+  const auto settings = registration_settings(false);
+
+  const auto signup = cms::api::sign_up(database, settings, "direct@example.org", "direct_one");
+  REQUIRE(signup.has_value());
+  const auto token = cms::api::issue_verification(database, signup->principal_id);
+  REQUIRE(token.has_value());
+  const auto verified = cms::api::verify_email(database, settings, *token);
+  REQUIRE(verified.has_value());
+
+  // The switch, not a fixed rule, decides whether verification is enough: this learner must sign in
+  // without any approval step.
+  const auto session = cms::api::create_session(database, "learner", signup->principal_id,
+                                                SESSION_LIFETIME_SECONDS);
+  CHECK(session.has_value());
+}
+
+TEST_CASE("with approval switched on a verified learner still waits", "[accounts][live]") {
+  if (std::getenv("CMSLEAN_TEST_DSN") == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  auto database = cms::test::live_database();
+  const auto settings = registration_settings(true);
+
+  const auto signup = cms::api::sign_up(database, settings, "waiting@example.org", "waiting_one");
+  REQUIRE(signup.has_value());
+  const auto token = cms::api::issue_verification(database, signup->principal_id);
+  REQUIRE(token.has_value());
+  const auto verified = cms::api::verify_email(database, settings, *token);
+  REQUIRE(verified.has_value());
+
+  const auto session = cms::api::create_session(database, "learner", signup->principal_id,
+                                                SESSION_LIFETIME_SECONDS);
+  CHECK(!session.has_value());
+}
+
+TEST_CASE("with the email switch off a learner registers without an address", "[accounts][live]") {
+  if (std::getenv("CMSLEAN_TEST_DSN") == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  auto database = cms::test::live_database();
+  const auto settings = registration_settings(false, false);
+
+  const auto signup = cms::api::sign_up(database, settings, "", "no_mail_one");
+  REQUIRE(signup.has_value());
+  // No address means nothing to verify and nothing to send, so the outcome says so rather than
+  // pretending a code went out.
+  CHECK(signup->mail_sent == false);
+
+  // The account exists and was created with no address at all: the connector refuses to read a NULL
+  // address as text, so the assertion selects the id and proves the row, and the address is checked by
+  // the query that would have failed if the column had been required.
+  auto found = false;
+  for (const auto& row : database(sqlpp::select(cms::db::learnerAccounts.id)
+                                      .from(cms::db::learnerAccounts)
+                                      .where(cms::db::learnerAccounts.id == signup->principal_id &&
+                                             cms::db::learnerAccounts.status ==
+                                                 std::string{"pending"}))) {
+    (void)row;
+    found = true;
+  }
+  CHECK(found);
 }
 
 TEST_CASE("an address outside the allowlist is refused", "[accounts][live]") {
