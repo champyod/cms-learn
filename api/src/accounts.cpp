@@ -28,7 +28,6 @@ constexpr std::size_t TOKEN_BYTES = 32;
 constexpr std::size_t HEX_DIGITS_PER_BYTE = 2;
 constexpr unsigned NIBBLE_SHIFT = 4;
 constexpr unsigned NIBBLE_MASK = 0x0fu;
-constexpr std::int64_t FIRST_LEARNER_SERIAL = 1;
 
 constexpr std::string_view PURPOSE_VERIFY_EMAIL = "verify_email";
 constexpr std::string_view ACTION_SIGNUP = "account.signup";
@@ -36,10 +35,6 @@ constexpr std::string_view ACTION_VERIFY = "account.verify";
 constexpr std::string_view ACTION_APPROVE = "account.approve";
 constexpr std::string_view ACTION_SESSION = "session.create";
 constexpr std::string_view INVOKED_BY = "api";
-
-namespace serial_alias {
-SQLPP_CREATE_NAME_TAG(max_serial);
-}  // namespace serial_alias
 
 namespace count_alias {
 SQLPP_CREATE_NAME_TAG(row_count);
@@ -125,18 +120,6 @@ auto failure(std::string_view text) -> Error {
   return Error::make(ErrorCode::unavailable, text);
 }
 
-auto next_serial_id(db::connection& database) -> std::int64_t {
-  const auto serial = sqlpp::max(db::learnerAccounts.serialId).as(serial_alias::max_serial);
-  auto next = FIRST_LEARNER_SERIAL;
-  for (const auto& row : database(sqlpp::select(serial).from(db::learnerAccounts))) {
-    const auto& highest = row.max_serial;
-    if (highest.has_value()) {
-      next = static_cast<std::int64_t>(*highest) + 1;
-    }
-  }
-  return next;
-}
-
 auto counts_at_least_one(db::connection& database, const auto& statement) -> bool {
   auto found = false;
   for (const auto& row : database(statement)) {
@@ -207,7 +190,6 @@ auto sign_up(db::connection& database, const SettingsSnapshot& settings, std::st
   try {
     database(sqlpp::insert_into(db::learnerAccounts).set(
         db::learnerAccounts.id = principal_id,
-        db::learnerAccounts.serialId = next_serial_id(database),
         db::learnerAccounts.handle = std::string{handle},
         db::learnerAccounts.email = std::string{email},
         db::learnerAccounts.status = std::string{STATUS_PENDING}));

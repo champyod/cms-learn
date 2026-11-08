@@ -68,9 +68,9 @@ BEGIN
   END IF;
 
   INSERT INTO settings_audit (key, operation, old_kind, new_kind, old_value, new_value, old_tier,
-                              new_tier, actor_id, invoked_by)
+                              new_tier, actor_kind, actor_id, invoked_by)
   VALUES (changed_key, lower(TG_OP)::audit_operation, old_kind, new_kind, old_value, new_value,
-          old_tier, new_tier, current_actor(),
+          old_tier, new_tier, 'admin', current_actor(),
           coalesce(current_setting('cms.invoked_by', true), ''));
   RETURN NULL;
 END;

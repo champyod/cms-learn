@@ -20,10 +20,13 @@ inline auto settings_version_query() {
   return sqlpp::select(settingsMeta.version).from(settingsMeta);
 }
 
+/// A live session names its account by kind and by the one id column that kind uses, so the caller
+/// learns which account table to read rather than inferring it from a bare uuid.
 inline auto live_session_query() {
   const auto id = sqlpp::parameter(sqlpp::text{}, session_id);
   const auto clock = sqlpp::parameter(sqlpp::timestamp{}, now);
-  return sqlpp::select(sessions.principalId, sessions.expiresAt, sessions.revokedAt)
+  return sqlpp::select(sessions.accountKind, sessions.learnerId, sessions.adminId, sessions.systemId,
+                       sessions.expiresAt, sessions.revokedAt)
       .from(sessions)
       .where(sessions.id == id && sessions.revokedAt.is_null() &&
              sessions.expiresAt > clock);

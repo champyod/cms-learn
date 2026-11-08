@@ -28,10 +28,12 @@ constexpr std::size_t FIRST_AUDIENCE_PARAMETER = 6;
 /// between the read and this write changes no row and the client retries.
 constexpr std::string_view SUBMIT_HEAD = R"(
 INSERT INTO submissions (account_id, task_id, task_version, source)
-SELECT sessions.principal_id, tasks.id, tasks.version, $1
+SELECT sessions.learner_id, tasks.id, tasks.version, $1
 FROM sessions
 CROSS JOIN tasks
 WHERE sessions.id = $2
+  AND sessions.account_kind = 'learner'
+  AND sessions.learner_id IS NOT NULL
   AND sessions.revoked_at IS NULL
   AND sessions.expires_at > $3
   AND tasks.id = $4
@@ -66,12 +68,14 @@ auto submit_sql(std::size_t audience_size) -> std::string {
 /// rather than leaving the caller to remember.
 auto account_of(db::connection& database, std::string_view session_id) -> std::string {
   auto account = std::string{};
-  for (const auto& row : database(sqlpp::select(db::sessions.principalId)
+  for (const auto& row : database(sqlpp::select(db::sessions.learnerId)
                                       .from(db::sessions)
                                       .where(db::sessions.id == std::string{session_id} &&
+                                             db::sessions.accountKind == std::string{"learner"} &&
+                                             db::sessions.learnerId.is_not_null() &&
                                              db::sessions.revokedAt.is_null() &&
                                              db::sessions.expiresAt > db::now_stamp()))) {
-    account = std::string{row.principalId};
+    account = std::string{*row.learnerId};
   }
   return account;
 }

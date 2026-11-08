@@ -52,8 +52,14 @@ TEST_CASE("a signup is verified, approved, and only then opens a session", "[acc
                                                   SESSION_LIFETIME_SECONDS);
   CHECK(!premature.has_value());
 
-  const auto approved =
-      cms::api::approve_account(database, signup->principal_id, signup->principal_id);
+  // An approval is an administrator's act, so the approver is an administrator account and not the
+  // learner being approved.
+  const auto approver_id = std::string{"aaaa1111-bbbb-4ccc-8ddd-eeeeeeee0001"};
+  database(sqlpp::insert_into(cms::db::adminAccounts).set(
+      cms::db::adminAccounts.id = approver_id,
+      cms::db::adminAccounts.handle = std::string{"approver_one"},
+      cms::db::adminAccounts.status = std::string{"active"}));
+  const auto approved = cms::api::approve_account(database, signup->principal_id, approver_id);
   REQUIRE(approved.has_value());
 
   const auto session = cms::api::create_session(database, "learner", signup->principal_id,

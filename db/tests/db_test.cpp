@@ -13,11 +13,14 @@ namespace {
 using SettingsKey = std::remove_cvref_t<decltype(cms::db::settings.key)>;
 using SettingsValueText = std::remove_cvref_t<decltype(cms::db::settings.valueText)>;
 using SessionsExpiresAt = std::remove_cvref_t<decltype(cms::db::sessions.expiresAt)>;
+using SessionsAccountKind = std::remove_cvref_t<decltype(cms::db::sessions.accountKind)>;
 
 static_assert(sqlpp::is_column_v<SettingsKey>, "the settings table needs a key column");
 static_assert(std::is_same_v<sqlpp::data_type_of_t<SettingsKey>, sqlpp::text>);
 static_assert(std::is_same_v<sqlpp::data_type_of_t<SettingsValueText>, sqlpp::text>);
 static_assert(sqlpp::is_column_v<SessionsExpiresAt>, "the sessions table needs an expiry column");
+static_assert(sqlpp::is_column_v<SessionsAccountKind>,
+              "a session names the kind of account it belongs to");
 static_assert(std::is_same_v<sqlpp::data_type_of_t<SessionsExpiresAt>, sqlpp::timestamp>);
 
 static_assert(std::is_invocable_v<decltype(&cms::db::settings_snapshot_query)>);

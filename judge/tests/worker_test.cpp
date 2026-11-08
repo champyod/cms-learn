@@ -40,17 +40,18 @@ auto live_database() -> cms::db::connection {
 }
 
 auto given_account(cms::db::connection& database) -> void {
-  for (const auto& row : database(sqlpp::select(cms::db::principals.id)
-                                      .from(cms::db::principals)
-                                      .where(cms::db::principals.id == std::string{ACCOUNT}))) {
+  for (const auto& row : database(sqlpp::select(cms::db::learnerAccounts.id)
+                                      .from(cms::db::learnerAccounts)
+                                      .where(cms::db::learnerAccounts.id == std::string{ACCOUNT}))) {
     (void)row;
     return;
   }
-  database(sqlpp::insert_into(cms::db::principals)
-               .set(cms::db::principals.id = std::string{ACCOUNT},
-                    cms::db::principals.kind = std::string{"user"},
-                    cms::db::principals.handle = std::string{"claim_worker"},
-                    cms::db::principals.status = std::string{"active"}));
+  // A submission belongs to a learner account, so the fixture that submits is a learner.
+  database(sqlpp::insert_into(cms::db::learnerAccounts)
+               .set(cms::db::learnerAccounts.id = std::string{ACCOUNT},
+                    cms::db::learnerAccounts.handle = std::string{"claim_worker"},
+                    cms::db::learnerAccounts.email = std::string{"claim_worker@example.org"},
+                    cms::db::learnerAccounts.status = std::string{"active"}));
 }
 
 auto given_task(cms::db::connection& database) -> void {
