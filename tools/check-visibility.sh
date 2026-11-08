@@ -195,11 +195,11 @@ run_live_case "the next task is the one in band the account has not touched"
 principal_a="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee01"
 principal_b="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee02"
 unknown_principal="aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeee03"
-psql_db -c "INSERT INTO principals (id, kind, handle, status)
-            VALUES ('$principal_a', 'user', 'visibility_a', 'active')" >/dev/null 2>&1
-psql_db -c "INSERT INTO principals (id, kind, handle, status)
-            VALUES ('$principal_b', 'user', 'visibility_b', 'active')" >/dev/null 2>&1
-serial_a_stored="$(psql_db -c "SELECT serial_id FROM principals WHERE id = '$principal_a'")"
+psql_db -c "INSERT INTO learner_accounts (id, handle, email, status)
+            VALUES ('$principal_a', 'visibility_a', 'visibility_a@example.org', 'active')" >/dev/null 2>&1
+psql_db -c "INSERT INTO learner_accounts (id, handle, email, status)
+            VALUES ('$principal_b', 'visibility_b', 'visibility_b@example.org', 'active')" >/dev/null 2>&1
+serial_a_stored="$(psql_db -c "SELECT serial_id FROM learner_accounts WHERE id = '$principal_a'")"
 serial_a="$(CMSLEARN_DATABASE_URL="$database_url" "$principal_value" serial "$principal_a")"
 if [ -n "$serial_a" ] && [ "$serial_a" = "$serial_a_stored" ]; then
   ok "a session uuid resolves to its stored serial id"
@@ -208,7 +208,7 @@ else
 fi
 
 learner_a="$("$principal_value" encode learner "$serial_a")"
-audience_a="$(CMSLEARN_DATABASE_URL="$database_url" "$principal_value" audience "$principal_a" | tr ' ' ',')"
+audience_a="$(CMSLEARN_DATABASE_URL="$database_url" "$principal_value" audience learner "$principal_a" | tr ' ' ',')"
 if [ "$audience_a" = "$everyone,$learner_a" ]; then
   ok "the request audience is everyone plus the encoded viewer"
 else

@@ -67,8 +67,8 @@ CMSLEARN_DATABASE_URL="host=$work port=$port dbname=$database user=postgres" \
 cp "$isolate_source" "$work/isolate"
 chmod +x "$work/isolate"
 
-psql_db -c "INSERT INTO principals (id, kind, handle, status)
-            VALUES ('$account', 'user', 'judge_probe', 'active')" >/dev/null 2>&1 \
+psql_db -c "INSERT INTO learner_accounts (id, handle, email, status)
+            VALUES ('$account', 'judge_probe', 'judge_probe@example.org', 'active')" >/dev/null 2>&1 \
   || { echo "  [!!] could not insert the probe account"; exit 1; }
 
 sql_text() { sed "s/'/''/g" "$1"; }

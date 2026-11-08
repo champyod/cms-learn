@@ -55,8 +55,8 @@ CMSLEARN_DATABASE_URL="host=$work port=$port dbname=$database user=postgres" \
 
 # A learner and enough volume that the planner has a real choice.
 psql_db <<SQL >/dev/null 2>&1
-INSERT INTO principals (id, kind, handle, status)
-VALUES ('$account', 'user', 'plan_probe', 'active');
+INSERT INTO learner_accounts (id, handle, email, status)
+VALUES ('$account', 'plan_probe', 'plan_probe@example.org', 'active');
 
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
@@ -71,13 +71,14 @@ SELECT 'synthetic-' || value, 1, 'io' FROM generate_series(1, 20000) AS value;
 -- Attempts are spread over five hundred learners so one account holds a small slice. A single account
 -- with twenty thousand rows would make a hash anti-join the better plan and the index irrelevant, which
 -- would prove the opposite of what this gate is for.
-INSERT INTO principals (kind, handle, status)
-SELECT 'user', 'probe_' || value, 'active' FROM generate_series(0, 499) AS value;
+INSERT INTO learner_accounts (handle, email, status)
+SELECT 'probe_' || value, 'probe_' || value || '@example.org', 'active'
+FROM generate_series(0, 499) AS value;
 
 INSERT INTO progress (account_id, task_id, task_version, status)
 SELECT p.id, 'synthetic-' || g.value, 1, 'attempted'
 FROM generate_series(1, 20000) AS g
-JOIN principals AS p ON p.handle = 'probe_' || (g.value % 500);
+JOIN learner_accounts AS p ON p.handle = 'probe_' || (g.value % 500);
 
 INSERT INTO progress (account_id, task_id, task_version, status)
 SELECT '$account', 'synthetic-' || value, 1, 'attempted'
