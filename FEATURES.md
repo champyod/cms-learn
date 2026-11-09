@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **39 shipped · 7 partial · 12 planned** (58 features).
+Counts at last update: **40 shipped · 7 partial · 12 planned** (59 features).
 
 ---
 
@@ -77,6 +77,7 @@ Counts at last update: **39 shipped · 7 partial · 12 planned** (58 features).
 | F-054 | Rate limiting and lockout | A | ◐ | edge limits shipped in `deploy/Caddyfile` (auth 20/min, submissions 60/min per IP); per-account lockout is app-side and not built |
 | F-056 | One action layer both administrator surfaces call: every action checks its capability, and the acting account is passed in, never read from a request (ADR 0019) | C | ● | `api/include/cms/api/admin_actions.hpp`, `api/src/admin_actions.cpp`, `api/tests/admin_actions_creation_test.cpp` |
 | F-057 | Learner, administrator and system are separate account tables, with a kind beside every recorded actor (ADR 0016, 0020) | A | ● | `deploy/schema/authority.sql`, `deploy/schema/settings.sql`, `docs/decisions/0020-one-actor-pattern.md`, `bun run check:schema` |
+| F-058 | Administrator panel on its own listener: roster and five actions, per-session CSRF token compared before any work, the actor taken from the session | A | ● | `api/src/admin_routes.cpp`, `api/src/csrf.cpp`, `api/tests/admin_panel_e2e.sh` (21 assertions), `bun run check:templates` |
 | F-055 | PII minimisation and retention policy (minors) | A | ○ | ADR 0002 §2 |
 
 ## Operations
