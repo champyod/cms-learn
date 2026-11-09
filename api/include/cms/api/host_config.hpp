@@ -15,6 +15,10 @@ namespace cms::api {
 struct HostConfig {
   std::string listen_address;
   std::string listen_port;
+  /// Empty means the administrator panel is not mounted at all; Drogon keeps one route table per app,
+  /// so a second listener is what separates the panel from the public site.
+  std::string panel_listen_address;
+  std::string panel_listen_port;
   std::string database_url;
   std::string seal_key;
   std::string bootstrap_admin;

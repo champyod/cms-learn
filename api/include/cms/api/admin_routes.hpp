@@ -1,0 +1,83 @@
+#pragma once
+
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <string_view>
+#include <vector>
+
+#include <nlohmann/json.hpp>
+
+#include <cms/api/actor.hpp>
+#include <cms/api/admin_actions.hpp>
+#include <cms/api/web.hpp>
+#include <cms/db/connection.hpp>
+#include <cms/error.hpp>
+#include <cms/settings_snapshot.hpp>
+
+namespace cms::api {
+
+/// @brief One learner, as the panel's home page lists it.
+struct LearnerRow {
+  std::string id;
+  std::string handle;
+  std::string status;
+  std::string level;
+};
+
+/// @brief The learners the panel lists, in handle order.
+[[nodiscard]] Result<std::vector<LearnerRow>> read_learner_roster(db::connection& database);
+
+/// @brief The handle the panel greets, read from the administrator the session names.
+[[nodiscard]] Result<std::string> read_admin_handle(db::connection& database,
+                                                    std::string_view admin_id);
+
+/// @brief Everything the home page shows. Every field is read by the service or chosen by it from a
+/// fixed list; none is text a request supplied.
+struct PanelHome {
+  std::string admin_handle;
+  std::string csrf_token;
+  std::string notice;
+  std::string message;
+  std::vector<LearnerRow> learners;
+};
+
+/// @brief Builds the model `admin_home.html` renders from.
+[[nodiscard]] nlohmann::json panel_model(const Locale& locale, std::string_view site_name,
+                                         const PanelHome& home);
+
+/// @brief The five actions the panel's forms can post.
+enum class PanelAction : std::uint8_t {
+  create_learner,
+  create_admin,
+  approve,
+  revoke_admin,
+  issue_verification,
+};
+
+/// @brief Runs @p action as @p actor, reading only that action's own fields from @p body.
+///
+/// The body cannot name the actor: @p actor is the account the session resolved to, and the fields read
+/// here are the ones the form shows.
+[[nodiscard]] Result<ActionOutcome> perform_panel_action(db::connection& database,
+                                                         const SettingsSnapshot& settings,
+                                                         const Actor& actor, PanelAction action,
+                                                         std::string_view body);
+
+/// @brief Registers the administrator panel: the home page and the five actions it posts.
+///
+/// @param database_config The pool sessions, authority and the roster are read through.
+/// @param store The settings the account actions read their policy from.
+/// @param template_root The directory the page is rendered from.
+/// @param panel_port The listener port the panel was mounted on; a request arriving on any other port is
+/// refused, which is what keeps the panel off the public listener.
+///
+/// The acting account is the one the session names, never a field of the request. A request without a
+/// live administrator session is redirected to `/signin`, and one whose session is not an administrator
+/// is refused. Every POST compares the session's token before any action runs.
+auto register_admin_routes(const std::shared_ptr<const db::connection_config>& database_config,
+                           const std::shared_ptr<SettingsStore>& store,
+                           std::string_view template_root,
+                           std::uint16_t panel_port) -> void;
+
+}  // namespace cms::api

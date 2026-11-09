@@ -10,6 +10,7 @@
 
 #include <drogon/drogon.h>
 
+#include <cms/api/admin_routes.hpp>
 #include <cms/api/admin_socket.hpp>
 #include <cms/api/auth_routes.hpp>
 #include <cms/api/authorize.hpp>
@@ -214,9 +215,16 @@ auto run() -> int {
   register_routes(store, database_config, *catalogue);
   cms::api::register_home_route(store, database_config, config->template_root);
   cms::api::register_task_route(store, database_config, config->template_root);
-  cms::api::register_settings_route(store, database_config, settings_view,
-                                    config->template_root);
+  cms::api::register_settings_route(store, database_config, settings_view, config->template_root);
   cms::api::register_auth_routes(store, database_config, config->template_root, config->tls_mode);
+  // The panel is mounted only when the operator gave it a listener; an unconfigured feature is absent,
+  // never merely hidden behind a check.
+  const auto panel_port = config->panel_listen_port.empty()
+                              ? std::uint16_t{0}
+                              : static_cast<std::uint16_t>(std::stoi(config->panel_listen_port));
+  if (panel_port != 0) {
+    cms::api::register_admin_routes(database_config, store, config->template_root, panel_port);
+  }
   cms::api::register_verdict_route(database_config);
   register_asset_route(config->static_root);
 
@@ -232,6 +240,9 @@ auto run() -> int {
   auto& app = drogon::app();
   app.addListener(config->listen_address,
                   static_cast<std::uint16_t>(std::stoi(config->listen_port)));
+  if (panel_port != 0) {
+    app.addListener(config->panel_listen_address, panel_port);
+  }
   app.run();
   return 0;
 }

@@ -146,3 +146,71 @@ export const signupFixture: SignupFixture = {
   signin_label: "มีบัญชีอยู่แล้ว? เข้าสู่ระบบ",
   message: "",
 };
+
+/// A row of the administrator panel's roster.
+export interface LearnerRow {
+  id: string;
+  handle: string;
+  status: string;
+  level: string;
+}
+
+/// The administrator panel's page data. Every field names a template variable the server fills.
+export interface AdminFixture {
+  site_name: string;
+  title: string;
+  lede: string;
+  admin_handle: string;
+  csrf_token: string;
+  notice: string;
+  message: string;
+  roster_label: string;
+  empty_label: string;
+  id_label: string;
+  handle_label: string;
+  status_label: string;
+  level_label: string;
+  email_label: string;
+  password_label: string;
+  role_label: string;
+  learner_id_label: string;
+  admin_id_label: string;
+  create_learner_label: string;
+  create_admin_label: string;
+  approve_label: string;
+  revoke_admin_label: string;
+  issue_verification_label: string;
+  submit_label: string;
+  learners: LearnerRow[];
+}
+
+export const adminFixture: AdminFixture = {
+  site_name: "CMS Learn",
+  title: "ผู้ดูแลระบบ",
+  lede: "ลงชื่อเข้าใช้ในชื่อ",
+  admin_handle: "operator",
+  csrf_token: "0f8c1a5e7b9d4c2a",
+  notice: "สร้างบัญชีผู้เรียนแล้ว",
+  message: "",
+  roster_label: "บัญชีผู้เรียน",
+  empty_label: "ยังไม่มีผู้เรียน",
+  id_label: "รหัสบัญชี",
+  handle_label: "ชื่อบัญชี",
+  status_label: "สถานะ",
+  level_label: "ระดับ",
+  email_label: "อีเมล",
+  password_label: "รหัสผ่าน",
+  role_label: "บทบาท",
+  learner_id_label: "รหัสผู้เรียน",
+  admin_id_label: "รหัสผู้ดูแล",
+  create_learner_label: "สร้างบัญชีผู้เรียน",
+  create_admin_label: "สร้างบัญชีผู้ดูแล",
+  approve_label: "อนุมัติผู้เรียน",
+  revoke_admin_label: "เพิกถอนผู้ดูแล",
+  issue_verification_label: "ออกรหัสยืนยัน",
+  submit_label: "บันทึก",
+  learners: [
+    { id: "8f14e45f-ceea-467a-9c1e-0f5a2b3c4d5e", handle: "student_one", status: "active", level: "camp-1" },
+    { id: "c9f0f895-fb98-4c4b-8b0d-1a2b3c4d5e6f", handle: "student_two", status: "pending", level: "" },
+  ],
+};

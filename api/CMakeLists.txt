@@ -75,8 +75,10 @@ cms_apply_warnings(cms_api_authority PUBLIC)
 cms_apply_hardening(cms_api_authority)
 cms_apply_sanitizers(cms_api_authority)
 
-add_executable(cms_api src/auth_routes.cpp src/http.cpp src/main.cpp src/page_routes.cpp
-                       src/settings_source.cpp src/settings_watcher.cpp src/verdict_routes.cpp)
+add_executable(cms_api src/admin_page.cpp src/admin_panel_actions.cpp src/admin_routes.cpp
+                       src/auth_routes.cpp src/csrf.cpp src/http.cpp src/main.cpp
+                       src/page_routes.cpp src/settings_source.cpp src/settings_watcher.cpp
+                       src/verdict_routes.cpp)
 
 # The catalogue is a build input, not operator configuration: a key this binary was not compiled against is
 # not a setting it can honour, so the build names the file it was built from rather than letting a runtime
@@ -89,6 +91,13 @@ target_link_libraries(cms_api PRIVATE cms::api_authority cms::api_config cms::ap
 cms_apply_warnings(cms_api PRIVATE)
 cms_apply_hardening(cms_api)
 cms_apply_sanitizers(cms_api)
+
+# The panel's contract is what a browser sees — cookies, redirects, a token in the form — so it is proved
+# through the real listener against a scratch cluster, the way every other route is.
+add_test(
+  NAME api_admin_panel_e2e
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tests/admin_panel_e2e.sh" "$<TARGET_FILE:cms_api>")
+set_tests_properties(api_admin_panel_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180)
 
 if(CMS_BUILD_TESTS)
   add_subdirectory(tests)

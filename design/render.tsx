@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { settingsFixture } from "./catalogue.ts";
-import { homeFixture, signinFixture, signupFixture, taskFixture } from "./fixtures.ts";
+import { adminFixture, homeFixture, signinFixture, signupFixture, taskFixture } from "./fixtures.ts";
+import { AdminHome } from "./pages/admin_home.tsx";
 import { Home } from "./pages/home.tsx";
 import { Settings } from "./pages/settings.tsx";
 import { Signin } from "./pages/signin.tsx";
@@ -11,6 +12,7 @@ import type { Mode } from "./slots.ts";
 // The registry is the single list of pages. The gate compares it against the templates on disk, so a page
 // without a generated template — or a template with no page — is a failure rather than a silent omission.
 export const pages: Record<string, (mode: Mode) => React.ReactElement> = {
+  admin_home: (mode) => <AdminHome mode={mode} data={adminFixture} />,
   home: (mode) => <Home mode={mode} data={homeFixture} />,
   settings: (mode) => <Settings mode={mode} data={settingsFixture} />,
   signin: (mode) => <Signin mode={mode} data={signinFixture} />,

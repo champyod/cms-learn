@@ -97,6 +97,11 @@ auto is_known_tls_mode(std::string_view text) -> bool {
   return false;
 }
 
+auto optional_value(const entry_map& entries, std::string_view key) -> std::string {
+  const auto found = entries.find(std::string{key});
+  return found == entries.end() ? std::string{} : found->second;
+}
+
 auto value_of(const entry_map& entries, std::string_view key) -> std::string_view {
   const auto found = entries.find(key);
   return found == entries.end() ? std::string_view{} : std::string_view{found->second};
@@ -117,6 +122,15 @@ auto check(const entry_map& entries, std::vector<std::string>& problems) -> void
            "CMSLEARN_LISTEN_ADDRESS is empty");
   validate("CMSLEARN_LISTEN_PORT", is_port(value_of(entries, "CMSLEARN_LISTEN_PORT")),
            "CMSLEARN_LISTEN_PORT is not a port number");
+  const auto panel_address = optional_value(entries, "CMSLEARN_PANEL_LISTEN_ADDRESS");
+  const auto panel_port = optional_value(entries, "CMSLEARN_PANEL_LISTEN_PORT");
+  if (panel_address.empty() != panel_port.empty()) {
+    problems.emplace_back(
+        "CMSLEARN_PANEL_LISTEN_ADDRESS and CMSLEARN_PANEL_LISTEN_PORT must both be set or both be empty");
+  }
+  if (!panel_port.empty() && !is_port(panel_port)) {
+    problems.emplace_back("CMSLEARN_PANEL_LISTEN_PORT is not a port number");
+  }
   validate("CMSLEARN_DATABASE_URL", looks_like_connection(value_of(entries, "CMSLEARN_DATABASE_URL")),
            "CMSLEARN_DATABASE_URL is neither a postgresql:// URL nor a libpq connection string");
   validate("CMSLEARN_SEAL_KEY", value_of(entries, "CMSLEARN_SEAL_KEY").size() >= SEAL_KEY_BYTES,
@@ -171,6 +185,8 @@ auto load_host_config(std::string_view path) -> Result<HostConfig> {
   return HostConfig{
       .listen_address = entries.at("CMSLEARN_LISTEN_ADDRESS"),
       .listen_port = entries.at("CMSLEARN_LISTEN_PORT"),
+      .panel_listen_address = optional_value(entries, "CMSLEARN_PANEL_LISTEN_ADDRESS"),
+      .panel_listen_port = optional_value(entries, "CMSLEARN_PANEL_LISTEN_PORT"),
       .database_url = entries.at("CMSLEARN_DATABASE_URL"),
       .seal_key = entries.at("CMSLEARN_SEAL_KEY"),
       .bootstrap_admin = entries.at("CMSLEARN_BOOTSTRAP_ADMIN"),

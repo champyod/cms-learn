@@ -8,8 +8,8 @@ import { loopEnd, loopStart, type Mode } from "./slots.ts";
 // markers must not sit inside an extra element, or the loop would emit a wrapper that `<ol>` cannot hold.
 export interface RepeatListProps<T> {
   mode: Mode;
-  tag: "ol" | "ul";
-  className: string;
+  tag: "ol" | "ul" | "tbody";
+  className?: string;
   alias: string;
   collection: string;
   items: T[];
