@@ -26,6 +26,7 @@ CREATE TYPE capability AS ENUM (
     'user:approve',
     'settings:read',
     'settings:write',
+    'settings:secret_write',
     'infra:read',
     'infra:write',
     'audit:read',

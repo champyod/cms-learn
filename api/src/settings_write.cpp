@@ -9,10 +9,14 @@
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/api/uuid.hpp>
+
 #include <cms/db/tables.hpp>
 
 namespace cms::api {
+
 namespace {
+
+constexpr std::string_view SECRET_TIER = "secret";
 
 auto is_integer(std::string_view text) -> bool {
   if (text.empty()) {
@@ -71,6 +75,14 @@ auto matches_kind(std::string_view kind, std::string_view value) -> bool {
     return is_integer(value);
   }
   return kind == "text";
+}
+
+auto writes_a_secret(const std::vector<CatalogueEntry>& catalogue,
+                     const std::vector<SettingChange>& changes) -> bool {
+  return std::ranges::any_of(changes, [&catalogue](const SettingChange& change) {
+    const auto* entry = entry_for(catalogue, change.key);
+    return entry != nullptr && entry->tier == SECRET_TIER;
+  });
 }
 
 auto apply_settings(db::connection& database, const std::vector<CatalogueEntry>& catalogue,

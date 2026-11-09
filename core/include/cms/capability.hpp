@@ -24,13 +24,14 @@ enum class Capability : std::uint8_t {
   user_approve,
   settings_read,
   settings_write,
+  settings_secret_write,
   infra_read,
   infra_write,
   audit_read,
   schema_apply,
 };
 
-inline constexpr std::size_t k_capability_count = 14;
+inline constexpr std::size_t k_capability_count = 15;
 static_assert(k_capability_count <= 64U, "a std::uint64_t mask cannot hold this many capabilities");
 
 /// @brief A capability paired with the string every other surface spells it with.
@@ -56,6 +57,7 @@ inline constexpr std::array<CapabilityName, k_capability_count> k_capability_nam
     {Capability::user_approve, "user:approve"},
     {Capability::settings_read, "settings:read"},
     {Capability::settings_write, "settings:write"},
+    {Capability::settings_secret_write, "settings:secret_write"},
     {Capability::infra_read, "infra:read"},
     {Capability::infra_write, "infra:write"},
     {Capability::audit_read, "audit:read"},

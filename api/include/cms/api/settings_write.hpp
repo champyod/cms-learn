@@ -37,6 +37,15 @@ struct SettingChange {
 ///
 /// A secret may be written here — that is how a credential is rotated — and the audit trigger stores
 /// `<redacted>` for it. Nothing on this path may return the value it was given.
+/// @brief Whether any change in @p changes targets a key the catalogue marks secret.
+///
+/// A secret is a credential, so writing one is a second authority rather than an ordinary settings edit.
+/// The catalogue is the one place that answers the question, so neither surface has to guess by name.
+/// @param catalogue The keys this build knows.
+/// @param changes The changes a request asked to make.
+[[nodiscard]] auto writes_a_secret(const std::vector<CatalogueEntry>& catalogue,
+                                   const std::vector<SettingChange>& changes) -> bool;
+
 [[nodiscard]] Result<void> apply_settings(db::connection& database,
                                           const std::vector<CatalogueEntry>& catalogue,
                                           const std::vector<SettingChange>& changes,

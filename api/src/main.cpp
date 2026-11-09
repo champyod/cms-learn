@@ -145,6 +145,16 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
           return;
         }
         const auto changes = cms::api::setting_changes(request->body(), catalogue);
+        // Writing a secret is a second authority: the catalogue says which keys hold one, so this is the
+        // only place that answers "may this account change this key".
+        if (cms::api::writes_a_secret(catalogue, changes)) {
+          const auto secret_permitted = cms::api::authorize(
+              database, principal->kind, principal->id, cms::Capability::settings_secret_write);
+          if (!secret_permitted) {
+            callback(text_response(secret_permitted.error().message, drogon::k403Forbidden));
+            return;
+          }
+        }
         const auto written =
             cms::api::commit_settings(database_config, catalogue, changes, principal->id);
         if (!written) {
