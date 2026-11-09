@@ -61,3 +61,16 @@ Not closed by this record, and to be fixed in their own steps:
   those actions require — a decision that belongs with the capability list, not here.
 - A future surface that is not root (for example a panel speaking the same protocol over a local
   socket) cannot reuse this identity and must carry a session instead.
+
+## Amendment (2026-11-09) — an elevation cannot be completed from the socket
+
+The client now sends no actor, so every command from `cmsctl` is one caller: the system account. The
+two-person rule for an elevation needs **two different accounts**, and one socket cannot be two people.
+
+So `cmsctl elevate` followed by `cmsctl approve` is refused by the server, and that refusal is correct:
+`elevations.grantor_shape` and the two-people check compare account kind and id, and both commands carry
+the same one. Elevation is therefore reachable only from the web panel, where a sign-in gives each person
+their own session.
+
+This is a consequence of the decision, not a defect. It is recorded because a reader would otherwise
+expect the command line to mirror every capability the panel has, and for this one action it cannot.

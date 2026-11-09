@@ -11,42 +11,55 @@ use std::process::ExitCode;
 
 use clap::Parser;
 
-use crate::cli::{Cli, Command, SettingsAction};
+use crate::cli::{AccountAction, Cli, Command, SettingsAction};
 use crate::transport::Request;
 
 fn request_for(command: &Command) -> Request<'_> {
     match command {
         Command::Status => Request::Status,
+        Command::Ping => Request::Ping,
         Command::Elevate {
             principal,
             capability,
-            granted_by,
             reason,
             minutes,
         } => Request::ElevationGrant {
             principal_id: principal,
             capability,
-            granted_by,
             reason,
             minutes: *minutes,
         },
-        Command::Approve {
-            elevation_id,
-            approved_by,
-        } => Request::ElevationApprove {
-            elevation_id,
-            approved_by,
-        },
+        Command::Approve { elevation_id } => Request::ElevationApprove { elevation_id },
         Command::Settings { action } => match action {
-            SettingsAction::Plan { key, value, author } => Request::SettingsPlan {
-                key,
-                value,
-                author_id: author,
+            SettingsAction::Plan { key, value } => Request::SettingsPlan { key, value },
+            SettingsAction::Apply { plan_id } => Request::SettingsApply { plan_id },
+        },
+        Command::Account { action } => match action {
+            AccountAction::CreateLearner {
+                handle,
+                email,
+                level_id,
+                password,
+            } => Request::AccountCreateLearner {
+                handle,
+                email: email.as_deref(),
+                level_id: level_id.as_deref(),
+                password: password.as_deref(),
             },
-            SettingsAction::Apply { plan_id, actor } => Request::SettingsApply {
-                plan_id,
-                actor_id: actor,
+            AccountAction::CreateAdmin {
+                handle,
+                roles,
+                password,
+            } => Request::AccountCreateAdmin {
+                handle,
+                roles: roles.as_deref(),
+                password: password.as_deref(),
             },
+            AccountAction::Approve { learner_id } => Request::AccountApprove { learner_id },
+            AccountAction::IssueVerification { learner_id } => {
+                Request::AccountIssueVerification { learner_id }
+            }
+            AccountAction::RevokeAdmin { admin_id } => Request::AccountRevokeAdmin { admin_id },
         },
     }
 }
@@ -84,7 +97,7 @@ fn print_plan(response: &str) -> Result<(), String> {
         text(&value, "new_value")?
     );
     println!("  expires {}", text(&value, "expires_at")?);
-    println!("apply with: cmsctl settings apply {plan_id} --actor <uuid>");
+    println!("apply with: cmsctl settings apply {plan_id}");
     Ok(())
 }
 

@@ -18,26 +18,48 @@ const MAX_RESPONSE_BYTES: u64 = 1 << 20;
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum Request<'a> {
     Status,
+    Ping,
     ElevationGrant {
         principal_id: &'a str,
         capability: &'a str,
-        granted_by: &'a str,
         reason: &'a str,
         #[serde(skip_serializing_if = "Option::is_none")]
         minutes: Option<i64>,
     },
     ElevationApprove {
         elevation_id: &'a str,
-        approved_by: &'a str,
     },
     SettingsPlan {
         key: &'a str,
         value: &'a str,
-        author_id: &'a str,
     },
     SettingsApply {
         plan_id: &'a str,
-        actor_id: &'a str,
+    },
+    AccountCreateLearner {
+        handle: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        email: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        level_id: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        password: Option<&'a str>,
+    },
+    AccountCreateAdmin {
+        handle: &'a str,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        roles: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        password: Option<&'a str>,
+    },
+    AccountApprove {
+        learner_id: &'a str,
+    },
+    AccountIssueVerification {
+        learner_id: &'a str,
+    },
+    AccountRevokeAdmin {
+        admin_id: &'a str,
     },
 }
 

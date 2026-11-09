@@ -4,43 +4,15 @@
 //! answers with a canned response, so the contract under test is the bytes on the wire and the exit
 //! status — not a database, not the api.
 
-use std::io::{BufRead, BufReader, Write};
-use std::os::unix::net::UnixListener;
+mod common;
+
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::Command;
+
+use crate::common::invoke;
 
 fn socket_path(name: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!("cmsctl-{}-{name}.sock", std::process::id()));
-    let _ = std::fs::remove_file(&path);
-    path
-}
-
-/// Runs one invocation against a listener that records the request and answers `reply`.
-fn invoke(name: &str, arguments: &[&str], reply: &str) -> (String, Output) {
-    let path = socket_path(name);
-    let listener = UnixListener::bind(&path).expect("bind the stand-in socket");
-
-    let socket = path.to_str().expect("the socket path is UTF-8").to_owned();
-    let args: Vec<String> = arguments.iter().map(|value| (*value).to_owned()).collect();
-    let child = std::thread::spawn(move || {
-        Command::new(env!("CARGO_BIN_EXE_cmsctl"))
-            .arg("--socket")
-            .arg(&socket)
-            .args(args)
-            .output()
-            .expect("run cmsctl")
-    });
-
-    let (stream, _) = listener.accept().expect("the client connected");
-    let mut request = String::new();
-    BufReader::new(&stream)
-        .read_line(&mut request)
-        .expect("read the request line");
-    writeln!(&stream, "{reply}").expect("answer the request");
-
-    let output = child.join().expect("the client finished");
-    let _ = std::fs::remove_file(&path);
-    (request, output)
+    std::env::temp_dir().join(format!("cmsctl-{}-{name}.sock", std::process::id()))
 }
 
 #[test]
@@ -52,7 +24,14 @@ fn status_sends_the_action_the_core_answers() {
 }
 
 #[test]
-fn elevate_names_the_beneficiary_the_grantor_and_the_reason() {
+fn ping_sends_the_liveness_action() {
+    let (request, output) = invoke("ping", &["ping"], r#"{"ok":true,"settings_version":7}"#);
+    assert_eq!(request, "{\"action\":\"ping\"}\n");
+    assert!(output.status.success());
+}
+
+#[test]
+fn elevate_names_the_beneficiary_the_capability_and_the_reason() {
     let (request, output) = invoke(
         "elevate",
         &[
@@ -61,8 +40,6 @@ fn elevate_names_the_beneficiary_the_grantor_and_the_reason() {
             "77777777-8888-4999-8aaa-bbbbbbbbbbbb",
             "--capability",
             "settings:write",
-            "--granted-by",
-            "88888888-9999-4aaa-8bbb-cccccccccccc",
             "--reason",
             "rotate the mail credential",
             "--minutes",
@@ -73,8 +50,7 @@ fn elevate_names_the_beneficiary_the_grantor_and_the_reason() {
     assert_eq!(
         request,
         "{\"action\":\"elevation_grant\",\"principal_id\":\"77777777-8888-4999-8aaa-bbbbbbbbbbbb\",\
-         \"capability\":\"settings:write\",\"granted_by\":\"88888888-9999-4aaa-8bbb-cccccccccccc\",\
-         \"reason\":\"rotate the mail credential\",\"minutes\":5}\n"
+         \"capability\":\"settings:write\",\"reason\":\"rotate the mail credential\",\"minutes\":5}\n"
     );
     assert!(output.status.success());
 }
@@ -89,8 +65,6 @@ fn elevate_leaves_the_policy_default_alone_when_no_duration_is_given() {
             "77777777-8888-4999-8aaa-bbbbbbbbbbbb",
             "--capability",
             "settings:write",
-            "--granted-by",
-            "88888888-9999-4aaa-8bbb-cccccccccccc",
             "--reason",
             "rotate the mail credential",
         ],
@@ -100,21 +74,15 @@ fn elevate_leaves_the_policy_default_alone_when_no_duration_is_given() {
 }
 
 #[test]
-fn approve_names_the_second_person() {
+fn approve_names_only_the_elevation() {
     let (request, output) = invoke(
         "approve",
-        &[
-            "approve",
-            "aaaaaaa1-bbbb-4ccc-8ddd-eeeeeeeeeee1",
-            "--approved-by",
-            "99999999-aaaa-4bbb-8ccc-dddddddddddd",
-        ],
+        &["approve", "aaaaaaa1-bbbb-4ccc-8ddd-eeeeeeeeeee1"],
         r#"{"ok":true,"live":true}"#,
     );
     assert_eq!(
         request,
-        "{\"action\":\"elevation_approve\",\"elevation_id\":\"aaaaaaa1-bbbb-4ccc-8ddd-eeeeeeeeeee1\",\
-         \"approved_by\":\"99999999-aaaa-4bbb-8ccc-dddddddddddd\"}\n"
+        "{\"action\":\"elevation_approve\",\"elevation_id\":\"aaaaaaa1-bbbb-4ccc-8ddd-eeeeeeeeeee1\"}\n"
     );
     assert!(output.status.success());
 }
@@ -158,8 +126,6 @@ fn a_plan_prints_the_diff_the_core_would_make() {
             "mail.host",
             "--value",
             "mail.example.net",
-            "--author",
-            "bbbbbbbb-cccc-4ddd-8eee-ffffffff0001",
         ],
         &reply,
     );
@@ -168,9 +134,7 @@ fn a_plan_prints_the_diff_the_core_would_make() {
     assert!(printed.contains(&format!("plan {plan_id}")));
     assert!(printed.contains("mail.host (operator, applies without a restart)"));
     assert!(printed.contains("mail.example.org -> mail.example.net"));
-    assert!(printed.contains(&format!(
-        "apply with: cmsctl settings apply {plan_id} --actor <uuid>"
-    )));
+    assert!(printed.contains(&format!("apply with: cmsctl settings apply {plan_id}")));
 }
 
 #[test]
@@ -179,16 +143,7 @@ fn a_plan_answer_missing_part_of_the_diff_fails_the_invocation() {
     // than printed as though it were the whole change.
     let (_, output) = invoke(
         "partial-plan",
-        &[
-            "settings",
-            "plan",
-            "--key",
-            "mail.host",
-            "--value",
-            "x",
-            "--author",
-            "bbbbbbbb-cccc-4ddd-8eee-ffffffff0001",
-        ],
+        &["settings", "plan", "--key", "mail.host", "--value", "x"],
         r#"{"ok":true,"plan_id":"0b6f4d1e-0000-4000-8000-000000000001"}"#,
     );
     assert!(!output.status.success());
