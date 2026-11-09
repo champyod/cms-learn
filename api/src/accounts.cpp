@@ -263,20 +263,20 @@ auto verify_email(db::connection& database, const SettingsSnapshot& settings, st
   return !requires_approval;
 }
 
-auto approve_account(db::connection& database, std::string_view principal_id,
-                     std::string_view actor_id) -> Result<void> {
+auto approve_account(db::connection& database, std::string_view learner_id, const Actor& actor,
+                     std::string_view invoked_by) -> Result<void> {
   try {
     const auto changed =
         database(sqlpp::update(db::learnerAccounts)
                      .set(db::learnerAccounts.status = std::string{STATUS_ACTIVE})
-                     .where(db::learnerAccounts.id == std::string{principal_id} &&
+                     .where(db::learnerAccounts.id == std::string{learner_id} &&
                             !db::learnerAccounts.emailVerifiedAt.is_null()));
     if (changed == 0) {
       return std::unexpected(Error::make(
           ErrorCode::invalid_argument,
           "only an account that has verified its address can be approved"));
     }
-    record_audit(database, ACCOUNT_KIND_ADMIN, actor_id, INVOKED_BY, ACTION_APPROVE, principal_id);
+    record_audit(database, actor.kind, actor.id, invoked_by, ACTION_APPROVE, learner_id);
   } catch (const std::exception& error) {
     return std::unexpected(failure(error.what()));
   }

@@ -18,11 +18,9 @@ namespace {
 
 constexpr std::string_view ACTIVE_STATUS = "active";
 constexpr std::string_view ACTION_PASSWORD = "account.password";
-constexpr std::string_view INVOKED_BY = "api";
 constexpr std::int64_t BYTES_PER_KIB = 1024;
 constexpr std::string_view LEARNER_KIND = "learner";
 constexpr std::string_view ADMIN_KIND = "admin";
-constexpr std::string_view SYSTEM_KIND = "system";
 
 auto random_generator_ready() -> bool {
   static const auto ready = sodium_init() >= 0;
@@ -99,29 +97,6 @@ auto admin_row(db::connection& database, std::string_view handle) -> AccountRow 
   return row;
 }
 
-auto row_is_on(db::connection& database, const auto& table, std::string_view account_id) -> bool {
-  auto found = false;
-  for (const auto& selected : database(sqlpp::select(table.id).from(table).where(
-           table.id == std::string{account_id}))) {
-    (void)selected;
-    found = true;
-  }
-  return found;
-}
-
-/// The audit table's own CHECK refuses a row whose kind does not match its id column, so the table an id
-/// lives in is read here rather than inferred from the uuid.
-auto account_kind_of(db::connection& database, std::string_view account_id)
-    -> std::string_view {
-  if (row_is_on(database, db::learnerAccounts, account_id)) {
-    return LEARNER_KIND;
-  }
-  if (row_is_on(database, db::adminAccounts, account_id)) {
-    return ADMIN_KIND;
-  }
-  return SYSTEM_KIND;
-}
-
 }  // namespace
 
 auto validate_password(const SettingsSnapshot& settings, std::string_view password)
@@ -140,7 +115,8 @@ auto validate_password(const SettingsSnapshot& settings, std::string_view passwo
 }
 
 auto set_password(db::connection& database, const SettingsSnapshot& settings,
-                  std::string_view principal_id, std::string_view password) -> Result<void> {
+                  std::string_view principal_id, std::string_view password, const Actor& actor,
+                  std::string_view invoked_by) -> Result<void> {
   const auto valid = validate_password(settings, password);
   if (!valid) {
     return valid;
@@ -164,8 +140,7 @@ auto set_password(db::connection& database, const SettingsSnapshot& settings,
             Error::make(ErrorCode::not_found, "no account called " + std::string{principal_id}));
       }
     }
-    record_audit(database, account_kind_of(database, principal_id), principal_id, INVOKED_BY,
-                 ACTION_PASSWORD, principal_id);
+    record_audit(database, actor.kind, actor.id, invoked_by, ACTION_PASSWORD, principal_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }

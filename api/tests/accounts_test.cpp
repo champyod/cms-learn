@@ -60,7 +60,9 @@ TEST_CASE("a signup is verified, approved, and only then opens a session", "[acc
       cms::db::adminAccounts.id = approver_id,
       cms::db::adminAccounts.handle = std::string{"approver_one"},
       cms::db::adminAccounts.status = std::string{"active"}));
-  const auto approved = cms::api::approve_account(database, signup->principal_id, approver_id);
+  const auto approved = cms::api::approve_account(
+      database, signup->principal_id,
+      cms::api::Actor{.kind = std::string{"admin"}, .id = approver_id}, "api");
   REQUIRE(approved.has_value());
 
   const auto session = cms::api::create_session(database, "learner", signup->principal_id,

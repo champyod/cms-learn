@@ -18,6 +18,22 @@ if(Catch2_FOUND)
   cms_apply_sanitizers(cms_api_accounts_tests)
   catch_discover_tests(cms_api_accounts_tests)
 
+  add_executable(cms_api_admin_actions_creation_tests admin_actions_creation_test.cpp)
+  target_link_libraries(cms_api_admin_actions_creation_tests
+                        PRIVATE cms::api_authority Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_api_admin_actions_creation_tests PRIVATE)
+  cms_apply_hardening(cms_api_admin_actions_creation_tests)
+  cms_apply_sanitizers(cms_api_admin_actions_creation_tests)
+  catch_discover_tests(cms_api_admin_actions_creation_tests)
+
+  add_executable(cms_api_admin_actions_lifecycle_tests admin_actions_lifecycle_test.cpp)
+  target_link_libraries(cms_api_admin_actions_lifecycle_tests
+                        PRIVATE cms::api_authority Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_api_admin_actions_lifecycle_tests PRIVATE)
+  cms_apply_hardening(cms_api_admin_actions_lifecycle_tests)
+  cms_apply_sanitizers(cms_api_admin_actions_lifecycle_tests)
+  catch_discover_tests(cms_api_admin_actions_lifecycle_tests)
+
   add_executable(cms_api_elevation_tests elevation_test.cpp)
   target_link_libraries(cms_api_elevation_tests PRIVATE cms::api_authority Catch2::Catch2WithMain)
   cms_apply_warnings(cms_api_elevation_tests PRIVATE)

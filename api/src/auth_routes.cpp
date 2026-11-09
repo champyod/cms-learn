@@ -9,6 +9,7 @@
 #include <drogon/drogon.h>
 
 #include <cms/api/accounts.hpp>
+#include <cms/api/actor.hpp>
 #include <cms/api/auth.hpp>
 #include <cms/api/auth_view.hpp>
 #include <cms/api/form_body.hpp>
@@ -29,6 +30,8 @@ constexpr std::string_view FORWARDED_PROTO_HEADER = "x-forwarded-proto";
 constexpr std::string_view SIGN_IN_PATH = "/signin";
 constexpr std::string_view HOME_PATH = "/";
 constexpr std::int64_t SECONDS_PER_HOUR = 60 * 60;
+constexpr std::string_view LEARNER_KIND = "learner";
+constexpr std::string_view INVOKED_BY = "api";
 
 /// Secure follows the connection the request arrived on: a direct TLS socket says so itself, and behind the
 /// proxy the forwarded protocol does. Without TLS the flag stays off, so a local development login still works.
@@ -211,7 +214,11 @@ auto register_auth_routes(const std::shared_ptr<SettingsStore>& store,
                                  signup.error().message, status));
           return;
         }
-        const auto stored = set_password(database, *settings, signup->principal_id, password);
+        const auto stored =
+            set_password(database, *settings, signup->principal_id, password,
+                         Actor{.kind = std::string{LEARNER_KIND},
+                               .id = signup->principal_id},
+                         INVOKED_BY);
         if (!stored) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));

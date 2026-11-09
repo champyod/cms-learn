@@ -3,6 +3,7 @@
 #include <string>
 #include <string_view>
 
+#include <cms/api/actor.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/error.hpp>
 #include <cms/settings_snapshot.hpp>
@@ -23,13 +24,15 @@ namespace cms::api {
 /// @param settings The snapshot the hashing parameters are read from.
 /// @param principal_id The account the password belongs to.
 /// @param password The candidate, hashed before it is stored.
+/// @param actor The account the change is attributed to.
+/// @param invoked_by How it was invoked — the surface, not the actor.
 /// @return Success, or the reason the account could not be updated.
 ///
 /// The password itself never reaches a log, an audit row or a response: the hash is the only value written,
-/// and the audit row records the account and the action.
+/// and the audit row names the actor who made the change.
 [[nodiscard]] Result<void> set_password(db::connection& database, const SettingsSnapshot& settings,
-                                        std::string_view principal_id,
-                                        std::string_view password);
+                                        std::string_view principal_id, std::string_view password,
+                                        const Actor& actor, std::string_view invoked_by);
 
 /// @brief An authenticated account: which table its id names, and the id itself.
 ///

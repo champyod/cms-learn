@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 
+#include <cms/api/actor.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/error.hpp>
 #include <cms/settings_snapshot.hpp>
@@ -40,9 +41,14 @@ struct SignupOutcome {
 [[nodiscard]] Result<bool> verify_email(db::connection& database, const SettingsSnapshot& settings,
                                         std::string_view token);
 
-/// @brief Moves a verified account to active.
-[[nodiscard]] Result<void> approve_account(db::connection& database, std::string_view principal_id,
-                                           std::string_view actor_id);
+/// @brief Moves a verified account to active and records who approved it.
+///
+/// @param database The connection; the caller owns the transaction.
+/// @param learner_id The account being approved.
+/// @param actor The account the approval is attributed to.
+/// @param invoked_by How it was invoked — the surface, not the actor.
+[[nodiscard]] Result<void> approve_account(db::connection& database, std::string_view learner_id,
+                                           const Actor& actor, std::string_view invoked_by);
 
 /// @brief Opens a session for an active account and returns its id, which is also the opaque cookie.
 ///
