@@ -60,6 +60,13 @@ auto no_catalogue() -> const std::vector<cms::api::CatalogueEntry>& {
   return catalogue;
 }
 
+/// The caller a signed-in panel would supply; the socket supplies the system account instead.
+auto acting_caller() -> const cms::api::Actor& {
+  static const auto caller =
+      cms::api::Actor{.kind = std::string{"admin"}, .id = std::string{GRANTOR}};
+  return caller;
+}
+
 /// Gives a beneficiary a known starting state: the account exists and holds no elevation, so a case can
 /// run more than once against one database and still assert what it says it asserts.
 auto prepare(cms::db::connection& database, std::string_view id, std::string_view handle) {
@@ -259,32 +266,32 @@ TEST_CASE("the control protocol answers every action a client can send", "[proto
   prepare(database, BENEFICIARY_A, "elevation_one");
   ensure_admin(database, GRANTOR, "elevation_grantor");
 
-  CHECK(cms::api::dispatch_line(R"({"action":"ping"})", settings, live_config(), no_catalogue()) ==
+  CHECK(cms::api::dispatch_line(R"({"action":"ping"})", settings, live_config(), no_catalogue(),
+                                acting_caller()) ==
         "{\"ok\":true,\"settings_version\":1}\n");
 
-  const auto unknown =
-      cms::api::dispatch_line(R"({"action":"invent"})", settings, live_config(), no_catalogue());
+  const auto unknown = cms::api::dispatch_line(R"({"action":"invent"})", settings, live_config(),
+                                               no_catalogue(), acting_caller());
   CHECK(unknown.find("\"ok\":false") != std::string::npos);
   CHECK(unknown.find("invent") != std::string::npos);
 
   const auto nested = cms::api::dispatch_line(R"({"action":"ping","extra":{"a":1}})", settings,
-                                              live_config(), no_catalogue());
+                                              live_config(), no_catalogue(), acting_caller());
   CHECK(nested.find("\"ok\":false") != std::string::npos);
 
-  CHECK(cms::api::dispatch_line("{", settings, live_config(), no_catalogue())
+  CHECK(cms::api::dispatch_line("{", settings, live_config(), no_catalogue(), acting_caller())
             .find("\"ok\":false") != std::string::npos);
 
   // A reason containing a quote is the case a hand-rolled field reader truncates; the parser does not.
   const auto granted = cms::api::dispatch_line(
       R"({"action":"elevation_grant","principal_id":"77777777-8888-4999-8aaa-bbbbbbbbbbb1",)"
-      R"("capability":"content:read","granted_by":"88888888-9999-4aaa-8bbb-cccccccccccc",)"
-      R"("reason":"the \"audit\" export","minutes":3})",
-      settings, live_config(), no_catalogue());
+      R"("capability":"content:read","reason":"the \"audit\" export","minutes":3})",
+      settings, live_config(), no_catalogue(), acting_caller());
   CHECK(granted.find("\"ok\":true") != std::string::npos);
   CHECK(granted.find("\"live\":false") != std::string::npos);
 
   const auto missing = cms::api::dispatch_line(R"({"action":"elevation_grant"})", settings,
-                                               live_config(), no_catalogue());
+                                               live_config(), no_catalogue(), acting_caller());
   CHECK(missing.find("\"ok\":false") != std::string::npos);
   CHECK(missing.find("principal_id") != std::string::npos);
 }

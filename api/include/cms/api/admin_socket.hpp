@@ -7,6 +7,7 @@
 #include <thread>
 #include <vector>
 
+#include <cms/api/actor.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
@@ -55,6 +56,7 @@ class AdminSocket {
   std::shared_ptr<SettingsStore> store_;
   std::shared_ptr<const db::connection_config> database_config_;
   std::vector<CatalogueEntry> catalogue_;
+  Actor caller_;
   std::atomic<bool> running_{false};
   std::thread worker_;
   int listen_fd_{-1};

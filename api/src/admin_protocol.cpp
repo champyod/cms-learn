@@ -1,7 +1,9 @@
 #include <cms/api/admin_protocol.hpp>
 
+#include "admin_protocol_internal.hpp"
+
+#include <array>
 #include <cstdint>
-#include <flat_map>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -11,28 +13,49 @@
 
 #include <cms/api/elevation.hpp>
 #include <cms/api/settings_plan.hpp>
-#include <cms/api/settings_view.hpp>
 #include <cms/error.hpp>
 #include <cms/settings_snapshot.hpp>
+
+namespace cms::api::detail {
+
+auto accepted(std::string_view body) -> std::string {
+  auto response = std::string{"{\"ok\":true"};
+  response += body;
+  response += "}\n";
+  return response;
+}
+
+auto refused(std::string_view reason) -> std::string {
+  return "{\"ok\":false,\"error\":\"" + escape(reason) + "\"}\n";
+}
+
+auto refused(const Error& error) -> std::string { return refused(error.message); }
+
+auto names_caller(const Request& request) -> std::string_view {
+  constexpr auto CALLER_FIELDS =
+      std::array<std::string_view, 4>{"granted_by", "approved_by", "actor_id", "author_id"};
+  for (const auto name : CALLER_FIELDS) {
+    if (present(request, name)) {
+      return name;
+    }
+  }
+  return {};
+}
+
+}  // namespace cms::api::detail
 
 namespace cms::api {
 namespace {
 
-/// The fields one request carries, split by the only two JSON types this protocol admits. A nested
-/// object or array is refused rather than ignored, so a client cannot believe it sent something the
-/// core quietly dropped.
-struct Request {
-  // Copied, not viewed: the DOM parser owns the buffer its views point into, and it is gone by the time
-  // this leaves parse(). A request is a few hundred bytes, so the copy costs nothing that matters.
-  std::flat_map<std::string, std::string, std::less<>> strings;
-  std::flat_map<std::string, std::int64_t, std::less<>> numbers;
-  bool is_valid{true};
-};
+using detail::accepted;
+using detail::escape;
+using detail::number_of;
+using detail::present;
+using detail::refused;
+using detail::require;
+using detail::text_of;
 
-/// Adds one field to the request. False means the value had a type this protocol does not carry, which
-/// is a refusal rather than something to skip: a client must never believe it sent a fact the core
-/// dropped.
-auto read_field(Request& request, std::string_view key, simdjson::dom::element value) -> bool {
+auto read_field(detail::Request& request, std::string_view key, simdjson::dom::element value) -> bool {
   switch (value.type()) {
     case simdjson::dom::element_type::STRING: {
       auto text = std::string_view{};
@@ -55,8 +78,8 @@ auto read_field(Request& request, std::string_view key, simdjson::dom::element v
   }
 }
 
-auto parse(const simdjson::padded_string& json) -> Request {
-  auto request = Request{};
+auto parse(const simdjson::padded_string& json) -> detail::Request {
+  auto request = detail::Request{};
   auto parser = simdjson::dom::parser{};
   auto document = simdjson::dom::element{};
   if (parser.parse(json).get(document) != simdjson::SUCCESS ||
@@ -80,69 +103,9 @@ auto parse(const simdjson::padded_string& json) -> Request {
   return request;
 }
 
-auto text_of(const Request& request, std::string_view name) -> std::string_view {
-  const auto entry = request.strings.find(name);
-  return entry == request.strings.end() ? std::string_view{} : entry->second;
-}
-
-auto number_of(const Request& request, std::string_view name) -> std::int64_t {
-  const auto entry = request.numbers.find(name);
-  return entry == request.numbers.end() ? 0 : entry->second;
-}
-
-auto escape(std::string_view text) -> std::string {
-  auto quoted = std::string{};
-  quoted.reserve(text.size());
-  for (const auto character : text) {
-    switch (character) {
-      case '"':
-        quoted += "\\\"";
-        break;
-      case '\\':
-        quoted += "\\\\";
-        break;
-      case '\n':
-        quoted += "\\n";
-        break;
-      case '\r':
-        quoted += "\\r";
-        break;
-      case '\t':
-        quoted += "\\t";
-        break;
-      default:
-        quoted.push_back(character);
-    }
-  }
-  return quoted;
-}
-
-auto accepted(std::string_view body) -> std::string {
-  auto response = std::string{"{\"ok\":true"};
-  response += body;
-  response += "}\n";
-  return response;
-}
-
-auto refused(std::string_view reason) -> std::string {
-  return "{\"ok\":false,\"error\":\"" + escape(reason) + "\"}\n";
-}
-
-auto refused(const Error& error) -> std::string { return refused(error.message); }
-
-auto require(const Request& request, std::string_view name) -> bool {
-  return !text_of(request, name).empty();
-}
-
-/// Whether the request names @p name at all. A text setting may legitimately be set to the empty string,
-/// so presence and emptiness are different questions on this path.
-auto present(const Request& request, std::string_view name) -> bool {
-  return request.strings.find(name) != request.strings.end();
-}
-
-auto answer_elevation_grant(const Request& request, const SettingsSnapshot& settings,
-                            db::connection& database) -> std::string {
-  for (const auto name : {"principal_id", "capability", "granted_by", "reason"}) {
+auto answer_elevation_grant(const detail::Request& request, const SettingsSnapshot& settings,
+                            db::connection& database, const Actor& caller) -> std::string {
+  for (const auto name : {"principal_id", "capability", "reason"}) {
     if (!require(request, name)) {
       return refused("an elevation needs " + std::string{name});
     }
@@ -152,7 +115,7 @@ auto answer_elevation_grant(const Request& request, const SettingsSnapshot& sett
       database, settings,
       ElevationRequest{.principal_id = std::string{text_of(request, "principal_id")},
                        .capability = std::string{text_of(request, "capability")},
-                       .granted_by = std::string{text_of(request, "granted_by")},
+                       .granted_by = caller.id,
                        .reason = std::string{text_of(request, "reason")},
                        .minutes = number_of(request, "minutes")});
   if (!outcome) {
@@ -163,35 +126,29 @@ auto answer_elevation_grant(const Request& request, const SettingsSnapshot& sett
                   (outcome->is_live ? "true" : "false"));
 }
 
-auto answer_elevation_approve(const Request& request, db::connection& database) -> std::string {
-  for (const auto name : {"elevation_id", "approved_by"}) {
-    if (!require(request, name)) {
-      return refused("an approval needs " + std::string{name});
-    }
+auto answer_elevation_approve(const detail::Request& request, db::connection& database,
+                              const Actor& caller) -> std::string {
+  if (!require(request, "elevation_id")) {
+    return refused("an approval needs elevation_id");
   }
-  const auto outcome = approve_elevation(database, text_of(request, "elevation_id"),
-                                         text_of(request, "approved_by"));
+  const auto outcome = approve_elevation(database, text_of(request, "elevation_id"), caller.id);
   if (!outcome) {
     return refused(outcome.error());
   }
   return accepted(",\"live\":true");
 }
 
-/// The diff goes back to the client because a plan is only useful as a decision: the operator compares
-/// what is stored with what would be stored before anything is.
-auto answer_settings_plan(const Request& request, const std::vector<CatalogueEntry>& catalogue,
-                          db::connection& database) -> std::string {
-  for (const auto name : {"key", "author_id"}) {
-    if (!require(request, name)) {
-      return refused("a plan needs " + std::string{name});
-    }
+auto answer_settings_plan(const detail::Request& request, const std::vector<CatalogueEntry>& catalogue,
+                          db::connection& database, const Actor& caller) -> std::string {
+  if (!require(request, "key")) {
+    return refused("a plan needs key");
   }
   if (!present(request, "value")) {
     return refused("a plan needs value");
   }
 
   const auto preview = plan_setting(database, catalogue, text_of(request, "key"),
-                                    text_of(request, "value"), text_of(request, "author_id"));
+                                    text_of(request, "value"), caller.id);
   if (!preview) {
     return refused(preview.error());
   }
@@ -202,17 +159,16 @@ auto answer_settings_plan(const Request& request, const std::vector<CatalogueEnt
                   "\",\"expires_at\":\"" + escape(preview->expires_at) + "\"");
 }
 
-auto answer_settings_apply(const Request& request, const std::vector<CatalogueEntry>& catalogue,
-                           const std::shared_ptr<const db::connection_config>& database_config)
-    -> std::string {
-  for (const auto name : {"plan_id", "actor_id"}) {
-    if (!require(request, name)) {
-      return refused("an apply needs " + std::string{name});
-    }
+auto answer_settings_apply(const detail::Request& request,
+                           const std::vector<CatalogueEntry>& catalogue,
+                           const std::shared_ptr<const db::connection_config>& database_config,
+                           const Actor& caller) -> std::string {
+  if (!require(request, "plan_id")) {
+    return refused("an apply needs plan_id");
   }
 
-  const auto applied = apply_plan(database_config, catalogue, text_of(request, "plan_id"),
-                                  text_of(request, "actor_id"));
+  const auto applied =
+      apply_plan(database_config, catalogue, text_of(request, "plan_id"), caller.id);
   if (!applied) {
     return refused(applied.error());
   }
@@ -224,12 +180,19 @@ auto answer_settings_apply(const Request& request, const std::vector<CatalogueEn
 
 auto dispatch_line(std::string_view request, const SettingsSnapshot& settings,
                    const std::shared_ptr<const db::connection_config>& database_config,
-                   const std::vector<CatalogueEntry>& catalogue) -> std::string {
+                   const std::vector<CatalogueEntry>& catalogue, const Actor& caller)
+    -> std::string {
   // The padded copy owns the bytes every field view points into, so it outlives the parsed request.
   const auto json = simdjson::padded_string{request};
   const auto fields = parse(json);
   if (!fields.is_valid) {
     return refused("the request is not one flat JSON object of strings and integers");
+  }
+
+  const auto actor_field = detail::names_caller(fields);
+  if (!actor_field.empty()) {
+    return refused("the caller is the connection, not the request; a request may not carry " +
+                   std::string{actor_field});
   }
 
   const auto action = text_of(fields, "action");
@@ -240,17 +203,32 @@ auto dispatch_line(std::string_view request, const SettingsSnapshot& settings,
     return accepted(",\"settings_version\":" + std::to_string(settings.version));
   }
   if (action == "settings_apply") {
-    return answer_settings_apply(fields, catalogue, database_config);
+    return answer_settings_apply(fields, catalogue, database_config, caller);
   }
   auto database = db::connection{database_config};
   if (action == "elevation_grant") {
-    return answer_elevation_grant(fields, settings, database);
+    return answer_elevation_grant(fields, settings, database, caller);
   }
   if (action == "elevation_approve") {
-    return answer_elevation_approve(fields, database);
+    return answer_elevation_approve(fields, database, caller);
   }
   if (action == "settings_plan") {
-    return answer_settings_plan(fields, catalogue, database);
+    return answer_settings_plan(fields, catalogue, database, caller);
+  }
+  if (action == "account_create_learner") {
+    return detail::answer_create_learner(fields, settings, database, caller);
+  }
+  if (action == "account_create_admin") {
+    return detail::answer_create_admin(fields, settings, database, caller);
+  }
+  if (action == "account_approve") {
+    return detail::answer_approve_learner(fields, database, caller);
+  }
+  if (action == "account_issue_verification") {
+    return detail::answer_issue_verification(fields, settings, database, caller);
+  }
+  if (action == "account_revoke_admin") {
+    return detail::answer_revoke_admin(fields, database, caller);
   }
   return refused("unknown action: " + std::string{action});
 }

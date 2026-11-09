@@ -61,7 +61,8 @@ cms_apply_sanitizers(cms_api_web)
 # control protocol are testable without Drogon's server or a file descriptor.
 add_library(cms_api_authority STATIC src/accounts.cpp src/admin_actions.cpp src/audit.cpp src/auth.cpp
                                       src/authorize.cpp src/elevation.cpp src/admin_socket.cpp
-                                      src/admin_protocol.cpp src/submissions.cpp
+                                      src/admin_protocol.cpp src/admin_protocol_accounts.cpp
+                                      src/submissions.cpp
                                       src/settings_view.cpp src/settings_write.cpp
                                       src/settings_plan.cpp src/settings_route.cpp
                                       src/task_view.cpp)

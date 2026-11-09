@@ -16,7 +16,10 @@
 #include <unistd.h>
 #include <utility>
 
+#include <sqlpp23/sqlpp23.h>
+
 #include <cms/api/admin_protocol.hpp>
+#include <cms/db/tables.hpp>
 
 namespace cms::api {
 namespace {
@@ -24,6 +27,26 @@ namespace {
 constexpr std::size_t MAX_REQUEST_BYTES = 4096;
 constexpr int ACCEPT_POLL_MILLISECONDS = 200;
 constexpr mode_t SOCKET_MODE = 0600;
+constexpr std::string_view SYSTEM_ACTOR_KIND = "system";
+constexpr std::string_view SYSTEM_BOOTSTRAP_HANDLE = "system:bootstrap";
+
+auto resolve_system_caller(const std::shared_ptr<const db::connection_config>& database_config)
+    -> Actor {
+  auto database = db::connection{database_config};
+  auto id = std::string{};
+  for (const auto& row :
+       database(sqlpp::select(db::systemAccounts.id)
+                    .from(db::systemAccounts)
+                    .where(db::systemAccounts.handle == std::string{SYSTEM_BOOTSTRAP_HANDLE}))) {
+    id = std::string{row.id};
+  }
+  if (id.empty()) {
+    throw std::runtime_error("no system account with handle '" +
+                             std::string{SYSTEM_BOOTSTRAP_HANDLE} +
+                             "'; bootstrap the database before the admin socket can start");
+  }
+  return Actor{.kind = std::string{SYSTEM_ACTOR_KIND}, .id = std::move(id)};
+}
 
 auto write_all(int fd, std::string_view text) -> void {
   auto written = std::size_t{0};
@@ -67,16 +90,14 @@ auto read_line(int fd) -> std::string {
   return std::string{received.data(), received.size()};
 }
 
-/// Pulls the request line and hands it to the protocol. Nothing is interpreted here: the socket's one
-/// job is to carry bytes for a peer the credentials already authorized.
 auto answer(std::string_view request, const SettingsStore& store,
             const std::shared_ptr<const db::connection_config>& database_config,
-            const std::vector<CatalogueEntry>& catalogue) -> std::string {
+            const std::vector<CatalogueEntry>& catalogue, const Actor& caller) -> std::string {
   const auto snapshot = store.load();
   if (!snapshot) {
     return "{\"ok\":false,\"error\":\"no settings snapshot is loaded\"}\n";
   }
-  return dispatch_line(request, *snapshot, database_config, catalogue);
+  return dispatch_line(request, *snapshot, database_config, catalogue, caller);
 }
 
 }  // namespace
@@ -88,7 +109,8 @@ AdminSocket::AdminSocket(std::string path, uid_t allowed_uid, std::shared_ptr<Se
       allowed_uid_(allowed_uid),
       store_(std::move(store)),
       database_config_(std::move(database_config)),
-      catalogue_(std::move(catalogue)) {}
+      catalogue_(std::move(catalogue)),
+      caller_(resolve_system_caller(database_config_)) {}
 
 AdminSocket::~AdminSocket() { stop(); }
 
@@ -134,7 +156,7 @@ auto AdminSocket::start() -> void {
         continue;
       }
       const auto request = read_line(client);
-      write_all(client, answer(request, *store_, database_config_, catalogue_));
+      write_all(client, answer(request, *store_, database_config_, catalogue_, caller_));
       ::close(client);
     }
   });

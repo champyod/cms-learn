@@ -59,13 +59,15 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
   bash "$repo/tools/apply-plan.sh" >"$work/apply.log" 2>&1 \
   || { echo "  [!!] apply-plan failed"; tail -5 "$work/apply.log"; exit 1; }
 
-psql_db -c "INSERT INTO principals (kind, handle, status) VALUES ('system', 'probe-actor', 'active')" \
-  || { echo "  [!!] principal insert failed"; exit 1; }
-actor_id="$(psql_db -tAc "SELECT id FROM principals WHERE handle = 'probe-actor'")"
+psql_db -c "INSERT INTO admin_accounts (handle, status) VALUES ('probe-actor', 'active')" \
+  || { echo "  [!!] administrator insert failed"; exit 1; }
+psql_db -c "INSERT INTO system_accounts (handle) VALUES ('system:bootstrap')" \
+  || { echo "  [!!] system account insert failed"; exit 1; }
+actor_id="$(psql_db -tAc "SELECT id FROM admin_accounts WHERE handle = 'probe-actor'")"
 
 as_actor "INSERT INTO settings (key, kind, value_text, updated_by, description)
           VALUES ('site.name', 'text', 'CMS Learn',
-                  (SELECT id FROM principals WHERE handle = 'probe-actor'), 'probe');" \
+                  (SELECT id FROM admin_accounts WHERE handle = 'probe-actor'), 'probe');" \
   || { echo "  [!!] settings insert failed"; exit 1; }
 
 cat >"$work/host.env" <<ENV
