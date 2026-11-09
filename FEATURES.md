@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **36 shipped · 7 partial · 12 planned** (55 features).
+Counts at last update: **39 shipped · 7 partial · 12 planned** (58 features).
 
 ---
 
@@ -72,9 +72,11 @@ Counts at last update: **36 shipped · 7 partial · 12 planned** (55 features).
 |---|---|---|---|---|
 | F-050 | Self-signup, open to anyone, gated by admin approval before the account becomes active | A | ● | `api/src/auth_routes.cpp` (`/signup`, `/verify`, `/signin`, `/signout`), `api/src/accounts.cpp` (`sign_up`, `verify_email`, `create_session` refuses a non-active account), `api/tests/auth_e2e.sh` |
 | F-051 | Organisation recorded at signup; an account outside a known organisation is marked external rather than refused | A | ○ | ADR 0002 §2 |
-| F-052 | Admin approval before an account becomes active | A | ◐ | the rule is enforced: `api/src/accounts.cpp` (`approve_account` requires a verified address; `create_session` refuses a non-active one); the missing half is an operator surface — the admin channel exposes only ping/status/settings/elevation, so no route calls `approve_account` yet |
+| F-052 | Admin approval before an account becomes active | A | ● | the rule: `api/src/accounts.cpp` (`approve_account` requires a verified address; `create_session` refuses a non-active one). The surface: `api/src/admin_actions.cpp` (`approve_learner`) reached from `cmsctl account approve` over the socket; `api/tests/admin_actions_lifecycle_test.cpp` |
 | F-053 | Account state machine recorded in an audit trail | A | ● | `api/src/audit.cpp` + `api/src/accounts.cpp` (`account.signup`, `account.verify`, `account.approve`, `session.create` rows), asserted by `api/tests/auth_e2e.sh` |
 | F-054 | Rate limiting and lockout | A | ◐ | edge limits shipped in `deploy/Caddyfile` (auth 20/min, submissions 60/min per IP); per-account lockout is app-side and not built |
+| F-056 | One action layer both administrator surfaces call: every action checks its capability, and the acting account is passed in, never read from a request (ADR 0019) | C | ● | `api/include/cms/api/admin_actions.hpp`, `api/src/admin_actions.cpp`, `api/tests/admin_actions_creation_test.cpp` |
+| F-057 | Learner, administrator and system are separate account tables, with a kind beside every recorded actor (ADR 0016, 0020) | A | ● | `deploy/schema/authority.sql`, `deploy/schema/settings.sql`, `docs/decisions/0020-one-actor-pattern.md`, `bun run check:schema` |
 | F-055 | PII minimisation and retention policy (minors) | A | ○ | ADR 0002 §2 |
 
 ## Operations
