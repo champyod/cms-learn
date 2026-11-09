@@ -5,6 +5,7 @@
 #include <string_view>
 #include <vector>
 
+#include <cms/api/actor.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/error.hpp>
@@ -31,7 +32,7 @@ struct PlanPreview {
 /// @param catalogue The keys this build understands.
 /// @param key The setting to change.
 /// @param value The value it would take.
-/// @param author_id The principal the plan is attributed to.
+/// @param author The account the plan is attributed to, produced by the surface.
 /// @return The plan's id and diff, or the first fact that was refused.
 ///
 /// Nothing in `settings` is written here: the plan exists so an operator can read the diff first, and
@@ -40,7 +41,7 @@ struct PlanPreview {
 [[nodiscard]] Result<PlanPreview> plan_setting(db::connection& database,
                                                const std::vector<CatalogueEntry>& catalogue,
                                                std::string_view key, std::string_view value,
-                                               std::string_view author_id);
+                                               const Actor& author);
 
 /// @brief What an applied plan changed.
 struct AppliedPlan {
@@ -53,7 +54,7 @@ struct AppliedPlan {
 /// @param config The connection the service was started with.
 /// @param catalogue The keys this build understands.
 /// @param plan_id The plan to apply.
-/// @param actor_id The principal the change is attributed to.
+/// @param actor The account the change is attributed to, produced by the surface.
 /// @return What was applied, or the reason this plan cannot be applied now.
 ///
 /// A plan is refused when it is missing, already applied, expired, when its key left the catalogue, when
@@ -63,6 +64,6 @@ struct AppliedPlan {
 [[nodiscard]] Result<AppliedPlan> apply_plan(
     const std::shared_ptr<const db::connection_config>& config,
     const std::vector<CatalogueEntry>& catalogue, std::string_view plan_id,
-    std::string_view actor_id);
+    const Actor& actor);
 
 }  // namespace cms::api

@@ -28,6 +28,11 @@ using cms::test::live_database;
 constexpr std::string_view PLANNER = "bbbbbbbb-cccc-4ddd-8eee-ffffffff0002";
 constexpr std::string_view MISSING_PLAN = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeee0009";
 
+auto admin(std::string_view id) -> cms::api::Actor {
+  return cms::api::Actor{.kind = std::string{"admin"}, .id = std::string{id}};
+}
+
+
 auto catalogue_path() -> std::string { return std::string{CMS_CATALOGUE_FILE}; }
 
 auto shared_catalogue() -> const std::vector<cms::api::CatalogueEntry>& {
@@ -89,7 +94,7 @@ void write_now(std::string_view key, std::string_view value) {
   auto transaction = cms::db::Transaction{*live_client()};
   const auto applied = cms::api::apply_settings(
       transaction.connection(), shared_catalogue(),
-      {cms::api::SettingChange{.key = std::string{key}, .value = std::string{value}}}, PLANNER);
+      {cms::api::SettingChange{.key = std::string{key}, .value = std::string{value}}}, admin(PLANNER));
   REQUIRE(applied.has_value());
   transaction.commit();
 }
@@ -104,7 +109,7 @@ TEST_CASE("a plan reports the diff and changes no setting", "[settings][plan][li
   auto database = live_database();
 
   const auto preview =
-      cms::api::plan_setting(database, shared_catalogue(), "site.tagline", "Planned tagline", PLANNER);
+      cms::api::plan_setting(database, shared_catalogue(), "site.tagline", "Planned tagline", admin(PLANNER));
   REQUIRE(preview.has_value());
   CHECK(preview->key == "site.tagline");
   CHECK(preview->new_value == "Planned tagline");
@@ -127,15 +132,15 @@ TEST_CASE("a plan is applied once and refuses a second apply", "[settings][plan]
   auto database = live_database();
 
   const auto preview = cms::api::plan_setting(database, shared_catalogue(), "site.contact_email",
-                                              "ops@example.test", PLANNER);
+                                              "ops@example.test", admin(PLANNER));
   REQUIRE(preview.has_value());
 
-  const auto applied = cms::api::apply_plan(live_config(), shared_catalogue(), preview->id, PLANNER);
+  const auto applied = cms::api::apply_plan(live_config(), shared_catalogue(), preview->id, admin(PLANNER));
   REQUIRE(applied.has_value());
   CHECK(applied->key == "site.contact_email");
   CHECK(stored_value("site.contact_email") == std::optional<std::string>{"ops@example.test"});
 
-  const auto again = cms::api::apply_plan(live_config(), shared_catalogue(), preview->id, PLANNER);
+  const auto again = cms::api::apply_plan(live_config(), shared_catalogue(), preview->id, admin(PLANNER));
   REQUIRE(!again.has_value());
   CHECK(again.error().code == cms::ErrorCode::conflict);
   CHECK(again.error().message.find("already applied") != std::string::npos);
@@ -150,7 +155,7 @@ TEST_CASE("a key outside the catalogue is refused before a plan exists",
   auto database = live_database();
 
   const auto refused =
-      cms::api::plan_setting(database, shared_catalogue(), "not.a.setting", "x", PLANNER);
+      cms::api::plan_setting(database, shared_catalogue(), "not.a.setting", "x", admin(PLANNER));
   REQUIRE(!refused.has_value());
   CHECK(refused.error().code == cms::ErrorCode::invalid_argument);
   CHECK(refused.error().message.find("not.a.setting") != std::string::npos);
@@ -165,7 +170,7 @@ TEST_CASE("a value that does not match its kind is refused before a plan exists"
   auto database = live_database();
 
   const auto refused =
-      cms::api::plan_setting(database, shared_catalogue(), "judge.concurrency", "many", PLANNER);
+      cms::api::plan_setting(database, shared_catalogue(), "judge.concurrency", "many", admin(PLANNER));
   REQUIRE(!refused.has_value());
   CHECK(refused.error().code == cms::ErrorCode::invalid_argument);
   CHECK(refused.error().message.find("judge.concurrency") != std::string::npos);
@@ -179,11 +184,11 @@ TEST_CASE("a plan whose key moved after it was made is refused", "[settings][pla
   auto database = live_database();
 
   const auto preview = cms::api::plan_setting(database, shared_catalogue(), "site.base_url",
-                                              "https://planned.example.test", PLANNER);
+                                              "https://planned.example.test", admin(PLANNER));
   REQUIRE(preview.has_value());
   write_now("site.base_url", "https://later.example.test");
 
-  const auto refused = cms::api::apply_plan(live_config(), shared_catalogue(), preview->id, PLANNER);
+  const auto refused = cms::api::apply_plan(live_config(), shared_catalogue(), preview->id, admin(PLANNER));
   REQUIRE(!refused.has_value());
   CHECK(refused.error().code == cms::ErrorCode::conflict);
   CHECK(refused.error().message.find("changed after this plan was made") != std::string::npos);
@@ -200,13 +205,15 @@ TEST_CASE("an expired plan is refused", "[settings][plan][live]") {
 
   const auto id = std::string{"cccccccc-dddd-4eee-8fff-00000000000e"};
   database(sqlpp::insert_into(cms::db::settingsPlans).set(
-      cms::db::settingsPlans.id = id, cms::db::settingsPlans.authorId = std::string{PLANNER},
+      cms::db::settingsPlans.id = id,
+      cms::db::settingsPlans.actorKind = std::string{"admin"},
+      cms::db::settingsPlans.adminActorId = std::string{PLANNER},
       cms::db::settingsPlans.changes =
           std::string{R"({"key":"judge.enabled","value":"true"})"},
       cms::db::settingsPlans.createdAt = cms::db::stamp_after(-3600),
       cms::db::settingsPlans.expiresAt = cms::db::stamp_after(-60)));
 
-  const auto refused = cms::api::apply_plan(live_config(), shared_catalogue(), id, PLANNER);
+  const auto refused = cms::api::apply_plan(live_config(), shared_catalogue(), id, admin(PLANNER));
   REQUIRE(!refused.has_value());
   CHECK(refused.error().code == cms::ErrorCode::conflict);
   CHECK(refused.error().message.find("expired") != std::string::npos);
@@ -222,10 +229,10 @@ TEST_CASE("a plan naming the value already stored is refused", "[settings][plan]
   write_now("site.name", "Already This");
 
   const auto preview =
-      cms::api::plan_setting(database, shared_catalogue(), "site.name", "Already This", PLANNER);
+      cms::api::plan_setting(database, shared_catalogue(), "site.name", "Already This", admin(PLANNER));
   REQUIRE(preview.has_value());
 
-  const auto refused = cms::api::apply_plan(live_config(), shared_catalogue(), preview->id, PLANNER);
+  const auto refused = cms::api::apply_plan(live_config(), shared_catalogue(), preview->id, admin(PLANNER));
   REQUIRE(!refused.has_value());
   CHECK(refused.error().code == cms::ErrorCode::conflict);
   CHECK(refused.error().message.find("nothing to apply") != std::string::npos);
@@ -238,7 +245,7 @@ TEST_CASE("a plan for an unknown id is refused", "[settings][plan][live]") {
   given_planner();
 
   const auto refused =
-      cms::api::apply_plan(live_config(), shared_catalogue(), MISSING_PLAN, PLANNER);
+      cms::api::apply_plan(live_config(), shared_catalogue(), MISSING_PLAN, admin(PLANNER));
   REQUIRE(!refused.has_value());
   CHECK(refused.error().code == cms::ErrorCode::not_found);
   CHECK(refused.error().message.find(MISSING_PLAN) != std::string::npos);
@@ -254,7 +261,7 @@ TEST_CASE("a plan for a secret never shows the stored value", "[settings][plan][
 
   const auto preview =
       cms::api::plan_setting(database, shared_catalogue(), "mail.password", "the-next-credential",
-                             PLANNER);
+                             admin(PLANNER));
   REQUIRE(preview.has_value());
   CHECK(preview->tier == "secret");
   CHECK(preview->old_value == std::string{cms::api::REDACTED});

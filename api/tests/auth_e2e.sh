@@ -40,7 +40,8 @@ bad() { printf '  [!!]   %s — %s\n' "$1" "$2"; fail=$((fail + 1)); }
 
 psql_db() { psql -X -h "$work" -p "$port" -U postgres -d "$database" -tAq -v ON_ERROR_STOP=1 "$@"; }
 as_actor() {
-  psql_db -c "BEGIN" -c "SET LOCAL cms.actor_id = '$actor_id'" -c "$1" -c "COMMIT"
+  psql_db -c "BEGIN" -c "SET LOCAL cms.actor_id = '$actor_id'" \
+           -c "SET LOCAL cms.actor_kind = 'admin'" -c "$1" -c "COMMIT"
 }
 
 initdb -D "$work/data" -U postgres -A trust >"$work/initdb.log" 2>&1 || { echo "  [!!] initdb failed"; exit 1; }
@@ -53,14 +54,16 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
   bash "$repo/tools/apply-plan.sh" >"$work/apply.log" 2>&1 \
   || { echo "  [!!] apply-plan failed"; tail -5 "$work/apply.log"; exit 1; }
 
-psql_db -c "INSERT INTO principals (kind, handle, status) VALUES ('system', 'auth-probe-actor', 'active')" \
-  || { echo "  [!!] actor insert failed"; exit 1; }
-actor_id="$(psql_db -c "SELECT id FROM principals WHERE handle = 'auth-probe-actor'")"
-as_actor "INSERT INTO settings (key, kind, value_text, updated_by, description)
-          VALUES ('site.registration_open', 'bool', 'true', '$actor_id', 'probe'),
-                 ('site.registration_requires_approval', 'bool', 'true', '$actor_id', 'probe'),
-                 ('site.name', 'text', 'CMS Learn', '$actor_id', 'probe'),
-                 ('mail.password', 'text', 'top-secret-probe', '$actor_id', 'probe');" \
+psql_db -c "INSERT INTO admin_accounts (handle, status) VALUES ('auth-probe-actor', 'active')" \
+  || { echo "  [!!] administrator insert failed"; exit 1; }
+psql_db -c "INSERT INTO system_accounts (handle) VALUES ('system:bootstrap')" \
+  || { echo "  [!!] system account insert failed"; exit 1; }
+actor_id="$(psql_db -c "SELECT id FROM admin_accounts WHERE handle = 'auth-probe-actor'")"
+as_actor "INSERT INTO settings (key, kind, value_text, description)
+          VALUES ('site.registration_open', 'bool', 'true', 'probe'),
+                 ('site.registration_requires_approval', 'bool', 'true', 'probe'),
+                 ('site.name', 'text', 'CMS Learn', 'probe'),
+                 ('mail.password', 'text', 'top-secret-probe', 'probe');" \
   || { echo "  [!!] settings insert failed"; exit 1; }
 
 cat >"$work/host.env" <<ENV
@@ -125,11 +128,11 @@ else
   bad "the sign-up page renders its form" "HTTP $status"
 fi
 
-status="$(post /signin --data-urlencode "email=nobody@example.org" \
+status="$(post /signin --data-urlencode "identifier=nobody@example.org" \
   --data-urlencode "password=$alice_password")"
 cp "$work/body" "$work/unknown-body"
 unknown_status="$status"
-status="$(post /signin --data-urlencode "email=alice@example.org" \
+status="$(post /signin --data-urlencode "identifier=alice@example.org" \
   --data-urlencode "password=wrong-but-long-enough")"
 if [ "$status" = "$unknown_status" ] && cmp -s "$work/body" "$work/unknown-body"; then
   ok "an unknown email and a wrong password give the same answer"
@@ -146,8 +149,8 @@ else
   bad "a signup is accepted and sent to the sign-in page" "HTTP $status, $location"
 fi
 
-alice_status="$(psql_db -c "SELECT status FROM principals WHERE email = 'alice@example.org'")"
-alice_hash="$(psql_db -c "SELECT password_hash FROM principals WHERE email = 'alice@example.org'")"
+alice_status="$(psql_db -c "SELECT status FROM learner_accounts WHERE email = 'alice@example.org'")"
+alice_hash="$(psql_db -c "SELECT password_hash FROM learner_accounts WHERE email = 'alice@example.org'")"
 case "$alice_hash" in
   '$argon2'*) has_hash=1 ;;
   *) has_hash=0 ;;
@@ -165,22 +168,23 @@ else
   ok "the password reaches neither the log nor an audit row"
 fi
 
-status="$(post /signin --data-urlencode "email=alice@example.org" \
+status="$(post /signin --data-urlencode "identifier=alice@example.org" \
   --data-urlencode "password=$alice_password")"
-if [ "$status" = "403" ] && grep -q "pending" "$work/body"; then
-  ok "sign-in for an unapproved account is refused with the state it is in"
+if [ "$status" = "403" ] && cmp -s "$work/body" "$work/unknown-body"; then
+  ok "sign-in for an unapproved account gives the same answer as a wrong password"
 else
-  bad "sign-in for an unapproved account is refused with the state it is in" "HTTP $status"
+  bad "sign-in for an unapproved account gives the same answer as a wrong password" \
+      "HTTP $status"
 fi
 
 token_hash="$(printf '%s' "$token" | sha256sum | cut -d' ' -f1)"
-psql_db -c "INSERT INTO principal_tokens (principal_id, purpose, token_hash, expires_at)
+psql_db -c "INSERT INTO learner_tokens (learner_id, purpose, token_hash, expires_at)
             SELECT id, 'verify_email', '$token_hash', now() + interval '1 hour'
-            FROM principals WHERE email = 'alice@example.org'" >/dev/null 2>&1 \
+            FROM learner_accounts WHERE email = 'alice@example.org'" >/dev/null 2>&1 \
   || { echo "  [!!] verification token insert failed"; exit 1; }
 status="$(get "/verify?token=$token")"
 location="$(grep -i '^location:' "$work/headers" | tail -1)"
-verified_at="$(psql_db -c "SELECT email_verified_at IS NOT NULL FROM principals WHERE email = 'alice@example.org'")"
+verified_at="$(psql_db -c "SELECT email_verified_at IS NOT NULL FROM learner_accounts WHERE email = 'alice@example.org'")"
 if [ "$status" = "303" ] && [[ "$location" == *"/signin?verified=pending"* ]] \
   && [ "$verified_at" = "t" ]; then
   ok "the verification link consumes its token and reports the approval that is still needed"
@@ -189,23 +193,28 @@ else
       "HTTP $status, $location, verified=$verified_at"
 fi
 
-status="$(post /signin --data-urlencode "email=alice@example.org" \
+status="$(post /signin --data-urlencode "identifier=alice@example.org" \
   --data-urlencode "password=$alice_password")"
-if [ "$status" = "403" ] && grep -q "pending" "$work/body"; then
-  ok "sign-in stays refused while the account is still pending approval"
+if [ "$status" = "403" ] && cmp -s "$work/body" "$work/unknown-body"; then
+  ok "sign-in stays refused, and says no more, while the account awaits approval"
 else
-  bad "sign-in stays refused while the account is still pending approval" "HTTP $status"
+  bad "sign-in stays refused, and says no more, while the account awaits approval" "HTTP $status"
 fi
 
 psql_db -c "INSERT INTO roles (id, name) VALUES ('$role', 'settings_reader')" >/dev/null 2>&1
 psql_db -c "INSERT INTO role_capabilities (role_id, capability) VALUES ('$role', 'settings:read')" >/dev/null 2>&1
+# A role belongs to an administrator (ADR 0016), so the settings page is exercised by one that holds
+# the learner's credential; the learner table keeps the signup assertions above.
 psql_db <<SQL >/dev/null 2>&1
-UPDATE principals SET status = 'active' WHERE email = 'alice@example.org';
-INSERT INTO principal_roles (principal_id, role_id)
-SELECT id, '$role' FROM principals WHERE email = 'alice@example.org';
+UPDATE learner_accounts SET status = 'active' WHERE email = 'alice@example.org';
+INSERT INTO admin_accounts (handle, password_hash, status)
+SELECT 'alice_admin', password_hash, 'active' FROM learner_accounts
+WHERE email = 'alice@example.org';
+INSERT INTO admin_roles (admin_id, role_id)
+SELECT id, '$role' FROM admin_accounts WHERE handle = 'alice_admin';
 SQL
 
-headers_status="$(post /signin --data-urlencode "email=alice@example.org" \
+headers_status="$(post /signin --data-urlencode "identifier=alice_admin" \
   --data-urlencode "password=$alice_password")"
 alice_cookie="$(grep -i '^set-cookie: cms_session=' "$work/headers" | tail -1 \
   | sed -n 's/.*cms_session=\([^;]*\).*/\1/p')"
@@ -220,7 +229,7 @@ else
       "$set_cookie"
 fi
 
-post /signin --data-urlencode "email=alice@example.org" \
+post /signin --data-urlencode "identifier=alice_admin" \
   --data-urlencode "password=$alice_password" -H "X-Forwarded-Proto: https" >/dev/null
 if grep -i '^set-cookie: cms_session=' "$work/headers" | grep -qi '; Secure'; then
   ok "the session cookie is Secure when the request arrived through HTTPS"
@@ -255,9 +264,9 @@ fi
 
 post /signup --data-urlencode "email=bob@example.org" --data-urlencode "handle=bob" \
   --data-urlencode "password=$bob_password" >/dev/null
-psql_db -c "UPDATE principals SET status = 'active', email_verified_at = now()
+psql_db -c "UPDATE learner_accounts SET status = 'active', email_verified_at = now()
             WHERE email = 'bob@example.org'" >/dev/null 2>&1
-post /signin --data-urlencode "email=bob@example.org" --data-urlencode "password=$bob_password" >/dev/null
+post /signin --data-urlencode "identifier=bob@example.org" --data-urlencode "password=$bob_password" >/dev/null
 bob_cookie="$(grep -i '^set-cookie: cms_session=' "$work/headers" | tail -1 \
   | sed -n 's/.*cms_session=\([^;]*\).*/\1/p')"
 status="$(get /settings "$bob_cookie")"

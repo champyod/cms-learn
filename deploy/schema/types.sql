@@ -10,6 +10,9 @@ CREATE TYPE admin_status AS ENUM ('active', 'revoked');
 -- every row that can name an account of either kind carries this beside the id (ADR 0016).
 CREATE TYPE account_kind AS ENUM ('learner', 'admin', 'system');
 
+-- An acting account: the kind and the id together, because an id alone cannot say which table it names.
+CREATE TYPE actor_identity AS (kind account_kind, id uuid);
+
 CREATE TYPE audit_operation AS ENUM ('insert', 'update', 'delete');
 
 -- Order is load-bearing: entry N must answer to bit N in cms::Capability.

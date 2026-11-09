@@ -115,7 +115,7 @@ auto answer_elevation_grant(const detail::Request& request, const SettingsSnapsh
       database, settings,
       ElevationRequest{.principal_id = std::string{text_of(request, "principal_id")},
                        .capability = std::string{text_of(request, "capability")},
-                       .granted_by = caller.id,
+                       .granted_by = caller,
                        .reason = std::string{text_of(request, "reason")},
                        .minutes = number_of(request, "minutes")});
   if (!outcome) {
@@ -131,7 +131,7 @@ auto answer_elevation_approve(const detail::Request& request, db::connection& da
   if (!require(request, "elevation_id")) {
     return refused("an approval needs elevation_id");
   }
-  const auto outcome = approve_elevation(database, text_of(request, "elevation_id"), caller.id);
+  const auto outcome = approve_elevation(database, text_of(request, "elevation_id"), caller);
   if (!outcome) {
     return refused(outcome.error());
   }
@@ -148,7 +148,7 @@ auto answer_settings_plan(const detail::Request& request, const std::vector<Cata
   }
 
   const auto preview = plan_setting(database, catalogue, text_of(request, "key"),
-                                    text_of(request, "value"), caller.id);
+                                    text_of(request, "value"), caller);
   if (!preview) {
     return refused(preview.error());
   }
@@ -168,7 +168,7 @@ auto answer_settings_apply(const detail::Request& request,
   }
 
   const auto applied =
-      apply_plan(database_config, catalogue, text_of(request, "plan_id"), caller.id);
+      apply_plan(database_config, catalogue, text_of(request, "plan_id"), caller);
   if (!applied) {
     return refused(applied.error());
   }

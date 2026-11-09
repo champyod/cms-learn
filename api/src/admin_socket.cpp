@@ -18,6 +18,7 @@
 
 #include <sqlpp23/sqlpp23.h>
 
+#include <cms/api/accounts.hpp>
 #include <cms/api/admin_protocol.hpp>
 #include <cms/db/tables.hpp>
 
@@ -27,8 +28,6 @@ namespace {
 constexpr std::size_t MAX_REQUEST_BYTES = 4096;
 constexpr int ACCEPT_POLL_MILLISECONDS = 200;
 constexpr mode_t SOCKET_MODE = 0600;
-constexpr std::string_view SYSTEM_ACTOR_KIND = "system";
-constexpr std::string_view SYSTEM_BOOTSTRAP_HANDLE = "system:bootstrap";
 
 auto resolve_system_caller(const std::shared_ptr<const db::connection_config>& database_config)
     -> Actor {
@@ -37,15 +36,15 @@ auto resolve_system_caller(const std::shared_ptr<const db::connection_config>& d
   for (const auto& row :
        database(sqlpp::select(db::systemAccounts.id)
                     .from(db::systemAccounts)
-                    .where(db::systemAccounts.handle == std::string{SYSTEM_BOOTSTRAP_HANDLE}))) {
+                    .where(db::systemAccounts.handle == std::string{BOOTSTRAP_SYSTEM_HANDLE}))) {
     id = std::string{row.id};
   }
   if (id.empty()) {
     throw std::runtime_error("no system account with handle '" +
-                             std::string{SYSTEM_BOOTSTRAP_HANDLE} +
+                             std::string{BOOTSTRAP_SYSTEM_HANDLE} +
                              "'; bootstrap the database before the admin socket can start");
   }
-  return Actor{.kind = std::string{SYSTEM_ACTOR_KIND}, .id = std::move(id)};
+  return Actor{.kind = std::string{ACTOR_KIND_SYSTEM}, .id = std::move(id)};
 }
 
 auto write_all(int fd, std::string_view text) -> void {

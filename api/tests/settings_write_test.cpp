@@ -40,6 +40,11 @@ auto shared_view() -> const cms::api::SettingsView& {
 
 constexpr std::string_view OPERATOR = "bbbbbbbb-cccc-4ddd-8eee-ffffffff0001";
 
+auto admin(std::string_view id) -> cms::api::Actor {
+  return cms::api::Actor{.kind = std::string{"admin"}, .id = std::string{id}};
+}
+
+
 /// Creates the acting principal if it is not there. Idempotent because the cases share one database and Catch2
 /// may run them in any order: a case that writes must not depend on another case having gone first.
 void given_operator() {
@@ -86,7 +91,7 @@ TEST_CASE("a catalogued setting is written and read back", "[settings][write][li
   auto transaction = cms::db::Transaction{*live_client()};
   const auto applied = cms::api::apply_settings(
       transaction.connection(), shared_catalogue(),
-      {cms::api::SettingChange{.key = "site.name", .value = "CMS Learn Probe"}}, OPERATOR);
+      {cms::api::SettingChange{.key = "site.name", .value = "CMS Learn Probe"}}, admin(OPERATOR));
   REQUIRE(applied.has_value());
   transaction.commit();
 
@@ -102,7 +107,7 @@ TEST_CASE("a secret is stored and never read back", "[settings][write][live]") {
   auto transaction = cms::db::Transaction{*live_client()};
   const auto applied = cms::api::apply_settings(
       transaction.connection(), shared_catalogue(),
-      {cms::api::SettingChange{.key = "mail.password", .value = "hunter2"}}, OPERATOR);
+      {cms::api::SettingChange{.key = "mail.password", .value = "hunter2"}}, admin(OPERATOR));
   REQUIRE(applied.has_value());
   transaction.commit();
 
@@ -125,7 +130,7 @@ TEST_CASE("a key outside the catalogue is refused", "[settings][write][live]") {
   auto database = live_database();
   const auto refused = cms::api::apply_settings(
       database, shared_catalogue(), {cms::api::SettingChange{.key = "not.a.setting", .value = "x"}},
-      OPERATOR);
+      admin(OPERATOR));
   REQUIRE(!refused.has_value());
   CHECK(refused.error().code == cms::ErrorCode::invalid_argument);
 }
@@ -143,7 +148,7 @@ TEST_CASE("a value that does not match its kind is refused before anything is wr
       database, shared_catalogue(),
       {cms::api::SettingChange{.key = "site.name", .value = "written first"},
        cms::api::SettingChange{.key = "judge.enabled", .value = "yes"}},
-      OPERATOR);
+      admin(OPERATOR));
   REQUIRE(!refused.has_value());
   CHECK(refused.error().message.find("judge.enabled") != std::string::npos);
   // The valid row in the same request was not applied: validation happens before any write.

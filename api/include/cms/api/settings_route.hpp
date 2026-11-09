@@ -43,7 +43,7 @@ namespace cms::api {
 /// @param config The connection the service was started with.
 /// @param catalogue The keys this build knows.
 /// @param changes The values to store.
-/// @param actor_id The principal the change is attributed to.
+/// @param actor The account the change is attributed to, produced by the surface.
 /// @return Success, or the refusal apply_settings produced, or the reason the transaction failed.
 ///
 /// apply_settings names the actor with `SET LOCAL`, which lasts only as long as the transaction it runs in,
@@ -52,6 +52,6 @@ namespace cms::api {
 [[nodiscard]] Result<void> commit_settings(const std::shared_ptr<const db::connection_config>& config,
                                            const std::vector<CatalogueEntry>& catalogue,
                                            const std::vector<SettingChange>& changes,
-                                           std::string_view actor_id);
+                                           const Actor& actor);
 
 }  // namespace cms::api

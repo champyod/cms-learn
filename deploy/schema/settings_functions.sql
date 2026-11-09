@@ -1,16 +1,21 @@
-CREATE FUNCTION current_actor() RETURNS uuid
+CREATE FUNCTION current_actor() RETURNS actor_identity
 LANGUAGE plpgsql
 STABLE
 SET search_path = pg_catalog, public
 AS $$
 DECLARE
-  raw text := current_setting('cms.actor_id', true);
+  raw_id text := current_setting('cms.actor_id', true);
+  raw_kind text := current_setting('cms.actor_kind', true);
 BEGIN
-  IF raw IS NULL OR raw = '' THEN
+  IF raw_id IS NULL OR raw_id = '' THEN
     RAISE EXCEPTION 'cms.actor_id is not set; every settings write must name its actor'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
-  RETURN raw::uuid;
+  IF raw_kind IS NULL OR raw_kind = '' THEN
+    RAISE EXCEPTION 'cms.actor_kind is not set; every settings write must name the actor''s kind'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN (raw_kind::account_kind, raw_id::uuid);
 END;
 $$;
 
@@ -18,9 +23,14 @@ CREATE FUNCTION settings_stamp() RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog, public
 AS $$
+DECLARE
+  actor actor_identity := current_actor();
 BEGIN
   NEW.updated_at := now();
-  NEW.updated_by := current_actor();
+  NEW.actor_kind := actor.kind;
+  NEW.learner_actor_id := CASE WHEN actor.kind = 'learner' THEN actor.id END;
+  NEW.admin_actor_id := CASE WHEN actor.kind = 'admin' THEN actor.id END;
+  NEW.system_actor_id := CASE WHEN actor.kind = 'system' THEN actor.id END;
   RETURN NEW;
 END;
 $$;
@@ -38,6 +48,7 @@ DECLARE
   new_value text;
   old_tier setting_tier;
   new_tier setting_tier;
+  actor actor_identity := current_actor();
 BEGIN
   -- Branches, not COALESCE: OLD is unassigned on INSERT and NEW on DELETE.
   IF TG_OP = 'INSERT' THEN
@@ -70,7 +81,7 @@ BEGIN
   INSERT INTO settings_audit (key, operation, old_kind, new_kind, old_value, new_value, old_tier,
                               new_tier, actor_kind, actor_id, invoked_by)
   VALUES (changed_key, lower(TG_OP)::audit_operation, old_kind, new_kind, old_value, new_value,
-          old_tier, new_tier, 'admin', current_actor(),
+          old_tier, new_tier, actor.kind, actor.id,
           coalesce(current_setting('cms.invoked_by', true), ''));
   RETURN NULL;
 END;

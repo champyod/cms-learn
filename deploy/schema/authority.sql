@@ -81,8 +81,14 @@ CREATE TABLE elevations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   admin_id uuid NOT NULL REFERENCES admin_accounts (id) ON DELETE CASCADE,
   capability capability NOT NULL,
-  granted_by uuid NOT NULL REFERENCES admin_accounts (id),
-  approved_by uuid REFERENCES admin_accounts (id),
+  granted_actor_kind account_kind NOT NULL,
+  granted_learner_actor_id uuid REFERENCES learner_accounts (id),
+  granted_admin_actor_id uuid REFERENCES admin_accounts (id),
+  granted_system_actor_id uuid REFERENCES system_accounts (id),
+  approved_actor_kind account_kind,
+  approved_learner_actor_id uuid REFERENCES learner_accounts (id),
+  approved_admin_actor_id uuid REFERENCES admin_accounts (id),
+  approved_system_actor_id uuid REFERENCES system_accounts (id),
   granted_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL,
   consumed_at timestamptz,
@@ -90,13 +96,41 @@ CREATE TABLE elevations (
   CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),
   CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),
   CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= granted_at + interval '60 minutes'),
-  -- Two people, and the beneficiary is neither of them. Written as one constraint because a null
-  -- approver is the pending state, not a missing fact: a row is live only once a second principal,
-  -- distinct from both the beneficiary and the grantor, has approved it.
-  CONSTRAINT elevations_two_people CHECK (
-    approved_by IS NULL OR (approved_by <> admin_id AND approved_by <> granted_by)
+  CONSTRAINT elevations_grantor_shape CHECK (
+    (granted_actor_kind = 'learner' AND granted_learner_actor_id IS NOT NULL
+      AND granted_admin_actor_id IS NULL AND granted_system_actor_id IS NULL)
+    OR (granted_actor_kind = 'admin' AND granted_admin_actor_id IS NOT NULL
+      AND granted_learner_actor_id IS NULL AND granted_system_actor_id IS NULL)
+    OR (granted_actor_kind = 'system' AND granted_system_actor_id IS NOT NULL
+      AND granted_learner_actor_id IS NULL AND granted_admin_actor_id IS NULL)
   ),
-  CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> admin_id)
+  -- A null approver is the pending state, not a missing fact: all four columns stay null until one lands.
+  CONSTRAINT elevations_approver_shape CHECK (
+    (approved_actor_kind IS NULL AND approved_learner_actor_id IS NULL
+      AND approved_admin_actor_id IS NULL AND approved_system_actor_id IS NULL)
+    OR (approved_actor_kind = 'learner' AND approved_learner_actor_id IS NOT NULL
+      AND approved_admin_actor_id IS NULL AND approved_system_actor_id IS NULL)
+    OR (approved_actor_kind = 'admin' AND approved_admin_actor_id IS NOT NULL
+      AND approved_learner_actor_id IS NULL AND approved_system_actor_id IS NULL)
+    OR (approved_actor_kind = 'system' AND approved_system_actor_id IS NOT NULL
+      AND approved_learner_actor_id IS NULL AND approved_admin_actor_id IS NULL)
+  ),
+  -- Two people, and the beneficiary is neither of them. The kind is compared beside the id because the
+  -- same uuid in two account tables is two different people.
+  CONSTRAINT elevations_two_people CHECK (
+    approved_actor_kind IS NULL
+    OR (
+      NOT (approved_actor_kind = 'admin' AND approved_admin_actor_id = admin_id)
+      AND NOT (
+        approved_actor_kind = granted_actor_kind
+        AND coalesce(approved_learner_actor_id, approved_admin_actor_id, approved_system_actor_id)
+          = coalesce(granted_learner_actor_id, granted_admin_actor_id, granted_system_actor_id)
+      )
+    )
+  ),
+  CONSTRAINT elevations_grantor_not_self CHECK (
+    NOT (granted_actor_kind = 'admin' AND granted_admin_actor_id = admin_id)
+  )
 );
 
 CREATE INDEX elevations_live_idx ON elevations (admin_id, capability, expires_at)

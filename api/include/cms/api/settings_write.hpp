@@ -4,6 +4,7 @@
 #include <string_view>
 #include <vector>
 
+#include <cms/api/actor.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/error.hpp>
@@ -28,7 +29,7 @@ struct SettingChange {
 /// @param database The connection; the caller owns the transaction.
 /// @param catalogue The keys this build understands.
 /// @param changes The values to store.
-/// @param actor_id The principal the change is attributed to.
+/// @param actor The account the change is attributed to, produced by the surface.
 /// @return Success, or the first change that was refused.
 ///
 /// A key that is not in the catalogue is refused rather than created: the catalogue is the only place a key
@@ -49,6 +50,6 @@ struct SettingChange {
 [[nodiscard]] Result<void> apply_settings(db::connection& database,
                                           const std::vector<CatalogueEntry>& catalogue,
                                           const std::vector<SettingChange>& changes,
-                                          std::string_view actor_id);
+                                          const Actor& actor);
 
 }  // namespace cms::api

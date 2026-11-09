@@ -7,8 +7,19 @@ CREATE TABLE settings (
   tier setting_tier NOT NULL DEFAULT 'operator',
   description text NOT NULL DEFAULT '',
   updated_at timestamptz NOT NULL DEFAULT now(),
-  updated_by uuid NOT NULL REFERENCES admin_accounts (id),
+  actor_kind account_kind NOT NULL,
+  learner_actor_id uuid REFERENCES learner_accounts (id),
+  admin_actor_id uuid REFERENCES admin_accounts (id),
+  system_actor_id uuid REFERENCES system_accounts (id),
   CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,7}$'),
+  CONSTRAINT settings_one_actor CHECK (
+    (actor_kind = 'learner' AND learner_actor_id IS NOT NULL
+      AND admin_actor_id IS NULL AND system_actor_id IS NULL)
+    OR (actor_kind = 'admin' AND admin_actor_id IS NOT NULL
+      AND learner_actor_id IS NULL AND system_actor_id IS NULL)
+    OR (actor_kind = 'system' AND system_actor_id IS NOT NULL
+      AND learner_actor_id IS NULL AND admin_actor_id IS NULL)
+  ),
   -- Nested CASE: the cast runs only on text the WHEN already proved is an integer.
   CONSTRAINT settings_value_matches_kind CHECK (
     CASE kind
@@ -33,12 +44,23 @@ CREATE TABLE settings_meta (
 
 CREATE TABLE settings_plans (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  author_id uuid NOT NULL REFERENCES admin_accounts (id),
+  actor_kind account_kind NOT NULL,
+  learner_actor_id uuid REFERENCES learner_accounts (id),
+  admin_actor_id uuid REFERENCES admin_accounts (id),
+  system_actor_id uuid REFERENCES system_accounts (id),
   changes jsonb NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   expires_at timestamptz NOT NULL DEFAULT now() + interval '15 minutes',
   applied_at timestamptz,
-  CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at)
+  CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at),
+  CONSTRAINT settings_plans_one_actor CHECK (
+    (actor_kind = 'learner' AND learner_actor_id IS NOT NULL
+      AND admin_actor_id IS NULL AND system_actor_id IS NULL)
+    OR (actor_kind = 'admin' AND admin_actor_id IS NOT NULL
+      AND learner_actor_id IS NULL AND system_actor_id IS NULL)
+    OR (actor_kind = 'system' AND system_actor_id IS NOT NULL
+      AND learner_actor_id IS NULL AND admin_actor_id IS NULL)
+  )
 );
 
 CREATE TABLE settings_audit (

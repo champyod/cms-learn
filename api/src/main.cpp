@@ -155,8 +155,8 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
             return;
           }
         }
-        const auto written =
-            cms::api::commit_settings(database_config, catalogue, changes, principal->id);
+        const auto writer = cms::api::Actor{.kind = principal->kind, .id = principal->id};
+        const auto written = cms::api::commit_settings(database_config, catalogue, changes, writer);
         if (!written) {
           callback(text_response(written.error().message, drogon::k400BadRequest));
           return;

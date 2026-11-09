@@ -49,20 +49,26 @@ auto setting_exists(db::connection& database, std::string_view key) -> bool {
 }
 
 auto store(db::connection& database, const CatalogueEntry& entry, std::string_view value,
-           std::string_view actor_id) -> void {
+           const Actor& actor) -> void {
   if (setting_exists(database, entry.key)) {
     database(sqlpp::update(db::settings)
                  .set(db::settings.valueText = std::string{value},
                       db::settings.kind = entry.kind, db::settings.tier = entry.tier,
                       db::settings.updatedAt = db::now_stamp(),
-                      db::settings.updatedBy = std::string{actor_id})
+                      db::settings.actorKind = actor.kind,
+                      db::settings.learnerActorId = actor_id_of(actor, ACTOR_KIND_LEARNER),
+                      db::settings.adminActorId = actor_id_of(actor, ACTOR_KIND_ADMIN),
+                      db::settings.systemActorId = actor_id_of(actor, ACTOR_KIND_SYSTEM))
                  .where(db::settings.key == entry.key));
     return;
   }
   database(sqlpp::insert_into(db::settings).set(
       db::settings.key = entry.key, db::settings.kind = entry.kind,
       db::settings.valueText = std::string{value}, db::settings.tier = entry.tier,
-      db::settings.updatedBy = std::string{actor_id}));
+      db::settings.actorKind = actor.kind,
+      db::settings.learnerActorId = actor_id_of(actor, ACTOR_KIND_LEARNER),
+      db::settings.adminActorId = actor_id_of(actor, ACTOR_KIND_ADMIN),
+      db::settings.systemActorId = actor_id_of(actor, ACTOR_KIND_SYSTEM)));
 }
 
 }  // namespace
@@ -86,7 +92,7 @@ auto writes_a_secret(const std::vector<CatalogueEntry>& catalogue,
 }
 
 auto apply_settings(db::connection& database, const std::vector<CatalogueEntry>& catalogue,
-                    const std::vector<SettingChange>& changes, std::string_view actor_id)
+                    const std::vector<SettingChange>& changes, const Actor& actor)
     -> Result<void> {
   // Everything is validated before anything is written: a form that carries one bad row must not leave the
   // rest of it applied.
@@ -102,24 +108,29 @@ auto apply_settings(db::connection& database, const std::vector<CatalogueEntry>&
     }
   }
 
+  if (!is_actor_kind(actor.kind)) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument, "a settings write needs a known actor kind, not \"" +
+                                         actor.kind + "\""));
+  }
+  if (!has_uuid_shape(actor.id)) {
+    return std::unexpected(
+        Error::make(ErrorCode::invalid_argument, "a settings write needs the actor's id"));
+  }
+
   try {
-    // The settings trigger reads the actor from the session; an unset actor is a refusal, not a default. It is
-    // set once per transaction, before any row is touched.
-    // The actor is pasted into `SET LOCAL`, which cannot bind a parameter, so its shape is what makes the
-    // literal safe.
-    if (!has_uuid_shape(actor_id)) {
-      return std::unexpected(
-          Error::make(ErrorCode::invalid_argument, "a settings write needs the actor's id"));
+    // The settings trigger reads the actor from the session, and `SET LOCAL` cannot bind a parameter, so
+    // the known kind and the id's checked shape are what make the pasted literals safe.
+    const auto set_actor_id = sqlpp::verbatim("SET LOCAL cms.actor_id = '" + actor.id + "'");
+    const auto set_actor_kind = sqlpp::verbatim("SET LOCAL cms.actor_kind = '" + actor.kind + "'");
+    for (const auto& statement : {set_actor_id, set_actor_kind}) {
+      const auto rows_set = database.execute(statement, db::bindings_for(statement));
+      (void)rows_set;
     }
-    // `SET LOCAL` is not a statement sqlpp23 models, so it goes through the connector's execute with an
-    // empty binding list rather than through operator(), which requires a statement type it can dispatch.
-    const auto set_actor = sqlpp::verbatim("SET LOCAL cms.actor_id = '" + std::string{actor_id} + "'");
-    const auto rows_set = database.execute(set_actor, db::bindings_for(set_actor));
-    (void)rows_set;
 
     for (const auto& change : changes) {
       const auto* entry = entry_for(catalogue, change.key);
-      store(database, *entry, change.value, actor_id);
+      store(database, *entry, change.value, actor);
     }
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));

@@ -42,9 +42,7 @@ SQLPP_CREATE_NAME_TAG(row_count);
 
 constexpr std::string_view ACCOUNT_KIND_LEARNER = "learner";
 constexpr std::string_view ACCOUNT_KIND_ADMIN = "admin";
-constexpr std::string_view ACCOUNT_KIND_SYSTEM = "system";
 constexpr std::string_view ADMIN_STATUS_ACTIVE = "active";
-constexpr std::string_view BOOTSTRAP_SYSTEM_HANDLE = "system:bootstrap";
 constexpr std::string_view ACTION_BOOTSTRAP = "bootstrap.completed";
 
 constexpr std::string_view STATUS_PENDING = "pending";
@@ -288,7 +286,7 @@ auto create_session(db::connection& database, std::string_view account_kind,
     -> Result<std::string> {
   const auto is_learner = account_kind == ACCOUNT_KIND_LEARNER;
   const auto is_admin = account_kind == ACCOUNT_KIND_ADMIN;
-  const auto is_system = account_kind == ACCOUNT_KIND_SYSTEM;
+  const auto is_system = account_kind == ACTOR_KIND_SYSTEM;
   if (!is_learner && !is_admin && !is_system) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                        "unknown account kind: " + std::string{account_kind}));
@@ -346,7 +344,7 @@ auto bootstrap(db::connection& database, std::string_view admin_email, std::stri
     database(sqlpp::insert_into(db::adminAccounts).set(
         db::adminAccounts.id = admin_id, db::adminAccounts.handle = std::string{admin_handle},
         db::adminAccounts.status = std::string{ADMIN_STATUS_ACTIVE}));
-    record_audit(database, ACCOUNT_KIND_SYSTEM, system_id, INVOKED_BY, ACTION_BOOTSTRAP, admin_id);
+    record_audit(database, ACTOR_KIND_SYSTEM, system_id, INVOKED_BY, ACTION_BOOTSTRAP, admin_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::conflict, error.what()));
   }

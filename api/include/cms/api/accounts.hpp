@@ -11,6 +11,9 @@
 
 namespace cms::api {
 
+/// The handle of the one system account bootstrap creates; the socket resolves its caller by it.
+constexpr std::string_view BOOTSTRAP_SYSTEM_HANDLE = "system:bootstrap";
+
 /// @brief What a completed signup produced.
 struct SignupOutcome {
   std::string principal_id;

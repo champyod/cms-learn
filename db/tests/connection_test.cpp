@@ -42,24 +42,31 @@ auto seeded_expiry() -> cms::db::timestamp {
 }
 
 auto seed(::drogon::orm::DbClient& client) -> void {
-  client.execSqlSync("SELECT set_config('cms.actor_id', $1, false)", std::string{WRITER_ID});
-  client.execSqlSync(
+  // One transaction, because the actor settings are LOCAL to a connection: a pool hands each statement
+  // its own connection, so a session-wide setting could land somewhere the insert never reaches.
+  auto transaction = cms::db::Transaction{client};
+  auto& connection = transaction.connection();
+  connection.execute_text(
+      "SELECT set_config('cms.actor_id', $1, true), set_config('cms.actor_kind', 'admin', true)",
+      {std::string{WRITER_ID}});
+  connection.execute_text(
       "INSERT INTO learner_accounts (id, handle, email, status) VALUES ($1, 'live_probe', "
       "'live_probe@example.org', 'active') ON CONFLICT DO NOTHING",
-      std::string{PRINCIPAL_ID});
-  client.execSqlSync(
+      {std::string{PRINCIPAL_ID}});
+  connection.execute_text(
       "INSERT INTO admin_accounts (id, handle, status) VALUES ($1, 'live_writer', 'active') "
       "ON CONFLICT DO NOTHING",
-      std::string{WRITER_ID});
-  client.execSqlSync(
+      {std::string{WRITER_ID}});
+  connection.execute_text(
       "INSERT INTO sessions (id, account_kind, learner_id, expires_at) VALUES ($1, 'learner', $2, "
       "'2100-01-02 03:04:05.123456+00') ON CONFLICT (id) DO UPDATE SET expires_at = "
       "excluded.expires_at, revoked_at = NULL",
-      std::string{SESSION_ID}, std::string{PRINCIPAL_ID});
-  client.execSqlSync(
+      {std::string{SESSION_ID}, std::string{PRINCIPAL_ID}});
+  connection.execute_text(
       "INSERT INTO settings (key, kind, value_text, tier) VALUES ($1, 'text', $2, 'public') "
       "ON CONFLICT (key) DO UPDATE SET value_text = excluded.value_text, tier = 'public'",
-      std::string{SETTING_KEY}, std::string{SETTING_VALUE});
+      {std::string{SETTING_KEY}, std::string{SETTING_VALUE}});
+  transaction.commit();
 }
 
 }  // namespace

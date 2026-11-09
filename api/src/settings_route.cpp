@@ -68,11 +68,11 @@ auto setting_changes(std::string_view body, const std::vector<CatalogueEntry>& c
 
 auto commit_settings(const std::shared_ptr<const db::connection_config>& config,
                      const std::vector<CatalogueEntry>& catalogue,
-                     const std::vector<SettingChange>& changes, std::string_view actor_id)
+                     const std::vector<SettingChange>& changes, const Actor& actor)
     -> Result<void> {
   try {
     auto transaction = cms::db::Transaction{*config->client};
-    const auto applied = apply_settings(transaction.connection(), catalogue, changes, actor_id);
+    const auto applied = apply_settings(transaction.connection(), catalogue, changes, actor);
     if (!applied) {
       return std::unexpected(applied.error());
     }

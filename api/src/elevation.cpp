@@ -1,6 +1,7 @@
 #include <cms/api/elevation.hpp>
 
-#include <cstddef>
+#include "elevation_state.hpp"
+
 #include <cstdint>
 #include <exception>
 #include <string>
@@ -9,135 +10,21 @@
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/api/audit.hpp>
-#include <cms/api/settings_defaults.hpp>
 #include <cms/api/uuid.hpp>
 #include <cms/db/tables.hpp>
 
 namespace cms::api {
-namespace {
 
-SQLPP_CREATE_NAME_TAG(row_count);
-
-/// The same ceiling the audit table's check constraint states. Named here so the refusal explains the
-/// rule instead of forwarding a constraint violation the operator has to look up.
-constexpr std::int64_t MAXIMUM_MINUTES = 60;
-constexpr std::int64_t SECONDS_PER_MINUTE = 60;
-constexpr std::string_view PURPOSE_POLICY_KEY = "identity.elevation_minutes";
-
-constexpr std::string_view ACTION_GRANTED = "elevation.granted";
-constexpr std::string_view ACTION_APPROVED = "elevation.approved";
-constexpr std::string_view INVOKED_BY = "admin_socket";
-constexpr std::string_view ACTOR_ADMIN = "admin";
-
-auto is_blank(std::string_view text) -> bool {
-  return text.find_first_not_of(" \t\r\n") == std::string_view::npos;
-}
-
-/// The whole row one approval needs, gathered so approve decides from one read rather than three.
-struct ElevationRow {
-  std::string admin_id;
-  std::string granted_by;
-  bool is_approved{false};
-  bool is_consumed{false};
-  cms::db::timestamp expires_at;
-  bool is_found{false};
-};
-
-auto find_elevation(db::connection& database, std::string_view elevation_id) -> ElevationRow {
-  auto row = ElevationRow{};
-  for (const auto& record :
-       database(sqlpp::select(db::elevations.adminId, db::elevations.grantedBy,
-                              db::elevations.approvedBy, db::elevations.consumedAt,
-                              db::elevations.expiresAt)
-                    .from(db::elevations)
-                    .where(db::elevations.id == std::string{elevation_id}))) {
-    row.admin_id = std::string{record.adminId};
-    row.granted_by = std::string{record.grantedBy};
-    row.is_approved = record.approvedBy.has_value();
-    row.is_consumed = record.consumedAt.has_value();
-    row.expires_at = record.expiresAt;
-    row.is_found = true;
-  }
-  return row;
-}
-
-auto admin_exists(db::connection& database, std::string_view admin_id) -> bool {
-  const auto one = sqlpp::value(1);
-  auto found = false;
-  for (const auto& row : database(sqlpp::select(sqlpp::count(one).as(row_count))
-                                      .from(db::adminAccounts)
-                                      .where(db::adminAccounts.id == std::string{admin_id}))) {
-    found = row.row_count > 0;
-  }
-  return found;
-}
-
-auto refusal(std::string_view text) -> Result<void> {
-  return std::unexpected(Error::make(ErrorCode::invalid_argument, text));
-}
-
-/// Resolves the duration a request asks for: zero means the policy default, and the ceiling is the
-/// same one the audit table's own constraint states.
-auto resolve_minutes(const SettingsSnapshot& settings, std::int64_t requested)
-    -> Result<std::int64_t> {
-  const auto minutes = requested == 0 ? setting_int(settings, PURPOSE_POLICY_KEY) : requested;
-  if (minutes < 1 || minutes > MAXIMUM_MINUTES) {
-    return std::unexpected(Error::make(
-        ErrorCode::invalid_argument,
-        "an elevation lasts between 1 and " + std::to_string(MAXIMUM_MINUTES) + " minutes"));
-  }
-  return minutes;
-}
-
-/// Checks that both administrators the request names exist and that they are different people.
-auto check_participants(db::connection& database, const ElevationRequest& request) -> Result<void> {
-  if (request.granted_by == request.principal_id) {
-    return std::unexpected(Error::make(
-        ErrorCode::permission_denied,
-        "nobody grants themselves an elevation; ask a second person to grant it"));
-  }
-  if (!admin_exists(database, request.principal_id)) {
-    return std::unexpected(
-        Error::make(ErrorCode::not_found, "no such administrator: " + request.principal_id));
-  }
-  if (!admin_exists(database, request.granted_by)) {
-    return std::unexpected(
-        Error::make(ErrorCode::not_found, "no such grantor: " + request.granted_by));
-  }
-  return {};
-}
-
-/// Whether an approver is a second person: not the beneficiary, not the grantor, and not after the box
-/// has closed. The database states the first two as a constraint; naming them here gives the operator
-/// a sentence instead of a constraint violation to look up.
-auto check_approvable(const ElevationRow& row, std::string_view approved_by,
-                      std::string_view elevation_id) -> Result<void> {
-  if (!row.is_found) {
-    return std::unexpected(
-        Error::make(ErrorCode::not_found, "no such elevation: " + std::string{elevation_id}));
-  }
-  if (row.is_consumed) {
-    return refusal("that elevation has already been spent");
-  }
-  if (row.is_approved) {
-    return std::unexpected(
-        Error::make(ErrorCode::conflict, "that elevation already has its second person"));
-  }
-  if (approved_by == row.admin_id) {
-    return std::unexpected(Error::make(ErrorCode::permission_denied,
-                                       "the account receiving an elevation cannot approve it"));
-  }
-  if (approved_by == row.granted_by) {
-    return std::unexpected(Error::make(ErrorCode::permission_denied,
-                                       "the account that granted an elevation cannot approve it"));
-  }
-  if (row.expires_at <= db::now_stamp()) {
-    return refusal("that elevation expired before anyone approved it");
-  }
-  return {};
-}
-
-}  // namespace
+using detail::ACTION_APPROVED;
+using detail::ACTION_GRANTED;
+using detail::check_approvable;
+using detail::check_participants;
+using detail::find_elevation;
+using detail::INVOKED_BY;
+using detail::is_blank;
+using detail::refusal;
+using detail::resolve_minutes;
+using detail::SECONDS_PER_MINUTE;
 
 auto grant_elevation(db::connection& database, const SettingsSnapshot& settings,
                      const ElevationRequest& request) -> Result<ElevationGrant> {
@@ -167,11 +54,14 @@ auto grant_elevation(db::connection& database, const SettingsSnapshot& settings,
         db::elevations.id = elevation_id,
         db::elevations.adminId = request.principal_id,
         db::elevations.capability = std::string{capability_name(*capability)},
-        db::elevations.grantedBy = request.granted_by,
+        db::elevations.grantedActorKind = request.granted_by.kind,
+        db::elevations.grantedLearnerActorId = actor_id_of(request.granted_by, ACTOR_KIND_LEARNER),
+        db::elevations.grantedAdminActorId = actor_id_of(request.granted_by, ACTOR_KIND_ADMIN),
+        db::elevations.grantedSystemActorId = actor_id_of(request.granted_by, ACTOR_KIND_SYSTEM),
         db::elevations.expiresAt = db::stamp_after(*minutes * SECONDS_PER_MINUTE),
         db::elevations.reason = request.reason));
-    record_audit(database, ACTOR_ADMIN, request.granted_by, INVOKED_BY, ACTION_GRANTED,
-                 elevation_id);
+    record_audit(database, request.granted_by.kind, request.granted_by.id, INVOKED_BY,
+                 ACTION_GRANTED, elevation_id);
     return ElevationGrant{.id = elevation_id, .minutes = *minutes, .is_live = false};
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::conflict, error.what()));
@@ -179,7 +69,11 @@ auto grant_elevation(db::connection& database, const SettingsSnapshot& settings,
 }
 
 auto approve_elevation(db::connection& database, std::string_view elevation_id,
-                       std::string_view approved_by) -> Result<void> {
+                       const Actor& approved_by) -> Result<void> {
+  if (!is_actor_kind(approved_by.kind)) {
+    return refusal("an elevation would be approved by an account kind that does not exist: " +
+                   approved_by.kind);
+  }
   try {
     const auto row = find_elevation(database, elevation_id);
     const auto approvable = check_approvable(row, approved_by, elevation_id);
@@ -189,15 +83,23 @@ auto approve_elevation(db::connection& database, std::string_view elevation_id,
 
     // Conditional on the pending state so two approvers racing cannot both succeed; the affected-row
     // count is what reports the loss.
-    const auto changed = database(sqlpp::update(db::elevations)
-                                     .set(db::elevations.approvedBy = std::string{approved_by})
-                                     .where(db::elevations.id == std::string{elevation_id} &&
-                                            db::elevations.approvedBy.is_null()));
+    const auto changed =
+        database(sqlpp::update(db::elevations)
+                     .set(db::elevations.approvedActorKind = approved_by.kind,
+                          db::elevations.approvedLearnerActorId =
+                              actor_id_of(approved_by, ACTOR_KIND_LEARNER),
+                          db::elevations.approvedAdminActorId =
+                              actor_id_of(approved_by, ACTOR_KIND_ADMIN),
+                          db::elevations.approvedSystemActorId =
+                              actor_id_of(approved_by, ACTOR_KIND_SYSTEM))
+                     .where(db::elevations.id == std::string{elevation_id} &&
+                            db::elevations.approvedActorKind.is_null()));
     if (changed == 0) {
       return std::unexpected(
           Error::make(ErrorCode::conflict, "that elevation was approved by someone else first"));
     }
-    record_audit(database, ACTOR_ADMIN, approved_by, INVOKED_BY, ACTION_APPROVED, elevation_id);
+    record_audit(database, approved_by.kind, approved_by.id, INVOKED_BY, ACTION_APPROVED,
+                 elevation_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }
@@ -214,7 +116,7 @@ auto spend_elevation(db::connection& database, std::string_view admin_id, Capabi
                                         .from(db::elevations)
                                         .where(db::elevations.adminId == std::string{admin_id} &&
                                                db::elevations.capability == capability_name_of &&
-                                               !db::elevations.approvedBy.is_null() &&
+                                               !db::elevations.approvedActorKind.is_null() &&
                                                db::elevations.consumedAt.is_null() &&
                                                db::elevations.expiresAt > db::now_stamp()))) {
       const auto elevation_id = std::string{row.id};
@@ -238,7 +140,7 @@ auto load_elevated_capabilities(db::connection& database, std::string_view admin
          database(sqlpp::select(db::elevations.capability)
                       .from(db::elevations)
                       .where(db::elevations.adminId == std::string{admin_id} &&
-                             !db::elevations.approvedBy.is_null() &&
+                             !db::elevations.approvedActorKind.is_null() &&
                              db::elevations.consumedAt.is_null() &&
                              db::elevations.expiresAt > db::now_stamp()))) {
       // A stored name the core does not define grants nothing, the same rule roles follow: an unknown

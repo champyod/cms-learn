@@ -15,6 +15,12 @@
           "path": "public.account_kind"
         },
         {
+          "sql": "CREATE TYPE actor_identity AS (kind account_kind, id uuid);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.actor_identity"
+        },
+        {
           "sql": "CREATE TYPE admin_status AS ENUM (\n    'active',\n    'revoked'\n);",
           "type": "type",
           "operation": "create",
@@ -117,18 +123,6 @@
           "path": "public.content_seed"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS elevations (\n    id uuid DEFAULT gen_random_uuid(),\n    admin_id uuid NOT NULL,\n    capability capability NOT NULL,\n    granted_by uuid NOT NULL,\n    approved_by uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    consumed_at timestamptz,\n    reason text NOT NULL,\n    CONSTRAINT elevations_pkey PRIMARY KEY (id),\n    CONSTRAINT elevations_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT elevations_approved_by_fkey FOREIGN KEY (approved_by) REFERENCES admin_accounts (id),\n    CONSTRAINT elevations_granted_by_fkey FOREIGN KEY (granted_by) REFERENCES admin_accounts (id),\n    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),\n    CONSTRAINT elevations_grantor_not_self CHECK (granted_by <> admin_id),\n    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),\n    CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),\n    CONSTRAINT elevations_two_people CHECK (approved_by IS NULL OR approved_by <> admin_id AND approved_by <> granted_by)\n);",
-          "type": "table",
-          "operation": "create",
-          "path": "public.elevations"
-        },
-        {
-          "sql": "CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (admin_id, capability, expires_at) WHERE (consumed_at IS NULL);",
-          "type": "table.index",
-          "operation": "create",
-          "path": "public.elevations.elevations_live_idx"
-        },
-        {
           "sql": "CREATE TABLE IF NOT EXISTS levels (\n    id text,\n    position integer NOT NULL,\n    difficulty_min integer NOT NULL,\n    difficulty_max integer NOT NULL,\n    icon text NOT NULL,\n    description_en text DEFAULT '' NOT NULL,\n    CONSTRAINT levels_pkey PRIMARY KEY (id),\n    CONSTRAINT levels_position_unique UNIQUE (position),\n    CONSTRAINT levels_band CHECK (difficulty_min <= difficulty_max),\n    CONSTRAINT levels_difficulty_band CHECK (difficulty_min >= 800 AND difficulty_min <= 3500 AND difficulty_max >= 800 AND difficulty_max <= 3500 AND (difficulty_min % 100) = 0 AND (difficulty_max % 100) = 0),\n    CONSTRAINT levels_icon_shape CHECK (icon ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text),\n    CONSTRAINT levels_id_shape CHECK (id ~ '^[a-z0-9][a-z0-9-]{0,62}$'::text)\n);",
           "type": "table",
           "operation": "create",
@@ -189,30 +183,6 @@
           "path": "public.role_capabilities"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS settings (\n    key text,\n    kind setting_kind NOT NULL,\n    value_text text NOT NULL,\n    tier setting_tier DEFAULT 'operator'::setting_tier NOT NULL,\n    description text DEFAULT '' NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    updated_by uuid NOT NULL,\n    CONSTRAINT settings_pkey PRIMARY KEY (key),\n    CONSTRAINT settings_updated_by_fkey FOREIGN KEY (updated_by) REFERENCES admin_accounts (id),\n    CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,7}$'::text),\n    CONSTRAINT settings_value_matches_kind CHECK (CASE kind\n    WHEN 'bool'::setting_kind THEN value_text IN ('true'::text, 'false'::text)\n    WHEN 'int'::setting_kind THEN\n    CASE\n        WHEN value_text ~ '^-?(0|[1-9][0-9]{0,18})$'::text THEN value_text::numeric >= '-9223372036854775808'::bigint::numeric AND value_text::numeric <= '9223372036854775807'::bigint::numeric\n        ELSE false\n    END\n    WHEN 'text'::setting_kind THEN true\n    ELSE NULL::boolean\nEND)\n);",
-          "type": "table",
-          "operation": "create",
-          "path": "public.settings"
-        },
-        {
-          "sql": "ALTER TABLE settings ENABLE ROW LEVEL SECURITY;",
-          "type": "table.rls",
-          "operation": "alter",
-          "path": "public.settings"
-        },
-        {
-          "sql": "CREATE POLICY settings_app_all ON settings TO cmslearn_app USING (true) WITH CHECK (true);",
-          "type": "table.policy",
-          "operation": "create",
-          "path": "public.settings.settings_app_all"
-        },
-        {
-          "sql": "CREATE POLICY settings_judge_read ON settings FOR SELECT TO cmslearn_judge USING (tier <> 'secret'::setting_tier);",
-          "type": "table.policy",
-          "operation": "create",
-          "path": "public.settings.settings_judge_read"
-        },
-        {
           "sql": "CREATE TABLE IF NOT EXISTS settings_audit (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    occurred_at timestamptz DEFAULT now() NOT NULL,\n    key text NOT NULL,\n    operation audit_operation NOT NULL,\n    old_kind setting_kind,\n    new_kind setting_kind,\n    old_value text,\n    new_value text,\n    old_tier setting_tier,\n    new_tier setting_tier,\n    actor_kind account_kind NOT NULL,\n    actor_id uuid NOT NULL,\n    invoked_by text DEFAULT '' NOT NULL,\n    CONSTRAINT settings_audit_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_audit_update_has_old_state CHECK (operation <> 'update'::audit_operation OR old_kind IS NOT NULL AND new_kind IS NOT NULL)\n);",
           "type": "table",
           "operation": "create",
@@ -229,12 +199,6 @@
           "type": "table",
           "operation": "create",
           "path": "public.settings_meta"
-        },
-        {
-          "sql": "CREATE TABLE IF NOT EXISTS settings_plans (\n    id uuid DEFAULT gen_random_uuid(),\n    author_id uuid NOT NULL,\n    changes jsonb NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz DEFAULT (now() + '00:15:00'::interval) NOT NULL,\n    applied_at timestamptz,\n    CONSTRAINT settings_plans_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_plans_author_id_fkey FOREIGN KEY (author_id) REFERENCES admin_accounts (id),\n    CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at)\n);",
-          "type": "table",
-          "operation": "create",
-          "path": "public.settings_plans"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS system_accounts (\n    id uuid DEFAULT gen_random_uuid(),\n    handle text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT system_accounts_pkey PRIMARY KEY (id),\n    CONSTRAINT system_accounts_handle_key UNIQUE (handle),\n    CONSTRAINT system_accounts_handle_shape CHECK (handle ~ '^system:[a-z][a-z0-9_-]{1,62}$'::text)\n);",
@@ -261,6 +225,18 @@
           "path": "public.audit_events.audit_events_learner_actor_idx"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS elevations (\n    id uuid DEFAULT gen_random_uuid(),\n    admin_id uuid NOT NULL,\n    capability capability NOT NULL,\n    granted_actor_kind account_kind NOT NULL,\n    granted_learner_actor_id uuid,\n    granted_admin_actor_id uuid,\n    granted_system_actor_id uuid,\n    approved_actor_kind account_kind,\n    approved_learner_actor_id uuid,\n    approved_admin_actor_id uuid,\n    approved_system_actor_id uuid,\n    granted_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    consumed_at timestamptz,\n    reason text NOT NULL,\n    CONSTRAINT elevations_pkey PRIMARY KEY (id),\n    CONSTRAINT elevations_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT elevations_approved_admin_actor_id_fkey FOREIGN KEY (approved_admin_actor_id) REFERENCES admin_accounts (id),\n    CONSTRAINT elevations_approved_learner_actor_id_fkey FOREIGN KEY (approved_learner_actor_id) REFERENCES learner_accounts (id),\n    CONSTRAINT elevations_approved_system_actor_id_fkey FOREIGN KEY (approved_system_actor_id) REFERENCES system_accounts (id),\n    CONSTRAINT elevations_granted_admin_actor_id_fkey FOREIGN KEY (granted_admin_actor_id) REFERENCES admin_accounts (id),\n    CONSTRAINT elevations_granted_learner_actor_id_fkey FOREIGN KEY (granted_learner_actor_id) REFERENCES learner_accounts (id),\n    CONSTRAINT elevations_granted_system_actor_id_fkey FOREIGN KEY (granted_system_actor_id) REFERENCES system_accounts (id),\n    CONSTRAINT elevations_approver_shape CHECK (approved_actor_kind IS NULL AND approved_learner_actor_id IS NULL AND approved_admin_actor_id IS NULL AND approved_system_actor_id IS NULL OR approved_actor_kind = 'learner'::account_kind AND approved_learner_actor_id IS NOT NULL AND approved_admin_actor_id IS NULL AND approved_system_actor_id IS NULL OR approved_actor_kind = 'admin'::account_kind AND approved_admin_actor_id IS NOT NULL AND approved_learner_actor_id IS NULL AND approved_system_actor_id IS NULL OR approved_actor_kind = 'system'::account_kind AND approved_system_actor_id IS NOT NULL AND approved_learner_actor_id IS NULL AND approved_admin_actor_id IS NULL),\n    CONSTRAINT elevations_expiry_after_grant CHECK (expires_at > granted_at),\n    CONSTRAINT elevations_grantor_not_self CHECK (NOT (granted_actor_kind = 'admin'::account_kind AND granted_admin_actor_id = admin_id)),\n    CONSTRAINT elevations_grantor_shape CHECK (granted_actor_kind = 'learner'::account_kind AND granted_learner_actor_id IS NOT NULL AND granted_admin_actor_id IS NULL AND granted_system_actor_id IS NULL OR granted_actor_kind = 'admin'::account_kind AND granted_admin_actor_id IS NOT NULL AND granted_learner_actor_id IS NULL AND granted_system_actor_id IS NULL OR granted_actor_kind = 'system'::account_kind AND granted_system_actor_id IS NOT NULL AND granted_learner_actor_id IS NULL AND granted_admin_actor_id IS NULL),\n    CONSTRAINT elevations_maximum_minutes CHECK (expires_at <= (granted_at + '01:00:00'::interval)),\n    CONSTRAINT elevations_reason_present CHECK (length(btrim(reason)) > 0),\n    CONSTRAINT elevations_two_people CHECK (approved_actor_kind IS NULL OR NOT (approved_actor_kind = 'admin'::account_kind AND approved_admin_actor_id = admin_id) AND NOT (approved_actor_kind = granted_actor_kind AND COALESCE(approved_learner_actor_id, approved_admin_actor_id, approved_system_actor_id) = COALESCE(granted_learner_actor_id, granted_admin_actor_id, granted_system_actor_id)))\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.elevations"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (admin_id, capability, expires_at) WHERE (consumed_at IS NULL);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.elevations.elevations_live_idx"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS sessions (\n    id uuid DEFAULT gen_random_uuid(),\n    account_kind account_kind NOT NULL,\n    learner_id uuid,\n    admin_id uuid,\n    system_id uuid,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    last_seen_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    revoked_at timestamptz,\n    user_agent text,\n    client_address inet,\n    CONSTRAINT sessions_pkey PRIMARY KEY (id),\n    CONSTRAINT sessions_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_system_id_fkey FOREIGN KEY (system_id) REFERENCES system_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),\n    CONSTRAINT sessions_one_account CHECK (account_kind = 'learner'::account_kind AND learner_id IS NOT NULL AND admin_id IS NULL AND system_id IS NULL OR account_kind = 'admin'::account_kind AND admin_id IS NOT NULL AND learner_id IS NULL AND system_id IS NULL OR account_kind = 'system'::account_kind AND system_id IS NOT NULL AND learner_id IS NULL AND admin_id IS NULL)\n);",
           "type": "table",
           "operation": "create",
@@ -277,6 +253,36 @@
           "type": "table.index",
           "operation": "create",
           "path": "public.sessions.sessions_live_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS settings (\n    key text,\n    kind setting_kind NOT NULL,\n    value_text text NOT NULL,\n    tier setting_tier DEFAULT 'operator'::setting_tier NOT NULL,\n    description text DEFAULT '' NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    actor_kind account_kind NOT NULL,\n    learner_actor_id uuid,\n    admin_actor_id uuid,\n    system_actor_id uuid,\n    CONSTRAINT settings_pkey PRIMARY KEY (key),\n    CONSTRAINT settings_admin_actor_id_fkey FOREIGN KEY (admin_actor_id) REFERENCES admin_accounts (id),\n    CONSTRAINT settings_learner_actor_id_fkey FOREIGN KEY (learner_actor_id) REFERENCES learner_accounts (id),\n    CONSTRAINT settings_system_actor_id_fkey FOREIGN KEY (system_actor_id) REFERENCES system_accounts (id),\n    CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,7}$'::text),\n    CONSTRAINT settings_one_actor CHECK (actor_kind = 'learner'::account_kind AND learner_actor_id IS NOT NULL AND admin_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'admin'::account_kind AND admin_actor_id IS NOT NULL AND learner_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'system'::account_kind AND system_actor_id IS NOT NULL AND learner_actor_id IS NULL AND admin_actor_id IS NULL),\n    CONSTRAINT settings_value_matches_kind CHECK (CASE kind\n    WHEN 'bool'::setting_kind THEN value_text IN ('true'::text, 'false'::text)\n    WHEN 'int'::setting_kind THEN\n    CASE\n        WHEN value_text ~ '^-?(0|[1-9][0-9]{0,18})$'::text THEN value_text::numeric >= '-9223372036854775808'::bigint::numeric AND value_text::numeric <= '9223372036854775807'::bigint::numeric\n        ELSE false\n    END\n    WHEN 'text'::setting_kind THEN true\n    ELSE NULL::boolean\nEND)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.settings"
+        },
+        {
+          "sql": "ALTER TABLE settings ENABLE ROW LEVEL SECURITY;",
+          "type": "table.rls",
+          "operation": "alter",
+          "path": "public.settings"
+        },
+        {
+          "sql": "CREATE POLICY settings_app_all ON settings TO cmslearn_app USING (true) WITH CHECK (true);",
+          "type": "table.policy",
+          "operation": "create",
+          "path": "public.settings.settings_app_all"
+        },
+        {
+          "sql": "CREATE POLICY settings_judge_read ON settings FOR SELECT TO cmslearn_judge USING (tier <> 'secret'::setting_tier);",
+          "type": "table.policy",
+          "operation": "create",
+          "path": "public.settings.settings_judge_read"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS settings_plans (\n    id uuid DEFAULT gen_random_uuid(),\n    actor_kind account_kind NOT NULL,\n    learner_actor_id uuid,\n    admin_actor_id uuid,\n    system_actor_id uuid,\n    changes jsonb NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz DEFAULT (now() + '00:15:00'::interval) NOT NULL,\n    applied_at timestamptz,\n    CONSTRAINT settings_plans_pkey PRIMARY KEY (id),\n    CONSTRAINT settings_plans_admin_actor_id_fkey FOREIGN KEY (admin_actor_id) REFERENCES admin_accounts (id),\n    CONSTRAINT settings_plans_learner_actor_id_fkey FOREIGN KEY (learner_actor_id) REFERENCES learner_accounts (id),\n    CONSTRAINT settings_plans_system_actor_id_fkey FOREIGN KEY (system_actor_id) REFERENCES system_accounts (id),\n    CONSTRAINT settings_plans_expiry_after_creation CHECK (expires_at > created_at),\n    CONSTRAINT settings_plans_one_actor CHECK (actor_kind = 'learner'::account_kind AND learner_actor_id IS NOT NULL AND admin_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'admin'::account_kind AND admin_actor_id IS NOT NULL AND learner_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'system'::account_kind AND system_actor_id IS NOT NULL AND learner_actor_id IS NULL AND admin_actor_id IS NULL)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.settings_plans"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS task_visibility (\n    task_id text,\n    principal_id bigint,\n    CONSTRAINT task_visibility_pkey PRIMARY KEY (task_id, principal_id),\n    CONSTRAINT task_visibility_principal_range CHECK (principal_id = 0 OR principal_id >= (1::bigint << 48) AND principal_id < (2::bigint << 48) OR principal_id >= (2::bigint << 48) AND principal_id < (3::bigint << 48) OR principal_id >= (3::bigint << 48) AND principal_id < (4::bigint << 48))\n);",
@@ -381,7 +387,7 @@
           "path": "public.stage_tags.stage_tags_tag_idx"
         },
         {
-          "sql": "CREATE OR REPLACE FUNCTION current_actor()\nRETURNS uuid\nLANGUAGE plpgsql\nSTABLE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  raw text := current_setting('cms.actor_id', true);\nBEGIN\n  IF raw IS NULL OR raw = '' THEN\n    RAISE EXCEPTION 'cms.actor_id is not set; every settings write must name its actor'\n      USING ERRCODE = 'insufficient_privilege';\n  END IF;\n  RETURN raw::uuid;\nEND;\n$$;",
+          "sql": "CREATE OR REPLACE FUNCTION current_actor()\nRETURNS actor_identity\nLANGUAGE plpgsql\nSTABLE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  raw_id text := current_setting('cms.actor_id', true);\n  raw_kind text := current_setting('cms.actor_kind', true);\nBEGIN\n  IF raw_id IS NULL OR raw_id = '' THEN\n    RAISE EXCEPTION 'cms.actor_id is not set; every settings write must name its actor'\n      USING ERRCODE = 'insufficient_privilege';\n  END IF;\n  IF raw_kind IS NULL OR raw_kind = '' THEN\n    RAISE EXCEPTION 'cms.actor_kind is not set; every settings write must name the actor''s kind'\n      USING ERRCODE = 'insufficient_privilege';\n  END IF;\n  RETURN (raw_kind::account_kind, raw_id::uuid);\nEND;\n$$;",
           "type": "function",
           "operation": "create",
           "path": "public.current_actor"
@@ -411,13 +417,13 @@
           "path": "public.settings_bump_version"
         },
         {
-          "sql": "CREATE OR REPLACE FUNCTION settings_stamp()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  NEW.updated_at := now();\n  NEW.updated_by := current_actor();\n  RETURN NEW;\nEND;\n$$;",
+          "sql": "CREATE OR REPLACE FUNCTION settings_stamp()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  actor actor_identity := current_actor();\nBEGIN\n  NEW.updated_at := now();\n  NEW.actor_kind := actor.kind;\n  NEW.learner_actor_id := CASE WHEN actor.kind = 'learner' THEN actor.id END;\n  NEW.admin_actor_id := CASE WHEN actor.kind = 'admin' THEN actor.id END;\n  NEW.system_actor_id := CASE WHEN actor.kind = 'system' THEN actor.id END;\n  RETURN NEW;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
           "path": "public.settings_stamp"
         },
         {
-          "sql": "CREATE OR REPLACE FUNCTION settings_write_audit()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  changed_key text;\n  old_kind setting_kind;\n  new_kind setting_kind;\n  old_value text;\n  new_value text;\n  old_tier setting_tier;\n  new_tier setting_tier;\nBEGIN\n  -- Branches, not COALESCE: OLD is unassigned on INSERT and NEW on DELETE.\n  IF TG_OP = 'INSERT' THEN\n    changed_key := NEW.key;\n    new_kind := NEW.kind;\n    new_value := NEW.value_text;\n    new_tier := NEW.tier;\n  ELSIF TG_OP = 'UPDATE' THEN\n    changed_key := NEW.key;\n    old_kind := OLD.kind;\n    new_kind := NEW.kind;\n    old_value := OLD.value_text;\n    new_value := NEW.value_text;\n    old_tier := OLD.tier;\n    new_tier := NEW.tier;\n  ELSE\n    changed_key := OLD.key;\n    old_kind := OLD.kind;\n    old_value := OLD.value_text;\n    old_tier := OLD.tier;\n  END IF;\n\n  IF old_tier = 'secret' THEN\n    old_value := '<redacted>';\n  END IF;\n  IF new_tier = 'secret' THEN\n    new_value := '<redacted>';\n  END IF;\n\n  INSERT INTO settings_audit (key, operation, old_kind, new_kind, old_value, new_value, old_tier,\n                              new_tier, actor_kind, actor_id, invoked_by)\n  VALUES (changed_key, lower(TG_OP)::audit_operation, old_kind, new_kind, old_value, new_value,\n          old_tier, new_tier, 'admin', current_actor(),\n          coalesce(current_setting('cms.invoked_by', true), ''));\n  RETURN NULL;\nEND;\n$$;",
+          "sql": "CREATE OR REPLACE FUNCTION settings_write_audit()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  changed_key text;\n  old_kind setting_kind;\n  new_kind setting_kind;\n  old_value text;\n  new_value text;\n  old_tier setting_tier;\n  new_tier setting_tier;\n  actor actor_identity := current_actor();\nBEGIN\n  -- Branches, not COALESCE: OLD is unassigned on INSERT and NEW on DELETE.\n  IF TG_OP = 'INSERT' THEN\n    changed_key := NEW.key;\n    new_kind := NEW.kind;\n    new_value := NEW.value_text;\n    new_tier := NEW.tier;\n  ELSIF TG_OP = 'UPDATE' THEN\n    changed_key := NEW.key;\n    old_kind := OLD.kind;\n    new_kind := NEW.kind;\n    old_value := OLD.value_text;\n    new_value := NEW.value_text;\n    old_tier := OLD.tier;\n    new_tier := NEW.tier;\n  ELSE\n    changed_key := OLD.key;\n    old_kind := OLD.kind;\n    old_value := OLD.value_text;\n    old_tier := OLD.tier;\n  END IF;\n\n  IF old_tier = 'secret' THEN\n    old_value := '<redacted>';\n  END IF;\n  IF new_tier = 'secret' THEN\n    new_value := '<redacted>';\n  END IF;\n\n  INSERT INTO settings_audit (key, operation, old_kind, new_kind, old_value, new_value, old_tier,\n                              new_tier, actor_kind, actor_id, invoked_by)\n  VALUES (changed_key, lower(TG_OP)::audit_operation, old_kind, new_kind, old_value, new_value,\n          old_tier, new_tier, actor.kind, actor.id,\n          coalesce(current_setting('cms.invoked_by', true), ''));\n  RETURN NULL;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
           "path": "public.settings_write_audit"

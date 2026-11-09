@@ -75,11 +75,15 @@ auto prepare(cms::db::connection& database, std::string_view id, std::string_vie
                .where(cms::db::elevations.adminId == std::string{id}));
 }
 
+auto admin(std::string_view id) -> cms::api::Actor {
+  return cms::api::Actor{.kind = std::string{"admin"}, .id = std::string{id}};
+}
+
 auto elevation_for(std::string_view principal_id, std::string_view capability, std::int64_t minutes)
     -> cms::api::ElevationRequest {
   return cms::api::ElevationRequest{.principal_id = std::string{principal_id},
                                     .capability = std::string{capability},
-                                    .granted_by = std::string{GRANTOR},
+                                    .granted_by = admin(GRANTOR),
                                     .reason = "rotate the mail credential",
                                     .minutes = minutes};
 }
@@ -99,7 +103,7 @@ TEST_CASE("an approved elevation is spendable once and then gone", "[elevation][
   const auto request = elevation_for(BENEFICIARY_A, "settings:write", 10);
   const auto granted = cms::api::grant_elevation(database, policy(), request);
   REQUIRE(granted.has_value());
-  const auto approved = cms::api::approve_elevation(database, granted->id, WITNESS);
+  const auto approved = cms::api::approve_elevation(database, granted->id, admin(WITNESS));
   REQUIRE(approved.has_value());
 
   // The temporary capability is authority while it is live, which is what the two-person rule buys.
@@ -137,7 +141,7 @@ TEST_CASE("a granted elevation changes no authority until a second person approv
   REQUIRE(before.has_value());
   CHECK(!before->has(cms::Capability::settings_write));
 
-  REQUIRE(cms::api::approve_elevation(database, granted->id, WITNESS).has_value());
+  REQUIRE(cms::api::approve_elevation(database, granted->id, admin(WITNESS)).has_value());
 
   const auto after = cms::api::load_elevated_capabilities(database, BENEFICIARY_A);
   REQUIRE(after.has_value());
@@ -158,17 +162,17 @@ TEST_CASE("two people means neither the grantor nor the beneficiary approves",
       cms::api::grant_elevation(database, policy(), elevation_for(BENEFICIARY_B, "user:read", 5));
   REQUIRE(granted.has_value());
 
-  const auto self = cms::api::approve_elevation(database, granted->id, BENEFICIARY_B);
+  const auto self = cms::api::approve_elevation(database, granted->id, admin(BENEFICIARY_B));
   REQUIRE(!self.has_value());
   CHECK(self.error().code == cms::ErrorCode::permission_denied);
 
-  const auto grantor = cms::api::approve_elevation(database, granted->id, GRANTOR);
+  const auto grantor = cms::api::approve_elevation(database, granted->id, admin(GRANTOR));
   REQUIRE(!grantor.has_value());
   CHECK(grantor.error().code == cms::ErrorCode::permission_denied);
 
-  REQUIRE(cms::api::approve_elevation(database, granted->id, WITNESS).has_value());
+  REQUIRE(cms::api::approve_elevation(database, granted->id, admin(WITNESS)).has_value());
 
-  const auto again = cms::api::approve_elevation(database, granted->id, WITNESS);
+  const auto again = cms::api::approve_elevation(database, granted->id, admin(WITNESS));
   REQUIRE(!again.has_value());
   CHECK(again.error().code == cms::ErrorCode::conflict);
 }
@@ -187,8 +191,10 @@ TEST_CASE("the database refuses a row that names the same person twice", "[eleva
       cms::db::elevations.id = std::string{"aaaaaaa1-bbbb-4ccc-8ddd-eeeeeeeeeee1"},
       cms::db::elevations.adminId = std::string{BENEFICIARY_C},
       cms::db::elevations.capability = std::string{"settings:read"},
-      cms::db::elevations.grantedBy = std::string{GRANTOR},
-      cms::db::elevations.approvedBy = std::string{GRANTOR},
+      cms::db::elevations.grantedActorKind = std::string{"admin"},
+      cms::db::elevations.grantedAdminActorId = std::string{GRANTOR},
+      cms::db::elevations.approvedActorKind = std::string{"admin"},
+      cms::db::elevations.approvedAdminActorId = std::string{GRANTOR},
       cms::db::elevations.expiresAt = cms::db::stamp_after(300),
       cms::db::elevations.reason = std::string{"self-approved"})));
 }
@@ -218,7 +224,7 @@ TEST_CASE("an elevation is refused when it could not be a grant", "[elevation][l
   CHECK(refused_length.error().message.find("60") != std::string::npos);
 
   auto yourself = elevation_for(BENEFICIARY_D, "settings:write", 5);
-  yourself.granted_by = std::string{BENEFICIARY_D};
+  yourself.granted_by = admin(BENEFICIARY_D);
   const auto refused_self = cms::api::grant_elevation(database, policy(), yourself);
   REQUIRE(!refused_self.has_value());
   CHECK(refused_self.error().code == cms::ErrorCode::permission_denied);
@@ -243,12 +249,13 @@ TEST_CASE("an elevation that expired before approval cannot go live", "[elevatio
       cms::db::elevations.id = stale_id,
       cms::db::elevations.adminId = std::string{BENEFICIARY_E},
       cms::db::elevations.capability = std::string{"settings:write"},
-      cms::db::elevations.grantedBy = std::string{GRANTOR},
+      cms::db::elevations.grantedActorKind = std::string{"admin"},
+      cms::db::elevations.grantedAdminActorId = std::string{GRANTOR},
       cms::db::elevations.grantedAt = cms::db::stamp_after(-7200),
       cms::db::elevations.expiresAt = cms::db::stamp_after(-3600),
       cms::db::elevations.reason = std::string{"left open by the previous operator"}));
 
-  const auto approved = cms::api::approve_elevation(database, stale_id, WITNESS);
+  const auto approved = cms::api::approve_elevation(database, stale_id, admin(WITNESS));
   REQUIRE(!approved.has_value());
   CHECK(approved.error().code == cms::ErrorCode::invalid_argument);
 

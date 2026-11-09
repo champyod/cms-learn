@@ -40,10 +40,11 @@ bad() { printf '  [!!]   %s — %s\n' "$1" "$2"; fail=$((fail + 1)); }
 
 psql_db() { psql -X -h "$work" -p "$port" -U postgres -d "$database" -q -v ON_ERROR_STOP=1 "$@"; }
 
-# Every settings write names its actor; the schema raises otherwise, which is the intended barrier.
+# Every settings write names its actor, kind and id; the schema raises otherwise, which is the intended barrier.
 as_actor() {
   psql_db -c "BEGIN" \
            -c "SET LOCAL cms.actor_id = '$actor_id'" \
+           -c "SET LOCAL cms.actor_kind = 'admin'" \
            -c "$1" \
            -c "COMMIT"
 }
@@ -65,9 +66,8 @@ psql_db -c "INSERT INTO system_accounts (handle) VALUES ('system:bootstrap')" \
   || { echo "  [!!] system account insert failed"; exit 1; }
 actor_id="$(psql_db -tAc "SELECT id FROM admin_accounts WHERE handle = 'probe-actor'")"
 
-as_actor "INSERT INTO settings (key, kind, value_text, updated_by, description)
-          VALUES ('site.name', 'text', 'CMS Learn',
-                  (SELECT id FROM admin_accounts WHERE handle = 'probe-actor'), 'probe');" \
+as_actor "INSERT INTO settings (key, kind, value_text, description)
+          VALUES ('site.name', 'text', 'CMS Learn', 'probe');" \
   || { echo "  [!!] settings insert failed"; exit 1; }
 
 cat >"$work/host.env" <<ENV
