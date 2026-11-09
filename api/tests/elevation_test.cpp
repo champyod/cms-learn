@@ -10,6 +10,7 @@
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/api/admin_protocol.hpp>
+#include <cms/api/authorize.hpp>
 #include <cms/api/elevation.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/db/tables.hpp>
@@ -76,6 +77,37 @@ auto elevation_for(std::string_view principal_id, std::string_view capability, s
                                     .minutes = minutes};
 }
 
+
+TEST_CASE("an approved elevation is spendable once and then gone", "[elevation][live]") {
+  if (std::getenv("CMSLEAN_TEST_DSN") == nullptr) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+
+  auto database = cms::test::live_database();
+  prepare(database, BENEFICIARY_A, "elevation_spend");
+  ensure_admin(database, GRANTOR, "elevation_spend_grantor");
+  // The granter cannot approve its own grant, so the second person is a third administrator.
+  ensure_admin(database, WITNESS, "elevation_spend_witness");
+
+  const auto request = elevation_for(BENEFICIARY_A, "settings:write", 10);
+  const auto granted = cms::api::grant_elevation(database, policy(), request);
+  REQUIRE(granted.has_value());
+  const auto approved = cms::api::approve_elevation(database, granted->id, WITNESS);
+  REQUIRE(approved.has_value());
+
+  // The temporary capability is authority while it is live, which is what the two-person rule buys.
+  const auto first = cms::api::authorize(database, "admin", BENEFICIARY_A, cms::Capability::settings_write);
+  INFO("first authorize: " << (first ? "allowed" : first.error().message));
+  REQUIRE(first.has_value());
+
+  // Using it spends it: a second request cannot act on the same approval.
+  const auto again = cms::api::authorize(database, "admin", BENEFICIARY_A, cms::Capability::settings_write);
+  INFO("second authorize: " << (again ? "allowed" : again.error().message));
+  // The refusal comes from the ordinary capability check: once the approval is spent the account holds
+  // nothing, so it is refused as lacking the capability rather than as someone who already used an
+  // approval. Both are the same fact - the temporary authority is gone.
+  CHECK(!again.has_value());
+}
 }  // namespace
 
 TEST_CASE("a granted elevation changes no authority until a second person approves it",

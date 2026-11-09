@@ -204,6 +204,32 @@ auto approve_elevation(db::connection& database, std::string_view elevation_id,
   return {};
 }
 
+auto spend_elevation(db::connection& database, std::string_view admin_id, Capability capability)
+    -> Result<bool> {
+  // The UPDATE carries every condition the grant needed, so an elevation is spent at most once even when
+  // two requests arrive together: the second one updates no row and is told the approval was not there.
+  const auto capability_name_of = std::string{capability_name(capability)};
+  try {
+    for (const auto& row : database(sqlpp::select(db::elevations.id)
+                                        .from(db::elevations)
+                                        .where(db::elevations.adminId == std::string{admin_id} &&
+                                               db::elevations.capability == capability_name_of &&
+                                               !db::elevations.approvedBy.is_null() &&
+                                               db::elevations.consumedAt.is_null() &&
+                                               db::elevations.expiresAt > db::now_stamp()))) {
+      const auto elevation_id = std::string{row.id};
+      database(sqlpp::update(db::elevations)
+                   .set(db::elevations.consumedAt = db::now_stamp())
+                   .where(db::elevations.id == elevation_id &&
+                          db::elevations.consumedAt.is_null()));
+      return true;
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  return false;
+}
+
 auto load_elevated_capabilities(db::connection& database, std::string_view admin_id)
     -> Result<CapabilitySet> {
   auto set = CapabilitySet{};

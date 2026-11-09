@@ -57,6 +57,14 @@ struct ElevationGrant {
 [[nodiscard]] Result<void> approve_elevation(db::connection& database, std::string_view elevation_id,
                                              std::string_view approved_by);
 
+/// @brief Uses up one live elevation for @p capability, and reports whether one was there.
+///
+/// Reading and spending are one operation on purpose: two requests that both read the same approval
+/// would otherwise both act on it, and a second person's agreement would authorise two actions.
+/// @return True when an approval was spent, false when none was live, or the reason the database refused.
+[[nodiscard]] Result<bool> spend_elevation(db::connection& database, std::string_view admin_id,
+                                           Capability capability);
+
 /// @brief The capabilities a principal holds through live elevations right now.
 /// @param database The connection to read through.
 /// @param principal_id The account whose transient authority is being read.

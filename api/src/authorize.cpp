@@ -1,5 +1,7 @@
 #include <cms/api/authorize.hpp>
 
+#include <cms/api/elevation.hpp>
+
 #include <cstddef>
 #include <exception>
 #include <string>
@@ -75,10 +77,28 @@ auto authorize(db::connection& database, std::string_view account_kind,
   if (!held) {
     return std::unexpected(held.error());
   }
-  if (!held->has(capability)) {
+  if (held->has(capability)) {
+    return {};
+  }
+  // A live elevation is authority the same account holds for a few minutes, approved by a second
+  // administrator; without this read the two-person rule grants nothing.
+  const auto elevated = load_elevated_capabilities(database, account_id);
+  if (!elevated) {
+    return std::unexpected(elevated.error());
+  }
+  if (!elevated->has(capability)) {
     return std::unexpected(Error::make(
         ErrorCode::permission_denied,
         "this account does not hold " + std::string{capability_name(capability)}));
+  }
+  const auto spent = spend_elevation(database, account_id, capability);
+  if (!spent) {
+    return std::unexpected(spent.error());
+  }
+  if (!*spent) {
+    return std::unexpected(Error::make(
+        ErrorCode::permission_denied,
+        "the approval for " + std::string{capability_name(capability)} + " was already used"));
   }
   return {};
 }
