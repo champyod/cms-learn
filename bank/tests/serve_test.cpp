@@ -81,6 +81,15 @@ auto attempted(cms::db::connection& database, std::string_view account, std::str
       cms::db::progress.taskVersion = 1, cms::db::progress.status = std::string{"attempted"}));
 }
 
+/// The same row as `attempted`, carrying an acceptance: what the judge writes when a submission passes.
+auto solved(cms::db::connection& database, std::string_view account, std::string_view id) {
+  database(sqlpp::insert_into(cms::db::progress).set(
+      cms::db::progress.accountId = std::string{account},
+      cms::db::progress.taskId = std::string{id}, cms::db::progress.taskVersion = 1,
+      cms::db::progress.status = std::string{"solved"},
+      cms::db::progress.solvedAt = cms::db::now_stamp()));
+}
+
 /// Imports the shipped bank when it is not already there. Cheap when it is: the seeder compares digests
 /// and writes nothing, so a case never depends on another case having run first.
 void ensure_seeded() {
@@ -156,10 +165,10 @@ TEST_CASE("a draft task is never served", "[serve][live]") {
   }
   auto database = live_database();
   ensure_seeded();
-  const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2"};
+  const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee5"};
   database(sqlpp::insert_into(cms::db::learnerAccounts).set(
       cms::db::learnerAccounts.id = account,
-      cms::db::learnerAccounts.handle = std::string{"serve_two"},
+      cms::db::learnerAccounts.handle = std::string{"serve_five"},
       cms::db::learnerAccounts.email = std::string{"serve_two"} + std::string{"@example.org"},
       cms::db::learnerAccounts.status = std::string{"active"}));
 
@@ -223,4 +232,54 @@ TEST_CASE("the serving query follows the audience composed from a principal", "[
   REQUIRE(result->has_value());
   CHECK((*result)->id != "probe-composed-hidden");
   CHECK((*result)->id == "probe-composed-public");
+}
+
+TEST_CASE("a stage counts its tasks and how many of them the account solved", "[serve][live]") {
+  if (!has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = live_database();
+  ensure_seeded();
+
+  const auto account = std::string{"aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeee2"};
+  database(sqlpp::insert_into(cms::db::learnerAccounts).set(
+      cms::db::learnerAccounts.id = account,
+      cms::db::learnerAccounts.handle = std::string{"serve_two"},
+      cms::db::learnerAccounts.email = std::string{"serve_five@example.org"},
+      cms::db::learnerAccounts.status = std::string{"active"}));
+
+  given_task(database, "probe-count-a", 2100, "prefix-sums");
+  given_task(database, "probe-count-b", 2200, "prefix-sums");
+  given_task(database, "probe-count-c", 2300, "prefix-sums");
+
+  const auto band = stage(2100, 2200, {"prefix-sums"});
+  const auto audience = viewer_audience();
+  const auto before = cms::bank::stage_progress(database, account, band, audience);
+  REQUIRE(before.has_value());
+  CHECK(before->total == 2);   // the two in band, not the 2300 one
+  CHECK(before->done == 0);
+
+  solved(database, account, "probe-count-a");
+  const auto after = cms::bank::stage_progress(database, account, band, audience);
+  REQUIRE(after.has_value());
+  CHECK(after->total == 2);
+  CHECK(after->done == 1);
+
+  // The count and the offer answer one question: what is solved is no longer offered.
+  const auto next = cms::bank::next_unseen_task(database, account, band, audience);
+  REQUIRE(next.has_value());
+  REQUIRE(next->has_value());
+  CHECK((*next)->id == "probe-count-b");
+
+  // A full stage: every task in the band is solved, the count says 2 of 2, and the rule offers nothing —
+  // the widened band holds only the third task, so solving it too is what empties the offer.
+  solved(database, account, "probe-count-b");
+  solved(database, account, "probe-count-c");
+  const auto full = cms::bank::stage_progress(database, account, band, audience);
+  REQUIRE(full.has_value());
+  CHECK(full->total == 2);
+  CHECK(full->done == 2);
+  const auto exhausted = cms::bank::next_unseen_task(database, account, band, audience);
+  REQUIRE(exhausted.has_value());
+  CHECK(!exhausted->has_value());
 }

@@ -25,6 +25,7 @@
 #include <cms/api/uuid.hpp>
 #include <cms/api/web.hpp>
 #include <cms/bank/bank.hpp>
+#include <cms/bank/serve.hpp>
 #include <cms/db/tables.hpp>
 #include <cms/bank/curriculum.hpp>
 #include <cms/capability.hpp>
@@ -162,6 +163,84 @@ auto level_view(db::connection& database, std::string_view session_id) -> Result
 
 }  // namespace
 
+/// The title a task is shown by, with the same fallback every page uses: the reader's locale, else the other.
+auto localized_title(std::string_view locale_code, std::string_view english, std::string_view thai)
+    -> std::string {
+  const auto wants_thai = locale_code != "en";
+  const auto preferred = wants_thai ? thai : english;
+  const auto fallback = wants_thai ? english : thai;
+  return std::string{preferred.empty() ? fallback : preferred};
+}
+
+/// What the home route read: whether the request carries a learner, and one entry per stage when it does.
+struct PathState {
+  std::vector<StagePath> paths;
+  bool is_learner{false};
+};
+
+/// Reads the path state the page shows beside each stage: how much of it the learner has done, and the one
+/// task the bank's own rule offers next. A request with no learner reads nothing, because there is nobody
+/// to choose for.
+auto read_path_state(db::connection& database, const std::vector<bank::Track>& tracks,
+                     std::string_view session_id, std::string_view locale_code) -> Result<PathState> {
+  auto state = PathState{};
+  const auto account = account_of_session(database, session_id);
+  if (!account) {
+    return std::unexpected(account.error());
+  }
+  if (account->empty() || account->kind != "learner") {
+    return state;
+  }
+  state.is_learner = true;
+  auto& paths = state.paths;
+  const auto viewer = task_viewer(database, session_id);
+  if (!viewer) {
+    return std::unexpected(viewer.error());
+  }
+
+  try {
+    for (const auto& track : tracks) {
+      for (const auto& stage : track.stages) {
+        auto path = StagePath{.track_id = track.id,
+                              .stage_id = stage.id,
+                              .done = 0,
+                              .total = 0,
+                              .next_id = {},
+                              .next_title = {},
+                              .has_next = false};
+        const auto summary = bank::stage_progress(database, account->id, stage, viewer->audience);
+        if (!summary) {
+          return std::unexpected(summary.error());
+        }
+        path.done = summary->done;
+        path.total = summary->total;
+
+        const auto next = bank::next_unseen_task(database, account->id, stage, viewer->audience);
+        if (!next) {
+          return std::unexpected(next.error());
+        }
+        if (next->has_value()) {
+          path.has_next = true;
+          path.next_id = (*next)->id;
+          path.next_title = (*next)->id;
+          for (const auto& row :
+               database(sqlpp::select(db::tasks.titleEn, db::tasks.titleTh)
+                            .from(db::tasks)
+                            .where(db::tasks.id == (*next)->id &&
+                                   db::tasks.version ==
+                                       static_cast<std::int64_t>((*next)->version)))) {
+            path.next_title = localized_title(locale_code, row.titleEn, row.titleTh);
+          }
+        }
+        paths.push_back(std::move(path));
+      }
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  return state;
+}
+
 auto register_home_route(const std::shared_ptr<SettingsStore>& store,
                          const std::shared_ptr<const db::connection_config>& database_config,
                          std::string_view template_root) -> void {
@@ -186,9 +265,17 @@ auto register_home_route(const std::shared_ptr<SettingsStore>& store,
         }
         const auto locale = choose_locale(request->getParameter("lang"),
                                           request->getHeader("accept-language"));
+        const auto path_state = read_path_state(database, *curriculum,
+                                                request->getCookie("cms_session"), locale.code);
+        if (!path_state) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
         const auto page = render_page(
             template_root, "home.html",
-            home_model(locale, *curriculum, site_name_of(*store), *levels));
+            home_page_model(locale, *curriculum, path_state->paths, site_name_of(*store), *levels,
+                            path_state->is_learner));
         if (!page) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));

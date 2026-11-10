@@ -1,3 +1,4 @@
+#include <cms/api/page_routes.hpp>
 #include <cms/api/web.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -66,10 +67,13 @@ auto sample_level_view() -> cms::api::LevelView {
   };
 }
 
+/// The model the route renders, built by the one composer: a visitor's view, since these cases render the
+/// curriculum and not a learner's path through it.
 auto home_page(const cms::api::Locale& locale) -> cms::Result<std::string> {
   return cms::api::render_page(
       template_root(), "home.html",
-      cms::api::home_model(locale, sample_curriculum(), "CMS Learn", sample_level_view()));
+      cms::api::home_page_model(locale, sample_curriculum(), {}, "CMS Learn", sample_level_view(),
+                                false));
 }
 
 auto sample_task() -> cms::api::TaskPage {
@@ -178,8 +182,8 @@ TEST_CASE("the English page carries the English navigation", "[web][unit]") {
 TEST_CASE("a page whose template is missing is an error, not an empty document", "[web][unit]") {
   const auto page = cms::api::render_page(
       "/nonexistent/templates", "home.html",
-      cms::api::home_model(cms::api::choose_locale("th", ""), sample_curriculum(), "CMS Learn",
-                           sample_level_view()));
+      cms::api::home_page_model(cms::api::choose_locale("th", ""), sample_curriculum(), {},
+                                "CMS Learn", sample_level_view(), false));
   REQUIRE(!page.has_value());
 }
 

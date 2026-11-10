@@ -7,6 +7,14 @@ export interface StageFixture {
   difficulty_min: number;
   difficulty_max: number;
   tags: string[];
+  /// How much of the stage a learner has done, and whether the bank offers a next task.
+  done: number;
+  total: number;
+  has_next: boolean;
+  next_id: string;
+  next_title: string;
+  is_finished: boolean;
+  is_empty: boolean;
 }
 
 export interface TrackFixture {
@@ -25,6 +33,12 @@ export interface PageFixture {
   band_label: string;
   start_label: string;
   empty_label: string;
+  done_label: string;
+  next_label: string;
+  finished_label: string;
+  no_next_label: string;
+  empty_stage_label: string;
+  has_learner: boolean;
   tracks: TrackFixture[];
 }
 
@@ -69,6 +83,12 @@ export const homeFixture: PageFixture = {
   band_label: "ระดับความยาก",
   start_label: "เริ่มขั้นนี้",
   empty_label: "ยังไม่มีหลักสูตร",
+  done_label: "ทำแล้ว",
+  next_label: "แบบฝึกหัดถัดไป",
+  finished_label: "ขั้นนี้ทำครบแล้ว",
+  no_next_label: "ยังไม่มีแบบฝึกหัดใหม่ในขั้นนี้ตอนนี้",
+  empty_stage_label: "ขั้นนี้ยังไม่มีแบบฝึกหัด",
+  has_learner: true,
   tracks: [
     {
       id: "t-usaco",
@@ -84,6 +104,13 @@ export const homeFixture: PageFixture = {
           difficulty_min: 800,
           difficulty_max: 1200,
           tags: ["io", "complexity", "simulation"],
+          done: 1,
+          total: 3,
+          has_next: true,
+          next_id: "range-sum-query",
+          next_title: "ผลรวมของช่วงข้อมูล",
+          is_finished: false,
+          is_empty: false,
         },
         {
           // No Thai title on purpose: the page must fall back to English rather than render an empty
@@ -94,6 +121,13 @@ export const homeFixture: PageFixture = {
           difficulty_min: 1100,
           difficulty_max: 1500,
           tags: ["prefix-sums", "binary-search"],
+          done: 2,
+          total: 2,
+          has_next: false,
+          next_id: "",
+          next_title: "",
+          is_finished: true,
+          is_empty: false,
         },
       ],
     },

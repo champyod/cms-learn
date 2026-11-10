@@ -1,4 +1,4 @@
-import { slot, type Mode } from "../slots.ts";
+import { endWhen, slot, when, type Mode } from "../slots.ts";
 import type { PageFixture, StageFixture, TrackFixture } from "../fixtures.ts";
 import { RepeatList } from "../repeat.tsx";
 import { Layout } from "./layout.tsx";
@@ -14,6 +14,13 @@ const placeholderStage: StageFixture = {
   difficulty_min: 0,
   difficulty_max: 0,
   tags: ["tag"],
+  done: 0,
+  total: 0,
+  has_next: false,
+  next_id: "",
+  next_title: "",
+  is_finished: false,
+  is_empty: false,
 };
 
 const placeholderTrack: TrackFixture = {
@@ -106,6 +113,36 @@ function StageList({
                 <li className="badge badge-sm badge-outline">{slot(mode, "tag", tag)}</li>
               )}
             </RepeatList>
+            {when(mode, "has_learner")}
+            <p className="text-sm opacity-70">
+              {slot(mode, "done_label", data.done_label)}{" "}
+              {slot(mode, "stage.done", String(stage.done))}/
+              {slot(mode, "stage.total", String(stage.total))}
+            </p>
+            {when(mode, "stage.has_next")}
+            <p className="text-sm">
+              {slot(mode, "next_label", data.next_label)}:{" "}
+              <a className="link link-hover" href={"/tasks/" + slot(mode, "stage.next_id", stage.next_id)}>
+                {slot(mode, "stage.next_title", stage.next_title)}
+              </a>
+            </p>
+            {endWhen(mode)}
+            {when(mode, "not stage.has_next")}
+            {when(mode, "stage.is_empty")}
+            <p className="text-sm opacity-70">{slot(mode, "empty_stage_label", data.empty_stage_label)}</p>
+            {endWhen(mode)}
+            {when(mode, "stage.is_finished")}
+            <p className="text-sm opacity-70">
+              {slot(mode, "finished_label", data.finished_label)}
+            </p>
+            {endWhen(mode)}
+            {when(mode, "not stage.is_finished")}
+            {when(mode, "not stage.is_empty")}
+            <p className="text-sm opacity-70">{slot(mode, "no_next_label", data.no_next_label)}</p>
+            {endWhen(mode)}
+            {endWhen(mode)}
+            {endWhen(mode)}
+            {endWhen(mode)}
             <a
               className="btn btn-sm btn-primary mt-2"
               href={
