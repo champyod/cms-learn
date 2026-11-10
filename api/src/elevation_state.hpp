@@ -73,7 +73,7 @@ inline auto find_elevation(db::connection& database, std::string_view elevation_
                                     .from(db::elevations)
                                     .where(db::elevations.id == std::string{elevation_id}))) {
     row.admin_id = std::string{record.adminId};
-    row.granted_by = stored_actor(std::string{record.grantedActorKind},
+    row.granted_by = stored_actor(record.grantedActorKind,
                                   optional_text(record.grantedLearnerActorId),
                                   optional_text(record.grantedAdminActorId),
                                   optional_text(record.grantedSystemActorId));

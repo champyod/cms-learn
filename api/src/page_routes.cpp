@@ -39,6 +39,13 @@ auto is_band_edge(std::int32_t value) -> bool {
   return value >= BAND_MINIMUM && value <= BAND_MAXIMUM && value % BAND_STEP == 0;
 }
 
+/// One whole number and nothing after it: `from_chars` alone stops at the first character it cannot read,
+/// so `1500x` would otherwise parse as the band edge `1500`.
+auto parse_whole_number(std::string_view text, std::int32_t& number) -> bool {
+  const auto parsed = std::from_chars(text.begin(), text.end(), number);
+  return parsed.ec == std::errc{} && parsed.ptr == text.end();
+}
+
 /// `1500-1800` as the two numbers a filter runs with; nothing when that is not a band of the scale.
 auto parse_band(std::string_view text) -> std::optional<std::pair<std::int32_t, std::int32_t>> {
   const auto separator = text.find(BAND_SEPARATOR);
@@ -47,10 +54,8 @@ auto parse_band(std::string_view text) -> std::optional<std::pair<std::int32_t, 
   }
   auto lowest = std::int32_t{0};
   auto highest = std::int32_t{0};
-  const auto first = std::from_chars(text.data(), text.data() + separator, lowest);
-  const auto second = std::from_chars(text.data() + separator + 1, text.data() + text.size(), highest);
-  if (first.ec != std::errc{} || second.ec != std::errc{} || first.ptr != text.data() + separator ||
-      second.ptr != text.data() + text.size()) {
+  if (!parse_whole_number(text.substr(0, separator), lowest) ||
+      !parse_whole_number(text.substr(separator + 1), highest)) {
     return std::nullopt;
   }
   if (!is_band_edge(lowest) || !is_band_edge(highest) || lowest > highest) {
