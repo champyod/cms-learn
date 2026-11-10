@@ -21,6 +21,9 @@ GRANT SELECT ON task_visibility TO cmslearn_judge;
 GRANT SELECT, INSERT, UPDATE ON content_seed TO cmslearn_app;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON tracks, track_stages, stage_tags TO cmslearn_app;
+-- The rung list is content the service writes once (the seed) and every page reads (the meter, the filter),
+-- so the app role needs both halves of it; a learner's own rung is on learner_accounts, already granted.
+GRANT SELECT, INSERT, UPDATE, DELETE ON levels, level_titles TO cmslearn_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON progress TO cmslearn_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON submissions TO cmslearn_app;
 GRANT SELECT, UPDATE ON submissions TO cmslearn_judge;

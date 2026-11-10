@@ -130,6 +130,90 @@ auto replace_children(db::connection& database, const Task& task, bool is_update
   }
 }
 
+/// The rung list is reconciled on every run rather than behind the content digest: levels.json is not part
+/// of the bank's digest (topics, tracks and tasks are), so gating it on that digest would let an edited band
+/// sit unapplied until something else changed. Each row is written only when it differs, so a run that
+/// changes nothing writes nothing new.
+///
+/// The icon column is the rung's own id: the list carries no icon, and a shape the database already accepts
+/// is better than a second invented vocabulary. The rows land one statement at a time inside the caller's
+/// transaction, which is what lets the deferred partition trigger see the whole list at commit.
+auto write_levels(db::connection& database, const Bank& bank) -> std::size_t {
+  struct StoredLevel {
+    std::int32_t position{0};
+    std::int32_t difficulty_min{0};
+    std::int32_t difficulty_max{0};
+    std::string icon;
+  };
+  auto existing = std::map<std::string, StoredLevel>{};
+  for (const auto& row : database(sqlpp::select(db::levels.id, db::levels.position,
+                                                db::levels.difficultyMin, db::levels.difficultyMax,
+                                                db::levels.icon)
+                                      .from(db::levels))) {
+    existing[std::string{row.id}] =
+        StoredLevel{.position = static_cast<std::int32_t>(row.position),
+                    .difficulty_min = static_cast<std::int32_t>(row.difficultyMin),
+                    .difficulty_max = static_cast<std::int32_t>(row.difficultyMax),
+                    .icon = std::string{row.icon}};
+  }
+  auto titles = std::map<std::pair<std::string, std::string>, std::string>{};
+  for (const auto& row : database(sqlpp::select(db::levelTitles.levelId, db::levelTitles.language,
+                                                db::levelTitles.title)
+                                      .from(db::levelTitles))) {
+    titles[{std::string{row.levelId}, std::string{row.language}}] = std::string{row.title};
+  }
+
+  auto written = std::size_t{0};
+  auto position = std::int32_t{0};
+  for (const auto& level : bank.levels) {
+    position += 1;
+    const auto stored = existing.find(level.id);
+    const auto unchanged = stored != existing.end() && stored->second.position == position &&
+                           stored->second.difficulty_min == level.difficulty_min &&
+                           stored->second.difficulty_max == level.difficulty_max &&
+                           stored->second.icon == level.id;
+    if (unchanged) {
+      // nothing to write for this rung
+    } else if (stored != existing.end()) {
+      database(sqlpp::update(db::levels)
+                   .set(db::levels.position = position,
+                        db::levels.difficultyMin = level.difficulty_min,
+                        db::levels.difficultyMax = level.difficulty_max,
+                        db::levels.icon = level.id)
+                   .where(db::levels.id == level.id));
+    } else {
+      database(sqlpp::insert_into(db::levels).set(
+          db::levels.id = level.id, db::levels.position = position,
+          db::levels.difficultyMin = level.difficulty_min,
+          db::levels.difficultyMax = level.difficulty_max, db::levels.icon = level.id));
+    }
+    for (const auto& [language, title] :
+         {std::pair<std::string_view, std::string_view>{"en", level.title_en},
+          {"th", level.title_th}}) {
+      if (title.empty()) {
+        continue;
+      }
+      const auto key = std::pair<std::string, std::string>{level.id, std::string{language}};
+      const auto stored_title = titles.find(key);
+      if (stored_title != titles.end() && stored_title->second == title) {
+        continue;
+      }
+      if (stored_title != titles.end()) {
+        database(sqlpp::update(db::levelTitles)
+                     .set(db::levelTitles.title = std::string{title})
+                     .where(db::levelTitles.levelId == level.id &&
+                            db::levelTitles.language == std::string{language}));
+      } else {
+        database(sqlpp::insert_into(db::levelTitles).set(
+            db::levelTitles.levelId = level.id, db::levelTitles.language = std::string{language},
+            db::levelTitles.title = std::string{title}));
+      }
+    }
+    ++written;
+  }
+  return written;
+}
+
 auto write_state(db::connection& database, const SeedState& state, const Bank& bank) {
   const auto version = state.version + 1;
   if (state.is_present) {
@@ -186,6 +270,7 @@ auto seed(db::connection& database, const Bank& bank) -> Result<SeedReport> {
   // the previous version is still what the database reports.
   auto report = SeedReport{};
   try {
+    write_levels(database, bank);
     const auto state = read_state(database);
     if (state.is_present && state.content_hash == bank.content_hash) {
       report.version = state.version;

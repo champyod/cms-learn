@@ -59,7 +59,7 @@ auto settings_model(const Locale& locale, std::string_view site_name,
                           ? requested
                           : (groups.empty() ? std::string{} : groups.front());
 
-  auto data = shell_model(locale, site_name);
+  auto data = shell_model(locale, site_name, LevelView{});
   data["title"] = pick(locale, ENGLISH_SETTINGS.title, THAI_SETTINGS.title);
   data["lede"] = pick(locale, ENGLISH_SETTINGS.lede, THAI_SETTINGS.lede);
   data["submit_label"] = pick(locale, ENGLISH_SETTINGS.submit_label, THAI_SETTINGS.submit_label);

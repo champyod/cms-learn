@@ -46,6 +46,15 @@ auto register_task_list_route(const std::shared_ptr<SettingsStore>& store,
                               const std::shared_ptr<const db::connection_config>& database_config,
                               std::string_view template_root) -> void;
 
+/// @brief Registers `POST /level`, the one write a learner makes to their own account.
+///
+/// @param database_config The pool the session, the vocabulary and the write are read and made through.
+///
+/// The rung id travels in the body and is checked against the vocabulary before the update, so a value the
+/// list does not define is refused with its name rather than by a foreign key. An administrator is refused:
+/// the column is a learner's working level, and no other surface offers it.
+auto register_level_route(const std::shared_ptr<const db::connection_config>& database_config) -> void;
+
 /// @brief Registers `GET /settings`, the admin settings page.
 ///
 /// @param store The settings the page shell and the rendered values are read from.

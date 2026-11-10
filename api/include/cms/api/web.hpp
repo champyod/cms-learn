@@ -38,13 +38,41 @@ struct Locale {
 [[nodiscard]] std::string label(const Locale& locale, std::string_view english,
                                 std::string_view thai);
 
+/// @brief One rung of the level vocabulary: a named band over the one difficulty scale.
+///
+/// The meter in the shell and the filter on the all-tasks page read this one type, so a rung cannot be
+/// named one way in the navigation and another in the list.
+struct LevelRung {
+  std::string id;
+  std::string title_en;
+  /// Empty until the content carries a Thai title; the model falls back to English.
+  std::string title_th;
+  std::int32_t difficulty_min{0};
+  std::int32_t difficulty_max{0};
+};
+
+/// @brief The level vocabulary a page shows, and the rung this request's learner has chosen.
+struct LevelView {
+  std::vector<LevelRung> rungs;
+  /// Empty when the request carries no learner, or the learner has chosen no rung.
+  std::string current_id;
+  /// True when the request carries a learner account: the meter is that learner's own control, and an
+  /// administrator or a signed-out visitor has none.
+  bool is_learner{false};
+};
+
 /// @brief The fields every page's shell reads: locale, the language switch, the site name, navigation and
 /// footer.
 ///
 /// @param locale The locale the page is rendered in.
 /// @param site_name The installation's own name.
+/// @param levels The rungs the shell's meter offers, and the learner's own rung.
 /// @return The shared part of a page model, built once so a second page cannot present a different shell.
-[[nodiscard]] nlohmann::json shell_model(const Locale& locale, std::string_view site_name);
+///
+/// The meter is the shell's, not a page's: it sits immediately before the language switch on every page
+/// that carries a learner, so no page can offer a different control.
+[[nodiscard]] nlohmann::json shell_model(const Locale& locale, std::string_view site_name,
+                                         const LevelView& levels);
 
 /// @brief Builds the model `home.html` renders from.
 ///
@@ -54,7 +82,7 @@ struct Locale {
 /// @return The model, with every word the locale cannot supply replaced by the other locale's.
 [[nodiscard]] nlohmann::json home_model(const Locale& locale,
                                         const std::vector<bank::Track>& tracks,
-                                        std::string_view site_name);
+                                        std::string_view site_name, const LevelView& levels);
 
 /// @brief One task as its page reads it: metadata, both statement locales and the first example.
 ///
@@ -84,7 +112,7 @@ struct TaskPage {
 /// `starter_source` is always empty: the content model defines no starter file, and the field must never
 /// fall back to the reference solution.
 [[nodiscard]] nlohmann::json task_model(const Locale& locale, const TaskPage& task,
-                                        std::string_view site_name);
+                                        std::string_view site_name, const LevelView& levels);
 
 /// @brief One row of the all-tasks page: what a learner chooses a task by, and nothing more.
 struct TaskListItem {
@@ -121,7 +149,7 @@ struct TaskListPage {
 /// @return The model, with the same locale fallback the other pages use.
 [[nodiscard]] nlohmann::json task_list_model(const Locale& locale, const TaskListPage& page,
                                              const std::vector<bank::Topic>& vocabulary,
-                                             std::string_view site_name);
+                                             std::string_view site_name, const LevelView& levels);
 
 /// @brief Renders one template of @p template_root against @p model.
 ///

@@ -791,6 +791,10 @@ GRANT INSERT, SELECT, UPDATE ON TABLE learner_accounts TO cmslearn_app;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE learner_tokens TO cmslearn_app;
 
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE level_titles TO cmslearn_app;
+
+GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE levels TO cmslearn_app;
+
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE progress TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT ON TABLE role_capabilities TO cmslearn_app;

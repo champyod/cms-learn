@@ -48,6 +48,19 @@ struct Task {
   std::string content_hash;
 };
 
+/// @brief One rung of the level list: a named band over the one difficulty scale.
+///
+/// A rung is a function of the difficulty (ADR 0013 §3), so it is never stored on a task: this is the
+/// vocabulary the meter and the page filter both read, and the account stores which rung its learner chose.
+struct Level {
+  std::string id;
+  std::string title_en;
+  /// Empty until the content carries a Thai title; the model falls back to English, as every page does.
+  std::string title_th;
+  std::int32_t difficulty_min{0};
+  std::int32_t difficulty_max{0};
+};
+
 /// @brief One stage of a route: a difficulty band and the tags a task must carry to belong to it.
 struct Stage {
   std::string id;
@@ -80,6 +93,9 @@ struct Bank {
   std::vector<Topic> topics;
   std::vector<Task> tasks;
   std::vector<Track> tracks;
+  /// The rung list, ordered by its lowest difficulty. The four rungs partition the scale, which the
+  /// content gate asserts on the file and the database asserts again on the rows.
+  std::vector<Level> levels;
   /// One digest over the vocabulary, every task and every track, so an unchanged bank compares equal.
   std::string content_hash;
 };

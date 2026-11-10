@@ -158,7 +158,8 @@ auto label(const Locale& locale, std::string_view english, std::string_view thai
 
 /// The shell fields every page fills the same way: locale, the language switch, the site name, navigation
 /// and footer. One function so a second page cannot present a different shell than the first.
-auto shell_model(const Locale& locale, std::string_view site_name) -> nlohmann::json {
+auto shell_model(const Locale& locale, std::string_view site_name, const LevelView& levels)
+    -> nlohmann::json {
   const auto& words = words_for(locale);
   const auto other_words = words_for(Locale{.code = locale.other, .other = locale.code});
 
@@ -171,16 +172,40 @@ auto shell_model(const Locale& locale, std::string_view site_name) -> nlohmann::
   data["nav"] = {{"curriculum", std::string{words.curriculum}},
                  {"tasks", std::string{words.tasks}},
                  {"settings", std::string{words.settings}},
+                 {"level", std::string{words.level}},
                  {"sign_in", std::string{words.sign_in}}};
   data["footer"] = {{"notice", std::string{words.notice}}};
+
+  // The meter is the shell's: the four rungs, the one this learner has chosen, and whether the request
+  // carries a learner at all. A page cannot offer a different control because every page reads this.
+  data["levels"] = nlohmann::json::array();
+  data["level_name"] = std::string{};
+  for (const auto& rung : levels.rungs) {
+    const auto title = label(locale, rung.title_en, rung.title_th);
+    const auto is_current = !levels.current_id.empty() && rung.id == levels.current_id;
+    if (is_current) {
+      data["level_name"] = title;
+    }
+    data["levels"].push_back(
+        {{"id", rung.id},
+         {"title", title},
+         {"band", std::to_string(rung.difficulty_min) + "\u2013" +
+                      std::to_string(rung.difficulty_max)},
+         {"value", std::to_string(rung.difficulty_min) + "-" +
+                       std::to_string(rung.difficulty_max)},
+         {"is_current", is_current}});
+  }
+  data["has_level_meter"] = levels.is_learner && !levels.rungs.empty();
+  data["has_level_name"] = !levels.current_id.empty();
+  data["any_level_label"] = std::string{words.any_level};
   return data;
 }
 
 
 auto home_model(const Locale& locale, const std::vector<bank::Track>& tracks,
-                std::string_view site_name) -> nlohmann::json {
+                std::string_view site_name, const LevelView& levels) -> nlohmann::json {
   const auto& words = words_for(locale);
-  auto data = shell_model(locale, site_name);
+  auto data = shell_model(locale, site_name, levels);
   data["heading"] = std::string{words.heading};
   data["lede"] = std::string{words.lede};
   data["band_label"] = std::string{words.band};
@@ -208,10 +233,10 @@ auto home_model(const Locale& locale, const std::vector<bank::Track>& tracks,
   return data;
 }
 
-auto task_model(const Locale& locale, const TaskPage& task, std::string_view site_name)
-    -> nlohmann::json {
+auto task_model(const Locale& locale, const TaskPage& task, std::string_view site_name,
+                const LevelView& levels) -> nlohmann::json {
   const auto& words = words_for(locale);
-  auto data = shell_model(locale, site_name);
+  auto data = shell_model(locale, site_name, levels);
   data["example_label"] = std::string{words.example_label};
   data["source_label"] = std::string{words.source_label};
   data["submit_label"] = std::string{words.submit_label};
@@ -230,10 +255,10 @@ auto task_model(const Locale& locale, const TaskPage& task, std::string_view sit
 }
 
 auto task_list_model(const Locale& locale, const TaskListPage& page,
-                     const std::vector<bank::Topic>& vocabulary, std::string_view site_name)
-    -> nlohmann::json {
+                     const std::vector<bank::Topic>& vocabulary, std::string_view site_name,
+                     const LevelView& levels) -> nlohmann::json {
   const auto& words = words_for(locale);
-  auto data = shell_model(locale, site_name);
+  auto data = shell_model(locale, site_name, levels);
   data["heading"] = std::string{words.list_heading};
   data["lede"] = std::string{words.list_lede};
   data["level_label"] = std::string{words.level};
@@ -245,6 +270,13 @@ auto task_list_model(const Locale& locale, const TaskListPage& page,
   data["empty_label"] = std::string{words.no_task};
   data["level_min"] = page.level_min;
   data["level_max"] = page.level_max;
+  // The filter and the meter share one vocabulary: the rungs come from the shell model, so a band the
+  // meter cannot show is a band the list cannot filter by.
+  for (auto& rung : data["levels"]) {
+    rung["is_chosen"] = page.level_min != 0 && page.level_max != 0 &&
+                        rung["value"] == (std::to_string(page.level_min) + "-" +
+                                          std::to_string(page.level_max));
+  }
   data["has_stage"] = !page.stage_track.empty();
   data["stage_track"] = page.stage_track;
   data["stage_id"] = page.stage_id;
@@ -265,6 +297,22 @@ auto task_list_model(const Locale& locale, const TaskListPage& page,
       chosen += topic_label;
     }
   }
+  // The rung the request filters by, named from the same list the meter draws: one vocabulary, two uses.
+  data["filter_level_name"] =
+      page.level_min == 0
+          ? std::string{words.any_level}
+          : [&] {
+              const auto value = std::to_string(page.level_min) + "-" + std::to_string(page.level_max);
+              for (const auto& rung : levels.rungs) {
+                if (std::to_string(rung.difficulty_min) + "-" +
+                        std::to_string(rung.difficulty_max) ==
+                    value) {
+                  return label(locale, rung.title_en, rung.title_th);
+                }
+              }
+              return std::string{words.any_level};
+            }();
+
   data["topics"] = std::move(listed);
   data["topics_line"] = chosen.empty() ? std::string{words.all_topics} : chosen;
   data["has_tasks"] = !page.tasks.empty();

@@ -113,6 +113,15 @@ export interface TopicChoice {
   label: string;
 }
 
+/// One rung as the page filter offers it: the same shape the shell's meter draws.
+export interface LevelChoice {
+  id: string;
+  title: string;
+  band: string;
+  value: string;
+  is_chosen: boolean;
+}
+
 /// The all-tasks page: two filters, the words they need, and the sentence an empty result shows.
 export interface TaskListFixture {
   site_name: string;
@@ -127,7 +136,9 @@ export interface TaskListFixture {
   empty_label: string;
   stage_note: string;
   topics_line: string;
+  filter_level_name: string;
   topics: TopicChoice[];
+  levels: LevelChoice[];
   tasks: TaskListRow[];
 }
 
@@ -144,6 +155,13 @@ export const taskListFixture: TaskListFixture = {
   empty_label: "ไม่มีแบบฝึกหัดที่ตรงกับตัวกรองนี้",
   stage_note: "ขั้น: ทองแดง",
   topics_line: "io, complexity",
+  filter_level_name: "ค่าย 1",
+  levels: [
+    { id: "toi-zero", title: "TOI-Zero", band: "800–1400", value: "800-1400", is_chosen: false },
+    { id: "camp-1", title: "Camp 1", band: "1500–1800", value: "1500-1800", is_chosen: true },
+    { id: "camp-2", title: "Camp 2", band: "1900–2400", value: "1900-2400", is_chosen: false },
+    { id: "toi-ioi", title: "TOI-IOI", band: "2500–3500", value: "2500-3500", is_chosen: false },
+  ],
   topics: [
     { id: "complexity", label: "ความซับซ้อน" },
     { id: "io", label: "การรับเข้าและส่งออก" },

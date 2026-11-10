@@ -1,35 +1,14 @@
 // The all-tasks page: one list, two filters, and the sentence a learner reads when the two empty it.
 //
-// The level control is generated from content/levels.json at port time — the file the content gate validates
-// and the control the learner clicks cannot disagree, and no band is repeated as a literal here.
-import { Fragment } from "react";
-import levels from "../../content/levels.json";
+// The rungs the filter offers are the rows the shell's meter draws (the server reads both from the same
+// level table), so this page holds no copy of a band: the words and the numbers arrive in the model.
 import { endWhen, otherwise, slot, when, type Mode } from "../slots.ts";
-import type { TaskListFixture, TaskListRow, TopicChoice } from "../fixtures.ts";
+import type { LevelChoice, TaskListFixture, TaskListRow, TopicChoice } from "../fixtures.ts";
 import { RepeatList } from "../repeat.tsx";
 import { Layout } from "./layout.tsx";
 
-interface Rung {
-  id: string;
-  title: string;
-  min: number;
-  max: number;
-  value: string;
-  band: string;
-}
-
-// A rung is a band over the one difficulty scale (ADR 0013 §3): the value a request carries is that band,
-// and the filter is the number, never a stored level.
-const rungs: Rung[] = levels.levels.map((rung) => ({
-  id: rung.id,
-  title: rung.title.en,
-  min: rung.min,
-  max: rung.max,
-  value: `${rung.min}-${rung.max}`,
-  band: `${rung.min}\u2013${rung.max}`,
-}));
-
 const placeholderTask: TaskListRow = { id: "t", title: "", difficulty: 0 };
+const placeholderRung: LevelChoice = { id: "r", title: "", band: "", value: "", is_chosen: false };
 const placeholderTopic: TopicChoice = { id: "t", label: "" };
 
 export function Tasks({ mode, data }: { mode: Mode; data: TaskListFixture }) {
@@ -61,18 +40,28 @@ function Body({ mode, data }: { mode: Mode; data: TaskListFixture }) {
 
         <fieldset className="grid gap-2">
           <legend className="text-sm font-semibold">{slot(mode, "level_label", data.level_label)}</legend>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <label className="flex items-center gap-1">
-              <input type="radio" name="level" value="" />
-              {slot(mode, "any_level_label", data.any_level_label)}
-            </label>
-            {rungs.map((rung) => (
-              <label className="flex items-center gap-1" key={rung.id}>
-                <input type="radio" name="level" value={rung.value} />
-                {rung.title} ({rung.band})
-              </label>
-            ))}
-          </div>
+          <RepeatList
+            mode={mode}
+            tag="ul"
+            className="flex flex-wrap gap-3 text-sm"
+            alias="rung"
+            collection="levels"
+            items={data.levels}
+            placeholder={placeholderRung}
+          >
+            {(rung) => (
+              <li>
+                <label className="flex items-center gap-1">
+                  <input type="radio" name="level" value={slot(mode, "rung.value", rung.value)} />
+                  {slot(mode, "rung.title", rung.title)} ({slot(mode, "rung.band", rung.band)})
+                </label>
+              </li>
+            )}
+          </RepeatList>
+          <label className="flex items-center gap-1">
+            <input type="radio" name="level" value="" />
+            {slot(mode, "any_level_label", data.any_level_label)}
+          </label>
         </fieldset>
 
         <fieldset className="grid gap-2">
@@ -104,8 +93,8 @@ function Body({ mode, data }: { mode: Mode; data: TaskListFixture }) {
 
       <p className="mt-6 text-sm opacity-70">
         {slot(mode, "current_label", data.current_label)}:{" "}
-        <LevelName mode={mode} anyLabel={data.any_level_label} sample={rungs[0].title} />{" "}
-        &middot; {slot(mode, "topics_line", data.topics_line)}
+        {slot(mode, "filter_level_name", data.filter_level_name)} &middot;{" "}
+        {slot(mode, "topics_line", data.topics_line)}
       </p>
 
       {when(mode, "has_tasks")}
@@ -135,32 +124,6 @@ function Body({ mode, data }: { mode: Mode; data: TaskListFixture }) {
       {otherwise(mode)}
       <p className="mt-6 opacity-70">{slot(mode, "empty_label", data.empty_label)}</p>
       {endWhen(mode)}
-    </>
-  );
-}
-
-// Names the rung the request is filtered by. The chain is emitted from the rung list, so the page cannot
-// name a rung the console does not define; both bounds are zero on an unfiltered page and the innermost
-// branch is the "any level" one. Inja has no `elif`, so each later rung is a nested conditional, and the
-// closers are counted from the same list.
-function LevelName({ mode, anyLabel, sample }: { mode: Mode; anyLabel: string; sample: string }) {
-  if (mode === "design") {
-    return <>{sample}</>;
-  }
-  return (
-    <>
-      {rungs.map((rung, index) => (
-        <Fragment key={rung.id}>
-          {index === 0 ? null : otherwise(mode)}
-          {when(mode, `level_min == ${rung.min} and level_max == ${rung.max}`)}
-          {rung.title}
-        </Fragment>
-      ))}
-      {otherwise(mode)}
-      {slot(mode, "any_level_label", anyLabel)}
-      {rungs.map((rung) => (
-        <Fragment key={rung.id}>{endWhen(mode)}</Fragment>
-      ))}
     </>
   );
 }

@@ -78,7 +78,7 @@ auto signin_notice(const Locale& locale, SigninNotice notice) -> std::string {
 
 auto signin_model(const Locale& locale, std::string_view site_name, std::string_view message)
     -> nlohmann::json {
-  auto data = shell_model(locale, site_name);
+  auto data = shell_model(locale, site_name, LevelView{});
   data["title"] = label(locale, ENGLISH_SIGNIN.title, THAI_SIGNIN.title);
   data["lede"] = label(locale, ENGLISH_SIGNIN.lede, THAI_SIGNIN.lede);
   data["email_label"] = label(locale, ENGLISH_SIGNIN.email_label, THAI_SIGNIN.email_label);
@@ -94,7 +94,7 @@ auto signin_model(const Locale& locale, std::string_view site_name, std::string_
 
 auto signup_model(const Locale& locale, std::string_view site_name, std::string_view message)
     -> nlohmann::json {
-  auto data = shell_model(locale, site_name);
+  auto data = shell_model(locale, site_name, LevelView{});
   data["title"] = label(locale, ENGLISH_SIGNUP.title, THAI_SIGNUP.title);
   data["lede"] = label(locale, ENGLISH_SIGNUP.lede, THAI_SIGNUP.lede);
   data["email_label"] = label(locale, ENGLISH_SIGNUP.email_label, THAI_SIGNUP.email_label);

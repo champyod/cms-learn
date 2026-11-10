@@ -561,6 +561,18 @@
           "path": "privileges.TABLE.learner_tokens.cmslearn_app"
         },
         {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE level_titles TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.level_titles.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE levels TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.levels.cmslearn_app"
+        },
+        {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE progress TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",

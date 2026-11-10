@@ -166,7 +166,7 @@ auto read_admin_handle(db::connection& database, std::string_view admin_id) -> R
 
 auto panel_model(const Locale& locale, std::string_view site_name, const PanelHome& home)
     -> nlohmann::json {
-  auto data = shell_model(locale, site_name);
+  auto data = shell_model(locale, site_name, LevelView{});
   fill_words(locale, data);
   data["admin_handle"] = home.admin_handle;
   data["csrf_token"] = home.csrf_token;

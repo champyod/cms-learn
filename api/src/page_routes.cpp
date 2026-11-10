@@ -11,16 +11,21 @@
 #include <vector>
 
 #include <drogon/drogon.h>
+#include <sqlpp23/sqlpp23.h>
 
+#include <cms/api/auth.hpp>
 #include <cms/api/authorize.hpp>
+#include <cms/api/form_body.hpp>
 #include <cms/api/http.hpp>
 #include <cms/api/route_text.hpp>
 #include <cms/api/settings_page.hpp>
 #include <cms/api/settings_route.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/api/task_view.hpp>
+#include <cms/api/uuid.hpp>
 #include <cms/api/web.hpp>
 #include <cms/bank/bank.hpp>
+#include <cms/db/tables.hpp>
 #include <cms/bank/curriculum.hpp>
 #include <cms/capability.hpp>
 
@@ -94,6 +99,67 @@ auto find_stage(const std::vector<bank::Track>& tracks, std::string_view track_i
   return nullptr;
 }
 
+/// The rung list and the rung this request's learner has chosen.
+///
+/// One query pair for the vocabulary and one for the account: the meter in the shell and the filter on the
+/// all-tasks page both read this, which is what keeps them one vocabulary rather than two copies.
+auto level_view(db::connection& database, std::string_view session_id) -> Result<LevelView> {
+  auto view = LevelView{};
+  // A cookie that is not a uuid cannot name a session, and comparing it with the uuid column would raise
+  // instead of finding nothing: the same refusal the submission write makes, for the same reason.
+  const auto has_session = has_uuid_shape(session_id);
+  try {
+    for (const auto& row : database(sqlpp::select(db::levels.id, db::levels.difficultyMin,
+                                                  db::levels.difficultyMax)
+                                        .from(db::levels)
+                                        .order_by(db::levels.position.asc()))) {
+      view.rungs.push_back(LevelRung{.id = std::string{row.id},
+                                     .title_en = {},
+                                     .title_th = {},
+                                     .difficulty_min = static_cast<std::int32_t>(row.difficultyMin),
+                                     .difficulty_max = static_cast<std::int32_t>(row.difficultyMax)});
+    }
+    for (const auto& row : database(sqlpp::select(db::levelTitles.levelId, db::levelTitles.language,
+                                                  db::levelTitles.title)
+                                        .from(db::levelTitles))) {
+      const auto language = std::string{row.language};
+      for (auto& rung : view.rungs) {
+        if (rung.id != std::string_view{row.levelId}) {
+          continue;
+        }
+        if (language == "en") {
+          rung.title_en = std::string{row.title};
+        } else if (language == "th") {
+          rung.title_th = std::string{row.title};
+        }
+      }
+    }
+
+    if (!has_session) {
+      return view;
+    }
+    const auto account = account_of_session(database, session_id);
+    if (!account) {
+      return std::unexpected(account.error());
+    }
+    if (account->empty() || account->kind != "learner") {
+      return view;
+    }
+    view.is_learner = true;
+    for (const auto& row :
+         database(sqlpp::select(db::learnerAccounts.levelId)
+                      .from(db::learnerAccounts)
+                      .where(db::learnerAccounts.id == account->id))) {
+      if (row.levelId.has_value()) {
+        view.current_id = std::string{*row.levelId};
+      }
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  return view;
+}
+
 }  // namespace
 
 auto register_home_route(const std::shared_ptr<SettingsStore>& store,
@@ -112,10 +178,17 @@ auto register_home_route(const std::shared_ptr<SettingsStore>& store,
           return;
         }
 
+        const auto levels = level_view(database, request->getCookie("cms_session"));
+        if (!levels) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
         const auto locale = choose_locale(request->getParameter("lang"),
                                           request->getHeader("accept-language"));
-        const auto page = render_page(template_root, "home.html",
-                                      home_model(locale, *curriculum, site_name_of(*store)));
+        const auto page = render_page(
+            template_root, "home.html",
+            home_model(locale, *curriculum, site_name_of(*store), *levels));
         if (!page) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
@@ -165,10 +238,17 @@ auto register_task_route(const std::shared_ptr<SettingsStore>& store,
           return;
         }
 
+        const auto levels = level_view(database, request->getCookie("cms_session"));
+        if (!levels) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
         const auto locale = choose_locale(request->getParameter("lang"),
                                           request->getHeader("accept-language"));
-        const auto page = render_page(template_root, "task.html",
-                                      task_model(locale, **task, site_name_of(*store)));
+        const auto page = render_page(
+            template_root, "task.html",
+            task_model(locale, **task, site_name_of(*store), *levels));
         if (!page) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
@@ -340,11 +420,17 @@ auto register_task_list_route(const std::shared_ptr<SettingsStore>& store,
         }
         page.tasks = *listed;
 
+        const auto levels = level_view(database, request->getCookie("cms_session"));
+        if (!levels) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
         const auto locale = choose_locale(request->getParameter("lang"),
                                           request->getHeader("accept-language"));
         const auto rendered = render_page(
             template_root, "tasks.html",
-            task_list_model(locale, page, *vocabulary, site_name_of(*store)));
+            task_list_model(locale, page, *vocabulary, site_name_of(*store), *levels));
         if (!rendered) {
           callback(text_response(std::string{INTERNAL_ERROR_BODY},
                                  drogon::k500InternalServerError));
@@ -353,6 +439,61 @@ auto register_task_list_route(const std::shared_ptr<SettingsStore>& store,
         callback(html_response(*rendered));
       },
       {drogon::Get});
+}
+
+auto register_level_route(const std::shared_ptr<const db::connection_config>& database_config)
+    -> void {
+  drogon::app().registerHandler(
+      "/level",
+      [database_config](const drogon::HttpRequestPtr& request,
+                        std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        auto database = db::connection{database_config};
+        const auto session_id = request->getCookie("cms_session");
+        if (!has_uuid_shape(session_id)) {
+          callback(redirect(SIGN_IN_PATH));
+          return;
+        }
+        const auto account = account_of_session(database, session_id);
+        if (!account) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
+        if (account->empty()) {
+          callback(redirect(SIGN_IN_PATH));
+          return;
+        }
+        // Only a learner works at a rung; an administrator has no learning path, and quietly writing an
+        // account field nobody reads would hide that the form was shown to the wrong surface.
+        if (account->kind != "learner") {
+          callback(text_response("only a learner account carries a rung\n", drogon::k403Forbidden));
+          return;
+        }
+        const auto wanted = form_field(request->body(), "level");
+        if (wanted.empty()) {
+          callback(text_response("a rung is required\n", drogon::k400BadRequest));
+          return;
+        }
+        const auto levels = level_view(database, request->getCookie("cms_session"));
+        if (!levels) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
+        const auto known = std::any_of(
+            levels->rungs.begin(), levels->rungs.end(),
+            [&wanted](const LevelRung& rung) { return rung.id == wanted; });
+        if (!known) {
+          callback(text_response("no level called " + wanted + "\n", drogon::k400BadRequest));
+          return;
+        }
+        database(sqlpp::update(db::learnerAccounts)
+                     .set(db::learnerAccounts.levelId = wanted)
+                     .where(db::learnerAccounts.id == account->id));
+        // The list is where the choice shows: it is the page the filter and the meter share.
+        callback(redirect("/tasks"));
+      },
+      {drogon::Post});
 }
 
 }  // namespace cms::api
