@@ -13,7 +13,9 @@
 #   5. every image is pinned to a version or digest, never `latest`
 #   6. no service runs with privilege escalation enabled (the judge is the documented exception)
 #   7. the Caddyfile the proxy would run is accepted by the proxy binary that will run it
-#   8. the Prometheus config is valid for the Prometheus version pinned in compose
+#   8. /admin is routed to the panel listener the host file names, and nothing else is
+#   9. the api image carries what it renders: the only thing mounted into it is its host file
+#  10. the Prometheus config is valid for the Prometheus version pinned in compose
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -123,6 +125,17 @@ if "seccomp:unconfined" in json.dumps(services.get("judge", {})):
 else:
     errors.append("judge does not document its seccomp exception")
 
+# 7: the api carries what it renders. The one bind mount it may have is the operator's own configuration; a
+# template, a stylesheet or the settings catalogue inside the container must come from the image, or the thing
+# serving the page is a checkout on the host rather than the artifact that was reviewed.
+HOST_FILE_TARGET = "/run/cms-learn/host.env"
+for volume in services.get("api", {}).get("volumes", []):
+    if volume.get("type") == "bind" and volume.get("target") != HOST_FILE_TARGET:
+        errors.append(
+            f"api mounts {volume.get('source')} at {volume.get('target')}; "
+            "the image must carry what it renders"
+        )
+
 if errors:
     print("deploy gate FAILED:", file=sys.stderr)
     for e in errors:
@@ -139,6 +152,82 @@ docker run --rm --entrypoint caddy \
   -v "$deploy/Caddyfile:/etc/caddy/Caddyfile:ro" "$proxy_image" \
   validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>"$work/caddy.err" \
   || { cat "$work/caddy.err" >&2; fail "Caddyfile is not valid"; }
+
+note "the panel route is asserted, not merely valid"
+docker run --rm --entrypoint caddy \
+  -e DOMAIN=learn.example.com -e ACME_EMAIL=ops@example.com -e CROWDSEC_API_KEY=gate-only-key \
+  -v "$deploy/Caddyfile:/etc/caddy/Caddyfile:ro" "$proxy_image" \
+  adapt --config /etc/caddy/Caddyfile --adapter caddyfile >"$work/caddy.json" \
+  || fail "Caddyfile could not be adapted"
+
+python3 - "$work/caddy.json" "$deploy/host.env.example" "$work/config.json" <<'PANEL' || exit 1
+import json, re, sys
+
+adapted = json.load(open(sys.argv[1]))
+example_path, config_path = sys.argv[2], sys.argv[3]
+
+# The proxy and the panel listener are two files that must name one number, and the host file is where the
+# listener's number is written, so the route is checked against it rather than against a literal here.
+panel_port = None
+for line in open(example_path):
+    match = re.match(r"^CMSLEARN_PANEL_LISTEN_PORT=([0-9]+)$", line.strip())
+    if match:
+        panel_port = int(match.group(1))
+if panel_port is None:
+    print("deploy gate FAILED: deploy/host.env.example names no CMSLEARN_PANEL_LISTEN_PORT", file=sys.stderr)
+    sys.exit(1)
+
+handlers = []
+
+
+def walk(node, paths):
+    if isinstance(node, dict):
+        matched = paths
+        for matcher in node.get("match") or []:
+            if isinstance(matcher, dict) and isinstance(matcher.get("path"), list):
+                matched = matched + list(matcher["path"])
+        if node.get("handler") == "reverse_proxy":
+            handlers.append((matched, [up.get("dial") for up in node.get("upstreams") or []]))
+        for value in node.values():
+            walk(value, matched)
+    elif isinstance(node, list):
+        for item in node:
+            walk(item, paths)
+
+
+walk(adapted, [])
+
+panel = [dial for paths, dials in handlers if "/admin" in paths or "/admin/*" in paths for dial in dials]
+public = [dial for paths, dials in handlers if not paths for dial in dials]
+
+errors = []
+if not panel:
+    errors.append("/admin is not routed to the panel listener: deploy/Caddyfile has no /admin handler")
+elif panel != [f"api:{panel_port}"]:
+    errors.append(
+        "/admin is not routed to the panel listener: it reaches "
+        + ", ".join(panel)
+        + f", while deploy/host.env.example names CMSLEARN_PANEL_LISTEN_PORT={panel_port}"
+    )
+if not public:
+    errors.append("no catch-all route serves the site")
+elif f"api:{panel_port}" in public:
+    errors.append(f"the catch-all and /admin share api:{panel_port}; the panel needs a listener of its own")
+
+exposed = {
+    int(port.split("/")[0])
+    for port in json.load(open(config_path))["services"]["api"].get("expose", [])
+}
+if panel_port not in exposed:
+    errors.append(f"api does not expose {panel_port}, the panel port the host file names")
+
+if errors:
+    print("deploy gate FAILED:", file=sys.stderr)
+    for error in errors:
+        print(f"  - {error}", file=sys.stderr)
+    sys.exit(1)
+print(f"  /admin reaches the panel listener on api:{panel_port}; the catch-all keeps the site on api:8080")
+PANEL
 
 note "prometheus config parses for the pinned version"
 prom_image="$(python3 -c "import json;print(json.load(open('$work/config.json'))['services']['prometheus']['image'])")"

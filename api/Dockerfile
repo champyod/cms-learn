@@ -1,4 +1,5 @@
-# The api image. Two stages: one that resolves and builds, one that runs and holds nothing else.
+# The api image. Two stages: one that resolves and builds, one that runs and holds only what the service
+# reads — the binary and the three trees it renders from.
 #
 # The build stage pins the vcpkg checkout to the baseline the manifest names, so an image built next
 # year resolves the same ports this commit resolved rather than whatever master happens to hold.
@@ -30,6 +31,13 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build /src/build/release/api/cms_api /usr/local/bin/cms_api
+
+# The service renders from files, so they travel with it. The template root and the static root are named by
+# the operator's host file; the settings catalogue path is compiled into the binary (the catalogued keys this
+# build honours). The paths below are the ones those two sources name, so the image is the tree they expect.
+COPY --from=build /src/api/templates /src/api/templates
+COPY --from=build /src/web/public /src/web/public
+COPY --from=build /src/deploy/catalogue /src/deploy/catalogue
 
 # The service reads its facts from a file the operator mounts; it never needs to write.
 USER 10001:10001

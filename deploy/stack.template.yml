@@ -62,13 +62,10 @@ services:
       # Everything else the service decides at runtime comes from settings rows: registration,
       # approval, the domain allowlist, session lifetimes and the log level are all operator-editable
       # from the CLI and the panel, and none of them is a reason to recreate this container.
-    # The image carries the binary only, and the binary resolves its templates, its static files and its
-    # settings catalogue as paths in the tree it was compiled in (/src). These mounts are that tree.
+    # The image carries the three trees the service renders from, so the only thing mounted here is the
+    # operator's own configuration: the file naming every fact this service takes.
     volumes:
       - ./host.env:/run/cms-learn/host.env:ro
-      - ../api/templates:/src/api/templates:ro
-      - ../web/public:/src/web/public:ro
-      - ./catalogue:/src/deploy/catalogue:ro
     networks: [edge, internal]
     depends_on:
       database: { condition: service_healthy }

@@ -20,7 +20,7 @@ Constraints inherited from the hub, not negotiable here:
 
 | Resource | Recommendation | Why |
 |---|---|---|
-| vCPU | 4 | API + web are idle-mostly; the judge is the sink. One submission ≈ one core for ~1 s |
+| vCPU | 4 | The api and the proxy are idle-mostly; the judge is the sink. One submission ≈ one core for ~1 s |
 | RAM | 8 GB | Postgres 1–2 GB, judge worker 2 GB, WAF/proxy/monitoring ~1.5 GB, headroom for build spikes |
 | Disk | 80 GB NVMe | images ~6 GB, Postgres small, submissions + logs are the growth |
 | Swap | none on the judge path | a swapping judge reports wrong time limits; better to queue |
@@ -37,8 +37,7 @@ Only the proxy is publicly bound. Everything else listens on the internal compos
 | Service | Image (pinned) | Public | Volume | Limits | Role |
 |---|---|---|---|---|---|
 | `proxy` | `caddy:2.11.7` (uid 10001, ports 8080/8443 inside; host maps 80/443) | 80/443 | `caddy-data`, `caddy-config` | 0.3 cpu / 256 MB | TLS (ACME), HTTP→HTTPS, HSTS, rate limits, path routing, static caching |
-| `web` | `ghcr.io/champyod/cms-learn-web:<sha>` | no | — | 0.5 cpu / 512 MB | Drogon + Inja + htmx (C++26) |
-| `api` | `ghcr.io/champyod/cms-learn-api:<sha>` | no | — | 1 cpu / 512 MB | Drogon (C++26) + shared domain core: auth, sessions, progression, serving |
+| `api` | `ghcr.io/champyod/cms-learn-api:<sha>` | no | host file (bind, read-only) | 1 cpu / 512 MB | Drogon (C++26) + shared domain core: auth, sessions, progression, serving, and the administrator panel on its own listener |
 | `judge` | `ghcr.io/champyod/cms-learn-judge:<sha>` | no | `judge-work`, `judge-data` | 2 cpu / 2 GB, `cgroup: host`, cgroups rw | C++ core + `isolate`; no network |
 | `database` | `postgres:18.6` | no | `pgdata` | 1 cpu / 2 GB | Postgres, not published |
 | `objects` | `seaweedfs:4.51` (`weed server -s3`) | no | `objectdata` | 0.5 cpu / 512 MB | S3-compatible store: task statements, source, test archives |
@@ -51,6 +50,33 @@ Only the proxy is publicly bound. Everything else listens on the internal compos
 Deliberately absent: no Portainer, no Vault (nothing here needs dynamic secrets at this size), no
 Redis unless sessions move there, no Kafka/queue broker (`Postgres` + `FOR UPDATE SKIP LOCKED` is
 the queue until measurements say otherwise).
+
+Two surfaces live in the one `api` process, and only the proxy can reach either: the public site on
+8080 and the administrator panel on 8081 (`/admin`). The panel is mounted only when the host file names
+a panel listener, and it answers only that port — a request for `/admin` on 8080 is a 404, not a
+redirect, so the separation is a property of the process rather than of a header the edge sets.
+
+The api image carries the templates, the static assets and the settings catalogue it renders, and the
+only thing mounted into the container is the operator's host file. `tools/check-deploy.sh` asserts
+both facts: nothing but that file is mounted, and `/admin` reaches the panel port the host file names.
+
+### First run: the bootstrap identity
+
+`make upgrade` applies the schema, and the api then refuses to start until the database holds the
+bootstrap system identity — it is the account the control socket acts as, so a database without it has
+no administrator at all. Until the service performs its own first-run bootstrap (the open item in
+`deploy/README.md`), that row is inserted once, by hand, after the migration and before the first start:
+
+```bash
+cd deploy
+docker compose exec database psql -U postgres -d cmslearn \
+  -c "INSERT INTO system_accounts (handle) VALUES ('system:bootstrap')"
+```
+
+The command is idempotent only in the sense that a second run fails on the primary key: it is a
+once-per-database step, not a repeatable one. The first administrator account itself is created by the
+service's own bootstrap; that path does not exist yet, which is why it is named here rather than
+described.
 
 ## Security controls, and what each one actually stops
 
@@ -65,7 +91,7 @@ the queue until measurements say otherwise).
 | App | Domain allowlist (fail-closed) + approval gate | strangers and non-school accounts | — |
 | App | Per-account submission rate + queue depth cap | a student DoSing the judge | — |
 | Judge | `isolate` namespaces/cgroups/seccomp, no network namespace, rlimits, wall-clock kill | fork bombs, egress, filesystem access, CPU burn | kernel-level escape (shared kernel) |
-| Data | Postgres not published, scram auth, per-service role, `REVOKE` on audit tables | lateral access from web/api compromise | — |
+| Data | Postgres not published, scram auth, per-service role, `REVOKE` on audit tables | lateral access from an api compromise | — |
 | Supply | images pinned by digest, Trivy scan gate, `bun audit`, `cargo audit`, SBOM per release | known-vulnerable dependencies | 0-day |
 | Audit | append-only `audit_log` rows for auth, approval, content publish | silent privilege use | — |
 
@@ -87,7 +113,7 @@ to the checker.
 ## Deploy path
 
 ```
-push to master → CI (gates green) → build web/api/judge images → push to GHCR by digest
+push to master → CI (gates green) → build api/judge images → push to GHCR by digest
 tag vX.Y.Z → deploy job (SSH, operator key) → docker compose pull + up -d → health check → notify
 ```
 

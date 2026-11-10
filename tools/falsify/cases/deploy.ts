@@ -51,5 +51,27 @@ export const DEPLOY_GATE: Gate = {
       plant: [{ kind: "patch", path: "deploy/docker-compose.yml", find: "      - \"80:8080\"", replace: "      - \"8080:8080\"" }],
       expect: red("unexpected port"),
     },
+    {
+      name: "panel-route-removed",
+      plant: [{ kind: "patch", path: "deploy/Caddyfile", find: "\thandle @panel {\n\t\treverse_proxy api:8081\n\t}\n", replace: "" }],
+      expect: red("/admin is not routed to the panel listener"),
+    },
+    {
+      name: "panel-route-to-the-public-listener",
+      plant: [{ kind: "patch", path: "deploy/Caddyfile", find: "\t\treverse_proxy api:8081", replace: "\t\treverse_proxy api:8080" }],
+      expect: red("/admin is not routed to the panel listener"),
+    },
+    {
+      name: "api-mounts-the-checkout",
+      plant: [
+        {
+          kind: "patch",
+          path: "deploy/docker-compose.yml",
+          find: "      - ./host.env:/run/cms-learn/host.env:ro",
+          replace: "      - ./host.env:/run/cms-learn/host.env:ro\n      - ../api/templates:/src/api/templates:ro",
+        },
+      ],
+      expect: red("the image must carry what it renders"),
+    },
   ],
 };

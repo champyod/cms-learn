@@ -94,14 +94,22 @@ chmod 600 deploy/.env deploy/host.env
 # 2. the backup key lives on YOUR machine, never here
 age-keygen -o cms-learn-backup.key     # prints the age1… public key → AGE_PUBLIC_KEY
 
-# 3. first start (proxy will retry TLS until the record propagates)
-cd deploy && docker compose up -d database crowdsec
+# 3. from deploy/: the schema, then the one row a fresh database owes the service
+cd deploy
+docker compose --profile migrate run --rm schema
+docker compose up -d database
+docker compose exec database psql -U postgres -d cmslearn \
+  -c "INSERT INTO system_accounts (handle) VALUES ('system:bootstrap')"
+
+# 4. first start (proxy will retry TLS until the record propagates)
+docker compose up -d database crowdsec
 docker compose exec crowdsec cscli appsec-rules install crowdsecurity/crs
 docker compose exec crowdsec cscli bouncers add caddy-proxy -o raw   # → CROWDSEC_API_KEY
 docker compose up -d
 
-# 4. verify
+# 5. verify
 curl -fsSI https://$DOMAIN | head -5          # HSTS + no Server header
+curl -fsSI https://$DOMAIN/admin | head -5   # the panel, behind the same edge
 docker compose exec crowdsec cscli decisions list
 docker compose exec crowdsec cscli metrics show appsec
 ```
@@ -149,10 +157,14 @@ on purpose, not one a compose file should take silently.
 those two. That is the honest state: the deployment contract, the edge, the WAF, the database, the
 monitoring and the backup path are all validated; the images arrive from CI.
 
-The `api` image carries the binary only, so `stack.template.yml` mounts the three trees the binary
-resolves at startup — templates, static files and the settings catalogue — read-only from the checkout.
-Once the image carries them, those mounts go away.
+The `api` image carries the three trees it renders — templates, static files and the settings
+catalogue — at the paths the binary resolves, so the only thing `stack.template.yml` mounts into it is
+the operator's host file. `tools/check-deploy.sh` asserts that: a bind mount of anything else into
+the api fails the gate.
 
 Nothing in this tree creates the `system:bootstrap` account, and the api's control socket refuses to
 start without it (`api/src/admin_socket.cpp`), so a fresh database needs that row before the api's
-first start. That bootstrap path is the open item, not a deployment step the operator can perform.
+first start. Step 3 above does it by hand, and the service performing its own first-run bootstrap —
+`cms::api::bootstrap` exists and is tested but has no caller — is the open item. Until that lands, a
+fresh install reaches a running api and a reachable panel, but no first administrator: the panel's
+sign-in has no account to offer.
