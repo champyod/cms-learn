@@ -50,9 +50,11 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
 # A learner, a live session and a published task the learner may see: the facts the route needs. The second
 # task is published but has no visibility row, so it must be unreachable for submission.
 everyone="$("$principal_value" everyone)"
-psql_db <<SQL >/dev/null 2>&1
-INSERT INTO principals (id, kind, handle, status) VALUES ('$account', 'user', 'submitter', 'active');
-INSERT INTO sessions (id, principal_id, expires_at) VALUES ('$session', '$account', now() + interval '1 hour');
+psql_db <<SQL >/dev/null || { echo "  [!!] fixture insert failed"; exit 1; }
+INSERT INTO system_accounts (handle) VALUES ('system:bootstrap');
+INSERT INTO learner_accounts (id, handle, status) VALUES ('$account', 'submitter', 'active');
+INSERT INTO sessions (id, account_kind, learner_id, expires_at)
+VALUES ('$session', 'learner', '$account', now() + interval '1 hour');
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
 VALUES ('probe-task', 1, 'published', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original',

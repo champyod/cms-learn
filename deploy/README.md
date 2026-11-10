@@ -82,9 +82,14 @@ name each one.
 
 # 1. configure
 cp deploy/.env.example deploy/.env
-chmod 600 deploy/.env
-# fill: DOMAIN, ACME_EMAIL, POSTGRES_PASSWORD (openssl rand -base64 32),
-#       GRAFANA_PASSWORD, AGE_PUBLIC_KEY, CROWDSEC_API_KEY (see step 3)
+cp deploy/host.env.example deploy/host.env
+chmod 600 deploy/.env deploy/host.env
+# .env:    DOMAIN, ACME_EMAIL, POSTGRES_PASSWORD (openssl rand -base64 32),
+#          GRAFANA_PASSWORD, AGE_PUBLIC_KEY, CROWDSEC_API_KEY (see step 3)
+# host.env: CMSLEARN_DATABASE_URL (the same password), CMSLEARN_SEAL_KEY (openssl rand -base64 32),
+#          CMSLEARN_BOOTSTRAP_ADMIN. It is the api's only input — addresses, ports, seal key, socket —
+#          and the service refuses to start when one is missing, naming every such key.
+# host.env is gitignored: it carries the seal key and belongs to this server only.
 
 # 2. the backup key lives on YOUR machine, never here
 age-keygen -o cms-learn-backup.key     # prints the age1… public key → AGE_PUBLIC_KEY
@@ -126,6 +131,7 @@ one place this stack loosens a default, and the reason ADR 0001 picked `isolate`
 | Roll back | automatic when the switch or the probe fails; to return to an older release on purpose, `git revert` the commit that changed `release.toml`, `bun run tools/render-stack.ts`, then `make upgrade` |
 | Manual backup before a migration | `docker compose run --rm -e BACKUP_ONCE=1 backup` |
 | Restore drill (needs the private key mounted) | `docker compose run --rm -v /path:/keys:ro -e AGE_KEY_FILE=/keys/cms-learn-backup.key --entrypoint /usr/local/bin/restore-drill.sh backup` |
+| Administrator panel | `https://$DOMAIN/admin` — proxied to the api's panel listener (8081), never published itself |
 | Grafana | `ssh -L 3001:127.0.0.1:3001 <host>` then `http://127.0.0.1:3001` |
 | Database shell | `ssh -L 5432:127.0.0.1:5432 <host>` then `psql 'postgres://…@127.0.0.1:5432/cmslearn'` |
 | Logs | `docker compose logs -f api judge proxy` |
@@ -139,6 +145,14 @@ on purpose, not one a compose file should take silently.
 
 ## Not yet real
 
-`web`, `api` and `judge` have no Dockerfiles yet, so `docker compose up` stops at "image not found"
-for those three. That is the honest state: the deployment contract, the edge, the WAF, the database,
-the monitoring and the backup path are all validated; the three images arrive with their services.
+`api` and `judge` have no published image yet, so `docker compose up` stops at "image not found" for
+those two. That is the honest state: the deployment contract, the edge, the WAF, the database, the
+monitoring and the backup path are all validated; the images arrive from CI.
+
+The `api` image carries the binary only, so `stack.template.yml` mounts the three trees the binary
+resolves at startup — templates, static files and the settings catalogue — read-only from the checkout.
+Once the image carries them, those mounts go away.
+
+Nothing in this tree creates the `system:bootstrap` account, and the api's control socket refuses to
+start without it (`api/src/admin_socket.cpp`), so a fresh database needs that row before the api's
+first start. That bootstrap path is the open item, not a deployment step the operator can perform.

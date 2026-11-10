@@ -65,24 +65,26 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
   bash "$repo/tools/apply-plan.sh" >"$work/apply.log" 2>&1 \
   || { echo "  [!!] apply-plan failed"; tail -5 "$work/apply.log"; exit 1; }
 
-psql_db <<SQL >/dev/null 2>&1
-INSERT INTO principals (id, kind, handle, status)
-VALUES ('$learner', 'user', 'route-learner', 'active'),
-       ('$reader', 'user', 'route-reader', 'active'),
-       ('$pending', 'user', 'route-pending', 'pending'),
-       ('$other', 'user', 'route-other', 'active');
-INSERT INTO sessions (id, principal_id, expires_at)
-VALUES ('$learner_session', '$learner', now() + interval '1 hour'),
-       ('$reader_session', '$reader', now() + interval '1 hour'),
-       ('$pending_session', '$pending', now() + interval '1 hour'),
-       ('$other_session', '$other', now() + interval '1 hour');
+psql_db <<SQL >/dev/null || { echo "  [!!] fixture insert failed"; exit 1; }
+INSERT INTO system_accounts (handle) VALUES ('system:bootstrap');
+INSERT INTO learner_accounts (id, handle, status)
+VALUES ('$learner', 'route-learner', 'active'),
+       ('$pending', 'route-pending', 'pending'),
+       ('$other', 'route-other', 'active');
+INSERT INTO admin_accounts (id, handle, status) VALUES ('$reader', 'route-reader', 'active');
 INSERT INTO roles (id, name) VALUES ('$role', 'route_content_reader');
 INSERT INTO role_capabilities (role_id, capability) VALUES ('$role', 'content:read');
-INSERT INTO principal_roles (principal_id, role_id) VALUES ('$reader', '$role');
+INSERT INTO admin_roles (admin_id, role_id) VALUES ('$reader', '$role');
+INSERT INTO sessions (id, account_kind, learner_id, expires_at)
+VALUES ('$learner_session', 'learner', '$learner', now() + interval '1 hour'),
+       ('$pending_session', 'learner', '$pending', now() + interval '1 hour'),
+       ('$other_session', 'learner', '$other', now() + interval '1 hour');
+INSERT INTO sessions (id, account_kind, admin_id, expires_at)
+VALUES ('$reader_session', 'admin', '$reader', now() + interval '1 hour');
 SQL
 
 everyone="$("$principal_value" everyone)"
-learner_value="$("$principal_value" encode learner "$(psql_db -c "SELECT serial_id FROM principals WHERE id = '$learner'")")"
+learner_value="$("$principal_value" encode learner "$(psql_db -c "SELECT serial_id FROM learner_accounts WHERE id = '$learner'")")"
 
 psql_db <<SQL >/dev/null 2>&1
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,

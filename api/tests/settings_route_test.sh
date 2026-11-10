@@ -47,16 +47,21 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
   bash "$repo/tools/apply-plan.sh" >"$work/apply.log" 2>&1 \
   || { echo "  [!!] apply-plan failed"; tail -5 "$work/apply.log"; exit 1; }
 
-# Two live sessions: one whose role holds settings:write, and one that holds nothing. Both are users,
-# because the session table admits no other kind.
+# Two live administrator sessions: one whose role holds settings:write, and one that holds no role at all.
+# Both are administrators, because a capability is reached through an administrator's roles and a learner
+# holds none.
 psql_db <<SQL >/dev/null || { echo "  [!!] fixture insert failed"; exit 1; }
-INSERT INTO principals (id, kind, handle, status) VALUES ('$writer', 'user', 'settings-writer', 'active');
-INSERT INTO principals (id, kind, handle, status) VALUES ('$reader', 'user', 'settings-reader', 'active');
+INSERT INTO system_accounts (handle) VALUES ('system:bootstrap');
+INSERT INTO admin_accounts (id, handle, status)
+  VALUES ('$writer', 'settings-writer', 'active'), ('$reader', 'settings-reader', 'active');
 INSERT INTO roles (id, name) VALUES ('$role', 'settings_operator');
-INSERT INTO role_capabilities (role_id, capability) VALUES ('$role', 'settings:write');
-INSERT INTO principal_roles (principal_id, role_id) VALUES ('$writer', '$role');
-INSERT INTO sessions (id, principal_id, expires_at) VALUES ('$writer_session', '$writer', now() + interval '1 hour');
-INSERT INTO sessions (id, principal_id, expires_at) VALUES ('$reader_session', '$reader', now() + interval '1 hour');
+INSERT INTO role_capabilities (role_id, capability)
+  VALUES ('$role', 'settings:write'), ('$role', 'settings:secret_write');
+INSERT INTO admin_roles (admin_id, role_id) VALUES ('$writer', '$role');
+INSERT INTO sessions (id, account_kind, admin_id, expires_at)
+  VALUES ('$writer_session', 'admin', '$writer', now() + interval '1 hour');
+INSERT INTO sessions (id, account_kind, admin_id, expires_at)
+  VALUES ('$reader_session', 'admin', '$reader', now() + interval '1 hour');
 SQL
 
 cat >"$work/host.env" <<ENV

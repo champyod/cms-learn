@@ -252,10 +252,6 @@ auto published_version(db::connection& database, std::string_view task_id)
 auto servable_version(db::connection& database, std::string_view task_id,
                       std::span<const std::int64_t> audience, bool may_read_hidden)
     -> Result<std::optional<std::int32_t>> {
-  if (audience.empty()) {
-    return std::unexpected(
-        Error::make(ErrorCode::invalid_argument, "the audience is empty; a request carries its viewer"));
-  }
   const auto version = published_version(database, task_id);
   if (!version) {
     return std::unexpected(version.error());
@@ -265,6 +261,12 @@ auto servable_version(db::connection& database, std::string_view task_id,
   }
   if (may_read_hidden) {
     return *version;
+  }
+  // An administrator composes no audience and reaches a task through the capability alone, so this
+  // refusal belongs after `may_read_hidden`: ahead of it, it would answer the reader that holds it.
+  if (audience.empty()) {
+    return std::unexpected(
+        Error::make(ErrorCode::invalid_argument, "the audience is empty; a request carries its viewer"));
   }
 
   try {

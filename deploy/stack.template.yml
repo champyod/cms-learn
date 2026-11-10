@@ -5,8 +5,8 @@
 #   - only `proxy` publishes ports; every other service listens on an internal network
 #   - `internal` has no gateway, so the judge and the database cannot reach the internet at all
 #   - every image comes from release.toml: a third-party image by digest, a local one by build context
-#   - nothing is installed on the host; the only host mounts are read-only (/sys, /proc) and the
-#     cgroup tree that `isolate` requires
+#   - nothing is installed on the host; the only host mounts are read-only: /sys, /proc, the cgroup
+#     tree that `isolate` requires, and the checkout files a service reads but never writes
 #
 # A service whose image is `{{image:...}}` is pinned in release.toml; the placeholder names the key
 # there, not the service here.
@@ -48,28 +48,27 @@ services:
     depends_on:
       crowdsec: { condition: service_started }
       api: { condition: service_started }
-      web: { condition: service_started }
-
-  web:
-    <<: *hardening
-    image: {{image:web}}
-    expose: ["3000"]
-    environment:
-      NODE_ENV: production
-      API_BASE_URL: http://api:8080
-    networks: [edge]
-    depends_on:
-      api: { condition: service_started }
 
   api:
     <<: *hardening
     image: {{image:api}}
-    expose: ["8080"]
+    # 8080 is the public site, 8081 is the administrator panel. `expose` puts both on the `edge` network
+    # without publishing either: the proxy is the only way in, and the panel answers only 8081.
+    expose: ["8080", "8081"]
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}
+      # The service takes every fact from the file this names — addresses, ports, the database URL, the
+      # seal key, the socket. NOTHING else configures it, and a missing file stops it.
+      CMSLEARN_HOST_FILE: /run/cms-learn/host.env
       # Everything else the service decides at runtime comes from settings rows: registration,
       # approval, the domain allowlist, session lifetimes and the log level are all operator-editable
       # from the CLI and the panel, and none of them is a reason to recreate this container.
+    # The image carries the binary only, and the binary resolves its templates, its static files and its
+    # settings catalogue as paths in the tree it was compiled in (/src). These mounts are that tree.
+    volumes:
+      - ./host.env:/run/cms-learn/host.env:ro
+      - ../api/templates:/src/api/templates:ro
+      - ../web/public:/src/web/public:ro
+      - ./catalogue:/src/deploy/catalogue:ro
     networks: [edge, internal]
     depends_on:
       database: { condition: service_healthy }

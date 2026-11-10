@@ -1,0 +1,3 @@
+# The api's host file for one server: it carries the seal key, so it never leaves the machine that
+# wrote it. The tracked example beside it is what an operator copies.
+host.env

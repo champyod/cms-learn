@@ -18,10 +18,6 @@ kind = "built"
 ref = "ghcr.io/champyod/cms-learn-proxy"
 context = "proxy"
 
-[images.web]
-kind = "unpublished"
-ref = "ghcr.io/champyod/cms-learn-web"
-
 [images.api]
 kind = "unpublished"
 ref = "ghcr.io/champyod/cms-learn-api"

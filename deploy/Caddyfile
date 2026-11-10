@@ -82,17 +82,19 @@
 		}
 	}
 
-	# API and long-lived streams are never cached.
-	@api {
-		path /api/* /healthz
+	# The administrator panel is a second listener inside the api, because one route table cannot hold
+	# both surfaces. 8081 is load-bearing: the panel answers only the port the request arrived on, so
+	# proxying /admin to 8080 answers 404 instead of the panel.
+	@panel {
+		path /admin /admin/*
 	}
-	handle @api {
-		reverse_proxy api:8080
+	handle @panel {
+		reverse_proxy api:8081
 	}
 
-	# Everything else is the Next.js app.
+	# Everything else is the api's public site: pages, sessions, submissions, long-lived streams.
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy api:8080
 	}
 
 	# Never serve dotfiles that a deploy might leave behind.
