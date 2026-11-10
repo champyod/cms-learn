@@ -27,3 +27,6 @@ deploy/.previous-compose.yml
 # Agent local overlays — machine-specific, never published
 AGENTS.local.md
 CLAUDE.local.md
+
+# AgentTeams local state — machine-specific, never published
+.agent-teams/
