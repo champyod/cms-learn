@@ -19,6 +19,7 @@
 #include <cms/api/host_config.hpp>
 #include <cms/api/http.hpp>
 #include <cms/api/page_routes.hpp>
+#include <cms/api/progress_routes.hpp>
 #include <cms/api/route_text.hpp>
 #include <cms/api/settings_route.hpp>
 #include <cms/api/settings_source.hpp>
@@ -236,6 +237,7 @@ auto run() -> int {
   cms::api::register_task_route(store, database_config, config->template_root);
   cms::api::register_task_list_route(store, database_config, config->template_root);
   cms::api::register_level_route(database_config);
+  cms::api::register_progress_route(store, database_config, config->template_root);
   cms::api::register_settings_route(store, database_config, settings_view, config->template_root);
   cms::api::register_auth_routes(store, database_config, config->template_root, config->tls_mode);
   // The panel is mounted only when the operator gave it a listener; an unconfigured feature is absent,

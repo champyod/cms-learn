@@ -240,3 +240,62 @@ TEST_CASE("releasing a stale claim clears both columns and requeues the row", "[
   REQUIRE(again->has_value());
   REQUIRE((*again)->id == ROW);
 }
+
+TEST_CASE("an acceptance records the solve, and a later rejection keeps it",
+          "[claim][live]") {
+  if (!has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = live_database();
+  prepare(database);
+  database.execute_text("DELETE FROM progress WHERE account_id = $1::uuid", {std::string{ACCOUNT}});
+
+  const auto accepted_id = std::string{"33333333-3333-4333-8333-333333333300"};
+  insert_submission(database, accepted_id, "int main() { return 0; }");
+  const auto claimed = cms::judge::claim_submission(database, WORKER);
+  REQUIRE(claimed.has_value());
+  REQUIRE(claimed->has_value());
+  const auto accepted = cms::judge::finish_submission(
+      database, claimed->value().id,
+      cms::judge::Judgement{.verdict = cms::judge::SubmissionVerdict::accepted, .detail = "ok"});
+  REQUIRE(accepted.has_value());
+
+  auto status = std::string{};
+  auto solved_at = std::optional<cms::db::timestamp>{};
+  auto attempted_at = std::optional<cms::db::timestamp>{};
+  const auto read_progress = [&]() {
+    status.clear();
+    solved_at.reset();
+    attempted_at.reset();
+    for (const auto& row : database(sqlpp::select(cms::db::progress.status, cms::db::progress.solvedAt,
+                                                  cms::db::progress.attemptedAt)
+                                        .from(cms::db::progress)
+                                        .where(cms::db::progress.accountId == std::string{ACCOUNT} &&
+                                               cms::db::progress.taskId == std::string{TASK_ID} &&
+                                               cms::db::progress.taskVersion == TASK_VERSION))) {
+      status = std::string{row.status};
+      solved_at = row.solvedAt;
+      attempted_at = row.attemptedAt;
+    }
+  };
+
+  read_progress();
+  CHECK(status == "solved");
+  CHECK(solved_at.has_value());
+  const auto first_solve = solved_at;
+
+  // A rejected submission on the same task version must leave the row solved, with the same solve time.
+  const auto rejected_id = std::string{"33333333-3333-4333-8333-333333333301"};
+  insert_submission(database, rejected_id, "int main() { return 1; }");
+  const auto re_claimed = cms::judge::claim_submission(database, WORKER);
+  REQUIRE(re_claimed.has_value());
+  REQUIRE(re_claimed->has_value());
+  const auto rejected = cms::judge::finish_submission(
+      database, re_claimed->value().id,
+      cms::judge::Judgement{.verdict = cms::judge::SubmissionVerdict::wrong_answer, .detail = "wa"});
+  REQUIRE(rejected.has_value());
+
+  read_progress();
+  CHECK(status == "solved");
+  CHECK(solved_at == first_solve);
+}

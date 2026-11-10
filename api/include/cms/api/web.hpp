@@ -8,6 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <cms/api/progress_view.hpp>
 #include <cms/bank/bank.hpp>
 #include <cms/error.hpp>
 
@@ -150,6 +151,18 @@ struct TaskListPage {
 [[nodiscard]] nlohmann::json task_list_model(const Locale& locale, const TaskListPage& page,
                                              const std::vector<bank::Topic>& vocabulary,
                                              std::string_view site_name, const LevelView& levels);
+
+/// @brief Builds the model `progress.html` renders from.
+///
+/// @param locale The locale to render in.
+/// @param view What the learner's own `progress` rows say, already counted per topic.
+/// @param site_name The installation's own name.
+/// @return The model, with the same locale fallback every page uses.
+///
+/// A topic with no rows is marked untried rather than ranked: the schema holds no threshold, so this model
+/// has no way to call a topic weak and does not pretend to.
+[[nodiscard]] nlohmann::json progress_model(const Locale& locale, const ProgressView& view,
+                                            std::string_view site_name);
 
 /// @brief Renders one template of @p template_root against @p model.
 ///

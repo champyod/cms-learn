@@ -77,7 +77,8 @@ cms_apply_sanitizers(cms_api_authority)
 
 add_executable(cms_api src/admin_page.cpp src/admin_panel_actions.cpp src/admin_routes.cpp
                        src/auth_routes.cpp src/csrf.cpp src/http.cpp src/main.cpp
-                       src/page_routes.cpp src/settings_source.cpp src/settings_watcher.cpp
+                       src/page_routes.cpp src/progress_routes.cpp src/progress_view.cpp
+                       src/settings_source.cpp src/settings_watcher.cpp
                        src/verdict_routes.cpp)
 
 # The catalogue is a build input, not operator configuration: a key this binary was not compiled against is

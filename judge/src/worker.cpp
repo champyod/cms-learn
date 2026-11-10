@@ -45,6 +45,17 @@ SET verdict = $1::verdict_status, verdict_detail = $2, judged_at = now(),
 WHERE id = $3 AND verdict IS NULL
 )finish";
 
+/// The judge is the end that learns an acceptance, so it is the end that records the solve (ADR 0022). The
+/// row is created when the submission was the learner's first touch of the task (the submit side normally
+/// made it already), and `solved_at` only ever moves from null to a value: a rejected submission after an
+/// accepted one rewrites nothing, because the coalesce keeps what is there.
+constexpr std::string_view RECORD_SOLVE_SQL = R"(
+INSERT INTO progress (account_id, task_id, task_version, status, solved_at)
+SELECT account_id, task_id, task_version, 'solved', now() FROM submissions WHERE id = $1
+ON CONFLICT (account_id, task_id, task_version)
+DO UPDATE SET status = 'solved', solved_at = coalesce(progress.solved_at, now())
+)";
+
 // The RETURNING list read as a row, in the order the statement returns it. A result row names its members
 // through a name tag, and the column's tag type is the one the generated header already declares. The uuid
 // columns travel as text, so they decode as a string_view into the driver's row and are copied out before
@@ -107,6 +118,9 @@ auto finish_submission(cms::db::connection& database, std::string_view submissio
       return std::unexpected(Error::make(
           ErrorCode::conflict, "submission " + std::string{submission_id} +
                                    " is no longer an unjudged claimed row"));
+    }
+    if (judgement.verdict == SubmissionVerdict::accepted) {
+      database.execute_text(std::string{RECORD_SOLVE_SQL}, {std::string{submission_id}});
     }
     return {};
   } catch (const std::exception& failure) {

@@ -48,6 +48,15 @@ struct Words {
   std::string_view all_topics;
   std::string_view no_task;
   std::string_view stage;
+  std::string_view progress_heading;
+  std::string_view progress_lede;
+  std::string_view attempted;
+  std::string_view solved;
+  std::string_view untried;
+  std::string_view topic_heading;
+  std::string_view no_threshold;
+  std::string_view nothing_yet;
+  std::string_view latest;
 };
 
 constexpr Words THAI_WORDS{.curriculum = "หลักสูตร",
@@ -75,7 +84,18 @@ constexpr Words THAI_WORDS{.curriculum = "หลักสูตร",
                            .difficulty = "ความยาก",
                            .all_topics = "ทุกหัวข้อ",
                            .no_task = "ไม่มีแบบฝึกหัดที่ตรงกับตัวกรองนี้",
-                           .stage = "ขั้น"};
+                           .stage = "ขั้น",
+                           .progress_heading = "ความคืบหน้า",
+                           .progress_lede = "ทุกตัวเลขในหน้านี้มาจากแถวที่บันทึกไว้จริง",
+                           .attempted = "กำลังทำ",
+                           .solved = "ผ่านแล้ว",
+                           .untried = "ยังไม่เคยลอง",
+                           .topic_heading = "หัวข้อ",
+                           .no_threshold =
+                               "หัวข้อที่ยังไม่เคยลองไม่ใช่หัวข้อที่อ่อนแอ เพราะยังไม่มีเกณฑ์ใดในระบบ"
+                               "ที่ตัดสินว่าอ่อนหรือแข็ง",
+                           .nothing_yet = "ยังไม่มีการส่งใด ๆ",
+                           .latest = "ล่าสุด"};
 
 constexpr Words ENGLISH_WORDS{.curriculum = "Curriculum",
                               .tasks = "All tasks",
@@ -102,7 +122,18 @@ constexpr Words ENGLISH_WORDS{.curriculum = "Curriculum",
                               .difficulty = "Difficulty",
                               .all_topics = "All topics",
                               .no_task = "No task matches these filters",
-                              .stage = "Stage"};
+                              .stage = "Stage",
+                              .progress_heading = "Progress",
+                              .progress_lede = "Every number here comes from a stored row",
+                              .attempted = "Attempted",
+                              .solved = "Solved",
+                              .untried = "Untried",
+                              .topic_heading = "Topics",
+                              .no_threshold =
+                                  "A topic never attempted is not a weak topic: nothing in this system "
+                                  "sets a threshold that would make it one",
+                              .nothing_yet = "No submissions yet",
+                              .latest = "Latest"};
 
 auto lower(std::string_view text) -> std::string {
   auto result = std::string{};
@@ -321,6 +352,37 @@ auto task_list_model(const Locale& locale, const TaskListPage& page,
     data["tasks"].push_back({{"id", task.id},
                              {"title", label(locale, task.title_en, task.title_th)},
                              {"difficulty", task.difficulty}});
+  }
+  return data;
+}
+
+auto progress_model(const Locale& locale, const ProgressView& view, std::string_view site_name)
+    -> nlohmann::json {
+  const auto& words = words_for(locale);
+  auto data = shell_model(locale, site_name, LevelView{});
+  data["heading"] = std::string{words.progress_heading};
+  data["lede"] = std::string{words.progress_lede};
+  data["attempted_label"] = std::string{words.attempted};
+  data["solved_label"] = std::string{words.solved};
+  data["untried_label"] = std::string{words.untried};
+  data["topic_heading"] = std::string{words.topic_heading};
+  data["no_threshold"] = std::string{words.no_threshold};
+  data["empty_label"] = std::string{words.nothing_yet};
+  data["latest_label"] = std::string{words.latest};
+  data["attempted"] = view.attempted;
+  data["solved"] = view.solved;
+  data["last_attempted_on"] = view.last_attempted_on;
+  data["last_solved_on"] = view.last_solved_on;
+  data["has_activity"] = view.attempted != 0 || view.solved != 0;
+  data["topics"] = nlohmann::json::array();
+  data["has_topics"] = !view.topics.empty();
+  for (const auto& topic : view.topics) {
+    data["topics"].push_back(
+        {{"id", topic.id},
+         {"label", label(locale, topic.label_en, topic.label_th)},
+         {"attempted", topic.attempted},
+         {"solved", topic.solved},
+         {"is_untried", topic.attempted == 0 && topic.solved == 0}});
   }
   return data;
 }

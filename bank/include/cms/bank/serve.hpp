@@ -21,6 +21,21 @@ struct NextTask {
   bool is_widened{false};
 };
 
+/// @brief How much of a stage an account has done, counted by the same rule that selects the next task.
+///
+/// `total` is the tasks the account may see in the stage (published, visible to the audience, band and tag);
+/// `done` is how many of those it has solved. Both come from the same predicates `next_unseen_task` uses, so
+/// "2 of 5 done" and "nothing left" cannot disagree with what the page offers next.
+struct StageProgress {
+  std::int64_t total{0};
+  std::int64_t done{0};
+};
+
+/// @brief Counts a stage's tasks and how many of them @p account_id has solved.
+[[nodiscard]] Result<StageProgress> stage_progress(db::connection& database,
+                                                  std::string_view account_id, const Stage& stage,
+                                                  std::span<const std::int64_t> audience);
+
 /// @brief The next task an account has not touched and may see, chosen from a stage's tag set and band.
 ///
 /// @param database The connection to read through.

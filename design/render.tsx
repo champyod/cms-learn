@@ -3,6 +3,7 @@ import { settingsFixture } from "./catalogue.ts";
 import { adminFixture, homeFixture, signinFixture, signupFixture, taskFixture, taskListFixture } from "./fixtures.ts";
 import { AdminHome } from "./pages/admin_home.tsx";
 import { Home } from "./pages/home.tsx";
+import { Progress, progressFixture } from "./pages/progress.tsx";
 import { Settings } from "./pages/settings.tsx";
 import { Signin } from "./pages/signin.tsx";
 import { Signup } from "./pages/signup.tsx";
@@ -15,6 +16,7 @@ import type { Mode } from "./slots.ts";
 export const pages: Record<string, (mode: Mode) => React.ReactElement> = {
   admin_home: (mode) => <AdminHome mode={mode} data={adminFixture} />,
   home: (mode) => <Home mode={mode} data={homeFixture} />,
+  progress: (mode) => <Progress mode={mode} data={progressFixture} />,
   settings: (mode) => <Settings mode={mode} data={settingsFixture} />,
   signin: (mode) => <Signin mode={mode} data={signinFixture} />,
   signup: (mode) => <Signup mode={mode} data={signupFixture} />,

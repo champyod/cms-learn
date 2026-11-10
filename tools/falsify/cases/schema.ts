@@ -33,6 +33,7 @@ export const SCHEMA_GATE: Gate = {
         env: {
           CMSLEARN_PGSCHEMA: "{root}/fakebin/pgschema",
           HOME: "{root}/nohome",
+          PATH: "/usr/bin:/bin",
         },
       },
       expect: { status: "non-zero", message: "docs/dependencies.md pins pgschema" },

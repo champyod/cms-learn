@@ -797,6 +797,8 @@ GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE levels TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE progress TO cmslearn_app;
 
+GRANT INSERT, SELECT, UPDATE ON TABLE progress TO cmslearn_judge;
+
 GRANT DELETE, INSERT, SELECT ON TABLE role_capabilities TO cmslearn_app;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE roles TO cmslearn_app;

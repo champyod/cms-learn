@@ -102,6 +102,13 @@ body="$(psql_db -c "SELECT source FROM submissions WHERE account_id = '$account'
 [ "$body" = "int main() { return 0; }" ] && ok "the program survived the form encoding" \
   || bad "the program survived the form encoding" "stored: $body"
 
+# The submission also records the learner's first touch of the task, which is what makes "unseen" mean
+# anything (ADR 0022): one row, attempted, with the attempt time written once.
+recorded="$(psql_db -c "SELECT count(*) FROM progress WHERE account_id = '$account' AND task_id = 'probe-task'")"
+[ "$recorded" = "1" ] && ok "the submission recorded the learner's first attempt" \
+  || bad "the submission recorded the learner's first attempt" "found $recorded row(s)"
+first_attempt="$(psql_db -c "SELECT attempted_at FROM progress WHERE account_id = '$account'")"
+
 # Without the cookie the route must refuse rather than write a row for nobody.
 status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
   -X POST "http://127.0.0.1:$listen_port/tasks/probe-task/submit" --data "source=x")"
@@ -110,6 +117,9 @@ status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
 count="$(psql_db -c "SELECT count(*) FROM submissions")"
 [ "$count" = "1" ] && ok "the refused submission wrote no row" \
   || bad "the refused submission wrote no row" "$count row(s)"
+progress_rows="$(psql_db -c "SELECT count(*) FROM progress")"
+[ "$progress_rows" = "1" ] && ok "the refused submission wrote no attempt row" \
+  || bad "the refused submission wrote no attempt row" "$progress_rows row(s)"
 
 # A published task with no visibility row is not servable, so it is not writable either.
 status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \

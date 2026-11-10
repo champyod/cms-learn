@@ -15,6 +15,9 @@
 namespace cms::bank {
 namespace {
 
+/// The count's column name, so a result row can read it back without repeating the expression.
+SQLPP_CREATE_NAME_TAG(row_count);
+
 constexpr std::int32_t LOWEST_DIFFICULTY = 800;
 constexpr std::int32_t HIGHEST_DIFFICULTY = 3500;
 constexpr std::int32_t WIDENING_STEP = 200;
@@ -62,6 +65,56 @@ auto find_in_band(db::connection& database, std::string_view account_id, const S
   return std::nullopt;
 }
 
+/// The stage's tasks the account may see, counted once. The visibility and topic predicates are the ones
+/// `find_in_band` uses; keeping them here as the same EXISTS clauses is what makes the count and the offer
+/// answer one question.
+auto count_stage_tasks(db::connection& database, const Stage& stage,
+                       std::span<const std::int64_t> audience,
+                       const std::optional<std::string_view>& solved_by) -> std::int64_t {
+  const auto principals = std::vector<std::int64_t>(audience.begin(), audience.end());
+  const auto is_visible = sqlpp::exists(
+      sqlpp::select(db::taskVisibility.taskId)
+          .from(db::taskVisibility)
+          .where(db::taskVisibility.taskId == db::tasks.id &&
+                 db::taskVisibility.principalId.in(principals)));
+  const auto carries_stage_topic = sqlpp::exists(
+      sqlpp::select(db::taskTopics.taskId)
+          .from(db::taskTopics)
+          .where(db::taskTopics.taskId == db::tasks.id &&
+                 db::taskTopics.taskVersion == db::tasks.version &&
+                 db::taskTopics.topic.in(stage.tags)));
+  const auto one = sqlpp::value(1);
+
+  auto count = std::int64_t{0};
+  if (solved_by) {
+    const auto is_solved = sqlpp::exists(
+        sqlpp::select(db::progress.id)
+            .from(db::progress)
+            .where(db::progress.accountId == std::string{*solved_by} &&
+                   db::progress.taskId == db::tasks.id &&
+                   db::progress.taskVersion == db::tasks.version &&
+                   db::progress.status == std::string{"solved"}));
+    for (const auto& row : database(sqlpp::select(sqlpp::count(one).as(row_count))
+                                        .from(db::tasks)
+                                        .where(db::tasks.status == std::string{"published"} &&
+                                               db::tasks.difficulty >= stage.difficulty_min &&
+                                               db::tasks.difficulty <= stage.difficulty_max &&
+                                               is_visible && carries_stage_topic && is_solved))) {
+      count = static_cast<std::int64_t>(row.row_count);
+    }
+    return count;
+  }
+  for (const auto& row : database(sqlpp::select(sqlpp::count(one).as(row_count))
+                                      .from(db::tasks)
+                                      .where(db::tasks.status == std::string{"published"} &&
+                                             db::tasks.difficulty >= stage.difficulty_min &&
+                                             db::tasks.difficulty <= stage.difficulty_max &&
+                                             is_visible && carries_stage_topic))) {
+    count = static_cast<std::int64_t>(row.row_count);
+  }
+  return count;
+}
+
 auto widen(std::int32_t minimum, std::int32_t maximum) -> std::pair<std::int32_t, std::int32_t> {
   const auto lower = std::max(LOWEST_DIFFICULTY, minimum - WIDENING_STEP);
   const auto upper = std::min(HIGHEST_DIFFICULTY, maximum + WIDENING_STEP);
@@ -69,6 +122,17 @@ auto widen(std::int32_t minimum, std::int32_t maximum) -> std::pair<std::int32_t
 }
 
 }  // namespace
+
+auto stage_progress(db::connection& database, std::string_view account_id, const Stage& stage,
+                    std::span<const std::int64_t> audience) -> Result<StageProgress> {
+  try {
+    const auto total = count_stage_tasks(database, stage, audience, std::nullopt);
+    const auto done = count_stage_tasks(database, stage, audience, account_id);
+    return StageProgress{.total = total, .done = done};
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+}
 
 auto next_unseen_task(db::connection& database, std::string_view account_id, const Stage& stage,
                       std::span<const std::int64_t> audience)

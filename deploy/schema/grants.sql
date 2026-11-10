@@ -25,6 +25,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON tracks, track_stages, stage_tags TO cmsl
 -- so the app role needs both halves of it; a learner's own rung is on learner_accounts, already granted.
 GRANT SELECT, INSERT, UPDATE, DELETE ON levels, level_titles TO cmslearn_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON progress TO cmslearn_app;
+-- The judge is the end that learns the verdict, so it is the end that can record the solve (ADR 0022).
+GRANT SELECT, INSERT, UPDATE ON progress TO cmslearn_judge;
 GRANT SELECT, INSERT, UPDATE, DELETE ON submissions TO cmslearn_app;
 GRANT SELECT, UPDATE ON submissions TO cmslearn_judge;
 

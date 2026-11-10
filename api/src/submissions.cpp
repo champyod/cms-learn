@@ -64,6 +64,16 @@ auto submit_sql(std::size_t audience_size) -> std::string {
   return sql;
 }
 
+/// The first submission for an account and task version creates the progress row, and later ones leave it
+/// alone: `attempted_at` is written once and never moved (ADR 0022). One statement, so two submissions
+/// arriving together cannot both decide the row is absent and try to insert it.
+constexpr std::string_view RECORD_ATTEMPT_SQL = R"(
+INSERT INTO progress (account_id, task_id, task_version)
+SELECT $1::uuid, $2, $3
+WHERE NOT EXISTS (SELECT 1 FROM progress
+                  WHERE account_id = $1::uuid AND task_id = $2 AND task_version = $3)
+)";
+
 /// The session is the cookie. A row that has expired or been revoked is not a session, and the query says so
 /// rather than leaving the caller to remember.
 auto account_of(db::connection& database, std::string_view session_id) -> std::string {
@@ -118,6 +128,17 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
     }
     const auto written = database.execute_text(submit_sql(principals.size()), std::move(parameters));
     if (written == 1) {
+      // The row the page and the next-task query both read: without it a "seen" task stays unseen forever.
+      // A failure here is not swallowed — the submission is refused with the reason, because a submit that
+      // reports success and leaves the learner's progress unrecorded is the defect this write exists for.
+      const auto account_id = account_of(database, session_id);
+      if (account_id.empty()) {
+        return std::unexpected(Error::make(
+            ErrorCode::unavailable, "the submission was written but its session could not be read back"));
+      }
+      database.execute_text(std::string{RECORD_ATTEMPT_SQL},
+                            {account_id, std::string{task_id},
+                             static_cast<std::int64_t>(**version)});
       return Submission{.id = {}, .task_id = std::string{task_id}};
     }
     // Nothing was written, so this is a refusal. The two the caller can cause are told apart only here,
