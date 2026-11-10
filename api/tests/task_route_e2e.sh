@@ -66,7 +66,6 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
   || { echo "  [!!] apply-plan failed"; tail -5 "$work/apply.log"; exit 1; }
 
 psql_db <<SQL >/dev/null || { echo "  [!!] fixture insert failed"; exit 1; }
-INSERT INTO system_accounts (handle) VALUES ('system:bootstrap');
 INSERT INTO learner_accounts (id, handle, status)
 VALUES ('$learner', 'route-learner', 'active'),
        ('$pending', 'route-pending', 'pending'),

@@ -60,23 +60,26 @@ The api image carries the templates, the static assets and the settings catalogu
 only thing mounted into the container is the operator's host file. `tools/check-deploy.sh` asserts
 both facts: nothing but that file is mounted, and `/admin` reaches the panel port the host file names.
 
-### First run: the bootstrap identity
+### First run: the service bootstraps itself
 
-`make upgrade` applies the schema, and the api then refuses to start until the database holds the
-bootstrap system identity — it is the account the control socket acts as, so a database without it has
-no administrator at all. Until the service performs its own first-run bootstrap (the open item in
-`deploy/README.md`), that row is inserted once, by hand, after the migration and before the first start:
+A fresh database has no accounts, and the control socket the command line acts through refuses to start
+without the system identity. The service therefore ensures both facts at startup, in this order: it
+creates `system:bootstrap` if it is absent (silently otherwise), and it creates the first administrator
+from `CMSLEARN_BOOTSTRAP_ADMIN` if the database holds no administrator at all. The handle is the local
+part of that address, and the start prints it once:
 
-```bash
-cd deploy
-docker compose exec database psql -U postgres -d cmslearn \
-  -c "INSERT INTO system_accounts (handle) VALUES ('system:bootstrap')"
+```
+cms-api: created the first administrator 'operator'; it holds no password yet
 ```
 
-The command is idempotent only in the sense that a second run fails on the primary key: it is a
-once-per-database step, not a repeatable one. The first administrator account itself is created by the
-service's own bootstrap; that path does not exist yet, which is why it is named here rather than
-described.
+The operator's part is one fact, not a command: set `CMSLEARN_BOOTSTRAP_ADMIN` in `deploy/host.env`
+before the first boot. A database that already holds an administrator is left untouched — the second
+start writes nothing and says nothing, which is the normal steady state rather than an error.
+
+The administrator is created without a credential. Nothing in the tree sets a password on an existing
+account yet: the panel's own create-administrator form can, but it needs a signed-in administrator, and
+the control socket's `account create-admin` can, but the api image does not carry `cmsctl` yet. Until one
+of those lands, the first administrator holds the audit trail and nobody can sign in to the panel as it.
 
 ## Security controls, and what each one actually stops
 

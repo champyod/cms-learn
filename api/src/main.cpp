@@ -10,6 +10,7 @@
 
 #include <drogon/drogon.h>
 
+#include <cms/api/accounts.hpp>
 #include <cms/api/admin_routes.hpp>
 #include <cms/api/admin_socket.hpp>
 #include <cms/api/auth_routes.hpp>
@@ -208,6 +209,24 @@ auto run() -> int {
   const auto catalogue = cms::api::load_catalogue(CMS_CATALOGUE_FILE);
   if (!catalogue) {
     return fail(catalogue.error().message);
+  }
+
+  // A fresh database has no administrator and no system identity, and the control socket refuses to start
+  // without the identity. Each fact is ensured on its own before anything serves, so a stack comes up
+  // without a hand-written row; a database that already holds an administrator is left untouched, and this
+  // start says nothing about it.
+  const auto first_handle = cms::api::bootstrap_handle(config->bootstrap_admin);
+  if (!first_handle) {
+    return fail(first_handle.error().message);
+  }
+  const auto first_run = cms::api::ensure_first_run(database, *first_handle);
+  if (!first_run) {
+    return fail(first_run.error().message);
+  }
+  if (*first_run) {
+    std::println("cms-api: created the first administrator '{}'; it holds no password yet", *first_handle);
+    // stdout is a file under docker, so the line would otherwise sit in the buffer until the process ends.
+    std::fflush(stdout);
   }
 
   auto store = std::make_shared<cms::SettingsStore>(*snapshot);

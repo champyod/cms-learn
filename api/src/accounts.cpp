@@ -45,6 +45,10 @@ constexpr std::string_view ACCOUNT_KIND_ADMIN = "admin";
 constexpr std::string_view ADMIN_STATUS_ACTIVE = "active";
 constexpr std::string_view ACTION_BOOTSTRAP = "bootstrap.completed";
 
+/// The shape `admin_accounts_handle_shape` accepts: three characters at least, an alphanumeric first.
+constexpr std::size_t HANDLE_MINIMUM = 3;
+constexpr std::size_t HANDLE_MAXIMUM = 64;
+
 constexpr std::string_view STATUS_PENDING = "pending";
 constexpr std::string_view STATUS_ACTIVE = "active";
 
@@ -317,30 +321,52 @@ auto create_session(db::connection& database, std::string_view account_kind,
   return session_id;
 }
 
-auto bootstrap(db::connection& database, std::string_view admin_email, std::string_view admin_handle)
-    -> Result<std::string> {
-  (void)admin_email;
-  auto existing = std::int64_t{0};
+namespace {
+
+/// How many administrators the database holds. A count, not an existence check, because the caller has to
+/// tell "none" from "one" and both inserts depend on that answer.
+auto administrator_count(db::connection& database) -> Result<std::int64_t> {
   try {
     const auto one = sqlpp::value(1);
     for (const auto& row : database(sqlpp::select(sqlpp::count(one).as(count_alias::row_count))
                                         .from(db::adminAccounts))) {
-      existing = static_cast<std::int64_t>(row.row_count);
+      return static_cast<std::int64_t>(row.row_count);
     }
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }
-  if (existing != 0) {
-    return std::unexpected(Error::make(
-        ErrorCode::conflict, "this database already holds administrators; bootstrap runs once"));
-  }
+  return std::int64_t{0};
+}
 
-  const auto system_id = uuid_v4();
-  const auto admin_id = uuid_v4();
+/// The identity the control socket acts as, created once and read after that. A database bootstrapped
+/// before this existed already holds the row, and a second one would be a second system identity.
+auto ensure_system_account(db::connection& database) -> Result<std::string> {
+  auto id = std::string{};
   try {
-    database(sqlpp::insert_into(db::systemAccounts).set(
-        db::systemAccounts.id = system_id,
-        db::systemAccounts.handle = std::string{BOOTSTRAP_SYSTEM_HANDLE}));
+    for (const auto& row :
+         database(sqlpp::select(db::systemAccounts.id)
+                      .from(db::systemAccounts)
+                      .where(db::systemAccounts.handle == std::string{BOOTSTRAP_SYSTEM_HANDLE}))) {
+      id = std::string{row.id};
+    }
+    if (id.empty()) {
+      id = uuid_v4();
+      database(sqlpp::insert_into(db::systemAccounts).set(
+          db::systemAccounts.id = id,
+          db::systemAccounts.handle = std::string{BOOTSTRAP_SYSTEM_HANDLE}));
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  return id;
+}
+
+/// The administrator row and the audit row that records who created it. The caller has established that
+/// the database holds no administrator, which is the only state this may run in.
+auto create_first_administrator(db::connection& database, std::string_view admin_handle,
+                                std::string_view system_id) -> Result<std::string> {
+  auto admin_id = uuid_v4();
+  try {
     database(sqlpp::insert_into(db::adminAccounts).set(
         db::adminAccounts.id = admin_id, db::adminAccounts.handle = std::string{admin_handle},
         db::adminAccounts.status = std::string{ADMIN_STATUS_ACTIVE}));
@@ -349,6 +375,72 @@ auto bootstrap(db::connection& database, std::string_view admin_email, std::stri
     return std::unexpected(Error::make(ErrorCode::conflict, error.what()));
   }
   return admin_id;
+}
+
+}  // namespace
+
+auto bootstrap_handle(std::string_view admin_email) -> Result<std::string> {
+  const auto at = admin_email.find('@');
+  const auto local = admin_email.substr(0, at == std::string_view::npos ? admin_email.size() : at);
+  const auto is_alphanumeric = [](char character) {
+    return (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9');
+  };
+
+  auto handle = std::string{};
+  for (const auto character : local) {
+    const auto lowered = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
+    const auto legal = is_alphanumeric(lowered) || lowered == '.' || lowered == '_' || lowered == '-';
+    handle.push_back(legal ? lowered : '-');
+  }
+  while (!handle.empty() && !is_alphanumeric(handle.front())) {
+    handle.erase(handle.begin());
+  }
+  if (handle.size() > HANDLE_MAXIMUM) {
+    handle.resize(HANDLE_MAXIMUM);
+  }
+  if (handle.size() < HANDLE_MINIMUM) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument,
+        "CMSLEARN_BOOTSTRAP_ADMIN does not yield a handle: its local part must give three to 64 "
+        "characters of a-z, 0-9, '.', '_' or '-'"));
+  }
+  return handle;
+}
+
+auto ensure_first_run(db::connection& database, std::string_view admin_handle) -> Result<bool> {
+  const auto system_id = ensure_system_account(database);
+  if (!system_id) {
+    return std::unexpected(system_id.error());
+  }
+  const auto existing = administrator_count(database);
+  if (!existing) {
+    return std::unexpected(existing.error());
+  }
+  if (*existing != 0) {
+    return false;
+  }
+  const auto created = create_first_administrator(database, admin_handle, *system_id);
+  if (!created) {
+    return std::unexpected(created.error());
+  }
+  return true;
+}
+
+auto bootstrap(db::connection& database, std::string_view admin_email, std::string_view admin_handle)
+    -> Result<std::string> {
+  (void)admin_email;
+  const auto existing = administrator_count(database);
+  if (!existing) {
+    return std::unexpected(existing.error());
+  }
+  if (*existing != 0) {
+    return std::unexpected(Error::make(ErrorCode::conflict, BOOTSTRAP_EXISTS));
+  }
+  const auto system_id = ensure_system_account(database);
+  if (!system_id) {
+    return std::unexpected(system_id.error());
+  }
+  return create_first_administrator(database, admin_handle, *system_id);
 }
 
 }  // namespace cms::api

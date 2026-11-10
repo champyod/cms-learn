@@ -62,8 +62,6 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
 
 psql_db -c "INSERT INTO admin_accounts (handle, status) VALUES ('probe-actor', 'active')" \
   || { echo "  [!!] administrator insert failed"; exit 1; }
-psql_db -c "INSERT INTO system_accounts (handle) VALUES ('system:bootstrap')" \
-  || { echo "  [!!] system account insert failed"; exit 1; }
 actor_id="$(psql_db -tAc "SELECT id FROM admin_accounts WHERE handle = 'probe-actor'")"
 
 as_actor "INSERT INTO settings (key, kind, value_text, description)

@@ -94,14 +94,13 @@ chmod 600 deploy/.env deploy/host.env
 # 2. the backup key lives on YOUR machine, never here
 age-keygen -o cms-learn-backup.key     # prints the age1… public key → AGE_PUBLIC_KEY
 
-# 3. from deploy/: the schema, then the one row a fresh database owes the service
+# 3. from deploy/: the schema, then the database
 cd deploy
 docker compose --profile migrate run --rm schema
 docker compose up -d database
-docker compose exec database psql -U postgres -d cmslearn \
-  -c "INSERT INTO system_accounts (handle) VALUES ('system:bootstrap')"
 
-# 4. first start (proxy will retry TLS until the record propagates)
+# 4. first start (proxy will retry TLS until the record propagates). The api creates system:bootstrap and
+#    the first administrator from CMSLEARN_BOOTSTRAP_ADMIN itself, and prints the handle once.
 docker compose up -d database crowdsec
 docker compose exec crowdsec cscli appsec-rules install crowdsecurity/crs
 docker compose exec crowdsec cscli bouncers add caddy-proxy -o raw   # → CROWDSEC_API_KEY
@@ -162,9 +161,9 @@ catalogue — at the paths the binary resolves, so the only thing `stack.templat
 the operator's host file. `tools/check-deploy.sh` asserts that: a bind mount of anything else into
 the api fails the gate.
 
-Nothing in this tree creates the `system:bootstrap` account, and the api's control socket refuses to
-start without it (`api/src/admin_socket.cpp`), so a fresh database needs that row before the api's
-first start. Step 3 above does it by hand, and the service performing its own first-run bootstrap —
-`cms::api::bootstrap` exists and is tested but has no caller — is the open item. Until that lands, a
-fresh install reaches a running api and a reachable panel, but no first administrator: the panel's
-sign-in has no account to offer.
+The api bootstraps its own first run: it creates the `system:bootstrap` identity the control socket acts
+through (silently when it already exists) and, on a database that holds no administrator, the first one
+from `CMSLEARN_BOOTSTRAP_ADMIN`, printing the handle once. A database that already holds an administrator
+is left untouched. The first administrator is created without a password, and nothing in this tree sets
+one on an existing account yet — so a fresh install reaches a running api and a reachable panel with
+nobody able to sign in as an administrator. That credential path is the open item.

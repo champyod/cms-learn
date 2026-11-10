@@ -51,7 +51,6 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
 # task is published but has no visibility row, so it must be unreachable for submission.
 everyone="$("$principal_value" everyone)"
 psql_db <<SQL >/dev/null || { echo "  [!!] fixture insert failed"; exit 1; }
-INSERT INTO system_accounts (handle) VALUES ('system:bootstrap');
 INSERT INTO learner_accounts (id, handle, status) VALUES ('$account', 'submitter', 'active');
 INSERT INTO sessions (id, account_kind, learner_id, expires_at)
 VALUES ('$session', 'learner', '$account', now() + interval '1 hour');

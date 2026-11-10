@@ -62,15 +62,50 @@ struct SignupOutcome {
                                                  std::string_view account_id,
                                                  std::int64_t lifetime_seconds);
 
+/// @brief The refusal `bootstrap` gives when the database already holds an administrator.
+///
+/// A populated database is the steady state, not a failure: a service start calls `ensure_first_run` and
+/// never sees this message. It is what the once-only form refuses with, and what the live case asserts.
+inline constexpr std::string_view BOOTSTRAP_EXISTS =
+    "this database already holds administrators; bootstrap runs once";
+
+/// @brief The handle the first administrator is created with, taken from the operator's address.
+///
+/// @param admin_email The address the host file names (`CMSLEARN_BOOTSTRAP_ADMIN`).
+/// @return The address's local part, lowercased and reduced to the characters a handle may carry, or an
+/// error naming the fact when the result is not a legal handle.
+///
+/// The derivation exists so a new operator-facing key is not needed for the same fact: the host file
+/// already requires an address, and its local part is the name a person would have chosen.
+[[nodiscard]] auto bootstrap_handle(std::string_view admin_email) -> Result<std::string>;
+
+/// @brief Ensures the two facts a first start needs, each on its own.
+///
+/// @param database The connection.
+/// @param admin_handle The handle the first administrator is created with; `bootstrap_handle` derives it
+/// from the operator's address, and the caller validates it whether or not it is used.
+/// @return True when this start created the administrator, false when the database already held one — in
+/// which case nothing is written and nothing is logged.
+///
+/// The two facts are independent. A database can hold an administrator and no system identity, and the
+/// control socket refuses to start without the identity, so ensuring the identity is never conditional on
+/// the administrator. The identity that already exists is read, never duplicated.
+[[nodiscard]] auto ensure_first_run(db::connection& database, std::string_view admin_handle)
+    -> Result<bool>;
+
 /// @brief Creates the first system principal and the first administrator, exactly once.
 ///
 /// @param database The connection; the caller owns the transaction.
-/// @param admin_email The first administrator's address, recorded as proven because an operator entered it.
-/// @param admin_handle The first administrator's handle.
-/// @return The administrator's id, or a conflict when anything already exists.
+/// @param admin_email The first administrator's address. It is not stored: an administrator carries no
+/// email column (ADR 0016), and this parameter stays so a caller states the fact it bootstrapped from.
+/// @param admin_handle The first administrator's handle; `bootstrap_handle` derives the one the service uses.
+/// @return The administrator's id, or `BOOTSTRAP_EXISTS` as a conflict when the database already holds an
+/// administrator. A system identity that already exists is reused, never duplicated.
 ///
 /// There is no empty-database branch: the function refuses when the database is not empty rather than
 /// choosing behaviour from a count, so running it twice is an error instead of a silent second seed.
+/// The service does not call this: a start uses `ensure_first_run`, for which a populated database is the
+/// steady state rather than a refusal. This form is what the live case states the rule with.
 [[nodiscard]] Result<std::string> bootstrap(db::connection& database, std::string_view admin_email,
                                            std::string_view admin_handle);
 

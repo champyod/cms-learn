@@ -51,7 +51,6 @@ PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \
 # Both are administrators, because a capability is reached through an administrator's roles and a learner
 # holds none.
 psql_db <<SQL >/dev/null || { echo "  [!!] fixture insert failed"; exit 1; }
-INSERT INTO system_accounts (handle) VALUES ('system:bootstrap');
 INSERT INTO admin_accounts (id, handle, status)
   VALUES ('$writer', 'settings-writer', 'active'), ('$reader', 'settings-reader', 'active');
 INSERT INTO roles (id, name) VALUES ('$role', 'settings_operator');

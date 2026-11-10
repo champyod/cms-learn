@@ -69,7 +69,6 @@ INSERT INTO sessions (id, account_kind, admin_id, expires_at)
   VALUES ('$operator_session', 'admin', '$operator', now() + interval '1 hour');
 INSERT INTO learner_accounts (id, handle, email, email_verified_at, status)
   VALUES ('$verified_learner', 'verified-learner', 'verified@example.org', now(), 'pending');
-INSERT INTO system_accounts (handle) VALUES ('system:bootstrap');
 SQL
 cat >"$work/host.env" <<ENV
 CMSLEARN_LISTEN_ADDRESS=127.0.0.1
