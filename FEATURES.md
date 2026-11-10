@@ -59,12 +59,12 @@ Counts at last update: **42 shipped · 7 partial · 11 planned** (60 features).
 | F-030 | Design tokens, `judge mono` (contrast 15.41:1 body) | C | ● | `web/tokens.css` |
 | F-031 | Thai-coverage monospace font, shipped with licence, verified by advance-width measurement | C | ● | `web/public/fonts/` |
 | F-034 | Drogon + Inja + htmx app shell reading the tokens | C | ● | `api/src/web.cpp` (`render_page`, Inja with autoescape), `api/templates/*.html`, `web/public/htmx.min.js`, `api/src/page_routes.cpp` |
-| F-035 | Path home: stage rail, current module, next task | C | ○ | layout decided in ADR 0002 |
+| F-035 | Stage home: the stage's band, the tasks in it, and the one that comes next | C | ○ | not built. No decision record described this layout — the earlier pointer at ADR 0002 was wrong, and "current module" was deleted by `docs/decisions/0008-no-modules.md`. The shape lands with the code |
 | F-041 | Learner all-tasks page at `/tasks`: every task, several topics at once, one rung, the curriculum stage link, and a plain sentence when nothing matches | A | ● | `api/src/task_list.cpp`, `api/src/page_routes.cpp` (`register_task_list_route`), `design/pages/tasks.tsx` → `api/templates/tasks.html` |
 | F-036 | Task view: title, limits, statement text, first sample pair | A | ● | `api/src/page_routes.cpp` (`register_task_route`), `api/src/task_view.cpp`, `api/templates/task.html` |
 | F-037 | Code entry: in-page CodeMirror editor that writes back into the plain textarea the form posts | A | ● | `web/island/editor.ts` → `web/public/island.js`, `design/pages/task.tsx`; fallback asserted by `tools/check-island-fallback.sh` (and its falsifier) |
 | F-038 | Submission result: verdict, per-test cost, diff of first failure | A | ◐ | verdict and 2 s polling: `api/src/verdict_routes.cpp` + `design/pages/task.tsx` (`hx-get`); per-test cost and the first-failure diff do not exist |
-| F-039 | Progress and weak-topic view | C | ○ | layout decided in ADR 0002 |
+| F-039 | Progress and weak-topic view | C | ○ | not built. The earlier pointer at ADR 0002 was wrong. What it can show is bounded by `bank/src/next_task.cpp` and the rows in `deploy/schema/progress.sql`; the write that keeps those rows alive is `docs/decisions/0022-progress-is-written-by-the-submit-path.md` |
 | F-040 | Dictionary wiring for TH/EN across every surface | A | ● | `api/src/web.cpp` (`choose_locale`, `label`, one-word fallback), reused by `api/src/auth_view.cpp` and `api/src/settings_page.cpp`; fallback case in `api/tests/web_test.cpp` |
 
 ## Accounts and security
