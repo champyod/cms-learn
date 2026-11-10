@@ -4,12 +4,38 @@ const APPLY_PLAN: GateCommand = { command: "bash", args: ["tools/apply-plan.sh"]
 
 export const SCHEMA_GATE: Gate = {
   id: "schema",
-  stage: ["deploy", "tools/check-schema.sh", "tools/apply-plan.sh", "tools/compare-plan.ts"],
+  stage: [
+    "deploy",
+    "docs/dependencies.md",
+    "tools/pinned-pgschema.sh",
+    "tools/check-schema.sh",
+    "tools/apply-plan.sh",
+    "tools/compare-plan.ts",
+  ],
   command: { command: "bash", args: ["tools/check-schema.sh"] },
   cases: [
     {
       name: "control",
       expect: { status: "zero" },
+    },
+    {
+      // The host upgrade this gate was written for: a binary of another version is the only one named, and
+      // the gate must refuse before it renders or applies anything rather than report the difference as
+      // drift in the plan.
+      name: "schema-tool-version-mismatch",
+      plant: [
+        { kind: "write", path: "fakebin/pgschema", content: "#!/usr/bin/env bash\nprintf '9.9.9\\n'\n" },
+        { kind: "run", script: "chmod +x fakebin/pgschema", verify: "test -x fakebin/pgschema" },
+      ],
+      command: {
+        command: "bash",
+        args: ["tools/apply-plan.sh"],
+        env: {
+          CMSLEARN_PGSCHEMA: "{root}/fakebin/pgschema",
+          HOME: "{root}/nohome",
+        },
+      },
+      expect: { status: "non-zero", message: "docs/dependencies.md pins pgschema" },
     },
     {
       name: "plan-sql-edited",
@@ -18,14 +44,16 @@ export const SCHEMA_GATE: Gate = {
       expect: { status: "non-zero", message: "does not match deploy/plan/CHECKSUMS" },
     },
     {
+      // Anchored to the plan itself rather than to a count of its operations: the plant flips the first
+      // operation and the witness proves the file no longer matches its digests, so a plan that grows
+      // cannot turn this case into a setup failure that proves nothing.
       name: "plan-json-edited",
       plant: [
         {
-          kind: "replaceAll",
-          path: "deploy/plan/0001_init.json",
-          find: "\"operation\": \"create\"",
-          replace: "\"operation\": \"update\"",
-          matches: 108,
+          kind: "run",
+          script:
+            "python3 -c \"import pathlib; p = pathlib.Path('deploy/plan/0001_init.json'); t = p.read_text(); p.write_text(t.replace('\\\"operation\\\": \\\"create\\\"', '\\\"operation\\\": \\\"update\\\"', 1))\"",
+          verify: "! sha256sum --quiet --check deploy/plan/CHECKSUMS",
         },
       ],
       command: APPLY_PLAN,

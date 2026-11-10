@@ -14,6 +14,10 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 plan_dir="$repo/deploy/plan"
+
+# Resolved first: a host whose pgschema moved would otherwise start a cluster and fail as "drift".
+# shellcheck source=tools/pinned-pgschema.sh
+. "$repo/tools/pinned-pgschema.sh"
 work="$(mktemp -d)"
 port=55432
 
@@ -22,7 +26,7 @@ trap 'pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "
 die() { printf 'schema gate FAILED: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
 
-for tool in pgschema initdb pg_ctl createdb psql sha256sum bun; do
+for tool in initdb pg_ctl createdb psql sha256sum bun; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is not installed"
 done
 
@@ -49,7 +53,7 @@ for db in render_target render_plan verify_target verify_plan; do
 done
 
 # 1. The committed plan is what the source renders.
-pgschema plan \
+"$pgschema_bin" plan \
   --host "$work" --port "$port" --db render_target --user postgres \
   --plan-host "$work" --plan-port "$port" --plan-db render_plan --plan-user postgres \
   --file "$repo/deploy/schema/main.sql" \
@@ -67,7 +71,7 @@ PGHOST="$work" PGPORT="$port" PGDATABASE=verify_target PGUSER=postgres \
   bash "$repo/tools/apply-plan.sh" >"$work/apply.log" 2>&1 \
   || die "tools/apply-plan.sh failed; see $work/apply.log"
 
-pgschema plan \
+"$pgschema_bin" plan \
   --host "$work" --port "$port" --db verify_target --user postgres \
   --plan-host "$work" --plan-port "$port" --plan-db verify_plan --plan-user postgres \
   --file "$repo/deploy/schema/main.sql" \

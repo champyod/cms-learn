@@ -9,6 +9,11 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 plan_dir="$repo/deploy/plan"
+
+# The renderer is pinned for the same reason the verifier is: a plan is only comparable to a render made by
+# the version that made it.
+# shellcheck source=tools/pinned-pgschema.sh
+. "$repo/tools/pinned-pgschema.sh"
 work="$(mktemp -d)"
 port=55434
 
@@ -17,7 +22,7 @@ trap 'pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "
 die() { printf 'render-plan: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
 
-for tool in pgschema initdb pg_ctl createdb psql sha256sum sed; do
+for tool in initdb pg_ctl createdb psql sha256sum sed; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is not installed"
 done
 
@@ -35,7 +40,7 @@ for db in render_target render_plan; do
   createdb -h "$work" -p "$port" -U postgres "$db" || die "could not create $db"
 done
 
-pgschema plan \
+"$pgschema_bin" plan \
   --host "$work" --port "$port" --db render_target --user postgres \
   --plan-host "$work" --plan-port "$port" --plan-db render_plan --plan-user postgres \
   --file "$repo/deploy/schema/main.sql" \

@@ -146,6 +146,40 @@ The compiler is pinned by image tag rather than by a distribution package: the a
 compiler that is not GNU or is older than `CMS_MIN_GCC_MAJOR` (16). A development host therefore needs
 g++ 16 or newer; the gate's own run reports `g++ (GCC) 16.2.1`.
 
+### Obtaining the pinned schema tool
+
+`pgschema` renders and applies the migration plan in `deploy/plan`, and the plan is only comparable if the
+version that renders it is the version the plan was rendered by. The gates therefore resolve this pin
+through one place, `tools/pinned-pgschema.sh`, which refuses to run any other version rather than reporting
+a mismatch as drift. The version above is the pin, and this table is what the refusal names.
+
+The resolver also looks, best-effort, in the local package caches a machine may still be holding the
+package in: the AUR helper caches (yay, paru) and `/var/cache/pacman/pkg` on Arch, `/var/cache/apt/archives`
+on Debian and Ubuntu, `/var/cache/dnf` and `/var/cache/yum` on Fedora and RHEL, and Homebrew's cache on
+macOS. An entry counts only when it is executable and reports exactly the pinned version — a `.pkg.tar.zst`,
+`.deb`, `.rpm` or bottle is not one, so a cache that keeps only the archive helps nobody and is skipped.
+
+To get it:
+
+```bash
+# 1. a 1.13.4 binary you can lay hands on, in a directory of its own
+#    (Arch, if the package cache still holds the unpacked binary beside the package)
+ls ~/.cache/yay/pgschema-bin/            # pgschema-bin-1.13.4-x86_64 is the binary itself
+
+# 2. otherwise take the release built for this platform from the project's releases, at tag v1.13.4,
+#    and unpack it; nothing here downloads it for you
+
+# 3. check it and put it where the gates look first
+<dir>/pgschema --version                 # must print 1.13.4
+export PATH="<dir>:$PATH"                # the resolver checks the version, not the directory
+# or name it outright, which the resolver also accepts:
+export CMSLEARN_PGSCHEMA=/<dir>/pgschema
+```
+
+The refusal fires before `initdb`, before a render and before an apply: a version mismatch cannot leave a
+half-built plan behind. If the pin moves, change this table and re-render:
+`bash tools/render-plan.sh` (which resolves the same pin).
+
 ## Rules
 
 - Production runs containers only. A host package is a decision to raise, not an implementation detail.

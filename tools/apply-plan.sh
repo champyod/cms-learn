@@ -12,12 +12,16 @@ set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 plan_dir="$repo/deploy/plan"
 
+# The pinned schema tool, resolved before any work: a version this repository did not render the plan with
+# must stop the run here rather than half-apply a migration it cannot compare.
+# shellcheck source=tools/pinned-pgschema.sh
+. "$repo/tools/pinned-pgschema.sh"
+
 die() {
   printf 'apply-plan: %s\n' "$*" >&2
   exit 1
 }
 
-command -v pgschema >/dev/null 2>&1 || die "pgschema is not installed"
 command -v sha256sum >/dev/null 2>&1 || die "sha256sum is not installed"
 
 [ -f "$plan_dir/0001_init.json" ] || die "$plan_dir/0001_init.json is missing"
@@ -29,4 +33,4 @@ if ! ( cd "$repo" && sha256sum --quiet --check deploy/plan/CHECKSUMS ); then
   die "the plan does not match deploy/plan/CHECKSUMS; refusing to apply it"
 fi
 
-exec pgschema apply --plan "$plan_dir/0001_init.json" --auto-approve "$@"
+exec "$pgschema_bin" apply --plan "$plan_dir/0001_init.json" --auto-approve "$@"
