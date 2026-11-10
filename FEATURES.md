@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **40 shipped · 7 partial · 12 planned** (59 features).
+Counts at last update: **42 shipped · 7 partial · 11 planned** (60 features).
 
 ---
 
@@ -60,6 +60,7 @@ Counts at last update: **40 shipped · 7 partial · 12 planned** (59 features).
 | F-031 | Thai-coverage monospace font, shipped with licence, verified by advance-width measurement | C | ● | `web/public/fonts/` |
 | F-034 | Drogon + Inja + htmx app shell reading the tokens | C | ● | `api/src/web.cpp` (`render_page`, Inja with autoescape), `api/templates/*.html`, `web/public/htmx.min.js`, `api/src/page_routes.cpp` |
 | F-035 | Path home: stage rail, current module, next task | C | ○ | layout decided in ADR 0002 |
+| F-041 | Learner all-tasks page at `/tasks`: every task, several topics at once, one rung, the curriculum stage link, and a plain sentence when nothing matches | A | ● | `api/src/task_list.cpp`, `api/src/page_routes.cpp` (`register_task_list_route`), `design/pages/tasks.tsx` → `api/templates/tasks.html` |
 | F-036 | Task view: title, limits, statement text, first sample pair | A | ● | `api/src/page_routes.cpp` (`register_task_route`), `api/src/task_view.cpp`, `api/templates/task.html` |
 | F-037 | Code entry: in-page CodeMirror editor that writes back into the plain textarea the form posts | A | ● | `web/island/editor.ts` → `web/public/island.js`, `design/pages/task.tsx`; fallback asserted by `tools/check-island-fallback.sh` (and its falsifier) |
 | F-038 | Submission result: verdict, per-test cost, diff of first failure | A | ◐ | verdict and 2 s polling: `api/src/verdict_routes.cpp` + `design/pages/task.tsx` (`hx-get`); per-test cost and the first-failure diff do not exist |
@@ -98,7 +99,7 @@ Counts at last update: **40 shipped · 7 partial · 12 planned** (59 features).
 | F-071 | Encrypted offsite backups whose private key never touches the server | A | ● | `deploy/backup/run.sh` — `age` recipient only; refuses to run without a public key |
 | F-072 | Registration and approval as runtime switches (no email dependency) | C | ● | `deploy/catalogue/settings.json` (`site.registration_open`, `site.registration_requires_approval`), read by `api/src/accounts.cpp`; live case "a closed registration refuses everyone" in `api/tests/accounts_test.cpp` |
 | F-073 | Every C++ unit built by CMake presets under ASan + UBSan with `-Werror`, run through ctest, and analysed by clang-tidy — with the gate proven to fail | C | ● | `CMakePresets.json`, `cmake/Sanitizers.cmake`, `CMakeLists.txt` + `tools/cpp/gate.ts` (42 targets, 88 cases, 81 units analysed, 0 findings on the last run) + `tools/cpp/falsify.ts` **7/7**: use-after-free, signed overflow, stack overflow, `-Wunused-variable`, `bugprone-use-after-move`, a clean control and an empty tree — mandatory because ADR 0006 puts C++ on the internet-facing path |
-| F-074 | Admin surface on its own listener and container, with its own session scope | C | ○ | ADR 0006 §3 — the compose contract still describes 10 services; this is the one that will change the count |
+| F-074 | Admin panel on its own listener, behind the proxy, with its own CSRF token and the session's account as the actor | C | ● | `api/src/admin_routes.cpp`, `api/src/csrf.cpp`, `api/tests/admin_panel_e2e.sh`; routed at `deploy/Caddyfile` and asserted by `tools/check-deploy.sh` + `tools/falsify/cases/deploy.ts`. The operator chose one container with two listeners over a separate container |
 | F-075 | One plan render driver: `deploy/plan` is output of `deploy/schema/main.sql`, and the gate renders it again rather than trusting the commit | C | ● | `tools/render-plan.sh`, `tools/check-schema.sh`, `tools/falsify/cases/schema.ts` |
 | F-076 | One falsification harness for the gates: each case is data, staged in a tree, and a mutation that does not land reads as setup failure | C | ● | `tools/falsify/runner.ts`, `tools/falsify/cases.ts`, `tools/falsify/self-check.ts` (`bun run falsify:runner-selfcheck`) |
 
