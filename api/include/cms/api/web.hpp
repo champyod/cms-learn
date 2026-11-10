@@ -86,6 +86,43 @@ struct TaskPage {
 [[nodiscard]] nlohmann::json task_model(const Locale& locale, const TaskPage& task,
                                         std::string_view site_name);
 
+/// @brief One row of the all-tasks page: what a learner chooses a task by, and nothing more.
+struct TaskListItem {
+  std::string id;
+  std::string title_en;
+  std::string title_th;
+  std::int32_t difficulty{0};
+};
+
+/// @brief What the all-tasks page shows: the narrowing the request asked for, and the rows that survived it.
+///
+/// The band travels as the two numbers the filter used, never as a level id: a level is a function of the
+/// difficulty (ADR 0013 §3), so a stored id would be a second vocabulary that could disagree with it.
+struct TaskListPage {
+  /// Both zero when the request named no level band.
+  std::int32_t level_min{0};
+  std::int32_t level_max{0};
+  /// Empty when the request named no stage; `stage_track` and `stage_id` travel together.
+  std::string stage_track;
+  std::string stage_id;
+  std::string stage_title_en;
+  std::string stage_title_th;
+  /// The selected vocabulary ids, in the order the request named them.
+  std::vector<std::string> topics;
+  std::vector<TaskListItem> tasks;
+};
+
+/// @brief Builds the model `tasks.html` renders from.
+///
+/// @param locale The locale to render in.
+/// @param page The filters the request applied and the tasks the filters left.
+/// @param vocabulary Every topic the filter may offer, so a chip is named the same way everywhere.
+/// @param site_name The installation's own name.
+/// @return The model, with the same locale fallback the other pages use.
+[[nodiscard]] nlohmann::json task_list_model(const Locale& locale, const TaskListPage& page,
+                                             const std::vector<bank::Topic>& vocabulary,
+                                             std::string_view site_name);
+
 /// @brief Renders one template of @p template_root against @p model.
 ///
 /// @param template_root The directory holding the templates and their partials.

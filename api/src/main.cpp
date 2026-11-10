@@ -215,6 +215,7 @@ auto run() -> int {
   register_routes(store, database_config, *catalogue);
   cms::api::register_home_route(store, database_config, config->template_root);
   cms::api::register_task_route(store, database_config, config->template_root);
+  cms::api::register_task_list_route(store, database_config, config->template_root);
   cms::api::register_settings_route(store, database_config, settings_view, config->template_root);
   cms::api::register_auth_routes(store, database_config, config->template_root, config->tls_mode);
   // The panel is mounted only when the operator gave it a listener; an unconfigured feature is absent,

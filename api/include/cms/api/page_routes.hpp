@@ -33,6 +33,19 @@ auto register_task_route(const std::shared_ptr<SettingsStore>& store,
                          const std::shared_ptr<const db::connection_config>& database_config,
                          std::string_view template_root) -> void;
 
+/// @brief Registers `GET /tasks`, the all-tasks page the curriculum links to.
+///
+/// @param store The settings the page shell reads its site name from.
+/// @param database_config The pool the session, the curriculum and the tasks are read through.
+/// @param template_root The directory the template is rendered from.
+///
+/// A request without a live approved session is redirected to `/signin`, the same answer the task page
+/// gives, because the page is a learner's surface rather than a public one. The list applies the same
+/// published-and-visible predicate the task page does, so it can only link a task the page would serve.
+auto register_task_list_route(const std::shared_ptr<SettingsStore>& store,
+                              const std::shared_ptr<const db::connection_config>& database_config,
+                              std::string_view template_root) -> void;
+
 /// @brief Registers `GET /settings`, the admin settings page.
 ///
 /// @param store The settings the page shell and the rendered values are read from.

@@ -100,6 +100,60 @@ export const homeFixture: PageFixture = {
   ],
 };
 
+/// A row of the all-tasks page: what the list shows, nothing it does not.
+export interface TaskListRow {
+  id: string;
+  title: string;
+  difficulty: number;
+}
+
+/// One entry of the topic vocabulary the filter offers.
+export interface TopicChoice {
+  id: string;
+  label: string;
+}
+
+/// The all-tasks page: two filters, the words they need, and the sentence an empty result shows.
+export interface TaskListFixture {
+  site_name: string;
+  heading: string;
+  lede: string;
+  level_label: string;
+  any_level_label: string;
+  topics_label: string;
+  apply_label: string;
+  current_label: string;
+  difficulty_label: string;
+  empty_label: string;
+  stage_note: string;
+  topics_line: string;
+  topics: TopicChoice[];
+  tasks: TaskListRow[];
+}
+
+export const taskListFixture: TaskListFixture = {
+  site_name: "CMS Learn",
+  heading: "แบบฝึกหัดทั้งหมด",
+  lede: "กรองตามระดับและหัวข้อ เลือกได้หลายหัวข้อพร้อมกัน",
+  level_label: "ระดับ",
+  any_level_label: "ทุกระดับ",
+  topics_label: "หัวข้อ",
+  apply_label: "กรอง",
+  current_label: "กำลังกรอง",
+  difficulty_label: "ความยาก",
+  empty_label: "ไม่มีแบบฝึกหัดที่ตรงกับตัวกรองนี้",
+  stage_note: "ขั้น: ทองแดง",
+  topics_line: "io, complexity",
+  topics: [
+    { id: "complexity", label: "ความซับซ้อน" },
+    { id: "io", label: "การรับเข้าและส่งออก" },
+  ],
+  tasks: [
+    { id: "range-sum-query", title: "ผลรวมของช่วงข้อมูล", difficulty: 900 },
+    { id: "two-numbers", title: "ผลรวมสองจำนวน", difficulty: 800 },
+  ],
+};
+
 export interface SigninFixture {
   site_name: string;
   title: string;

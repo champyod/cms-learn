@@ -31,8 +31,8 @@ export function Layout({ mode, site_name, heading, body }: LayoutProps) {
             <a className="link link-hover" href="/">
               {slot(mode, "nav.curriculum", "หลักสูตร")}
             </a>
-            <a className="link link-hover" href="/submissions">
-              {slot(mode, "nav.submissions", "งานที่ส่ง")}
+            <a className="link link-hover" href="/tasks">
+              {slot(mode, "nav.tasks", "แบบฝึกหัดทั้งหมด")}
             </a>
             <a className="btn btn-sm btn-primary" href="/signin">
               {slot(mode, "nav.sign_in", "เข้าสู่ระบบ")}

@@ -1,5 +1,6 @@
 #include <cms/api/web.hpp>
 
+#include <algorithm>
 #include <cctype>
 #include <exception>
 #include <filesystem>
@@ -22,7 +23,7 @@ constexpr std::string_view ENGLISH = "en";
 /// so one call site decides what a missing word falls back to.
 struct Words {
   std::string_view curriculum;
-  std::string_view submissions;
+  std::string_view tasks;
   std::string_view settings;
   std::string_view sign_in;
   std::string_view notice;
@@ -36,10 +37,21 @@ struct Words {
   std::string_view source_label;
   std::string_view submit_label;
   std::string_view verdict_pending;
+  std::string_view list_heading;
+  std::string_view list_lede;
+  std::string_view level;
+  std::string_view any_level;
+  std::string_view topics;
+  std::string_view apply;
+  std::string_view current;
+  std::string_view difficulty;
+  std::string_view all_topics;
+  std::string_view no_task;
+  std::string_view stage;
 };
 
 constexpr Words THAI_WORDS{.curriculum = "หลักสูตร",
-                           .submissions = "งานที่ส่ง",
+                           .tasks = "แบบฝึกหัดทั้งหมด",
                            .settings = "ตั้งค่า",
                            .sign_in = "เข้าสู่ระบบ",
                            .notice = "เนื้อหาภาษาไทยและอังกฤษอยู่ในหน้าเดียวกัน",
@@ -52,10 +64,21 @@ constexpr Words THAI_WORDS{.curriculum = "หลักสูตร",
                            .example_label = "ตัวอย่าง",
                            .source_label = "โค้ดของคุณ",
                            .submit_label = "ส่งคำตอบ",
-                           .verdict_pending = "ยังไม่มีผลการตรวจ"};
+                           .verdict_pending = "ยังไม่มีผลการตรวจ",
+                           .list_heading = "แบบฝึกหัดทั้งหมด",
+                           .list_lede = "กรองตามระดับและหัวข้อ เลือกได้หลายหัวข้อพร้อมกัน",
+                           .level = "ระดับ",
+                           .any_level = "ทุกระดับ",
+                           .topics = "หัวข้อ",
+                           .apply = "กรอง",
+                           .current = "กำลังกรอง",
+                           .difficulty = "ความยาก",
+                           .all_topics = "ทุกหัวข้อ",
+                           .no_task = "ไม่มีแบบฝึกหัดที่ตรงกับตัวกรองนี้",
+                           .stage = "ขั้น"};
 
 constexpr Words ENGLISH_WORDS{.curriculum = "Curriculum",
-                              .submissions = "Submissions",
+                              .tasks = "All tasks",
                               .settings = "Settings",
                               .sign_in = "Sign in",
                               .notice = "Thai and English share one page",
@@ -68,7 +91,18 @@ constexpr Words ENGLISH_WORDS{.curriculum = "Curriculum",
                               .example_label = "Example",
                               .source_label = "Your code",
                               .submit_label = "Submit",
-                              .verdict_pending = "No verdict yet"};
+                              .verdict_pending = "No verdict yet",
+                              .list_heading = "All tasks",
+                              .list_lede = "Filter by level and topic; more than one topic at a time",
+                              .level = "Level",
+                              .any_level = "Any level",
+                              .topics = "Topics",
+                              .apply = "Filter",
+                              .current = "Filtering by",
+                              .difficulty = "Difficulty",
+                              .all_topics = "All topics",
+                              .no_task = "No task matches these filters",
+                              .stage = "Stage"};
 
 auto lower(std::string_view text) -> std::string {
   auto result = std::string{};
@@ -135,7 +169,7 @@ auto shell_model(const Locale& locale, std::string_view site_name) -> nlohmann::
   data["site_name"] = std::string{site_name};
   data["is_signed_in"] = false;
   data["nav"] = {{"curriculum", std::string{words.curriculum}},
-                 {"submissions", std::string{words.submissions}},
+                 {"tasks", std::string{words.tasks}},
                  {"settings", std::string{words.settings}},
                  {"sign_in", std::string{words.sign_in}}};
   data["footer"] = {{"notice", std::string{words.notice}}};
@@ -192,6 +226,54 @@ auto task_model(const Locale& locale, const TaskPage& task, std::string_view sit
                   {"example_input", task.example_input},
                   {"example_output", task.example_output},
                   {"starter_source", ""}};
+  return data;
+}
+
+auto task_list_model(const Locale& locale, const TaskListPage& page,
+                     const std::vector<bank::Topic>& vocabulary, std::string_view site_name)
+    -> nlohmann::json {
+  const auto& words = words_for(locale);
+  auto data = shell_model(locale, site_name);
+  data["heading"] = std::string{words.list_heading};
+  data["lede"] = std::string{words.list_lede};
+  data["level_label"] = std::string{words.level};
+  data["any_level_label"] = std::string{words.any_level};
+  data["topics_label"] = std::string{words.topics};
+  data["apply_label"] = std::string{words.apply};
+  data["current_label"] = std::string{words.current};
+  data["difficulty_label"] = std::string{words.difficulty};
+  data["empty_label"] = std::string{words.no_task};
+  data["level_min"] = page.level_min;
+  data["level_max"] = page.level_max;
+  data["has_stage"] = !page.stage_track.empty();
+  data["stage_track"] = page.stage_track;
+  data["stage_id"] = page.stage_id;
+  data["stage_note"] =
+      page.stage_track.empty()
+          ? std::string{}
+          : std::string{words.stage} + ": " + label(locale, page.stage_title_en, page.stage_title_th);
+
+  auto chosen = std::string{};
+  auto listed = nlohmann::json::array();
+  for (const auto& topic : vocabulary) {
+    const auto topic_label = label(locale, topic.label_en, topic.label_th);
+    listed.push_back({{"id", topic.id}, {"label", topic_label}});
+    if (std::find(page.topics.begin(), page.topics.end(), topic.id) != page.topics.end()) {
+      if (!chosen.empty()) {
+        chosen += ", ";
+      }
+      chosen += topic_label;
+    }
+  }
+  data["topics"] = std::move(listed);
+  data["topics_line"] = chosen.empty() ? std::string{words.all_topics} : chosen;
+  data["has_tasks"] = !page.tasks.empty();
+  data["tasks"] = nlohmann::json::array();
+  for (const auto& task : page.tasks) {
+    data["tasks"].push_back({{"id", task.id},
+                             {"title", label(locale, task.title_en, task.title_th)},
+                             {"difficulty", task.difficulty}});
+  }
   return data;
 }
 

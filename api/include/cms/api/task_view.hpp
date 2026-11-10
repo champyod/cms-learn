@@ -5,8 +5,10 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <cms/api/web.hpp>
+#include <cms/bank/bank.hpp>
 #include <cms/bank/visibility.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/error.hpp>
@@ -55,6 +57,40 @@ struct TaskViewer {
 [[nodiscard]] Result<std::optional<std::int32_t>> servable_version(
     db::connection& database, std::string_view task_id, std::span<const std::int64_t> audience,
     bool may_read_hidden);
+
+/// @brief The narrowing a list request asked for, every part already validated by the route.
+///
+/// The two bands are kept apart rather than intersected here: a level band is the learner's choice and a
+/// stage band is the route's, and a reader of the query can see both without reconstructing which was which.
+struct TaskListFilters {
+  std::optional<std::int32_t> level_min;
+  std::optional<std::int32_t> level_max;
+  std::optional<std::int32_t> stage_min;
+  std::optional<std::int32_t> stage_max;
+  /// Vocabulary ids the task must carry at least one of; empty means no narrowing by topic.
+  std::vector<std::string> topics;
+  /// The applied stage's tags, the same rule as `topics`.
+  std::vector<std::string> stage_topics;
+};
+
+/// @brief The published, visible tasks the filters leave, easiest first.
+///
+/// @param database The connection to read through.
+/// @param filters The narrowing the request asked for.
+/// @param audience The encoded accounts this request runs with.
+/// @param may_read_hidden True when the viewer holds `content:read`, which reveals a task with no
+/// visibility rows.
+/// @return One row per task id — its highest published version — ordered by difficulty and id, or the
+/// reason the read failed.
+///
+/// A task with no visibility row is absent for a learner and present for a reader, the same rule the task
+/// page applies, so the list cannot show a link the page would then refuse.
+[[nodiscard]] Result<std::vector<TaskListItem>> read_task_list(
+    db::connection& database, const TaskListFilters& filters,
+    std::span<const std::int64_t> audience, bool may_read_hidden);
+
+/// @brief Every topic the vocabulary defines, ordered by id, as the filter offers them.
+[[nodiscard]] Result<std::vector<bank::Topic>> read_topic_vocabulary(db::connection& database);
 
 /// @brief Reads the page data for the servable version of @p task_id.
 ///

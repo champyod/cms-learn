@@ -1,9 +1,14 @@
 #include <cms/api/page_routes.hpp>
 
+#include <algorithm>
+#include <charconv>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
+#include <vector>
 
 #include <drogon/drogon.h>
 
@@ -15,6 +20,7 @@
 #include <cms/api/settings_view.hpp>
 #include <cms/api/task_view.hpp>
 #include <cms/api/web.hpp>
+#include <cms/bank/bank.hpp>
 #include <cms/bank/curriculum.hpp>
 #include <cms/capability.hpp>
 
@@ -22,6 +28,66 @@ namespace cms::api {
 namespace {
 
 constexpr std::string_view SIGN_IN_PATH = "/signin";
+constexpr std::string_view TOPIC_PARAMETER_PREFIX = "topic:";
+constexpr char BAND_SEPARATOR = '-';
+constexpr std::int32_t BAND_MINIMUM = 800;
+constexpr std::int32_t BAND_MAXIMUM = 3500;
+constexpr std::int32_t BAND_STEP = 100;
+
+/// A difficulty on the one scale the content gate enforces: 800-3500, step 100.
+auto is_band_edge(std::int32_t value) -> bool {
+  return value >= BAND_MINIMUM && value <= BAND_MAXIMUM && value % BAND_STEP == 0;
+}
+
+/// `1500-1800` as the two numbers a filter runs with; nothing when that is not a band of the scale.
+auto parse_band(std::string_view text) -> std::optional<std::pair<std::int32_t, std::int32_t>> {
+  const auto separator = text.find(BAND_SEPARATOR);
+  if (separator == std::string_view::npos) {
+    return std::nullopt;
+  }
+  auto lowest = std::int32_t{0};
+  auto highest = std::int32_t{0};
+  const auto first = std::from_chars(text.data(), text.data() + separator, lowest);
+  const auto second = std::from_chars(text.data() + separator + 1, text.data() + text.size(), highest);
+  if (first.ec != std::errc{} || second.ec != std::errc{} || first.ptr != text.data() + separator ||
+      second.ptr != text.data() + text.size()) {
+    return std::nullopt;
+  }
+  if (!is_band_edge(lowest) || !is_band_edge(highest) || lowest > highest) {
+    return std::nullopt;
+  }
+  return std::pair{lowest, highest};
+}
+
+/// The topics a filter form submitted: one parameter per checked box, named `topic:<id>`. Repeating a query
+/// key is not something the request can express, so the id travels in the name rather than in the value.
+template <typename Parameters>
+auto checked_topics(const Parameters& parameters) -> std::vector<std::string> {
+  auto checked = std::vector<std::string>{};
+  for (const auto& [key, value] : parameters) {
+    if (value.empty() || !key.starts_with(TOPIC_PARAMETER_PREFIX)) {
+      continue;
+    }
+    checked.push_back(key.substr(TOPIC_PARAMETER_PREFIX.size()));
+  }
+  std::sort(checked.begin(), checked.end());
+  return checked;
+}
+
+auto find_stage(const std::vector<bank::Track>& tracks, std::string_view track_id,
+                std::string_view stage_id) -> const bank::Stage* {
+  for (const auto& track : tracks) {
+    if (track.id != track_id) {
+      continue;
+    }
+    for (const auto& stage : track.stages) {
+      if (stage.id == stage_id) {
+        return &stage;
+      }
+    }
+  }
+  return nullptr;
+}
 
 }  // namespace
 
@@ -163,6 +229,123 @@ auto register_settings_route(const std::shared_ptr<SettingsStore>& store,
         }
 
         callback(html_response(*page));
+      },
+      {drogon::Get});
+}
+
+
+auto register_task_list_route(const std::shared_ptr<SettingsStore>& store,
+                              const std::shared_ptr<const db::connection_config>& database_config,
+                              std::string_view template_root) -> void {
+  drogon::app().registerHandler(
+      "/tasks",
+      [store, database_config, template_root = std::string{template_root}](
+          const drogon::HttpRequestPtr& request,
+          std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        auto database = db::connection{database_config};
+        const auto viewer = task_viewer(database, request->getCookie("cms_session"));
+        if (!viewer) {
+          if (viewer.error().code == ErrorCode::permission_denied) {
+            callback(redirect(SIGN_IN_PATH));
+          } else {
+            callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                   drogon::k500InternalServerError));
+          }
+          return;
+        }
+        const auto permitted = authorize(database, viewer->account_kind, viewer->account_id,
+                                         Capability::content_read);
+        if (!permitted && permitted.error().code != ErrorCode::permission_denied) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
+
+        auto page = TaskListPage{};
+        auto filters = TaskListFilters{};
+
+        const auto level = request->getParameter("level");
+        if (!level.empty()) {
+          const auto band = parse_band(level);
+          if (!band) {
+            callback(text_response("the level filter is not a difficulty band on the 800-3500 scale",
+                                   drogon::k400BadRequest));
+            return;
+          }
+          page.level_min = band->first;
+          page.level_max = band->second;
+          filters.level_min = band->first;
+          filters.level_max = band->second;
+        }
+
+        const auto track_id = request->getParameter("track");
+        const auto stage_id = request->getParameter("stage");
+        if (!track_id.empty() || !stage_id.empty()) {
+          if (track_id.empty() || stage_id.empty()) {
+            callback(text_response("a stage is named by both its track and its id",
+                                   drogon::k400BadRequest));
+            return;
+          }
+          const auto curriculum = bank::read_curriculum(database);
+          if (!curriculum) {
+            callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                   drogon::k500InternalServerError));
+            return;
+          }
+          const auto* stage = find_stage(*curriculum, track_id, stage_id);
+          if (stage == nullptr) {
+            callback(text_response("no stage " + stage_id + " in track " + track_id,
+                                   drogon::k400BadRequest));
+            return;
+          }
+          page.stage_track = track_id;
+          page.stage_id = stage_id;
+          page.stage_title_en = stage->title_en;
+          page.stage_title_th = stage->title_th;
+          filters.stage_min = stage->difficulty_min;
+          filters.stage_max = stage->difficulty_max;
+          filters.stage_topics = stage->tags;
+        }
+
+        const auto vocabulary = read_topic_vocabulary(database);
+        if (!vocabulary) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
+        const auto selected = checked_topics(request->getParameters());
+        for (const auto& topic_id : selected) {
+          const auto known = std::any_of(
+              vocabulary->begin(), vocabulary->end(),
+              [&topic_id](const bank::Topic& topic) { return topic.id == topic_id; });
+          if (!known) {
+            callback(text_response("no topic called " + topic_id, drogon::k400BadRequest));
+            return;
+          }
+        }
+        page.topics = selected;
+        filters.topics = selected;
+
+        const auto listed =
+            read_task_list(database, filters, viewer->audience, permitted.has_value());
+        if (!listed) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
+        page.tasks = *listed;
+
+        const auto locale = choose_locale(request->getParameter("lang"),
+                                          request->getHeader("accept-language"));
+        const auto rendered = render_page(
+            template_root, "tasks.html",
+            task_list_model(locale, page, *vocabulary, site_name_of(*store)));
+        if (!rendered) {
+          callback(text_response(std::string{INTERNAL_ERROR_BODY},
+                                 drogon::k500InternalServerError));
+          return;
+        }
+        callback(html_response(*rendered));
       },
       {drogon::Get});
 }

@@ -1,8 +1,11 @@
 #include <cms/api/task_view.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <exception>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -317,6 +320,163 @@ auto read_task_page(db::connection& database, std::string_view task_id,
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }
+}
+
+
+namespace {
+
+/// One published row before the narrowing: the id and version it belongs to, and what a row shows.
+struct Candidate {
+  std::string id;
+  std::int64_t version{0};
+  std::string title_en;
+  std::string title_th;
+  std::int32_t difficulty{0};
+};
+
+auto read_candidates(db::connection& database, std::span<const std::int64_t> audience,
+                     bool may_read_hidden) -> std::vector<Candidate> {
+  auto candidates = std::vector<Candidate>{};
+  auto seen = std::set<std::string>{};
+  const auto collect = [&candidates, &seen](auto&& rows) {
+    for (const auto& row : rows) {
+      // Highest published version first, so the first row an id appears in is the one the page serves.
+      if (!seen.insert(std::string{row.id}).second) {
+        continue;
+      }
+      candidates.push_back(Candidate{.id = std::string{row.id},
+                                     .version = static_cast<std::int64_t>(row.version),
+                                     .title_en = std::string{row.titleEn},
+                                     .title_th = std::string{row.titleTh},
+                                     .difficulty = static_cast<std::int32_t>(row.difficulty)});
+    }
+  };
+
+  if (may_read_hidden) {
+    collect(database(sqlpp::select(db::tasks.id, db::tasks.version, db::tasks.titleEn,
+                                   db::tasks.titleTh, db::tasks.difficulty)
+                         .from(db::tasks)
+                         .where(db::tasks.status == std::string{PUBLISHED})
+                         .order_by(db::tasks.id.asc(), db::tasks.version.desc())));
+    return candidates;
+  }
+
+  const auto values = std::vector<std::int64_t>(audience.begin(), audience.end());
+  const auto is_visible = sqlpp::exists(
+      sqlpp::select(db::taskVisibility.taskId)
+          .from(db::taskVisibility)
+          .where(db::taskVisibility.taskId == db::tasks.id &&
+                 db::taskVisibility.principalId.in(values)));
+  collect(database(sqlpp::select(db::tasks.id, db::tasks.version, db::tasks.titleEn,
+                                 db::tasks.titleTh, db::tasks.difficulty)
+                       .from(db::tasks)
+                       .where(db::tasks.status == std::string{PUBLISHED} && is_visible)
+                       .order_by(db::tasks.id.asc(), db::tasks.version.desc())));
+  return candidates;
+}
+
+/// The topics of the version each candidate serves. A topic belongs to a task version, so a row of another
+/// version of the same id is not the task the page would serve and is dropped here.
+auto read_candidate_topics(db::connection& database, const std::vector<Candidate>& candidates)
+    -> std::map<std::pair<std::string, std::int64_t>, std::set<std::string>> {
+  auto topics = std::map<std::pair<std::string, std::int64_t>, std::set<std::string>>{};
+  auto ids = std::vector<std::string>{};
+  ids.reserve(candidates.size());
+  for (const auto& candidate : candidates) {
+    ids.push_back(candidate.id);
+  }
+  if (ids.empty()) {
+    return topics;
+  }
+  for (const auto& row : database(sqlpp::select(db::taskTopics.taskId, db::taskTopics.taskVersion,
+                                               db::taskTopics.topic)
+                                      .from(db::taskTopics)
+                                      .where(db::taskTopics.taskId.in(ids)))) {
+    topics[{std::string{row.taskId}, static_cast<std::int64_t>(row.taskVersion)}].insert(
+        std::string{row.topic});
+  }
+  return topics;
+}
+
+auto within(const std::optional<std::int32_t> band_min, const std::optional<std::int32_t> band_max,
+            std::int32_t difficulty) -> bool {
+  if (band_min.has_value() && difficulty < *band_min) {
+    return false;
+  }
+  if (band_max.has_value() && difficulty > *band_max) {
+    return false;
+  }
+  return true;
+}
+
+auto carries_one_of(const std::vector<std::string>& wanted, const std::set<std::string>& carried)
+    -> bool {
+  if (wanted.empty()) {
+    return true;
+  }
+  return std::any_of(wanted.begin(), wanted.end(),
+                     [&carried](const std::string& topic) { return carried.contains(topic); });
+}
+
+}  // namespace
+
+auto read_task_list(db::connection& database, const TaskListFilters& filters,
+               std::span<const std::int64_t> audience, bool may_read_hidden)
+    -> Result<std::vector<TaskListItem>> {
+  if (!may_read_hidden && audience.empty()) {
+    return std::unexpected(
+        Error::make(ErrorCode::invalid_argument, "the audience is empty; a request carries its viewer"));
+  }
+  try {
+    const auto candidates = read_candidates(database, audience, may_read_hidden);
+    const auto topics = read_candidate_topics(database, candidates);
+
+    auto listed = std::vector<TaskListItem>{};
+    for (const auto& candidate : candidates) {
+      if (!within(filters.level_min, filters.level_max, candidate.difficulty) ||
+          !within(filters.stage_min, filters.stage_max, candidate.difficulty)) {
+        continue;
+      }
+      auto carried = std::set<std::string>{};
+      if (const auto found = topics.find({candidate.id, candidate.version}); found != topics.end()) {
+        carried = found->second;
+      }
+      if (!carries_one_of(filters.topics, carried) ||
+          !carries_one_of(filters.stage_topics, carried)) {
+        continue;
+      }
+      listed.push_back(TaskListItem{.id = candidate.id,
+                                    .title_en = candidate.title_en,
+                                    .title_th = candidate.title_th,
+                                    .difficulty = candidate.difficulty});
+    }
+    std::sort(listed.begin(), listed.end(), [](const TaskListItem& left, const TaskListItem& right) {
+      if (left.difficulty != right.difficulty) {
+        return left.difficulty < right.difficulty;
+      }
+      return left.id < right.id;
+    });
+    return listed;
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+}
+
+auto read_topic_vocabulary(db::connection& database) -> Result<std::vector<bank::Topic>> {
+  auto vocabulary = std::vector<bank::Topic>{};
+  try {
+    for (const auto& row : database(sqlpp::select(db::topics.id, db::topics.labelEn,
+                                                  db::topics.labelTh)
+                                        .from(db::topics)
+                                        .order_by(db::topics.id.asc()))) {
+      vocabulary.push_back(bank::Topic{.id = std::string{row.id},
+                                       .label_en = std::string{row.labelEn},
+                                       .label_th = std::string{row.labelTh}});
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  return vocabulary;
 }
 
 }  // namespace cms::api

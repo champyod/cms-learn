@@ -1,12 +1,13 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { settingsFixture } from "./catalogue.ts";
-import { adminFixture, homeFixture, signinFixture, signupFixture, taskFixture } from "./fixtures.ts";
+import { adminFixture, homeFixture, signinFixture, signupFixture, taskFixture, taskListFixture } from "./fixtures.ts";
 import { AdminHome } from "./pages/admin_home.tsx";
 import { Home } from "./pages/home.tsx";
 import { Settings } from "./pages/settings.tsx";
 import { Signin } from "./pages/signin.tsx";
 import { Signup } from "./pages/signup.tsx";
 import { Task } from "./pages/task.tsx";
+import { Tasks } from "./pages/tasks.tsx";
 import type { Mode } from "./slots.ts";
 
 // The registry is the single list of pages. The gate compares it against the templates on disk, so a page
@@ -18,6 +19,7 @@ export const pages: Record<string, (mode: Mode) => React.ReactElement> = {
   signin: (mode) => <Signin mode={mode} data={signinFixture} />,
   signup: (mode) => <Signup mode={mode} data={signupFixture} />,
   task: (mode) => <Task mode={mode} data={taskFixture} />,
+  tasks: (mode) => <Tasks mode={mode} data={taskListFixture} />,
 };
 
 export const render = (name: string, mode: Mode): string => {
