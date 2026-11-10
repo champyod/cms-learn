@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -12,6 +13,7 @@
 #include <cms/api/settings_view.hpp>
 #include <cms/api/web.hpp>
 #include <cms/bank/bank.hpp>
+#include <cms/bank/serve.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/settings_snapshot.hpp>
 
@@ -54,6 +56,20 @@ struct PathWords {
                    .finished = "ขั้นนี้ทำครบแล้ว",
                    .no_next = "ยังไม่มีแบบฝึกหัดใหม่ในขั้นนี้ตอนนี้",
                    .empty_stage = "ขั้นนี้ยังไม่มีแบบฝึกหัด"};
+}
+
+/// @brief Whether a stage may offer the task the bank returned as its next one.
+///
+/// @param next What the bank answered, or nothing when even its own band holds nothing unseen.
+/// @param done How many of the stage's tasks the learner has solved.
+/// @param total How many the stage holds.
+/// @return True only for an unseen task inside the stage's own band, while the stage still has work.
+///
+/// A stage's offer is its own band, and a finished stage has no offer: the count and the offer are one
+/// answer, so "done 2 of 2" can never sit beside a task from the band above.
+[[nodiscard]] inline auto stage_offers(const std::optional<bank::NextTask>& next, std::int64_t done,
+                                       std::int64_t total) -> bool {
+  return next.has_value() && !next->is_widened && done < total;
 }
 
 /// @brief Builds the one model `home.html` renders.

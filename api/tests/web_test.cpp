@@ -170,6 +170,42 @@ TEST_CASE("a stage with no Thai title renders its English one, not an empty head
   CHECK(!contains(*page, "<h3></h3>"));
 }
 
+TEST_CASE("a widened offer is never a stage's next task", "[web]") {
+  const auto english = cms::api::choose_locale("en", "");
+  auto widened = cms::bank::NextTask{.id = "widened-path", .version = 1};
+  widened.is_widened = true;
+  auto in_band = cms::bank::NextTask{.id = "in-band", .version = 1};
+
+  CHECK(!cms::api::stage_offers(widened, 1, 1));   // finished, and outside the band
+  CHECK(!cms::api::stage_offers(widened, 0, 2));   // outside the band, work left
+  CHECK(!cms::api::stage_offers(in_band, 2, 2));   // finished, even inside the band
+  CHECK(!cms::api::stage_offers(std::nullopt, 0, 2));
+  CHECK(cms::api::stage_offers(in_band, 1, 2));
+  (void)english;
+}
+
+TEST_CASE("a finished stage renders as finished, not as a next task", "[web]") {
+  const auto locale = cms::api::choose_locale("en", "");
+  auto paths = std::vector<cms::api::StagePath>{};
+  for (const auto& track : sample_curriculum()) {
+    for (const auto& stage : track.stages) {
+      paths.push_back(cms::api::StagePath{.track_id = track.id,
+                                          .stage_id = stage.id,
+                                          .done = 1,
+                                          .total = 1,
+                                          .next_id = {},
+                                          .next_title = {},
+                                          .has_next = false});
+    }
+  }
+  const auto model = cms::api::home_page_model(locale, sample_curriculum(), paths, "CMS Learn",
+                                               sample_level_view(), true);
+  const auto page = cms::api::render_page(template_root(), "home.html", model);
+  REQUIRE(page.has_value());
+  CHECK(page->find("Nothing left in this stage") != std::string::npos);
+  CHECK(page->find("Next task") == std::string::npos);
+}
+
 TEST_CASE("the English page carries the English navigation", "[web][unit]") {
   const auto page = home_page(cms::api::choose_locale("en", ""));
   REQUIRE(page.has_value());

@@ -123,6 +123,21 @@ auto widen(std::int32_t minimum, std::int32_t maximum) -> std::pair<std::int32_t
 
 }  // namespace
 
+auto next_unseen_task_in_band(db::connection& database, std::string_view account_id,
+                             const Stage& stage, std::span<const std::int64_t> audience)
+    -> Result<std::optional<NextTask>> {
+  if (audience.empty()) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument, "the audience is empty; every request carries the everyone entry"));
+  }
+  try {
+    return find_in_band(database, account_id, stage, audience, stage.difficulty_min,
+                        stage.difficulty_max);
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+}
+
 auto stage_progress(db::connection& database, std::string_view account_id, const Stage& stage,
                     std::span<const std::int64_t> audience) -> Result<StageProgress> {
   try {

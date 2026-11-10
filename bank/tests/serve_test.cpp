@@ -271,15 +271,33 @@ TEST_CASE("a stage counts its tasks and how many of them the account solved", "[
   REQUIRE(next->has_value());
   CHECK((*next)->id == "probe-count-b");
 
-  // A full stage: every task in the band is solved, the count says 2 of 2, and the rule offers nothing —
-  // the widened band holds only the third task, so solving it too is what empties the offer.
+  // A full stage with a neighbour still visible outside its band: every task IN THE BAND is solved, the
+  // count says 2 of 2, and the third task (2300, one step above the band) is neither solved nor hidden. The
+  // widening rule finds it — that is what it is for — but the stage's own offer must stay empty, because a
+  // finished stage that offers a task from the band above reads "done 2 of 2" beside something it does not
+  // contain. This is the state the page is judged on, so the neighbour is deliberately left unsolved.
   solved(database, account, "probe-count-b");
-  solved(database, account, "probe-count-c");
   const auto full = cms::bank::stage_progress(database, account, band, audience);
   REQUIRE(full.has_value());
   CHECK(full->total == 2);
   CHECK(full->done == 2);
-  const auto exhausted = cms::bank::next_unseen_task(database, account, band, audience);
-  REQUIRE(exhausted.has_value());
-  CHECK(!exhausted->has_value());
+
+  const auto widened = cms::bank::next_unseen_task(database, account, band, audience);
+  REQUIRE(widened.has_value());
+  REQUIRE(widened->has_value());
+  CHECK((*widened)->id == "probe-count-c");
+  CHECK((*widened)->is_widened);
+
+  const auto in_band = cms::bank::next_unseen_task_in_band(database, account, band, audience);
+  REQUIRE(in_band.has_value());
+  CHECK(!in_band->has_value());
+
+  // With work still left in the band, the two rules agree — the stage's offer is the same task either way.
+  database.execute_text("DELETE FROM progress WHERE account_id = $1::uuid AND task_id = $2",
+                        {account, std::string{"probe-count-a"}});
+  const auto again = cms::bank::next_unseen_task_in_band(database, account, band, audience);
+  REQUIRE(again.has_value());
+  REQUIRE(again->has_value());
+  CHECK((*again)->id == "probe-count-a");
+  CHECK(!(*again)->is_widened);
 }

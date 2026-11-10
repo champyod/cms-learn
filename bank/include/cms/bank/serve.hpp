@@ -21,6 +21,16 @@ struct NextTask {
   bool is_widened{false};
 };
 
+/// @brief The next unseen task inside the stage's own band, with no widening.
+///
+/// A stage's offer is its own band. `next_unseen_task` widens once to find neighbouring practice, which is
+/// what a caller that wants "something to do" needs; a caller that is showing one stage's own progress must
+/// not be handed a task from the next band up and call it this stage's next, or a finished stage would read
+/// "done 2 of 2" and offer a task above it. The predicates are the same ones, minus the widening.
+[[nodiscard]] Result<std::optional<NextTask>> next_unseen_task_in_band(
+    db::connection& database, std::string_view account_id, const Stage& stage,
+    std::span<const std::int64_t> audience);
+
 /// @brief How much of a stage an account has done, counted by the same rule that selects the next task.
 ///
 /// `total` is the tasks the account may see in the stage (published, visible to the audience, band and tag);

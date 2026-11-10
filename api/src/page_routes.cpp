@@ -215,11 +215,14 @@ auto read_path_state(db::connection& database, const std::vector<bank::Track>& t
         path.done = summary->done;
         path.total = summary->total;
 
-        const auto next = bank::next_unseen_task(database, account->id, stage, viewer->audience);
+        // The stage's offer is its own band: a finished stage that reached into the next band would read
+        // "done 2 of 2" beside a task it does not contain.
+        const auto next =
+            bank::next_unseen_task_in_band(database, account->id, stage, viewer->audience);
         if (!next) {
           return std::unexpected(next.error());
         }
-        if (next->has_value()) {
+        if (stage_offers(*next, summary->done, summary->total)) {
           path.has_next = true;
           path.next_id = (*next)->id;
           path.next_title = (*next)->id;
