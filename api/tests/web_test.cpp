@@ -47,9 +47,29 @@ auto contains(const std::string& haystack, std::string_view needle) -> bool {
   return haystack.find(needle) != std::string::npos;
 }
 
+/// A learner's view of the rung list: two rungs, the second chosen. The shell's meter draws from this, so
+/// the tests that render a page render it the way a signed-in learner sees it.
+auto sample_level_view() -> cms::api::LevelView {
+  return cms::api::LevelView{
+      .rungs = {{.id = "toi-zero",
+                 .title_en = "TOI-Zero",
+                 .title_th = "",
+                 .difficulty_min = 800,
+                 .difficulty_max = 1400},
+                {.id = "camp-1",
+                 .title_en = "Camp 1",
+                 .title_th = "ค่าย 1",
+                 .difficulty_min = 1500,
+                 .difficulty_max = 1800}},
+      .current_id = "camp-1",
+      .is_learner = true,
+  };
+}
+
 auto home_page(const cms::api::Locale& locale) -> cms::Result<std::string> {
-  return cms::api::render_page(template_root(), "home.html",
-                               cms::api::home_model(locale, sample_curriculum(), "CMS Learn"));
+  return cms::api::render_page(
+      template_root(), "home.html",
+      cms::api::home_model(locale, sample_curriculum(), "CMS Learn", sample_level_view()));
 }
 
 auto sample_task() -> cms::api::TaskPage {
@@ -67,8 +87,9 @@ auto sample_task() -> cms::api::TaskPage {
 }
 
 auto task_page(const cms::api::Locale& locale) -> cms::Result<std::string> {
-  return cms::api::render_page(template_root(), "task.html",
-                               cms::api::task_model(locale, sample_task(), "CMS Learn"));
+  return cms::api::render_page(
+      template_root(), "task.html",
+      cms::api::task_model(locale, sample_task(), "CMS Learn", sample_level_view()));
 }
 
 /// A published tree with one asset, and one file beside it that no request may reach.
@@ -157,7 +178,8 @@ TEST_CASE("the English page carries the English navigation", "[web][unit]") {
 TEST_CASE("a page whose template is missing is an error, not an empty document", "[web][unit]") {
   const auto page = cms::api::render_page(
       "/nonexistent/templates", "home.html",
-      cms::api::home_model(cms::api::choose_locale("th", ""), sample_curriculum(), "CMS Learn"));
+      cms::api::home_model(cms::api::choose_locale("th", ""), sample_curriculum(), "CMS Learn",
+                           sample_level_view()));
   REQUIRE(!page.has_value());
 }
 
@@ -207,7 +229,8 @@ TEST_CASE("a missing statement locale falls back to the other one", "[web][unit]
   task.statement_th = "";
   const auto page = cms::api::render_page(
       template_root(), "task.html",
-      cms::api::task_model(cms::api::choose_locale("th", ""), task, "CMS Learn"));
+      cms::api::task_model(cms::api::choose_locale("th", ""), task, "CMS Learn",
+                           sample_level_view()));
   REQUIRE(page.has_value());
 
   CHECK(contains(*page, "Answer each query in order."));
@@ -216,7 +239,7 @@ TEST_CASE("a missing statement locale falls back to the other one", "[web][unit]
 
 TEST_CASE("the task model carries no reference solution and no starter source", "[web][unit]") {
   const auto model = cms::api::task_model(cms::api::choose_locale("th", ""), sample_task(),
-                                          "CMS Learn");
+                                          "CMS Learn", sample_level_view());
 
   CHECK(!model.contains("solution"));
   CHECK(!model["task"].contains("solution"));
@@ -232,7 +255,8 @@ TEST_CASE("a statement carrying markup is shown as text, never injected into the
   task.statement_en = "<script>alert(1)</script>";
   const auto page = cms::api::render_page(
       template_root(), "task.html",
-      cms::api::task_model(cms::api::choose_locale("en", ""), task, "CMS Learn"));
+      cms::api::task_model(cms::api::choose_locale("en", ""), task, "CMS Learn",
+                           sample_level_view()));
   REQUIRE(page.has_value());
 
   CHECK(contains(*page, "&lt;script&gt;alert(1)&lt;/script&gt;"));
