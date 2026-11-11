@@ -30,7 +30,7 @@ printf 'Given a sequence and queries\n' >"$work/statement.en"
 cp "$repo/content/tasks/range-sum-query/solutions/main.cpp" "$work/main.cpp"
 
 "$generator" --out "$work/draft" --id probe-task --title-en "Probe" --title-th "ทดสอบ" \
-  --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-mb 256 --checker token \
+  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-mb 256 --checker token \
   --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
   --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp" \
   >/dev/null 2>&1 || { echo "publish gate FAILED: the generator refused the specification" >&2; exit 1; }
