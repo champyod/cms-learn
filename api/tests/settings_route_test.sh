@@ -87,7 +87,7 @@ if ! kill -0 "$api_pid" 2>/dev/null; then
 fi
 ok "the api started"
 
-reply="$(curl -s --max-time 5 -D "$work/headers" -w '\n%{http_code}' \
+reply="$(curl -s --max-time 20 -D "$work/headers" -w '\n%{http_code}' \
   -X POST "http://127.0.0.1:$listen_port/settings" \
   --data-urlencode "mail.password=hunter2" \
   --data-urlencode "site.name=CMS Learn Probe" \
@@ -127,15 +127,15 @@ audited="$(psql_db -c "SELECT new_value FROM settings_audit WHERE key = 'mail.pa
 [ "$audited" = "<redacted>" ] && ok "the audit row records the change without the value" \
   || bad "the audit row records the change without the value" "audit holds: ${audited:-nothing}"
 
-health="$(curl -fsS --max-time 5 "http://127.0.0.1:$listen_port/healthz" 2>&1)"
-metrics="$(curl -fsS --max-time 5 "http://127.0.0.1:$listen_port/metrics" 2>&1)"
+health="$(curl -fsS --max-time 20 "http://127.0.0.1:$listen_port/healthz" 2>&1)"
+metrics="$(curl -fsS --max-time 20 "http://127.0.0.1:$listen_port/metrics" 2>&1)"
 case "$health$metrics" in
   *hunter2*) bad "no route returns the secret" "a route body carries it" ;;
   *) ok "no route returns the secret" ;;
 esac
 
 before="$(psql_db -c "SELECT count(*) FROM settings")"
-status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
   -X POST "http://127.0.0.1:$listen_port/settings" --data "site.registration_open=true")"
 [ "$status" = "403" ] && ok "a request with no session is refused" \
   || bad "a request with no session is refused" "HTTP $status"
@@ -143,7 +143,7 @@ count="$(psql_db -c "SELECT count(*) FROM settings")"
 [ "$count" = "$before" ] && ok "the request with no session wrote no row" \
   || bad "the request with no session wrote no row" "$before -> $count row(s)"
 
-status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
   -X POST "http://127.0.0.1:$listen_port/settings" --data "site.registration_open=true" \
   -H "Cookie: cms_session=$reader_session")"
 [ "$status" = "403" ] && ok "a live session without settings:write is refused" \
@@ -152,7 +152,7 @@ count="$(psql_db -c "SELECT count(*) FROM settings")"
 [ "$count" = "$before" ] && ok "the request without the capability wrote no row" \
   || bad "the request without the capability wrote no row" "$before -> $count row(s)"
 
-reply="$(curl -s --max-time 5 -w '\n%{http_code}' \
+reply="$(curl -s --max-time 20 -w '\n%{http_code}' \
   -X POST "http://127.0.0.1:$listen_port/settings" \
   --data-urlencode "site.registration_domain_allowlist=half.example" \
   --data-urlencode "mail.port=not-a-port" \

@@ -119,7 +119,7 @@ fi
 get() {  # get <path> [cookie]
   local path="$1" cookie="${2:-}" header=()
   [ -n "$cookie" ] && header=(-H "Cookie: cms_session=$cookie")
-  curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 5 \
+  curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 20 \
     "${header[@]}" "http://127.0.0.1:$listen_port$path"
 }
 listed() { grep -q ">$1<" "$work/body"; }

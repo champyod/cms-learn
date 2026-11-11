@@ -86,7 +86,7 @@ if ! kill -0 "$api_pid" 2>/dev/null; then
   exit 1
 fi
 
-reply="$(curl -s --max-time 5 -w '\n%{http_code}' \
+reply="$(curl -s --max-time 20 -w '\n%{http_code}' \
   -X POST "http://127.0.0.1:$listen_port/tasks/probe-task/submit" \
   --data-urlencode "source=int main() { return 0; }" \
   -H "Cookie: cms_session=$session")"
@@ -110,7 +110,7 @@ recorded="$(psql_db -c "SELECT count(*) FROM progress WHERE account_id = '$accou
 first_attempt="$(psql_db -c "SELECT attempted_at FROM progress WHERE account_id = '$account'")"
 
 # Without the cookie the route must refuse rather than write a row for nobody.
-status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
   -X POST "http://127.0.0.1:$listen_port/tasks/probe-task/submit" --data "source=x")"
 [ "$status" = "400" ] && ok "a submission with no session is refused" \
   || bad "a submission with no session is refused" "HTTP $status"
@@ -122,7 +122,7 @@ progress_rows="$(psql_db -c "SELECT count(*) FROM progress")"
   || bad "the refused submission wrote no attempt row" "$progress_rows row(s)"
 
 # A published task with no visibility row is not servable, so it is not writable either.
-status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 \
   -X POST "http://127.0.0.1:$listen_port/tasks/hidden-task/submit" \
   --data "source=int main() { return 0; }" -H "Cookie: cms_session=$session")"
 [ "$status" = "400" ] && ok "a submission to a task with no visibility row is refused" \

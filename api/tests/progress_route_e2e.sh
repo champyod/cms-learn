@@ -105,7 +105,7 @@ fi
 get() {  # get <path> [cookie]
   local path="$1" cookie="${2:-}" header=()
   [ -n "$cookie" ] && header=(-H "Cookie: cms_session=$cookie")
-  curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 5 \
+  curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 20 \
     "${header[@]}" "http://127.0.0.1:$listen_port$path"
 }
 
@@ -129,7 +129,7 @@ grep -q "sets a threshold" "$work/body" && ok "the page states that no threshold
   || bad "the page states that no threshold exists" "the note is missing"
 
 before="$(psql_db -c "SELECT count(*) FROM progress")"
-status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 -X POST \
+status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -X POST \
   "http://127.0.0.1:$listen_port/tasks/probe-task/submit" \
   --data-urlencode "source=int main() { return 0; }" -H "Cookie: cms_session=$session")"
 [ "$status" = "303" ] && ok "the submit route accepts the program" \
@@ -146,7 +146,7 @@ fi
 
 # A second submission must not create a second row, and must not move attempted_at.
 first_attempt="$(psql_db -c "SELECT attempted_at FROM progress WHERE account_id = '$learner'")"
-curl -s -o /dev/null --max-time 5 -X POST "http://127.0.0.1:$listen_port/tasks/probe-task/submit" \
+curl -s -o /dev/null --max-time 20 -X POST "http://127.0.0.1:$listen_port/tasks/probe-task/submit" \
   --data-urlencode "source=int main() { return 1; }" -H "Cookie: cms_session=$session"
 rows="$(psql_db -c "SELECT count(*) FROM progress WHERE account_id = '$learner'")"
 second_attempt="$(psql_db -c "SELECT attempted_at FROM progress WHERE account_id = '$learner'")"

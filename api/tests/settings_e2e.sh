@@ -93,14 +93,14 @@ else
   ok "the api started"
 fi
 
-health="$(curl -fsS --max-time 5 "http://127.0.0.1:$listen_port/healthz" 2>&1)"
+health="$(curl -fsS --max-time 20 "http://127.0.0.1:$listen_port/healthz" 2>&1)"
 if [[ "$health" == *"ok settings-version=$before_version"* ]]; then
   ok "/healthz reports the settings version"
 else
   bad "/healthz reports the settings version" "got: $health"
 fi
 
-metrics="$(curl -fsS --max-time 5 "http://127.0.0.1:$listen_port/metrics" 2>&1)"
+metrics="$(curl -fsS --max-time 20 "http://127.0.0.1:$listen_port/metrics" 2>&1)"
 if [[ "$metrics" == *"cms_learn_settings_version $before_version"* ]]; then
   ok "/metrics exposes the version as a gauge"
 else
@@ -127,7 +127,7 @@ else
   bad "the admin socket answers ping" "got: ${reply:-nothing}"
 fi
 
-public_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://127.0.0.1:$listen_port/admin/ping" 2>&1)"
+public_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "http://127.0.0.1:$listen_port/admin/ping" 2>&1)"
 if [ "$public_status" = "404" ]; then
   ok "the public listener carries no admin route"
 else
@@ -145,7 +145,7 @@ fi
 
 propagated=""
 for _ in $(seq 1 25); do
-  health="$(curl -fsS --max-time 5 "http://127.0.0.1:$listen_port/healthz" 2>&1)"
+  health="$(curl -fsS --max-time 20 "http://127.0.0.1:$listen_port/healthz" 2>&1)"
   if [[ "$health" == *"settings-version=$after_version"* ]]; then propagated="$health"; break; fi
   sleep 0.2
 done

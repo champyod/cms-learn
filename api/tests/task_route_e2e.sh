@@ -145,10 +145,10 @@ fetch() {
   local path="$1"
   local cookie="${2:-}"
   if [ -n "$cookie" ]; then
-    curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 5 \
+    curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 20 \
       -H "Cookie: cms_session=$cookie" "http://127.0.0.1:$listen_port$path"
   else
-    curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 5 \
+    curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 20 \
       "http://127.0.0.1:$listen_port$path"
   fi
 }

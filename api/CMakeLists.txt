@@ -98,7 +98,7 @@ cms_apply_sanitizers(cms_api)
 add_test(
   NAME api_admin_panel_e2e
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tests/admin_panel_e2e.sh" "$<TARGET_FILE:cms_api>")
-set_tests_properties(api_admin_panel_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180)
+set_tests_properties(api_admin_panel_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 180 RESOURCE_LOCK e2e)
 
 if(CMS_BUILD_TESTS)
   add_subdirectory(tests)

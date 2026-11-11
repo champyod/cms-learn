@@ -105,7 +105,7 @@ get() {  # get <path> [cookie]  ; a panel path goes to the panel listener, every
 }
 
 send() {  # send <method-args...> <path> ; the caller supplies the body fields
-  curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 5 "$@"
+  curl -s -o "$work/body" -D "$work/headers" -w '%{http_code}' --max-time 20 "$@"
 }
 
 cookie_of() {
