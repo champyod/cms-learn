@@ -122,6 +122,23 @@ auto check(const entry_map& entries, std::vector<std::string>& problems) -> void
            "CMSLEARN_LISTEN_ADDRESS is empty");
   validate("CMSLEARN_LISTEN_PORT", is_port(value_of(entries, "CMSLEARN_LISTEN_PORT")),
            "CMSLEARN_LISTEN_PORT is not a port number");
+  const auto store_keys = std::array{std::string_view{"CMSLEARN_S3_ENDPOINT"},
+                                     std::string_view{"CMSLEARN_S3_REGION"},
+                                     std::string_view{"CMSLEARN_S3_BUCKET"},
+                                     std::string_view{"CMSLEARN_S3_ACCESS_KEY_ID"},
+                                     std::string_view{"CMSLEARN_S3_SECRET_ACCESS_KEY"}};
+  auto store_values = std::size_t{0};
+  for (const auto key : store_keys) {
+    if (!optional_value(entries, key).empty()) {
+      ++store_values;
+    }
+  }
+  if (store_values != 0 && store_values != store_keys.size()) {
+    problems.emplace_back(
+        "the CMSLEARN_S3_* keys must all be set or all be empty (endpoint, region, bucket, access key "
+        "id, secret access key)");
+  }
+
   const auto panel_address = optional_value(entries, "CMSLEARN_PANEL_LISTEN_ADDRESS");
   const auto panel_port = optional_value(entries, "CMSLEARN_PANEL_LISTEN_PORT");
   if (panel_address.empty() != panel_port.empty()) {
@@ -195,6 +212,11 @@ auto load_host_config(std::string_view path) -> Result<HostConfig> {
       .admin_uid = entries.at("CMSLEARN_ADMIN_UID"),
       .template_root = entries.at("CMSLEARN_TEMPLATE_ROOT"),
       .static_root = entries.at("CMSLEARN_STATIC_ROOT"),
+      .s3_endpoint = optional_value(entries, "CMSLEARN_S3_ENDPOINT"),
+      .s3_region = optional_value(entries, "CMSLEARN_S3_REGION"),
+      .s3_bucket = optional_value(entries, "CMSLEARN_S3_BUCKET"),
+      .s3_access_key_id = optional_value(entries, "CMSLEARN_S3_ACCESS_KEY_ID"),
+      .s3_secret_access_key = optional_value(entries, "CMSLEARN_S3_SECRET_ACCESS_KEY"),
   };
 }
 

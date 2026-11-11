@@ -43,10 +43,14 @@ vals = {
     "GRAFANA_PASSWORD": "gate-only-grafana",
     "CROWDSEC_API_KEY": "gate-only-key",
     "AGE_PUBLIC_KEY": "age1gateonlygateonlygateonlygateonlygateonlygateonly",
+    # The gate's throwaway .env, never a tracked file: the stack must refuse without these, so the gate
+    # supplies values to prove it starts once they exist.
+    "CMSLEARN_S3_ACCESS_KEY_ID": "gate-only-access-key",
+    "CMSLEARN_S3_SECRET_ACCESS_KEY": "gate-only-secret-key",
 }
 out = []
 for line in open(src):
-    m = re.match(r"^([A-Z_]+)=", line)
+    m = re.match(r"^([A-Z0-9_]+)=", line)
     out.append(f"{m.group(1)}={vals[m.group(1)]}\n" if m and m.group(1) in vals else line)
 open(dst, "w").writelines(out)
 PY
@@ -234,5 +238,27 @@ prom_image="$(python3 -c "import json;print(json.load(open('$work/config.json'))
 docker run --rm -v "$deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
   --entrypoint promtool "$prom_image" check config /etc/prometheus/prometheus.yml >/dev/null \
   || fail "prometheus config is invalid"
+
+# ── 11. the object store has a credential, and no tracked file carries one ──────────────────────
+# The bytes of a task live in the store and the network is no longer the only boundary (ADR 0023), so the
+# stack must refuse to start without the credential and the tracked examples must name it empty.
+for key in CMSLEARN_S3_ACCESS_KEY_ID CMSLEARN_S3_SECRET_ACCESS_KEY; do
+  grep -q "^$key=$" "$deploy/.env.example" || fail "deploy/.env.example must name $key empty"
+  grep -q "\${$key:?" "$deploy/docker-compose.yml" || fail "docker-compose.yml does not require $key"
+done
+python3 - "$work/config.json" <<'PY' || exit 1
+import json, sys
+service = json.load(open(sys.argv[1]))["services"]["objects"]
+environment = service.get("environment", {})
+for name in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"):
+    if not environment.get(name):
+        raise SystemExit(f"deploy gate FAILED: objects does not take {name} from .env")
+PY
+note "the object store takes its credential from .env, and the compose requires it"
+
+if git -C "$repo" ls-files -z | xargs -0 grep -lnE "AKIA[0-9A-Z]{16}" 2>/dev/null | grep -q .; then
+  fail "a tracked file carries what looks like a store credential"
+fi
+note "no tracked file carries a store credential"
 
 printf 'deploy gate: OK\n'

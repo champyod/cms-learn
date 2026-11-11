@@ -27,6 +27,13 @@ struct HostConfig {
   std::string admin_uid;
   std::string template_root;
   std::string static_root;
+  /// The object store the task bytes live in (ADR 0023). All five are set together or none is: a store
+  /// half-configured is a service that would read a task's bytes from nowhere.
+  std::string s3_endpoint;
+  std::string s3_region;
+  std::string s3_bucket;
+  std::string s3_access_key_id;
+  std::string s3_secret_access_key;
 };
 
 /// @brief Reads a `KEY=VALUE` file and validates every required fact.

@@ -11,6 +11,20 @@ export const DEPLOY_GATE: Gate = {
   command: { command: "bash", args: ["{repo}/tools/check-deploy.sh"], env: { DEPLOY_DIR: "{root}/deploy" } },
   cases: [
     {
+      // The stack must refuse without the object store's credential: with the compose accepting an empty
+      // value again, the store comes up allow-all and only the network stands in the way.
+      name: "store-credential-not-required",
+      plant: [
+        {
+          kind: "run",
+          script:
+            "sed -i 's|${CMSLEARN_S3_SECRET_ACCESS_KEY:?set CMSLEARN_S3_SECRET_ACCESS_KEY in .env}|${CMSLEARN_S3_SECRET_ACCESS_KEY:-}|' deploy/docker-compose.yml",
+          verify: "grep -q 'CMSLEARN_S3_SECRET_ACCESS_KEY:-' deploy/docker-compose.yml",
+        },
+      ],
+      expect: red("does not require CMSLEARN_S3_SECRET_ACCESS_KEY"),
+    },
+    {
       name: "db-published-publicly",
       plant: [{ kind: "patch", path: "deploy/docker-compose.yml", find: "127.0.0.1:5432:5432", replace: "5432:5432" }],
       expect: red("only proxy may face the internet"),

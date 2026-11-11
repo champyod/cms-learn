@@ -219,9 +219,13 @@ services:
     <<: *hardening
     image: {{image:objects}}
     # One process holds every role — master, volume server, filer and the S3 gateway — with every
-    # byte under /data. No credentials are configured, which is the documented allow-all state, and
-    # the network below is the boundary instead: nothing outside this network can reach port 8333.
+    # byte under /data. The credential below is what the gateway validates: with it set, a request
+    # without a valid signature is refused, and the network is a second boundary rather than the only
+    # one (ADR 0023). It comes from .env and is never written into a tracked file.
     command: ["server", "-s3", "-dir=/data"]
+    environment:
+      AWS_ACCESS_KEY_ID: ${CMSLEARN_S3_ACCESS_KEY_ID:?set CMSLEARN_S3_ACCESS_KEY_ID in .env}
+      AWS_SECRET_ACCESS_KEY: ${CMSLEARN_S3_SECRET_ACCESS_KEY:?set CMSLEARN_S3_SECRET_ACCESS_KEY in .env}
     expose: ["8333"]
     volumes:
       - objectdata:/data

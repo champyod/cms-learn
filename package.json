@@ -59,7 +59,8 @@
     "check:judge": "bash tools/check-judge.sh",
     "check:judge:falsify": "bun run tools/falsify/runner.ts judge",
     "check:live": "bash tools/check-live.sh",
-    "check:live:falsify": "bun run tools/falsify/runner.ts live"
+    "check:live:falsify": "bun run tools/falsify/runner.ts live",
+    "check:objects": "bash tools/check-objects.sh"
   },
   "devDependencies": {
     "@codemirror/commands": "6.11.1",
