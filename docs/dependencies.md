@@ -148,6 +148,9 @@ g++ 16 or newer; the gate's own run reports `g++ (GCC) 16.2.1`.
 
 ### Obtaining the pinned schema tool
 
+The gates look in `${XDG_DATA_HOME:-$HOME/.local/share}/cms-learn/tools` first, then the
+package caches. A copy there survives a cache clean, which has already removed the pin twice.
+
 `pgschema` renders and applies the migration plan in `deploy/plan`, and the plan is only comparable if the
 version that renders it is the version the plan was rendered by. The gates therefore resolve this pin
 through one place, `tools/pinned-pgschema.sh`, which refuses to run any other version rather than reporting

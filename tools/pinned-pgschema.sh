@@ -34,6 +34,7 @@ cms_pgschema_reports() {  # cms_pgschema_reports <path> ; prints the version it 
 cms_pgschema_local_cache() {
   local pin="$1" dir candidate
   local caches=(
+    "${XDG_DATA_HOME:-$HOME/.local/share}/cms-learn/tools"
     "$HOME/.cache/yay/pgschema-bin"
     "$HOME/.cache/paru/clone/pgschema-bin"
     /var/cache/pacman/pkg
