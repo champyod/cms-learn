@@ -333,11 +333,80 @@ auto write_task_types(db::connection& database, const Bank& bank) -> Result<void
   }
 }
 
-auto seed(db::connection& database, const Bank& bank) -> Result<SeedReport> {
+/// Every file-kind field value names an object. A row whose object is missing is refused here, before the
+/// digest gate and before any write: an import that seeded a task whose statement is absent would be the
+/// empty content ADR 0023 exists to prevent, and a transaction that rolls back leaves nothing half-written.
+auto verify_objects(db::connection& database, const cms::store::ObjectStore* objects) -> Result<void> {
+  struct NamedValue {
+    std::string task_id;
+    std::int64_t version{0};
+    std::string field_key;
+    std::string value;
+  };
+  auto values = std::vector<NamedValue>{};
+  try {
+    for (const auto& row : database(sqlpp::select(db::taskFieldValues.taskId,
+                                                  db::taskFieldValues.taskVersion,
+                                                  db::taskFieldValues.fieldKey,
+                                                  db::taskFieldValues.value)
+                                        .from(db::taskFieldValues))) {
+      values.push_back(NamedValue{.task_id = std::string{row.taskId},
+                                  .version = row.taskVersion,
+                                  .field_key = std::string{row.fieldKey},
+                                  .value = std::string{row.value}});
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+
+  for (const auto& value : values) {
+    auto type_id = std::string{};
+    for (const auto& row : database(sqlpp::select(db::tasks.taskType)
+                                        .from(db::tasks)
+                                        .where(db::tasks.id == value.task_id &&
+                                               db::tasks.version == value.version))) {
+      type_id = row.taskType.has_value() ? std::string{*row.taskType} : std::string{};
+    }
+    if (type_id.empty()) {
+      continue;
+    }
+    auto kind = std::string{};
+    for (const auto& row : database(sqlpp::select(db::taskFieldDefs.kind)
+                                        .from(db::taskFieldDefs)
+                                        .where(db::taskFieldDefs.taskTypeId == type_id &&
+                                               db::taskFieldDefs.key == value.field_key))) {
+      kind = std::string{row.kind};
+    }
+    if (kind != "file") {
+      continue;
+    }
+    if (value.value.size() < 2 || value.value.front() != '"' || value.value.back() != '"') {
+      continue;
+    }
+    const auto key = value.value.substr(1, value.value.size() - 2);
+    if (objects == nullptr) {
+      return std::unexpected(Error::make(
+          ErrorCode::unavailable,
+          "the object " + key + " cannot be read: no object store is configured"));
+    }
+    const auto bytes = objects->read(key);
+    if (!bytes) {
+      return std::unexpected(bytes.error());
+    }
+  }
+  return {};
+}
+
+auto seed(db::connection& database, const Bank& bank, const cms::store::ObjectStore* objects)
+    -> Result<SeedReport> {
   // The curriculum is imported before the state row moves: if it fails, the transaction rolls back and
   // the previous version is still what the database reports.
   auto report = SeedReport{};
   try {
+    const auto present = verify_objects(database, objects);
+    if (!present) {
+      return std::unexpected(present.error());
+    }
     const auto types = write_task_types(database, bank);
     if (!types) {
       return std::unexpected(types.error());

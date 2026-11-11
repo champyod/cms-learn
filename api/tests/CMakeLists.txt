@@ -128,6 +128,11 @@ add_test(
 set_tests_properties(api_settings_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RESOURCE_LOCK e2e)
 
 add_test(
+  NAME api_object_readers_e2e
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/object_readers_e2e.sh" "$<TARGET_FILE:cms_api>")
+set_tests_properties(api_object_readers_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 300)
+
+add_test(
   NAME api_task_form_e2e
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/task_form_e2e.sh" "$<TARGET_FILE:cms_api>")
 set_tests_properties(api_task_form_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 240)

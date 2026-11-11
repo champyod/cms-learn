@@ -74,7 +74,27 @@ auto run(int argc, char** argv) -> int {
       cms::db::connection_config{.client = shared_client(dsn)});
   auto transaction = cms::db::Transaction{*config->client};
 
-  const auto report = cms::bank::seed(transaction.connection(), *bank);
+  // The store is built only when the deployment configured one; the seeder refuses a row that names an object
+  // it cannot read rather than seeding the task with nothing in its place.
+  auto store_config = cms::store::StoreConfig{};
+  const auto from_environment = [](std::string_view name) -> std::string {
+    const auto* value = std::getenv(std::string{name}.c_str());
+    return value == nullptr ? std::string{} : std::string{value};
+  };
+  store_config.endpoint = from_environment("CMSLEARN_S3_ENDPOINT");
+  store_config.region = from_environment("CMSLEARN_S3_REGION");
+  store_config.bucket = from_environment("CMSLEARN_S3_BUCKET");
+  store_config.access_key_id = from_environment("CMSLEARN_S3_ACCESS_KEY_ID");
+  store_config.secret_access_key = from_environment("CMSLEARN_S3_SECRET_ACCESS_KEY");
+  auto objects_result = cms::store::make_store(store_config);
+  auto objects = std::unique_ptr<cms::store::ObjectStore>{};
+  if (!store_config.endpoint.empty()) {
+    if (!objects_result) {
+      return fail(objects_result.error().message);
+    }
+    objects = std::move(*objects_result);
+  }
+  const auto report = cms::bank::seed(transaction.connection(), *bank, objects.get());
   if (!report) {
     return fail(report.error().message);
   }

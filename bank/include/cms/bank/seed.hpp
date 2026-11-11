@@ -6,6 +6,7 @@
 
 #include <cms/bank/bank.hpp>
 #include <cms/db/connection.hpp>
+#include <cms/object_store.hpp>
 #include <cms/error.hpp>
 
 namespace cms::bank {
@@ -30,10 +31,13 @@ struct SeedReport {
 /// @param database The connection; the caller owns the transaction, so an interrupted import leaves
 /// the previous version in place rather than half of the new one.
 /// @param bank The bank to import.
+/// @param objects The one store client the bytes are read through; null means no store is configured, which is
+/// a refusal naming the key when a row names one rather than a skip.
 /// @return What the import did, or the first refusal.
 ///
 /// The digest of the whole bank is compared with the stored one before any statement runs: an unchanged
 /// bank costs one read and writes nothing, which is what makes running the seeder on every start safe.
-[[nodiscard]] Result<SeedReport> seed(db::connection& database, const Bank& bank);
+[[nodiscard]] Result<SeedReport> seed(db::connection& database, const Bank& bank,
+                                      const cms::store::ObjectStore* objects = nullptr);
 
 }  // namespace cms::bank

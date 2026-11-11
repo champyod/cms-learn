@@ -23,7 +23,7 @@ cms_apply_hardening(cms_bank)
 cms_apply_sanitizers(cms_bank)
 
 add_executable(cms_seed_content src/main.cpp)
-target_link_libraries(cms_seed_content PRIVATE cms::bank)
+target_link_libraries(cms_seed_content PRIVATE cms::bank cms::object_store)
 cms_apply_warnings(cms_seed_content PRIVATE)
 cms_apply_hardening(cms_seed_content)
 cms_apply_sanitizers(cms_seed_content)

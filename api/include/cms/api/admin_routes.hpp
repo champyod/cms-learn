@@ -10,6 +10,7 @@
 
 #include <cms/api/actor.hpp>
 #include <cms/api/task_plan.hpp>
+#include <cms/object_store.hpp>
 #include <cms/api/admin_actions.hpp>
 #include <cms/api/web.hpp>
 #include <cms/db/connection.hpp>
@@ -109,9 +110,11 @@ struct TaskForm {
 /// The acting account is the one the session names, never a field of the request. A request without a
 /// live administrator session is redirected to `/signin`, and one whose session is not an administrator
 /// is refused. Every POST compares the session's token before any action runs.
+/// @param store_config The object store the task bytes live in; empty means no store is configured, and a
+/// request that needs one is refused rather than served from nothing.
 auto register_admin_routes(const std::shared_ptr<const db::connection_config>& database_config,
                            const std::shared_ptr<SettingsStore>& store,
-                           std::string_view template_root,
-                           std::uint16_t panel_port) -> void;
+                           std::string_view template_root, std::uint16_t panel_port,
+                           const store::StoreConfig& store_config = {}) -> void;
 
 }  // namespace cms::api

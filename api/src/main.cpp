@@ -246,7 +246,14 @@ auto run() -> int {
                               ? std::uint16_t{0}
                               : static_cast<std::uint16_t>(std::stoi(config->panel_listen_port));
   if (panel_port != 0) {
-    cms::api::register_admin_routes(database_config, store, config->template_root, panel_port);
+    const auto store_config = cms::store::StoreConfig{
+        .endpoint = config->s3_endpoint,
+        .region = config->s3_region,
+        .bucket = config->s3_bucket,
+        .access_key_id = config->s3_access_key_id,
+        .secret_access_key = config->s3_secret_access_key};
+    cms::api::register_admin_routes(database_config, store, config->template_root, panel_port,
+                                    store_config);
   }
   cms::api::register_verdict_route(database_config);
   register_asset_route(config->static_root);

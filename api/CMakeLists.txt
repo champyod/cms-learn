@@ -88,8 +88,8 @@ add_executable(cms_api src/admin_page.cpp src/admin_panel_actions.cpp src/admin_
 target_compile_definitions(cms_api PRIVATE
   CMS_CATALOGUE_FILE="${CMAKE_CURRENT_SOURCE_DIR}/../deploy/catalogue/settings.json")
 target_link_libraries(cms_api PRIVATE cms::api_authority cms::api_config cms::api_identity
-                                       cms::api_mail cms::api_web cms::db_drogon Drogon::Drogon
-                                       PostgreSQL::PostgreSQL)
+                                       cms::api_mail cms::api_web cms::db_drogon cms::object_store
+                                       Drogon::Drogon PostgreSQL::PostgreSQL)
 cms_apply_warnings(cms_api PRIVATE)
 cms_apply_hardening(cms_api)
 cms_apply_sanitizers(cms_api)

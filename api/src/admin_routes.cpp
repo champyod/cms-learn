@@ -17,8 +17,11 @@
 #include <cms/api/settings_page.hpp>
 #include <cms/api/settings_route.hpp>
 #include <cms/api/web.hpp>
+#include <sqlpp23/sqlpp23.h>
+
 #include <cms/capability.hpp>
 #include <cms/db/connection.hpp>
+#include <cms/db/tables.hpp>
 #include <cms/settings_snapshot.hpp>
 
 namespace cms::api {
@@ -44,6 +47,9 @@ struct Panel {
   std::shared_ptr<CsrfTokens> tokens;
   std::string template_root;
   std::uint16_t panel_port{0};
+  /// The one client the task bytes are read through (ADR 0023). Empty when the deployment configured no
+  /// store, which is a refusal on the route that needs it rather than an empty file.
+  cms::store::StoreConfig store_config;
 };
 
 auto status_of(ErrorCode code) -> drogon::HttpStatusCode {
@@ -209,6 +215,102 @@ auto handle_task_form(const std::shared_ptr<Panel>& panel, const drogon::HttpReq
   callback(html_response(*page));
 }
 
+/// The key a task's file-kind field holds, or nothing when the field is not a file the store can serve.
+auto object_key_of(db::connection& database, const std::string& task_id, const std::string& field_key)
+    -> Result<std::optional<std::string>> {
+  auto type_id = std::string{};
+  auto version = std::int64_t{0};
+  for (const auto& row : database(sqlpp::select(db::tasks.taskType, db::tasks.version)
+                                      .from(db::tasks)
+                                      .where(db::tasks.id == task_id))) {
+    type_id = row.taskType.has_value() ? std::string{*row.taskType} : std::string{};
+    version = row.version;
+  }
+  if (type_id.empty()) {
+    return std::optional<std::string>{};
+  }
+  auto kind = std::string{};
+  for (const auto& row : database(sqlpp::select(db::taskFieldDefs.kind)
+                                      .from(db::taskFieldDefs)
+                                      .where(db::taskFieldDefs.taskTypeId == type_id &&
+                                             db::taskFieldDefs.key == field_key))) {
+    kind = std::string{row.kind};
+  }
+  if (kind != "file") {
+    return std::optional<std::string>{};
+  }
+  auto stored = std::string{};
+  for (const auto& row : database(sqlpp::select(db::taskFieldValues.value)
+                                      .from(db::taskFieldValues)
+                                      .where(db::taskFieldValues.taskId == task_id &&
+                                             db::taskFieldValues.taskVersion == version &&
+                                             db::taskFieldValues.fieldKey == field_key))) {
+    stored = std::string{row.value};
+  }
+  if (stored.size() < 2 || stored.front() != '"' || stored.back() != '"') {
+    return std::optional<std::string>{};
+  }
+  return std::optional<std::string>{stored.substr(1, stored.size() - 2)};
+}
+
+/// Serves the bytes of one file-kind field of one task, through the one client in core. A row that names a key
+/// the store does not hold is a 502 that names the key: a page served with empty bytes in its place would be the
+/// defect ADR 0023 exists to prevent.
+auto handle_task_object(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
+                        Callback&& callback, std::string_view task_id, std::string_view field_key)
+    -> void {
+  if (!is_panel_listener(request, panel->panel_port)) {
+    callback(text_response(std::string{NO_PAGE_BODY}, drogon::k404NotFound));
+    return;
+  }
+  auto database = db::connection{panel->database_config};
+  const auto account = account_of_session(database, request->getCookie(std::string{SESSION_COOKIE}));
+  if (!account) {
+    callback(text_response(account.error().message, drogon::k500InternalServerError));
+    return;
+  }
+  if (account->empty()) {
+    callback(redirect(SIGN_IN_PATH));
+    return;
+  }
+  if (account->kind != ADMIN_KIND) {
+    callback(text_response(std::string{ADMIN_ONLY_BODY}, drogon::k403Forbidden));
+    return;
+  }
+  const auto permitted = authorize(database, account->kind, account->id, Capability::content_read);
+  if (!permitted) {
+    callback(text_response(permitted.error().message, status_of(permitted.error().code)));
+    return;
+  }
+  const auto key = object_key_of(database, std::string{task_id}, std::string{field_key});
+  if (!key) {
+    callback(text_response(key.error().message, drogon::k500InternalServerError));
+    return;
+  }
+  if (!key->has_value()) {
+    callback(text_response("no object field " + std::string{field_key} + " on task " +
+                               std::string{task_id},
+                           drogon::k404NotFound));
+    return;
+  }
+  const auto store = cms::store::make_store(panel->store_config);
+  if (!store) {
+    callback(text_response("the object " + **key + " cannot be read: " + store.error().message,
+                           drogon::k502BadGateway));
+    return;
+  }
+  const auto bytes = (*store)->read(**key);
+  if (!bytes) {
+    callback(text_response(bytes.error().message, drogon::k502BadGateway));
+    return;
+  }
+  auto response = drogon::HttpResponse::newHttpResponse();
+  response->setStatusCode(drogon::k200OK);
+  response->setContentTypeCode(drogon::CT_TEXT_PLAIN);
+  response->setBody(*bytes);
+  callback(response);
+}
+
 auto handle_post(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
                  Callback&& callback, PanelAction action) -> void {
   if (!is_panel_listener(request, panel->panel_port)) {
@@ -249,12 +351,14 @@ auto handle_post(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestP
 
 auto register_admin_routes(const std::shared_ptr<const db::connection_config>& database_config,
                            const std::shared_ptr<SettingsStore>& store,
-                           std::string_view template_root, std::uint16_t panel_port) -> void {
+                           std::string_view template_root, std::uint16_t panel_port,
+                           const store::StoreConfig& store_config) -> void {
   auto panel = std::make_shared<Panel>(Panel{.database_config = database_config,
                                              .store = store,
                                              .tokens = std::make_shared<CsrfTokens>(),
                                              .template_root = std::string{template_root},
-                                             .panel_port = panel_port});
+                                             .panel_port = panel_port,
+                                             .store_config = store_config});
   auto& app = drogon::app();
   app.registerHandler(
       std::string{HOME_PATH},
@@ -284,6 +388,13 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
   post("/admin/issue-verification", PanelAction::issue_verification);
   post("/admin/grant-role", PanelAction::grant_role);
   post("/admin/tasks/new", PanelAction::save_task_draft);
+  app.registerHandler(
+      "/admin/tasks/{}/field/{}",
+      [panel](const drogon::HttpRequestPtr& request, Callback&& callback,
+              const std::string& task_id, const std::string& field_key) {
+        handle_task_object(panel, request, std::move(callback), task_id, field_key);
+      },
+      {drogon::Get});
 }
 
 }  // namespace cms::api
