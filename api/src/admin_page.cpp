@@ -34,6 +34,8 @@ struct PanelWords {
   std::string_view role;
   std::string_view learner_id;
   std::string_view admin_id;
+  std::string_view grant_role;
+  std::string_view role_name;
 };
 
 constexpr PanelWords THAI_PANEL{.title = "แผงผู้ดูแลระบบ",
@@ -54,7 +56,9 @@ constexpr PanelWords THAI_PANEL{.title = "แผงผู้ดูแลระ�
                                 .password = "รหัสผ่าน",
                                 .role = "รหัสบทบาท คั่นด้วยจุลภาค",
                                 .learner_id = "รหัสผู้เรียน",
-                                .admin_id = "รหัสผู้ดูแลระบบ"};
+                                .admin_id = "รหัสผู้ดูแลระบบ",
+                                .grant_role = "ให้บทบาท",
+                                .role_name = "รหัสบทบาท"};
 
 constexpr PanelWords ENGLISH_PANEL{.title = "Administrator panel",
                                    .lede = "Signed in as",
@@ -74,7 +78,9 @@ constexpr PanelWords ENGLISH_PANEL{.title = "Administrator panel",
                                    .password = "Password",
                                    .role = "Role ids, comma separated",
                                    .learner_id = "Learner id",
-                                   .admin_id = "Administrator id"};
+                                   .admin_id = "Administrator id",
+                                   .grant_role = "Grant a role",
+                                   .role_name = "Role id"};
 
 /// The canned sentences a completed action shows. Like the sign-in page's notices, no request-supplied
 /// text ever becomes page copy.
@@ -84,12 +90,13 @@ struct PanelNotice {
   std::string_view thai;
 };
 
-constexpr std::array<PanelNotice, 5> NOTICES{{
+constexpr std::array<PanelNotice, 6> NOTICES{{
     {"learner-created", "Created the learner account.", "สร้างบัญชีผู้เรียนแล้ว"},
     {"admin-created", "Created the administrator account.", "สร้างบัญชีผู้ดูแลระบบแล้ว"},
     {"learner-approved", "Approved the learner account.", "อนุมัติบัญชีผู้เรียนแล้ว"},
     {"admin-revoked", "Revoked the administrator account.", "ถอดสิทธิ์บัญชีผู้ดูแลระบบแล้ว"},
     {"verification-issued", "Issued a verification token.", "ออกโทเคนยืนยันแล้ว"},
+    {"role-granted", "Granted the role.", "ให้บทบาทแล้ว"},
 }};
 
 auto pick(const Locale& locale, std::string_view english, std::string_view thai) -> std::string {
@@ -126,9 +133,39 @@ auto fill_words(const Locale& locale, nlohmann::json& data) -> void {
   data["role_label"] = pick(locale, ENGLISH_PANEL.role, THAI_PANEL.role);
   data["learner_id_label"] = pick(locale, ENGLISH_PANEL.learner_id, THAI_PANEL.learner_id);
   data["admin_id_label"] = pick(locale, ENGLISH_PANEL.admin_id, THAI_PANEL.admin_id);
+  data["grant_role_label"] = pick(locale, ENGLISH_PANEL.grant_role, THAI_PANEL.grant_role);
+  data["role_name_label"] = pick(locale, ENGLISH_PANEL.role_name, THAI_PANEL.role_name);
 }
 
 }  // namespace
+
+auto read_roles(db::connection& database) -> Result<std::vector<RoleRow>> {
+  auto rows = std::vector<RoleRow>{};
+  try {
+    for (const auto& row : database(sqlpp::select(db::roles.id, db::roles.name)
+                                        .from(db::roles)
+                                        .order_by(db::roles.name.asc()))) {
+      rows.push_back(RoleRow{.id = std::string{row.id}, .name = std::string{row.name}});
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  return rows;
+}
+
+auto read_administrators(db::connection& database) -> Result<std::vector<AdminRow>> {
+  auto rows = std::vector<AdminRow>{};
+  try {
+    for (const auto& row : database(sqlpp::select(db::adminAccounts.id, db::adminAccounts.handle)
+                                        .from(db::adminAccounts)
+                                        .order_by(db::adminAccounts.handle.asc()))) {
+      rows.push_back(AdminRow{.id = std::string{row.id}, .handle = std::string{row.handle}});
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  return rows;
+}
 
 auto read_learner_roster(db::connection& database) -> Result<std::vector<LearnerRow>> {
   auto rows = std::vector<LearnerRow>{};
@@ -183,6 +220,17 @@ auto panel_model(const Locale& locale, std::string_view site_name, const PanelHo
                                 {"level", learner.level}});
   }
   data["has_learners"] = !home.learners.empty();
+  data["roles"] = nlohmann::json::array();
+  for (const auto& role : home.roles) {
+    data["roles"].push_back({{"id", role.id}, {"name", role.name}});
+  }
+  data["has_roles"] = !home.roles.empty();
+  data["administrators"] = nlohmann::json::array();
+  for (const auto& administrator : home.administrators) {
+    data["administrators"].push_back(
+        {{"id", administrator.id}, {"handle", administrator.handle}});
+  }
+  data["has_administrators"] = !home.administrators.empty();
   return data;
 }
 

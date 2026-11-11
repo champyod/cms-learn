@@ -9,6 +9,7 @@
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/api/admin_actions.hpp>
+#include <cms/api/admin_routes.hpp>
 #include <cms/db/tables.hpp>
 #include <cms/settings_snapshot.hpp>
 
@@ -268,6 +269,10 @@ TEST_CASE("a role is granted only by an account that holds user:write", "[admin_
                                  .where(cms::db::adminRoles.adminId == target &&
                                         cms::db::adminRoles.roleId ==
                                             std::string{WRITER_ROLE_ID})) == 1);
+
+  // The grant names the administrator who gave it: without that row the trail would say an account holds a
+  // role and never say who decided it.
+  CHECK(audit_rows(database, target, "account.grant_role", INVOKED_BY) == 1);
 
   // Granting a role the target already holds writes nothing and says so, rather than failing the page.
   const auto again =

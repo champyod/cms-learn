@@ -32,6 +32,7 @@ constexpr std::string_view ACTION_CREATE_LEARNER = "account.create_learner";
 constexpr std::string_view ACTION_CREATE_ADMIN = "account.create_admin";
 constexpr std::string_view ACTION_ISSUE_VERIFICATION = "account.issue_verification";
 constexpr std::string_view ACTION_REVOKE_ADMIN = "account.revoke_admin";
+constexpr std::string_view ACTION_GRANT_ROLE = "account.grant_role";
 
 auto insert_learner(db::connection& database, const std::string& learner_id,
                     const CreateLearnerRequest& request) -> void {
@@ -206,6 +207,9 @@ ON CONFLICT DO NOTHING)";
       return ActionOutcome{.subject = request.admin_id,
                            .detail = "the administrator already holds that role"};
     }
+    // A role is authority, so the grant names the administrator who gave it: without this row the trail
+    // says an account holds a role and never says who decided that.
+    record_audit(database, actor.kind, actor.id, INVOKED_BY, ACTION_GRANT_ROLE, request.admin_id);
   } catch (const std::exception& error) {
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }

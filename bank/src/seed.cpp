@@ -265,11 +265,83 @@ auto import_tasks(db::connection& database, const Bank& bank, const std::map<Tas
 
 }  // namespace
 
+/// The definitions are written before the digest is compared and every statement is insert-or-update, so a
+/// seed that changes nothing about the bank still reconciles the type rows and a second run writes no
+/// duplicate. The writes are attributed to the system account, because a definition change is an audited
+/// event and "someone" is not an actor.
+constexpr std::string_view SEED_TASK_TYPES_SQL = R"(
+WITH actor AS (
+  INSERT INTO system_accounts (id, handle) VALUES ('00000000-0000-4000-8000-000000000001', 'system:content')
+  ON CONFLICT (id) DO NOTHING
+  RETURNING id
+)
+SELECT set_config('cms.actor_kind', 'system', true), set_config('cms.invoked_by', 'seed', true),
+       set_config('cms.actor_id', '00000000-0000-4000-8000-000000000001', true)
+)";
+
+/// The list as the jsonb text the column holds, or NULL when there is none: a choice with no choices is
+/// refused by the table, so "none" has to be NULL and never an empty array.
+auto json_or_null(const std::vector<std::string>& values) -> db::bound_value {
+  if (values.empty()) {
+    return std::nullptr_t{};
+  }
+  auto text = std::string{"["};
+  for (std::size_t index = 0; index < values.size(); ++index) {
+    if (index != 0) {
+      text.push_back(',');
+    }
+    text.push_back('"');
+    text += values[index];
+    text.push_back('"');
+  }
+  text.push_back(']');
+  return text;
+}
+
+auto write_task_types(db::connection& database, const Bank& bank) -> Result<void> {
+  try {
+    database.execute_text(std::string{SEED_TASK_TYPES_SQL}, {});
+    for (const auto& type : bank.task_types) {
+      database.execute_text(
+          "INSERT INTO task_types (id, title_en, title_th, position) VALUES ($1, $2, $3, $4) "
+          "ON CONFLICT (id) DO UPDATE SET title_en = excluded.title_en, title_th = excluded.title_th, "
+          "position = excluded.position",
+          {type.id, type.title_en, type.title_th, static_cast<std::int64_t>(type.position)});
+      for (const auto& field : type.fields) {
+        database.execute_text(
+            "INSERT INTO task_field_defs (task_type_id, key, kind, label_en, label_th, required, choices, "
+            "members, minimum, maximum, position) "
+            "VALUES ($1, $2, $3::task_field_kind, $4, $5, $6, $7::jsonb, $8::jsonb, $9, $10, $11) "
+            "ON CONFLICT (task_type_id, key) DO UPDATE SET kind = excluded.kind, "
+            "label_en = excluded.label_en, label_th = excluded.label_th, required = excluded.required, "
+            "choices = excluded.choices, members = excluded.members, minimum = excluded.minimum, "
+            "maximum = excluded.maximum, position = excluded.position",
+            {type.id, field.key, field.kind, field.label_en, field.label_th, field.is_required,
+             json_or_null(field.choices), json_or_null(field.members),
+             field.minimum.has_value()
+                 ? db::bound_value{static_cast<std::int64_t>(*field.minimum)}
+                 : db::bound_value{std::nullptr_t{}},
+             field.maximum.has_value()
+                 ? db::bound_value{static_cast<std::int64_t>(*field.maximum)}
+                 : db::bound_value{std::nullptr_t{}},
+             static_cast<std::int64_t>(field.position)});
+      }
+    }
+    return {};
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+}
+
 auto seed(db::connection& database, const Bank& bank) -> Result<SeedReport> {
   // The curriculum is imported before the state row moves: if it fails, the transaction rolls back and
   // the previous version is still what the database reports.
   auto report = SeedReport{};
   try {
+    const auto types = write_task_types(database, bank);
+    if (!types) {
+      return std::unexpected(types.error());
+    }
     write_levels(database, bank);
     const auto state = read_state(database);
     if (state.is_present && state.content_hash == bank.content_hash) {

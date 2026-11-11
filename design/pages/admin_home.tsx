@@ -1,5 +1,5 @@
 import { endWhen, loopEnd, loopStart, otherwise, slot, when, type Mode } from "../slots.ts";
-import type { AdminFixture, LearnerRow } from "../fixtures.ts";
+import type { AdminFixture, AdminFixtureRow, LearnerRow, RoleFixture } from "../fixtures.ts";
 import { RepeatList } from "../repeat.tsx";
 import { Layout } from "./layout.tsx";
 
@@ -8,6 +8,10 @@ import { Layout } from "./layout.tsx";
 //
 // Every form carries the session's token, because a missing token must be a refusal rather than a sign that
 // nobody is signed in.
+
+const placeholderRole: RoleFixture = { id: "", name: "" };
+
+const placeholderAdministrator: AdminFixtureRow = { id: "", handle: "" };
 
 const placeholderLearner: LearnerRow = {
   id: "",
@@ -122,6 +126,64 @@ export function AdminHome({ mode, data }: { mode: Mode; data: AdminFixture }) {
                 {slot(mode, "submit_label", data.submit_label)}
               </button>
             </form>
+
+        <section className="mt-10">
+          <h2 className="text-xl font-semibold">
+            {slot(mode, "grant_role_label", data.grant_role_label)}
+          </h2>
+          <p className="mt-1 opacity-70">{slot(mode, "role_name_label", data.role_name_label)}</p>
+          <RepeatList
+            mode={mode}
+            tag="ul"
+            className="mt-2 flex flex-wrap gap-2 text-sm"
+            alias="role"
+            collection="roles"
+            items={data.roles}
+            placeholder={placeholderRole}
+          >
+            {(role) => (
+              <li className="badge badge-sm badge-outline">
+                {slot(mode, "role.name", role.name)} · {slot(mode, "role.id", role.id)}
+              </li>
+            )}
+          </RepeatList>
+          <RepeatList
+            mode={mode}
+            tag="ul"
+            className="mt-2 flex flex-wrap gap-2 text-sm"
+            alias="administrator"
+            collection="administrators"
+            items={data.administrators}
+            placeholder={placeholderAdministrator}
+          >
+            {(administrator) => (
+              <li className="badge badge-sm badge-outline">
+                {slot(mode, "administrator.handle", administrator.handle)} ·{" "}
+                {slot(mode, "administrator.id", administrator.id)}
+              </li>
+            )}
+          </RepeatList>
+          <form className="mt-4 grid gap-4" action="/admin/grant-role" method="post">
+            <input type="hidden" name="csrf_token" value={slot(mode, "csrf_token", data.csrf_token)} />
+            <Field
+              mode={mode}
+              label={slot(mode, "admin_id_label", data.admin_id_label)}
+              name="admin_id"
+              kind="text"
+              required
+            />
+            <Field
+              mode={mode}
+              label={slot(mode, "role_name_label", data.role_name_label)}
+              name="role_id"
+              kind="text"
+              required
+            />
+            <button className="btn btn-primary w-fit" type="submit">
+              {slot(mode, "submit_label", data.submit_label)}
+            </button>
+          </form>
+        </section>
           </section>
         </>
       }

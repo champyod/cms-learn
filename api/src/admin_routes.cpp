@@ -75,6 +75,8 @@ auto done_code(PanelAction action) -> std::string_view {
       return "admin-revoked";
     case PanelAction::issue_verification:
       return "verification-issued";
+    case PanelAction::grant_role:
+      return "role-granted";
   }
   return {};
 }
@@ -98,11 +100,21 @@ auto render_home(const std::shared_ptr<Panel>& panel, db::connection& database,
     return text_response(admin_handle.error().message, drogon::k500InternalServerError);
   }
   const auto session_id = request->getCookie(std::string{SESSION_COOKIE});
+  const auto roles = read_roles(database);
+  if (!roles) {
+    return text_response(roles.error().message, drogon::k500InternalServerError);
+  }
+  const auto administrators = read_administrators(database);
+  if (!administrators) {
+    return text_response(administrators.error().message, drogon::k500InternalServerError);
+  }
   const auto home = PanelHome{.admin_handle = *admin_handle,
                               .csrf_token = panel->tokens->token_for(session_id),
                               .notice = std::string{notice},
                               .message = std::string{message},
-                              .learners = *learners};
+                              .learners = *learners,
+                              .roles = *roles,
+                              .administrators = *administrators};
   const auto locale = choose_locale(request->getParameter("lang"),
                                     request->getHeader("accept-language"));
   const auto page = render_page(panel->template_root, "admin_home.html",
@@ -209,6 +221,7 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
   post("/admin/approve", PanelAction::approve);
   post("/admin/revoke-admin", PanelAction::revoke_admin);
   post("/admin/issue-verification", PanelAction::issue_verification);
+  post("/admin/grant-role", PanelAction::grant_role);
 }
 
 }  // namespace cms::api

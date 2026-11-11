@@ -1,0 +1,18 @@
+{
+  "task_types": [
+    {
+      "id": "batch",
+      "title_en": "Batch",
+      "title_th": "แบบทดสอบชุด",
+      "position": 1,
+      "fields": [
+        { "key": "statement", "kind": "text", "label_en": "Statement", "label_th": "โจทย์", "required": true, "position": 1 },
+        { "key": "statement_format", "kind": "text", "label_en": "Statement format", "label_th": "รูปแบบโจทย์", "position": 2 },
+        { "key": "input_bounds", "kind": "collection", "label_en": "Input bounds", "label_th": "ขอบเขตข้อมูล", "members": ["statement_format"], "position": 3 },
+        { "key": "score_mode", "kind": "choice", "label_en": "Score mode", "label_th": "วิธีให้คะแนน", "choices": ["per_case", "all_or_nothing", "subtasks"], "position": 4 },
+        { "key": "case_count", "kind": "integer", "label_en": "Case count", "label_th": "จำนวนเคส", "minimum": 1, "maximum": 1000, "position": 5 },
+        { "key": "solution", "kind": "file", "label_en": "Reference solution", "label_th": "เฉลย", "position": 6 }
+      ]
+    }
+  ]
+}

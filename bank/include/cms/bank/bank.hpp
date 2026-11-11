@@ -89,6 +89,29 @@ struct Track {
 };
 
 /// @brief The whole on-disk bank.
+/// One field a task type declares (ADR 0024): the row the form renders and the validator checks.
+struct FieldDefinition {
+  std::string key;
+  std::string kind;
+  std::string label_en;
+  std::string label_th;
+  bool is_required{false};
+  std::vector<std::string> choices;
+  std::vector<std::string> members;
+  std::optional<std::int32_t> minimum;
+  std::optional<std::int32_t> maximum;
+  std::int32_t position{0};
+};
+
+/// One task type and the fields it declares. A new type or field is a row here, not a class.
+struct TaskTypeDefinition {
+  std::string id;
+  std::string title_en;
+  std::string title_th;
+  std::int32_t position{0};
+  std::vector<FieldDefinition> fields;
+};
+
 struct Bank {
   std::vector<Topic> topics;
   std::vector<Task> tasks;
@@ -96,6 +119,9 @@ struct Bank {
   /// The rung list, ordered by its lowest difficulty. The four rungs partition the scale, which the
   /// content gate asserts on the file and the database asserts again on the rows.
   std::vector<Level> levels;
+  /// The task types and their fields, imported like the rest of the bank: adding one is a row, not a
+  /// rebuild, and the same import runs on every seed.
+  std::vector<TaskTypeDefinition> task_types;
   /// One digest over the vocabulary, every task and every track, so an unchanged bank compares equal.
   std::string content_hash;
 };

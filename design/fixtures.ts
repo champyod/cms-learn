@@ -286,8 +286,23 @@ export interface AdminFixture {
   approve_label: string;
   revoke_admin_label: string;
   issue_verification_label: string;
+  grant_role_label: string;
+  role_name_label: string;
+  roles: RoleFixture[];
+  administrators: AdminFixtureRow[];
   submit_label: string;
   learners: LearnerRow[];
+}
+
+/// One role the grant form can name, and one administrator it can name.
+export interface RoleFixture {
+  id: string;
+  name: string;
+}
+
+export interface AdminFixtureRow {
+  id: string;
+  handle: string;
 }
 
 export const adminFixture: AdminFixture = {
@@ -314,6 +329,15 @@ export const adminFixture: AdminFixture = {
   approve_label: "อนุมัติผู้เรียน",
   revoke_admin_label: "เพิกถอนผู้ดูแล",
   issue_verification_label: "ออกรหัสยืนยัน",
+  grant_role_label: "ให้บทบาท",
+  role_name_label: "ชื่อบทบาท",
+  roles: [
+    { id: "6f1c2a94-0b7e-4c53-9a1d-2e8f7b6c5d40", name: "operator" },
+    { id: "7a2d3b05-1c8f-4d64-ab2e-3f9a8c7d6e51", name: "author" },
+  ],
+  administrators: [
+    { id: "9b3e4c16-2d9a-4e75-bc3f-4a0b9d8e7f62", handle: "operator" },
+  ],
   submit_label: "บันทึก",
   learners: [
     { id: "8f14e45f-ceea-467a-9c1e-0f5a2b3c4d5e", handle: "student_one", status: "active", level: "camp-1" },

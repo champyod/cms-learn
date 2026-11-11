@@ -301,3 +301,32 @@ TEST_CASE("a stage counts its tasks and how many of them the account solved", "[
   CHECK((*again)->id == "probe-count-a");
   CHECK(!(*again)->is_widened);
 }
+
+TEST_CASE("the seeder imports the task types and writes them once", "[fields][live]") {
+  if (!has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = live_database();
+  ensure_seeded();
+
+  auto fields_of = [&database](std::string_view type) {
+    auto count = std::int64_t{0};
+    for (const auto& row : database(sqlpp::select(cms::db::taskFieldDefs.key)
+                                        .from(cms::db::taskFieldDefs)
+                                        .where(cms::db::taskFieldDefs.taskTypeId ==
+                                               std::string{type}))) {
+      (void)row;
+      ++count;
+    }
+    return count;
+  };
+  CHECK(fields_of("batch") == 6);
+
+  // A second import writes nothing new: the definitions are reconciled, not appended.
+  const auto bank = cms::bank::load(shipped_bank());
+  REQUIRE(bank.has_value());
+  auto transaction = cms::db::Transaction{*live_client()};
+  REQUIRE(cms::bank::seed(transaction.connection(), *bank).has_value());
+  transaction.commit();
+  CHECK(fields_of("batch") == 6);
+}

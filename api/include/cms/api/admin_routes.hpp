@@ -32,14 +32,32 @@ struct LearnerRow {
 [[nodiscard]] Result<std::string> read_admin_handle(db::connection& database,
                                                     std::string_view admin_id);
 
-/// @brief Everything the home page shows. Every field is read by the service or chosen by it from a
-/// fixed list; none is text a request supplied.
+/// @brief One role the grant form can offer.
+struct RoleRow {
+  std::string id;
+  std::string name;
+};
+
+/// @brief One administrator the grant form can offer.
+struct AdminRow {
+  std::string id;
+  std::string handle;
+};
+
+/// @brief The roles a grant can name, in name order.
+[[nodiscard]] Result<std::vector<RoleRow>> read_roles(db::connection& database);
+
+/// @brief The administrators a grant can name, in handle order.
+[[nodiscard]] Result<std::vector<AdminRow>> read_administrators(db::connection& database);
+
 struct PanelHome {
   std::string admin_handle;
   std::string csrf_token;
   std::string notice;
   std::string message;
   std::vector<LearnerRow> learners;
+  std::vector<RoleRow> roles;
+  std::vector<AdminRow> administrators;
 };
 
 /// @brief Builds the model `admin_home.html` renders from.
@@ -53,6 +71,7 @@ enum class PanelAction : std::uint8_t {
   approve,
   revoke_admin,
   issue_verification,
+  grant_role,
 };
 
 /// @brief Runs @p action as @p actor, reading only that action's own fields from @p body.

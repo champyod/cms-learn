@@ -21,6 +21,7 @@ using detail::required_text;
 using detail::with_json;
 
 constexpr std::string_view TOPICS_FILE = "topics.json";
+constexpr std::string_view TASK_TYPES_FILE = "task_types.json";
 constexpr std::string_view TASKS_DIR = "tasks";
 constexpr std::string_view TRACKS_FILE = "tracks.json";
 constexpr std::string_view LEVELS_FILE = "levels.json";
@@ -136,6 +137,121 @@ auto load_topics(const std::filesystem::path& path) -> Result<std::vector<Topic>
   return topics;
 }
 
+/// Every kind the definition tables accept, in the order the enum declares them: a type that names another
+/// kind is a file that would be refused by the database, so it is refused here first and by file name.
+constexpr auto FIELD_KINDS = std::array{std::string_view{"text"},    std::string_view{"integer"},
+                                        std::string_view{"boolean"}, std::string_view{"choice"},
+                                        std::string_view{"collection"}, std::string_view{"file"}};
+
+auto string_list(const simdjson::dom::object& entry, std::string_view key) -> std::vector<std::string> {
+  auto values = std::vector<std::string>{};
+  auto array = simdjson::dom::array{};
+  if (entry.at_key(key).get_array().get(array) != simdjson::SUCCESS) {
+    return values;
+  }
+  for (const auto element : array) {
+    auto text = std::string_view{};
+    if (element.get_string().get(text) == simdjson::SUCCESS) {
+      values.emplace_back(text);
+    }
+  }
+  return values;
+}
+
+auto load_task_types(const std::filesystem::path& path) -> Result<std::vector<TaskTypeDefinition>> {
+  auto types = std::vector<TaskTypeDefinition>{};
+  const auto parsed = with_json(path, [&](const simdjson::dom::object& object) {
+    auto array = simdjson::dom::array{};
+    if (object.at_key("task_types").get_array().get(array) != simdjson::SUCCESS) {
+      return Result<void>{std::unexpected(
+          Error::make(ErrorCode::invalid_argument, path.string() + ": task_types is missing"))};
+    }
+    for (const auto element : array) {
+      auto entry = simdjson::dom::object{};
+      if (element.get_object().get(entry) != simdjson::SUCCESS) {
+        return Result<void>{std::unexpected(Error::make(
+            ErrorCode::invalid_argument, path.string() + ": a task type is not an object"))};
+      }
+      const auto id = required_text(entry, "id", path.string());
+      if (!id) {
+        return Result<void>{std::unexpected(id.error())};
+      }
+      auto type = TaskTypeDefinition{.id = *id,
+                                     .title_en = {},
+                                     .title_th = {},
+                                     .position = 0,
+                                     .fields = {}};
+      type.title_en = required_text(entry, "title_en", path.string()).value_or("");
+      type.title_th = required_text(entry, "title_th", path.string()).value_or("");
+      std::int64_t position = 0;
+      if (entry.at_key("position").get_int64().get(position) != simdjson::SUCCESS) {
+        position = 0;
+      }
+      type.position = static_cast<std::int32_t>(position);
+
+      auto fields = simdjson::dom::array{};
+      if (entry.at_key("fields").get_array().get(fields) != simdjson::SUCCESS) {
+        return Result<void>{std::unexpected(Error::make(
+            ErrorCode::invalid_argument, path.string() + ": " + *id + " has no fields"))};
+      }
+      for (const auto field_element : fields) {
+        auto field = simdjson::dom::object{};
+        if (field_element.get_object().get(field) != simdjson::SUCCESS) {
+          return Result<void>{std::unexpected(Error::make(
+              ErrorCode::invalid_argument, path.string() + ": a field is not an object"))};
+        }
+        auto definition = FieldDefinition{};
+        const auto key = required_text(field, "key", path.string());
+        if (!key) {
+          return Result<void>{std::unexpected(key.error())};
+        }
+        definition.key = *key;
+        const auto kind = required_text(field, "kind", path.string());
+        if (!kind) {
+          return Result<void>{std::unexpected(kind.error())};
+        }
+        const auto known = std::ranges::any_of(FIELD_KINDS, [&kind](std::string_view candidate) {
+          return candidate == *kind;
+        });
+        if (!known) {
+          return Result<void>{std::unexpected(Error::make(
+              ErrorCode::invalid_argument,
+              path.string() + ": " + *id + "." + *key + " names the kind " + *kind +
+                  ", which is not one of the six"))};
+        }
+        definition.kind = *kind;
+        definition.label_en = required_text(field, "label_en", path.string()).value_or(*key);
+        definition.label_th = required_text(field, "label_th", path.string()).value_or("");
+        bool is_required = false;
+        if (field.at_key("required").get_bool().get(is_required) != simdjson::SUCCESS) {
+          is_required = false;
+        }
+        definition.is_required = is_required;
+        std::int64_t number = 0;
+        if (field.at_key("minimum").get_int64().get(number) == simdjson::SUCCESS) {
+          definition.minimum = static_cast<std::int32_t>(number);
+        }
+        if (field.at_key("maximum").get_int64().get(number) == simdjson::SUCCESS) {
+          definition.maximum = static_cast<std::int32_t>(number);
+        }
+        if (field.at_key("position").get_int64().get(number) != simdjson::SUCCESS) {
+          number = 0;
+        }
+        definition.position = static_cast<std::int32_t>(number);
+        definition.choices = string_list(field, "choices");
+        definition.members = string_list(field, "members");
+        type.fields.push_back(std::move(definition));
+      }
+      types.push_back(std::move(type));
+    }
+    return Result<void>{};
+  });
+  if (!parsed) {
+    return std::unexpected(parsed.error());
+  }
+  return types;
+}
+
 auto task_directories(const std::filesystem::path& content_root) -> std::vector<std::filesystem::path> {
   auto directories = std::vector<std::filesystem::path>{};
   const auto tasks = content_root / TASKS_DIR;
@@ -228,9 +344,14 @@ auto load(const std::filesystem::path& content_root) -> Result<Bank> {
     return std::unexpected(levels.error());
   }
 
+  auto task_types = load_task_types(content_root / TASK_TYPES_FILE);
+  if (!task_types) {
+    return std::unexpected(task_types.error());
+  }
+
   auto bank = Bank{.topics = std::move(*topics), .tasks = std::move(tasks),
                    .tracks = std::move(*tracks), .levels = std::move(*levels),
-                   .content_hash = {}};
+                   .task_types = std::move(*task_types), .content_hash = {}};
   bank.content_hash = digest_bank(bank.topics, bank.tasks, bank.tracks);
   return bank;
 }

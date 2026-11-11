@@ -49,6 +49,9 @@ auto perform_panel_action(db::connection& database, const SettingsSnapshot& sett
       return approve_learner(database, actor, form_field(body, "learner_id"));
     case PanelAction::revoke_admin:
       return revoke_admin(database, actor, form_field(body, "admin_id"));
+    case PanelAction::grant_role:
+      return grant_role(database, actor, GrantRoleRequest{.admin_id = form_field(body, "admin_id"),
+                                                          .role_id = form_field(body, "role_id")});
     case PanelAction::issue_verification:
       return issue_verification_for(database, settings, actor, form_field(body, "learner_id"));
   }
