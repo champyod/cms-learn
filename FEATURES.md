@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **42 shipped · 7 partial · 11 planned** (60 features).
+Counts at last update: **44 shipped · 7 partial · 9 planned** (60 features).
 
 ---
 
@@ -59,12 +59,12 @@ Counts at last update: **42 shipped · 7 partial · 11 planned** (60 features).
 | F-030 | Design tokens, `judge mono` (contrast 15.41:1 body) | C | ● | `web/tokens.css` |
 | F-031 | Thai-coverage monospace font, shipped with licence, verified by advance-width measurement | C | ● | `web/public/fonts/` |
 | F-034 | Drogon + Inja + htmx app shell reading the tokens | C | ● | `api/src/web.cpp` (`render_page`, Inja with autoescape), `api/templates/*.html`, `web/public/htmx.min.js`, `api/src/page_routes.cpp` |
-| F-035 | Stage home: the stage's band, the tasks in it, and the one that comes next | C | ○ | not built. No decision record described this layout — the earlier pointer at ADR 0002 was wrong, and "current module" was deleted by `docs/decisions/0008-no-modules.md`. The shape lands with the code |
+| F-035 | The curriculum page is the path home: per stage, how much the learner has done and the one task that comes next, from the bank's own selection rule | C | ● | `api/src/page_routes.cpp` + `api/include/cms/api/page_routes.hpp` (`home_page_model`, `stage_offers`), `bank/src/next_task.cpp` (`next_unseen_task_in_band`), `design/pages/home.tsx` → `api/templates/home.html`, `api/tests/web_test.cpp` |
 | F-041 | Learner all-tasks page at `/tasks`: every task, several topics at once, one rung, the curriculum stage link, and a plain sentence when nothing matches | A | ● | `api/src/task_list.cpp`, `api/src/page_routes.cpp` (`register_task_list_route`), `design/pages/tasks.tsx` → `api/templates/tasks.html` |
 | F-036 | Task view: title, limits, statement text, first sample pair | A | ● | `api/src/page_routes.cpp` (`register_task_route`), `api/src/task_view.cpp`, `api/templates/task.html` |
 | F-037 | Code entry: in-page CodeMirror editor that writes back into the plain textarea the form posts | A | ● | `web/island/editor.ts` → `web/public/island.js`, `design/pages/task.tsx`; fallback asserted by `tools/check-island-fallback.sh` (and its falsifier) |
 | F-038 | Submission result: verdict, per-test cost, diff of first failure | A | ◐ | verdict and 2 s polling: `api/src/verdict_routes.cpp` + `design/pages/task.tsx` (`hx-get`); per-test cost and the first-failure diff do not exist |
-| F-039 | Progress and weak-topic view | C | ○ | not built. The earlier pointer at ADR 0002 was wrong. What it can show is bounded by `bank/src/next_task.cpp` and the rows in `deploy/schema/progress.sql`; the write that keeps those rows alive is `docs/decisions/0022-progress-is-written-by-the-submit-path.md` |
+| F-039 | Progress at `/progress`: per topic, attempts and solves from stored rows, with untried shown as untried and no invented threshold | C | ● | `api/src/progress_view.cpp`, `api/src/progress_routes.cpp`, `design/pages/progress.tsx`; the rows are written by the submit route and the judge (`docs/decisions/0022-progress-is-written-by-the-submit-path.md`) |
 | F-040 | Dictionary wiring for TH/EN across every surface | A | ● | `api/src/web.cpp` (`choose_locale`, `label`, one-word fallback), reused by `api/src/auth_view.cpp` and `api/src/settings_page.cpp`; fallback case in `api/tests/web_test.cpp` |
 
 ## Accounts and security
