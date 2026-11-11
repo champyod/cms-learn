@@ -3,6 +3,7 @@
 #include <cms/bank/seed.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/db/transaction.hpp>
+#include <cms/testing/scratch_directory.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -51,7 +52,7 @@ constexpr std::string_view THIRD_TRACK = R"({
 
 /// Adds THIRD_TRACK to a copy of the shipped bank, so the case never edits the repository's data.
 auto bank_with_third_track() -> std::filesystem::path {
-  const auto scratch = std::filesystem::temp_directory_path() / "cms-bank-third-track";
+  const auto scratch = cms::testing::scratch_directory("cms-bank-third-track");
   std::filesystem::remove_all(scratch);
   std::filesystem::copy(shipped_bank(), scratch, std::filesystem::copy_options::recursive);
 

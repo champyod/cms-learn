@@ -3,6 +3,7 @@
 #include <cms/db/connection.hpp>
 #include <cms/db/transaction.hpp>
 #include <cms/db/tables.hpp>
+#include <cms/testing/scratch_directory.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -93,7 +94,7 @@ TEST_CASE("editing one statement changes the digest of the task and of the bank"
   const auto original = cms::bank::load(shipped_bank());
   REQUIRE(original.has_value());
 
-  const auto scratch = std::filesystem::temp_directory_path() / "cms-bank-digest";
+  const auto scratch = cms::testing::scratch_directory("cms-bank-digest");
   std::filesystem::remove_all(scratch);
   std::filesystem::copy(shipped_bank(), scratch, std::filesystem::copy_options::recursive);
 
