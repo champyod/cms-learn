@@ -75,6 +75,8 @@ auto done_code(PanelAction action) -> std::string_view {
       return "admin-revoked";
     case PanelAction::issue_verification:
       return "verification-issued";
+    case PanelAction::save_task_draft:
+      return "draft-saved";
     case PanelAction::grant_role:
       return "role-granted";
   }
@@ -154,6 +156,59 @@ auto handle_home(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestP
                        request->getParameter(std::string{DONE_PARAMETER}), {}, drogon::k200OK));
 }
 
+/// The authoring form: the types the database holds, and the fields of the one the request names. A request
+/// that names no type gets the list, which is what makes the page usable before anything is chosen.
+auto handle_task_form(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
+                      Callback&& callback) -> void {
+  if (!is_panel_listener(request, panel->panel_port)) {
+    callback(text_response(std::string{NO_PAGE_BODY}, drogon::k404NotFound));
+    return;
+  }
+  auto database = db::connection{panel->database_config};
+  const auto session_id = request->getCookie(std::string{SESSION_COOKIE});
+  const auto account = account_of_session(database, session_id);
+  if (!account) {
+    callback(text_response(account.error().message, drogon::k500InternalServerError));
+    return;
+  }
+  if (account->empty()) {
+    callback(redirect(SIGN_IN_PATH));
+    return;
+  }
+  if (account->kind != ADMIN_KIND) {
+    callback(text_response(std::string{ADMIN_ONLY_BODY}, drogon::k403Forbidden));
+    return;
+  }
+  // Rendering the page is gated the same way the save is, so a link cannot lead an administrator to a wall of
+  // 403s: the authority is checked in the action, this check only decides whether to draw the form.
+  const auto permitted =
+      authorize(database, account->kind, account->id, Capability::content_write);
+  if (!permitted) {
+    callback(text_response(permitted.error().message, status_of(permitted.error().code)));
+    return;
+  }
+  const auto types = read_task_types(database);
+  if (!types) {
+    callback(text_response(types.error().message, drogon::k500InternalServerError));
+    return;
+  }
+  const auto locale = choose_locale(request->getParameter("lang"),
+                                    request->getHeader("accept-language"));
+  const auto page = render_page(
+      panel->template_root, "admin_task_form.html",
+      task_form_model(locale, site_name_of(*panel->store),
+                      TaskForm{.csrf_token = panel->tokens->token_for(session_id),
+                               .notice = request->getParameter("done"),
+                               .message = {},
+                               .types = *types,
+                               .selected_type = request->getParameter("type_id")}));
+  if (!page) {
+    callback(text_response(std::string{INTERNAL_ERROR_BODY}, drogon::k500InternalServerError));
+    return;
+  }
+  callback(html_response(*page));
+}
+
 auto handle_post(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
                  Callback&& callback, PanelAction action) -> void {
   if (!is_panel_listener(request, panel->panel_port)) {
@@ -207,6 +262,12 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
         handle_home(panel, request, std::move(callback));
       },
       {drogon::Get});
+  app.registerHandler(
+      "/admin/tasks/new",
+      [panel](const drogon::HttpRequestPtr& request, Callback&& callback) {
+        handle_task_form(panel, request, std::move(callback));
+      },
+      {drogon::Get});
 
   const auto post = [&app, panel](std::string_view path, PanelAction action) {
     app.registerHandler(
@@ -222,6 +283,7 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
   post("/admin/revoke-admin", PanelAction::revoke_admin);
   post("/admin/issue-verification", PanelAction::issue_verification);
   post("/admin/grant-role", PanelAction::grant_role);
+  post("/admin/tasks/new", PanelAction::save_task_draft);
 }
 
 }  // namespace cms::api

@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include <cms/api/actor.hpp>
+#include <cms/api/task_plan.hpp>
 #include <cms/api/admin_actions.hpp>
 #include <cms/api/web.hpp>
 #include <cms/db/connection.hpp>
@@ -72,6 +73,7 @@ enum class PanelAction : std::uint8_t {
   revoke_admin,
   issue_verification,
   grant_role,
+  save_task_draft,
 };
 
 /// @brief Runs @p action as @p actor, reading only that action's own fields from @p body.
@@ -83,7 +85,20 @@ enum class PanelAction : std::uint8_t {
                                                          const Actor& actor, PanelAction action,
                                                          std::string_view body);
 
-/// @brief Registers the administrator panel: the home page and the five actions it posts.
+/// @brief What the authoring form shows: the types, and the fields of the one that was chosen.
+struct TaskForm {
+  std::string csrf_token;
+  std::string notice;
+  std::string message;
+  std::vector<TaskTypeRow> types;
+  std::string selected_type;
+};
+
+/// @brief Builds the model `admin_task_form.html` renders from. Every key the template reads is set here.
+[[nodiscard]] nlohmann::json task_form_model(const Locale& locale, std::string_view site_name,
+                                             const TaskForm& form);
+
+/// @brief Registers the administrator panel: the home page and the actions it posts.
 ///
 /// @param database_config The pool sessions, authority and the roster are read through.
 /// @param store The settings the account actions read their policy from.

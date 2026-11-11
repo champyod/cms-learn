@@ -201,6 +201,74 @@ auto read_admin_handle(db::connection& database, std::string_view admin_id) -> R
                                      "the signed-in administrator no longer exists"));
 }
 
+auto task_form_model(const Locale& locale, std::string_view site_name, const TaskForm& form)
+    -> nlohmann::json {
+  auto data = shell_model(locale, site_name, LevelView{});
+  const auto english = locale.code == "en";
+  data["csrf_token"] = form.csrf_token;
+  const auto notice = [&form, &english]() -> std::string {
+    if (form.notice == "draft-saved") {
+      return english ? "Saved the draft." : "บันทึกฉบับร่างแล้ว";
+    }
+    return form.notice.empty() ? std::string{}
+                               : (english ? "The form was refused." : "แบบฟอร์มถูกปฏิเสธ");
+  }();
+  data["notice"] = notice;
+  data["has_notice"] = !notice.empty();
+  data["message"] = form.message;
+  data["has_message"] = !form.message.empty();
+  data["heading"] = english ? "New task draft" : "แบบฝึกหัดใหม่";
+  data["lede"] = english
+                     ? "The fields below are the ones this task type defines; a field the database does not "
+                       "define is not on this page."
+                     : "ช่องด้านล่างคือช่องที่ชนิดแบบฝึกหัดนี้ประกาศไว้ ช่องที่ฐานข้อมูลไม่ได้ประกาศจะไม่ปรากฏ";
+  data["types_label"] = english ? "Task type" : "ชนิดแบบฝึกหัด";
+  data["no_types_label"] = english ? "No task type is defined yet" : "ยังไม่มีชนิดแบบฝึกหัด";
+  data["no_fields_label"] = english ? "This type declares no field yet" : "ชนิดนี้ยังไม่ประกาศช่องใด";
+  data["title_en_label"] = english ? "Title (English)" : "ชื่อ (อังกฤษ)";
+  data["title_th_label"] = english ? "Title (Thai)" : "ชื่อ (ไทย)";
+  data["difficulty_label"] = english ? "Difficulty" : "ระดับความยาก";
+  data["submit_label"] = english ? "Save draft" : "บันทึกฉบับร่าง";
+  data["required_label"] = english ? "required" : "จำเป็น";
+
+  data["types"] = nlohmann::json::array();
+  for (const auto& type : form.types) {
+    data["types"].push_back({{"id", type.id},
+                             {"title", english ? type.title_en : type.title_th},
+                             {"is_selected", type.id == form.selected_type}});
+  }
+  data["has_types"] = !form.types.empty();
+
+  data["has_selected"] = false;
+  data["fields"] = nlohmann::json::array();
+  for (const auto& type : form.types) {
+    if (type.id != form.selected_type) {
+      continue;
+    }
+    data["has_selected"] = true;
+    data["selected_id"] = type.id;
+    data["selected_title"] = english ? type.title_en : type.title_th;
+    for (const auto& field : type.fields) {
+      data["fields"].push_back(
+          {{"key", field.key},
+           {"label", english ? field.label_en : field.label_th},
+           {"kind", field.kind},
+           {"is_required", field.is_required},
+           {"is_text", field.kind == "text" || field.kind == "file"},
+           {"is_choice", field.kind == "choice"},
+           {"is_integer", field.kind == "integer"},
+           {"is_boolean", field.kind == "boolean"},
+           {"hint", field.minimum.has_value() && field.maximum.has_value()
+                        ? std::to_string(*field.minimum) + " – " + std::to_string(*field.maximum)
+                        : std::string{}},
+           {"bound_hint", field.minimum.has_value() && field.maximum.has_value()},
+           {"choices", field.choices}});
+    }
+  }
+  data["has_fields"] = !data["fields"].empty();
+  return data;
+}
+
 auto panel_model(const Locale& locale, std::string_view site_name, const PanelHome& home)
     -> nlohmann::json {
   auto data = shell_model(locale, site_name, LevelView{});

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <cms/api/form_body.hpp>
+#include <cms/api/task_plan.hpp>
 #include <cms/error.hpp>
 
 namespace cms::api {
@@ -52,6 +53,13 @@ auto perform_panel_action(db::connection& database, const SettingsSnapshot& sett
     case PanelAction::grant_role:
       return grant_role(database, actor, GrantRoleRequest{.admin_id = form_field(body, "admin_id"),
                                                           .role_id = form_field(body, "role_id")});
+    case PanelAction::save_task_draft: {
+      const auto saved = save_task_draft(database, actor, body);
+      if (!saved) {
+        return std::unexpected(saved.error());
+      }
+      return ActionOutcome{.subject = *saved, .detail = "saved the draft"};
+    }
     case PanelAction::issue_verification:
       return issue_verification_for(database, settings, actor, form_field(body, "learner_id"));
   }
