@@ -10,67 +10,6 @@
 
 namespace cms::db {
 
-struct Levels_ {
-  struct Id {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
-    using data_type = ::sqlpp::text;
-    using has_default = std::false_type;
-  };
-  struct Position {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
-    using data_type = ::sqlpp::integral;
-    using has_default = std::false_type;
-  };
-  struct DifficultyMin {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(difficulty_min, difficultyMin);
-    using data_type = ::sqlpp::integral;
-    using has_default = std::false_type;
-  };
-  struct DifficultyMax {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(difficulty_max, difficultyMax);
-    using data_type = ::sqlpp::integral;
-    using has_default = std::false_type;
-  };
-  struct Icon {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(icon, icon);
-    using data_type = ::sqlpp::text;
-    using has_default = std::false_type;
-  };
-  struct DescriptionEn {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(description_en, descriptionEn);
-    using data_type = ::sqlpp::text;
-    using has_default = std::true_type;
-  };
-  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(levels, levels);
-  template <typename T>
-  using _table_columns =
-      sqlpp::table_columns<T, Id, Position, DifficultyMin, DifficultyMax, Icon, DescriptionEn>;
-  using _required_insert_columns = sqlpp::detail::type_set<Id, Position, DifficultyMin, DifficultyMax, Icon>;
-};
-
-struct LevelTitles_ {
-  struct LevelId {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(level_id, levelId);
-    using data_type = ::sqlpp::text;
-    using has_default = std::false_type;
-  };
-  struct Language {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(language, language);
-    using data_type = ::sqlpp::text;
-    using has_default = std::false_type;
-  };
-  struct Title {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(title, title);
-    using data_type = ::sqlpp::text;
-    using has_default = std::false_type;
-  };
-  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(level_titles, levelTitles);
-  template <typename T>
-  using _table_columns =
-      sqlpp::table_columns<T, LevelId, Language, Title>;
-  using _required_insert_columns = sqlpp::detail::type_set<LevelId, Language, Title>;
-};
-
 struct AdminAccounts_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -405,6 +344,67 @@ struct LearnerTokens_ {
   using _table_columns =
       sqlpp::table_columns<T, Id, LearnerId, Purpose, TokenHash, CreatedAt, ExpiresAt, UsedAt>;
   using _required_insert_columns = sqlpp::detail::type_set<LearnerId, Purpose, TokenHash, ExpiresAt>;
+};
+
+struct LevelTitles_ {
+  struct LevelId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(level_id, levelId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Language {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(language, language);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Title {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(title, title);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(level_titles, levelTitles);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, LevelId, Language, Title>;
+  using _required_insert_columns = sqlpp::detail::type_set<LevelId, Language, Title>;
+};
+
+struct Levels_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct DifficultyMin {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(difficulty_min, difficultyMin);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct DifficultyMax {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(difficulty_max, difficultyMax);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Icon {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(icon, icon);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct DescriptionEn {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(description_en, descriptionEn);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(levels, levels);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, Position, DifficultyMin, DifficultyMax, Icon, DescriptionEn>;
+  using _required_insert_columns = sqlpp::detail::type_set<Id, Position, DifficultyMin, DifficultyMax, Icon>;
 };
 
 struct Progress_ {
@@ -908,6 +908,97 @@ struct TaskExamples_ {
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Ordinal, Input, ExpectedOutput>;
 };
 
+struct TaskFieldDefs_ {
+  struct TaskTypeId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_type_id, taskTypeId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Key {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(key, key);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Kind {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(kind, kind);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct LabelEn {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(label_en, labelEn);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct LabelTh {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(label_th, labelTh);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  struct Required {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(required, required);
+    using data_type = ::sqlpp::boolean;
+    using has_default = std::true_type;
+  };
+  struct Choices {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(choices, choices);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct Members {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(members, members);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct Minimum {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(minimum, minimum);
+    using data_type = std::optional<::sqlpp::integral>;
+    using has_default = std::true_type;
+  };
+  struct Maximum {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(maximum, maximum);
+    using data_type = std::optional<::sqlpp::integral>;
+    using has_default = std::true_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_field_defs, taskFieldDefs);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, TaskTypeId, Key, Kind, LabelEn, LabelTh, Required, Choices, Members, Minimum, Maximum, Position>;
+  using _required_insert_columns = sqlpp::detail::type_set<TaskTypeId, Key, Kind, LabelEn, Position>;
+};
+
+struct TaskFieldValues_ {
+  struct TaskId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskVersion {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_version, taskVersion);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct FieldKey {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(field_key, fieldKey);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Value {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(value, value);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_field_values, taskFieldValues);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, TaskId, TaskVersion, FieldKey, Value>;
+  using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, FieldKey, Value>;
+};
+
 struct TaskStatements_ {
   struct TaskId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
@@ -959,6 +1050,39 @@ struct TaskTopics_ {
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Topic>;
 };
 
+struct TaskTypes_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TitleEn {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(title_en, titleEn);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TitleTh {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(title_th, titleTh);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_types, taskTypes);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, TitleEn, TitleTh, Position, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<Id, TitleEn, Position>;
+};
+
 struct TaskVisibility_ {
   struct TaskId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
@@ -987,6 +1111,11 @@ struct Tasks_ {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(version, version);
     using data_type = ::sqlpp::integral;
     using has_default = std::false_type;
+  };
+  struct TaskType {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_type, taskType);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
   };
   struct Status {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(status, status);
@@ -1061,7 +1190,7 @@ struct Tasks_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(tasks, tasks);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, Version, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryLimitMb, Checker, CheckerPath, Origin, Verification, Solution, ContentHash, Seeded, SeededAt>;
+      sqlpp::table_columns<T, Id, Version, TaskType, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryLimitMb, Checker, CheckerPath, Origin, Verification, Solution, ContentHash, Seeded, SeededAt>;
   using _required_insert_columns = sqlpp::detail::type_set<Id, Version, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryLimitMb, Checker, Origin, Verification, Solution, ContentHash>;
 };
 
@@ -1179,8 +1308,6 @@ struct Tracks_ {
   using _required_insert_columns = sqlpp::detail::type_set<Id, Position, TitleEn, TitleTh, DescriptionEn, DescriptionTh, ContentHash>;
 };
 
-using Levels = ::sqlpp::table_t<Levels_>;
-using LevelTitles = ::sqlpp::table_t<LevelTitles_>;
 using AdminAccounts = ::sqlpp::table_t<AdminAccounts_>;
 using AdminRoles = ::sqlpp::table_t<AdminRoles_>;
 using AuditEvents = ::sqlpp::table_t<AuditEvents_>;
@@ -1188,6 +1315,8 @@ using ContentSeed = ::sqlpp::table_t<ContentSeed_>;
 using Elevations = ::sqlpp::table_t<Elevations_>;
 using LearnerAccounts = ::sqlpp::table_t<LearnerAccounts_>;
 using LearnerTokens = ::sqlpp::table_t<LearnerTokens_>;
+using LevelTitles = ::sqlpp::table_t<LevelTitles_>;
+using Levels = ::sqlpp::table_t<Levels_>;
 using Progress = ::sqlpp::table_t<Progress_>;
 using RoleCapabilities = ::sqlpp::table_t<RoleCapabilities_>;
 using Roles = ::sqlpp::table_t<Roles_>;
@@ -1200,16 +1329,17 @@ using StageTags = ::sqlpp::table_t<StageTags_>;
 using Submissions = ::sqlpp::table_t<Submissions_>;
 using SystemAccounts = ::sqlpp::table_t<SystemAccounts_>;
 using TaskExamples = ::sqlpp::table_t<TaskExamples_>;
+using TaskFieldDefs = ::sqlpp::table_t<TaskFieldDefs_>;
+using TaskFieldValues = ::sqlpp::table_t<TaskFieldValues_>;
 using TaskStatements = ::sqlpp::table_t<TaskStatements_>;
 using TaskTopics = ::sqlpp::table_t<TaskTopics_>;
+using TaskTypes = ::sqlpp::table_t<TaskTypes_>;
 using TaskVisibility = ::sqlpp::table_t<TaskVisibility_>;
 using Tasks = ::sqlpp::table_t<Tasks_>;
 using Topics = ::sqlpp::table_t<Topics_>;
 using TrackStages = ::sqlpp::table_t<TrackStages_>;
 using Tracks = ::sqlpp::table_t<Tracks_>;
 
-inline const Levels levels{};
-inline const LevelTitles levelTitles{};
 inline const AdminAccounts adminAccounts{};
 inline const AdminRoles adminRoles{};
 inline const AuditEvents auditEvents{};
@@ -1217,6 +1347,8 @@ inline const ContentSeed contentSeed{};
 inline const Elevations elevations{};
 inline const LearnerAccounts learnerAccounts{};
 inline const LearnerTokens learnerTokens{};
+inline const LevelTitles levelTitles{};
+inline const Levels levels{};
 inline const Progress progress{};
 inline const RoleCapabilities roleCapabilities{};
 inline const Roles roles{};
@@ -1229,8 +1361,11 @@ inline const StageTags stageTags{};
 inline const Submissions submissions{};
 inline const SystemAccounts systemAccounts{};
 inline const TaskExamples taskExamples{};
+inline const TaskFieldDefs taskFieldDefs{};
+inline const TaskFieldValues taskFieldValues{};
 inline const TaskStatements taskStatements{};
 inline const TaskTopics taskTopics{};
+inline const TaskTypes taskTypes{};
 inline const TaskVisibility taskVisibility{};
 inline const Tasks tasks{};
 inline const Topics topics{};

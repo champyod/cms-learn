@@ -11,6 +11,7 @@ CREATE TABLE topics (
 CREATE TABLE tasks (
   id text NOT NULL,
   version integer NOT NULL,
+  task_type text,
   status task_status NOT NULL,
   title_en text NOT NULL CHECK (length(btrim(title_en)) > 0),
   title_th text NOT NULL CHECK (length(btrim(title_th)) > 0),

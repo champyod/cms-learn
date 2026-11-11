@@ -9,6 +9,7 @@
 \i settings_functions.sql
 \i settings_triggers.sql
 \i content.sql
+\i fields.sql
 \i visibility.sql
 \i curriculum.sql
 \i progress.sql

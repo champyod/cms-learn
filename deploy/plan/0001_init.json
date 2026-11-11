@@ -75,6 +75,12 @@
           "path": "public.task_checker_kind"
         },
         {
+          "sql": "CREATE TYPE task_field_kind AS ENUM (\n    'text',\n    'integer',\n    'boolean',\n    'choice',\n    'collection',\n    'file'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.task_field_kind"
+        },
+        {
           "sql": "CREATE TYPE task_origin_kind AS ENUM (\n    'original',\n    'imported',\n    'ai'\n);",
           "type": "type",
           "operation": "create",
@@ -285,13 +291,25 @@
           "path": "public.settings_plans"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS task_types (\n    id text,\n    title_en text NOT NULL,\n    title_th text DEFAULT '' NOT NULL,\n    position integer NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT task_types_pkey PRIMARY KEY (id),\n    CONSTRAINT task_types_position_unique UNIQUE (position),\n    CONSTRAINT task_types_id_shape CHECK (id ~ '^[a-z][a-z0-9_]{1,62}$'::text),\n    CONSTRAINT task_types_title_en_check CHECK (length(btrim(title_en)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.task_types"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS task_field_defs (\n    task_type_id text,\n    key text,\n    kind task_field_kind NOT NULL,\n    label_en text NOT NULL,\n    label_th text DEFAULT '' NOT NULL,\n    required boolean DEFAULT false NOT NULL,\n    choices jsonb,\n    members jsonb,\n    minimum integer,\n    maximum integer,\n    position integer NOT NULL,\n    CONSTRAINT task_field_defs_pkey PRIMARY KEY (task_type_id, key),\n    CONSTRAINT task_field_defs_position_unique UNIQUE (task_type_id, position),\n    CONSTRAINT task_field_defs_task_type_id_fkey FOREIGN KEY (task_type_id) REFERENCES task_types (id) ON DELETE CASCADE,\n    CONSTRAINT task_field_defs_bounds CHECK ((minimum IS NOT NULL OR maximum IS NOT NULL) = (kind = 'integer'::task_field_kind)),\n    CONSTRAINT task_field_defs_bounds_order CHECK (minimum IS NULL OR maximum IS NULL OR minimum <= maximum),\n    CONSTRAINT task_field_defs_choices CHECK ((kind = 'choice'::task_field_kind) = (choices IS NOT NULL)),\n    CONSTRAINT task_field_defs_choices_shape CHECK (choices IS NULL OR jsonb_typeof(choices) = 'array'::text AND jsonb_array_length(choices) >= 2),\n    CONSTRAINT task_field_defs_key_shape CHECK (key ~ '^[a-z][a-z0-9_]{1,62}$'::text),\n    CONSTRAINT task_field_defs_label_en_check CHECK (length(btrim(label_en)) > 0),\n    CONSTRAINT task_field_defs_members CHECK (kind <> 'collection'::task_field_kind OR members IS NOT NULL),\n    CONSTRAINT task_field_defs_members_shape CHECK (members IS NULL OR jsonb_typeof(members) = 'array'::text AND jsonb_array_length(members) >= 1)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.task_field_defs"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS task_visibility (\n    task_id text,\n    principal_id bigint,\n    CONSTRAINT task_visibility_pkey PRIMARY KEY (task_id, principal_id),\n    CONSTRAINT task_visibility_principal_range CHECK (principal_id = 0 OR principal_id >= (1::bigint << 48) AND principal_id < (2::bigint << 48) OR principal_id >= (2::bigint << 48) AND principal_id < (3::bigint << 48) OR principal_id >= (3::bigint << 48) AND principal_id < (4::bigint << 48))\n);",
           "type": "table",
           "operation": "create",
           "path": "public.task_visibility"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS tasks (\n    id text,\n    version integer,\n    status task_status NOT NULL,\n    title_en text NOT NULL,\n    title_th text NOT NULL,\n    difficulty integer NOT NULL,\n    time_limit_ms integer NOT NULL,\n    memory_limit_mb integer NOT NULL,\n    checker task_checker_kind NOT NULL,\n    checker_path text DEFAULT '' NOT NULL,\n    origin task_origin_kind NOT NULL,\n    verification task_verification_status NOT NULL,\n    solution text NOT NULL,\n    content_hash text NOT NULL,\n    seeded boolean DEFAULT true NOT NULL,\n    seeded_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT tasks_pkey PRIMARY KEY (id, version),\n    CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),\n    CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),\n    CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),\n    CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),\n    CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),\n    CONSTRAINT tasks_title_th_check CHECK (length(btrim(title_th)) > 0)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS tasks (\n    id text,\n    version integer,\n    task_type text,\n    status task_status NOT NULL,\n    title_en text NOT NULL,\n    title_th text NOT NULL,\n    difficulty integer NOT NULL,\n    time_limit_ms integer NOT NULL,\n    memory_limit_mb integer NOT NULL,\n    checker task_checker_kind NOT NULL,\n    checker_path text DEFAULT '' NOT NULL,\n    origin task_origin_kind NOT NULL,\n    verification task_verification_status NOT NULL,\n    solution text NOT NULL,\n    content_hash text NOT NULL,\n    seeded boolean DEFAULT true NOT NULL,\n    seeded_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT tasks_pkey PRIMARY KEY (id, version),\n    CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),\n    CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),\n    CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),\n    CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),\n    CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),\n    CONSTRAINT tasks_title_th_check CHECK (length(btrim(title_th)) > 0)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.tasks"
@@ -337,6 +355,12 @@
           "type": "table",
           "operation": "create",
           "path": "public.task_examples"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS task_field_values (\n    task_id text,\n    task_version integer,\n    field_key text,\n    value jsonb NOT NULL,\n    CONSTRAINT task_field_values_pkey PRIMARY KEY (task_id, task_version, field_key),\n    CONSTRAINT task_field_values_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.task_field_values"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS task_statements (\n    task_id text,\n    task_version integer,\n    locale locale,\n    body text NOT NULL,\n    CONSTRAINT task_statements_pkey PRIMARY KEY (task_id, task_version, locale),\n    CONSTRAINT task_statements_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_statements_body_check CHECK (length(btrim(body)) > 0)\n);",
@@ -429,6 +453,36 @@
           "path": "public.settings_write_audit"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION task_field_audit()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  actor actor_identity := current_actor();\n  subject text;\nBEGIN\n  subject := CASE WHEN TG_OP = 'DELETE' THEN OLD.task_type_id || '.' || OLD.key\n                  ELSE NEW.task_type_id || '.' || NEW.key END;\n  INSERT INTO audit_events (actor_kind, learner_actor_id, admin_actor_id, system_actor_id,\n                            invoked_by, action, subject, detail)\n  VALUES (actor.kind,\n          CASE WHEN actor.kind = 'learner' THEN actor.id END,\n          CASE WHEN actor.kind = 'admin' THEN actor.id END,\n          CASE WHEN actor.kind = 'system' THEN actor.id END,\n          coalesce(current_setting('cms.invoked_by', true), ''),\n          'task.field.' || lower(TG_OP),\n          subject,\n          jsonb_build_object('kind', CASE WHEN TG_OP = 'DELETE' THEN OLD.kind ELSE NEW.kind END,\n                             'required', CASE WHEN TG_OP = 'DELETE' THEN OLD.required ELSE NEW.required END));\n  RETURN NULL;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_field_audit"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION task_field_defs_refuse_orphaning()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  held bigint;\nBEGIN\n  SELECT count(*) INTO held\n    FROM task_field_values v\n    JOIN tasks t ON t.id = v.task_id AND t.version = v.task_version\n   WHERE v.field_key = OLD.key AND t.task_type = OLD.task_type_id;\n  IF held > 0 THEN\n    RAISE EXCEPTION 'field % of % holds % value(s); remove the values before the definition',\n      OLD.key, OLD.task_type_id, held\n      USING ERRCODE = 'restrict_violation';\n  END IF;\n  RETURN OLD;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_field_defs_refuse_orphaning"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION task_field_members_exist()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  missing text;\nBEGIN\n  IF NEW.kind <> 'collection' THEN\n    RETURN NEW;\n  END IF;\n  SELECT string_agg(member, ', ' ORDER BY member) INTO missing\n    FROM jsonb_array_elements_text(NEW.members) AS member\n   WHERE member = NEW.key\n      OR NOT EXISTS (SELECT 1 FROM task_field_defs d\n                      WHERE d.task_type_id = NEW.task_type_id AND d.key = member);\n  IF missing IS NOT NULL THEN\n    RAISE EXCEPTION 'collection field % names fields that do not exist in %: %',\n      NEW.key, NEW.task_type_id, missing\n      USING ERRCODE = 'foreign_key_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_field_members_exist"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION task_field_value_is_filled()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  definition task_field_defs;\nBEGIN\n  SELECT d.* INTO definition\n    FROM tasks t\n    JOIN task_field_defs d ON d.task_type_id = t.task_type AND d.key = NEW.field_key\n   WHERE t.id = NEW.task_id AND t.version = NEW.task_version;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'no field % is defined for task % version %',\n      NEW.field_key, NEW.task_id, NEW.task_version\n      USING ERRCODE = 'foreign_key_violation';\n  END IF;\n  IF definition.required AND (NEW.value = 'null'::jsonb OR NEW.value = '\"\"'::jsonb\n      OR NEW.value = '[]'::jsonb OR NEW.value = '{}'::jsonb) THEN\n    RAISE EXCEPTION 'field % is required and cannot hold an empty value', NEW.field_key\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_field_value_is_filled"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION task_type_audit()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  actor actor_identity := current_actor();\nBEGIN\n  INSERT INTO audit_events (actor_kind, learner_actor_id, admin_actor_id, system_actor_id,\n                            invoked_by, action, subject, detail)\n  VALUES (actor.kind,\n          CASE WHEN actor.kind = 'learner' THEN actor.id END,\n          CASE WHEN actor.kind = 'admin' THEN actor.id END,\n          CASE WHEN actor.kind = 'system' THEN actor.id END,\n          coalesce(current_setting('cms.invoked_by', true), ''),\n          'task.type.' || lower(TG_OP),\n          CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,\n          jsonb_build_object('position', CASE WHEN TG_OP = 'DELETE' THEN OLD.position ELSE NEW.position END));\n  RETURN NULL;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_type_audit"
+        },
+        {
           "sql": "CREATE OR REPLACE TRIGGER audit_events_append_only\n    BEFORE UPDATE OR DELETE ON audit_events\n    FOR EACH ROW\n    EXECUTE FUNCTION reject_mutation();",
           "type": "table.trigger",
           "operation": "create",
@@ -463,6 +517,36 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.settings.settings_version_bump"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER task_field_defs_audit\n    AFTER INSERT OR UPDATE OR DELETE ON task_field_defs\n    FOR EACH ROW\n    EXECUTE FUNCTION task_field_audit();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.task_field_defs.task_field_defs_audit"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER task_field_defs_members_exist\n    BEFORE INSERT OR UPDATE ON task_field_defs\n    FOR EACH ROW\n    EXECUTE FUNCTION task_field_members_exist();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.task_field_defs.task_field_defs_members_exist"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER task_field_defs_refuse_orphaning\n    BEFORE DELETE ON task_field_defs\n    FOR EACH ROW\n    EXECUTE FUNCTION task_field_defs_refuse_orphaning();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.task_field_defs.task_field_defs_refuse_orphaning"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER task_field_values_filled\n    BEFORE INSERT OR UPDATE ON task_field_values\n    FOR EACH ROW\n    EXECUTE FUNCTION task_field_value_is_filled();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.task_field_values.task_field_values_filled"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER task_types_audit\n    AFTER INSERT OR UPDATE OR DELETE ON task_types\n    FOR EACH ROW\n    EXECUTE FUNCTION task_type_audit();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.task_types.task_types_audit"
         },
         {
           "sql": "CREATE OR REPLACE TRIGGER tasks_published_immutable\n    BEFORE UPDATE ON tasks\n    FOR EACH ROW\n    EXECUTE FUNCTION reject_published_task_change();",
@@ -675,6 +759,18 @@
           "path": "privileges.TABLE.task_examples.cmslearn_judge"
         },
         {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_field_defs TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_field_defs.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_field_values TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_field_values.cmslearn_app"
+        },
+        {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_statements TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
@@ -685,6 +781,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.task_topics.cmslearn_app"
+        },
+        {
+          "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_types TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_types.cmslearn_app"
         },
         {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_visibility TO cmslearn_app;",
@@ -727,6 +829,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.tracks.cmslearn_app"
+        },
+        {
+          "sql": "GRANT USAGE ON TYPE task_field_kind TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TYPE.task_field_kind.cmslearn_app"
         }
       ]
     }

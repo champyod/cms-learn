@@ -102,6 +102,20 @@ auto prepare_writer(cms::db::connection& database) -> void {
   }
 }
 
+/// The approver exists once, whichever case asks for it first: the fixture is shared by two cases and an
+/// unconditional insert would fail the second one with a duplicate key instead of a refusal it tests.
+auto prepare_approver(cms::db::connection& database) -> void {
+  const auto one = sqlpp::value(1);
+  const auto seeded = count_rows(database, sqlpp::select(sqlpp::count(one).as(row_count))
+                                               .from(cms::db::adminAccounts)
+                                               .where(cms::db::adminAccounts.id ==
+                                                      std::string{APPROVER_ID})) > 0;
+  if (!seeded) {
+    seed_capability(database, APPROVER_ID, APPROVER_HANDLE, APPROVER_ROLE_ID,
+                    "actions_approver_role", "user:approve");
+  }
+}
+
 auto seed_pending_learner(cms::db::connection& database, std::string_view learner_id,
                           std::string_view handle, std::string_view email) -> void {
   database(sqlpp::insert_into(cms::db::learnerAccounts).set(
@@ -119,8 +133,7 @@ TEST_CASE("an approval needs user:approve and the system may give it",
   skip_without_database();
   auto database = cms::test::live_database();
   prepare_writer(database);
-  seed_capability(database, APPROVER_ID, APPROVER_HANDLE, APPROVER_ROLE_ID,
-                  "actions_approver_role", "user:approve");
+  prepare_approver(database);
   database(sqlpp::insert_into(cms::db::systemAccounts).set(
       cms::db::systemAccounts.id = std::string{SYSTEM_ID},
       cms::db::systemAccounts.handle = std::string{"system:actions"}));
@@ -219,4 +232,47 @@ TEST_CASE("an administrator cannot revoke itself and can revoke another",
                                         cms::db::adminAccounts.status == std::string{"revoked"} &&
                                         cms::db::adminAccounts.revokedAt.is_not_null())) == 1);
   CHECK(audit_rows(database, TARGET_ID, "account.revoke_admin", INVOKED_BY) == 1);
+}
+
+TEST_CASE("a role is granted only by an account that holds user:write", "[admin_actions][live]") {
+  skip_without_database();
+  auto database = cms::test::live_database();
+  prepare_writer(database);
+  prepare_approver(database);
+
+  const auto target = std::string{"a0000009-1111-4111-8111-000000000009"};
+  database.execute_text("DELETE FROM admin_accounts WHERE id = $1::uuid", {target});
+  database(sqlpp::insert_into(cms::db::adminAccounts).set(
+      cms::db::adminAccounts.id = target,
+      cms::db::adminAccounts.handle = std::string{"actions_grant_target"},
+      cms::db::adminAccounts.status = std::string{"active"}));
+
+  // The approver holds user:approve and not user:write, so the refusal names the capability it lacks —
+  // the message an administrator needs is which authority is missing, not which role was attempted.
+  const auto refused =
+      cms::api::grant_role(database, acting("admin", APPROVER_ID), {.admin_id = target,
+                                                                  .role_id = std::string{WRITER_ROLE_ID}});
+  REQUIRE(!refused.has_value());
+  CHECK(refused.error().code == cms::ErrorCode::permission_denied);
+  CHECK(refused.error().message.find("user:write") != std::string::npos);
+
+  const auto granted =
+      cms::api::grant_role(database, acting("admin", WRITER_ID), {.admin_id = target,
+                                                                  .role_id = std::string{WRITER_ROLE_ID}});
+  REQUIRE(granted.has_value());
+  CHECK(granted->subject == target);
+
+  const auto one = sqlpp::value(1);
+  CHECK(count_rows(database, sqlpp::select(sqlpp::count(one).as(row_count))
+                                 .from(cms::db::adminRoles)
+                                 .where(cms::db::adminRoles.adminId == target &&
+                                        cms::db::adminRoles.roleId ==
+                                            std::string{WRITER_ROLE_ID})) == 1);
+
+  // Granting a role the target already holds writes nothing and says so, rather than failing the page.
+  const auto again =
+      cms::api::grant_role(database, acting("admin", WRITER_ID), {.admin_id = target,
+                                                                  .role_id = std::string{WRITER_ROLE_ID}});
+  REQUIRE(again.has_value());
+  CHECK(again->detail.find("already") != std::string::npos);
 }

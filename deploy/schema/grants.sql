@@ -27,6 +27,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON levels, level_titles TO cmslearn_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON progress TO cmslearn_app;
 -- The judge is the end that learns the verdict, so it is the end that can record the solve (ADR 0022).
 GRANT SELECT, INSERT, UPDATE ON progress TO cmslearn_judge;
+
+GRANT SELECT ON task_types, task_field_defs TO cmslearn_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON task_field_defs TO cmslearn_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON task_types TO cmslearn_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON task_field_values TO cmslearn_app;
+GRANT USAGE ON TYPE task_field_kind TO cmslearn_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON submissions TO cmslearn_app;
 GRANT SELECT, UPDATE ON submissions TO cmslearn_judge;
 

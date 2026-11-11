@@ -81,6 +81,25 @@ struct CreateAdminRequest {
                                                            const ActingAccount& actor,
                                                            std::string_view learner_id);
 
+/// @brief The administrator and the role the Grant role page collected.
+struct GrantRoleRequest {
+  std::string admin_id;
+  std::string role_id;
+};
+
+/// @brief Grants one role to one administrator.
+///
+/// @param database The connection; the caller owns the transaction.
+/// @param actor The account acting, produced by the surface.
+/// @param request The administrator receiving the role, and the role itself.
+/// @return The administrator's id and one line a caller may show.
+///
+/// The acting account must hold `user:write`; a refusal names that capability, because an administrator who
+/// cannot grant anything needs to know which authority is missing, not which role was attempted. Granting a
+/// role the target already holds writes nothing, and the outcome says so.
+[[nodiscard]] Result<ActionOutcome> grant_role(db::connection& database, const ActingAccount& actor,
+                                               const GrantRoleRequest& request);
+
 /// @brief Revokes an administrator account other than the actor itself.
 ///
 /// @param database The connection; the caller owns the transaction.

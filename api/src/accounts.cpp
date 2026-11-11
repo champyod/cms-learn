@@ -363,6 +363,46 @@ auto ensure_system_account(db::connection& database) -> Result<std::string> {
 
 /// The administrator row and the audit row that records who created it. The caller has established that
 /// the database holds no administrator, which is the only state this may run in.
+/// The two roles every installation needs before anyone can be given authority (ADR 0025): an operator
+/// holding every capability, and an author holding reading and writing. The first administrator is created
+/// holding none, so the operator role is granted to it here; the author role is granted to nobody, and an
+/// administrator grants it from the panel. Every statement is insert-or-nothing, so a second start writes
+/// nothing at all rather than a second copy of either role.
+constexpr std::string_view SEED_ROLES_SQL = R"(
+WITH seeded AS (
+  INSERT INTO roles (name, description)
+  VALUES ('operator', 'holds every capability'), ('author', 'reads and writes content')
+  ON CONFLICT (name) DO NOTHING
+  RETURNING id, name
+), all_roles AS (
+  SELECT id, name FROM seeded
+  UNION ALL
+  SELECT id, name FROM roles WHERE name IN ('operator', 'author')
+)
+INSERT INTO role_capabilities (role_id, capability)
+SELECT all_roles.id, capability
+FROM all_roles, unnest(enum_range(NULL::capability)) AS capability
+WHERE (all_roles.name = 'operator')
+   OR (all_roles.name = 'author' AND capability IN ('content:read', 'content:write'))
+ON CONFLICT DO NOTHING
+)";
+
+constexpr std::string_view GRANT_OPERATOR_SQL = R"(
+INSERT INTO admin_roles (admin_id, role_id, granted_by)
+SELECT $1::uuid, id, $1::uuid FROM roles WHERE name = 'operator'
+ON CONFLICT DO NOTHING
+)";
+
+auto seed_roles(db::connection& database, std::string_view admin_id) -> Result<void> {
+  try {
+    database.execute_text(std::string{SEED_ROLES_SQL}, {});
+    database.execute_text(std::string{GRANT_OPERATOR_SQL}, {std::string{admin_id}});
+    return {};
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+}
+
 auto create_first_administrator(db::connection& database, std::string_view admin_handle,
                                 std::string_view system_id) -> Result<std::string> {
   auto admin_id = uuid_v4();
@@ -423,6 +463,10 @@ auto ensure_first_run(db::connection& database, std::string_view admin_handle) -
   if (!created) {
     return std::unexpected(created.error());
   }
+  const auto seeded = seed_roles(database, *created);
+  if (!seeded) {
+    return std::unexpected(seeded.error());
+  }
   return true;
 }
 
@@ -440,7 +484,15 @@ auto bootstrap(db::connection& database, std::string_view admin_email, std::stri
   if (!system_id) {
     return std::unexpected(system_id.error());
   }
-  return create_first_administrator(database, admin_handle, *system_id);
+  const auto created = create_first_administrator(database, admin_handle, *system_id);
+  if (!created) {
+    return std::unexpected(created.error());
+  }
+  const auto seeded = seed_roles(database, *created);
+  if (!seeded) {
+    return std::unexpected(seeded.error());
+  }
+  return created;
 }
 
 }  // namespace cms::api

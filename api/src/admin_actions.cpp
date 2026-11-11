@@ -163,6 +163,55 @@ auto approve_learner(db::connection& database, const ActingAccount& actor,
                        .detail = "approved the learner account"};
 }
 
+auto grant_role(db::connection& database, const ActingAccount& actor,
+                const GrantRoleRequest& request) -> Result<ActionOutcome> {
+  if (const auto refused = detail::unknown_actor(actor)) {
+    return std::unexpected(*refused);
+  }
+  const auto allowed = authorize(database, actor.kind, actor.id, Capability::user_write);
+  if (!allowed) {
+    return std::unexpected(allowed.error());
+  }
+
+  // One statement decides everything the grant depends on: the administrator and the role must exist, and a
+  // pair that is already there writes nothing rather than failing the page with a duplicate key.
+  constexpr std::string_view GRANT_SQL = R"(
+INSERT INTO admin_roles (admin_id, role_id, granted_by)
+SELECT $1::uuid, $2::uuid, $3
+WHERE EXISTS (SELECT 1 FROM admin_accounts WHERE id = $1::uuid)
+  AND EXISTS (SELECT 1 FROM roles WHERE id = $2::uuid)
+ON CONFLICT DO NOTHING)";
+
+  try {
+    auto parameters = std::vector<db::bound_value>{request.admin_id, request.role_id};
+    if (detail::is_admin_actor(actor)) {
+      parameters.emplace_back(std::string{actor.id});
+    } else {
+      parameters.emplace_back(std::nullptr_t{});
+    }
+    const auto written =
+        database.execute_text(std::string{GRANT_SQL}, std::move(parameters));
+    if (written == 0) {
+      const auto exists = database.execute_text(
+          "SELECT 1 FROM admin_accounts WHERE id = $1::uuid", {request.admin_id});
+      if (exists == 0) {
+        return std::unexpected(
+            Error::make(ErrorCode::not_found, "no administrator with id " + request.admin_id));
+      }
+      const auto role = database.execute_text("SELECT 1 FROM roles WHERE id = $1::uuid",
+                                              {request.role_id});
+      if (role == 0) {
+        return std::unexpected(Error::make(ErrorCode::not_found, "no role with id " + request.role_id));
+      }
+      return ActionOutcome{.subject = request.admin_id,
+                           .detail = "the administrator already holds that role"};
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
+  return ActionOutcome{.subject = request.admin_id, .detail = "granted the role"};
+}
+
 auto issue_verification_for(db::connection& database, const SettingsSnapshot& settings,
                             const ActingAccount& actor, std::string_view learner_id)
     -> Result<ActionOutcome> {

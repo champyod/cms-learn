@@ -27,6 +27,13 @@ if(Catch2_FOUND)
   cms_apply_sanitizers(cms_serve_tests)
   catch_discover_tests(cms_serve_tests)
 
+  add_executable(cms_fields_tests fields_test.cpp)
+  target_link_libraries(cms_fields_tests PRIVATE cms::bank Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_fields_tests PRIVATE)
+  cms_apply_hardening(cms_fields_tests)
+  cms_apply_sanitizers(cms_fields_tests)
+  catch_discover_tests(cms_fields_tests)
+
   add_executable(cms_visibility_tests visibility_test.cpp)
   target_link_libraries(cms_visibility_tests PRIVATE cms::bank Catch2::Catch2WithMain)
   cms_apply_warnings(cms_visibility_tests PRIVATE)
