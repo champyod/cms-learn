@@ -2,6 +2,7 @@ import type { Gate } from "./contract.ts";
 import { CONTENT_GATE } from "./cases/content.ts";
 import { DEPLOY_GATE } from "./cases/deploy.ts";
 import { OBJECTS_GATE } from "./cases/objects.ts";
+import { PIPELINE_GATE } from "./cases/pipeline.ts";
 import { JUDGE_GATE } from "./cases/judge.ts";
 import { LIVE_GATE } from "./cases/live.ts";
 import { PM_GATE } from "./cases/pm.ts";
@@ -20,6 +21,7 @@ export const GATES: readonly Gate[] = [
   STACK_GATE,
   DEPLOY_GATE,
   OBJECTS_GATE,
+  PIPELINE_GATE,
   UPGRADE_GATE,
   SECURITY_GATE,
   CONTENT_GATE,

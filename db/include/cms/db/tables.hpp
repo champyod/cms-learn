@@ -250,6 +250,180 @@ struct Elevations_ {
   using _required_insert_columns = sqlpp::detail::type_set<AdminId, Capability, GrantedActorKind, ExpiresAt, Reason>;
 };
 
+struct GenerationArtefacts_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
+  struct JobId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Step {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(step, step);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Kind {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(kind, kind);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Locale {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(locale, locale);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct ObjectKey {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(object_key, objectKey);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct InlineText {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(inline_text, inlineText);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct ModelId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(model_id, modelId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct PromptVersion {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(prompt_version, promptVersion);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Seed {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(seed, seed);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct CallIndex {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(call_index, callIndex);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_artefacts, generationArtefacts);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, JobId, Step, Kind, Locale, ObjectKey, InlineText, ModelId, PromptVersion, Seed, CallIndex, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Step, Kind, ModelId, PromptVersion, Seed, CallIndex>;
+};
+
+struct GenerationCandidates_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
+  struct JobId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Approach {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(approach, approach);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct IntendedComplexity {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(intended_complexity, intendedComplexity);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct FitsBounds {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(fits_bounds, fitsBounds);
+    using data_type = ::sqlpp::boolean;
+    using has_default = std::false_type;
+  };
+  struct Plan {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(plan, plan);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Chosen {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(chosen, chosen);
+    using data_type = ::sqlpp::boolean;
+    using has_default = std::true_type;
+  };
+  struct Reason {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(reason, reason);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_candidates, generationCandidates);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan, Chosen, Reason>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan>;
+};
+
+struct GenerationJobs_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
+  struct TaskId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskVersion {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_version, taskVersion);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct State {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(state, state);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  struct Attempts {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(attempts, attempts);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
+  struct ClaimedBy {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(claimed_by, claimedBy);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct ClaimedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(claimed_at, claimedAt);
+    using data_type = std::optional<::sqlpp::timestamp>;
+    using has_default = std::true_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  struct UpdatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(updated_at, updatedAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_jobs, generationJobs);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, TaskId, TaskVersion, State, Attempts, ClaimedBy, ClaimedAt, CreatedAt, UpdatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion>;
+};
+
 struct LearnerAccounts_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -1313,6 +1487,9 @@ using AdminRoles = ::sqlpp::table_t<AdminRoles_>;
 using AuditEvents = ::sqlpp::table_t<AuditEvents_>;
 using ContentSeed = ::sqlpp::table_t<ContentSeed_>;
 using Elevations = ::sqlpp::table_t<Elevations_>;
+using GenerationArtefacts = ::sqlpp::table_t<GenerationArtefacts_>;
+using GenerationCandidates = ::sqlpp::table_t<GenerationCandidates_>;
+using GenerationJobs = ::sqlpp::table_t<GenerationJobs_>;
 using LearnerAccounts = ::sqlpp::table_t<LearnerAccounts_>;
 using LearnerTokens = ::sqlpp::table_t<LearnerTokens_>;
 using LevelTitles = ::sqlpp::table_t<LevelTitles_>;
@@ -1345,6 +1522,9 @@ inline const AdminRoles adminRoles{};
 inline const AuditEvents auditEvents{};
 inline const ContentSeed contentSeed{};
 inline const Elevations elevations{};
+inline const GenerationArtefacts generationArtefacts{};
+inline const GenerationCandidates generationCandidates{};
+inline const GenerationJobs generationJobs{};
 inline const LearnerAccounts learnerAccounts{};
 inline const LearnerTokens learnerTokens{};
 inline const LevelTitles levelTitles{};

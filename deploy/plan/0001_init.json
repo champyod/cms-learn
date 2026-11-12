@@ -39,6 +39,12 @@
           "path": "public.capability"
         },
         {
+          "sql": "CREATE TYPE generation_state AS ENUM (\n    'queued',\n    'running',\n    'failed',\n    'awaiting-evidence',\n    'done'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.generation_state"
+        },
+        {
           "sql": "CREATE TYPE locale AS ENUM (\n    'en',\n    'th'\n);",
           "type": "type",
           "operation": "create",
@@ -321,6 +327,36 @@
           "path": "public.tasks.tasks_published_idx"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS generation_jobs (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    state generation_state DEFAULT 'queued'::generation_state NOT NULL,\n    attempts integer DEFAULT 0 NOT NULL,\n    claimed_by text,\n    claimed_at timestamptz,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_jobs_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL))\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.generation_jobs"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS generation_jobs_queue_idx ON generation_jobs (created_at) WHERE (state = 'queued'::generation_state);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.generation_jobs.generation_jobs_queue_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS generation_artefacts (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    job_id bigint NOT NULL,\n    step smallint NOT NULL,\n    kind text NOT NULL,\n    locale text,\n    object_key text,\n    inline_text text,\n    model_id text NOT NULL,\n    prompt_version text NOT NULL,\n    seed bigint NOT NULL,\n    call_index integer NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_artefacts_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_artefacts_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_artefacts_kind_check CHECK (length(btrim(kind)) > 0),\n    CONSTRAINT generation_artefacts_payload CHECK (object_key IS NOT NULL OR inline_text IS NOT NULL),\n    CONSTRAINT generation_artefacts_step_check CHECK (step >= 1 AND step <= 7)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.generation_artefacts"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS generation_artefacts_job_idx ON generation_artefacts (job_id, step);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.generation_artefacts.generation_artefacts_job_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS generation_candidates (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    job_id bigint NOT NULL,\n    position integer NOT NULL,\n    approach text NOT NULL,\n    intended_complexity text NOT NULL,\n    fits_bounds boolean NOT NULL,\n    plan jsonb NOT NULL,\n    chosen boolean DEFAULT false NOT NULL,\n    reason text DEFAULT '' NOT NULL,\n    CONSTRAINT generation_candidates_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_candidates_job_id_position_key UNIQUE (job_id, position),\n    CONSTRAINT generation_candidates_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_candidates_approach_check CHECK (length(btrim(approach)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.generation_candidates"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS progress (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    status progress_status DEFAULT 'attempted'::progress_status NOT NULL,\n    attempted_at timestamptz DEFAULT now() NOT NULL,\n    solved_at timestamptz,\n    CONSTRAINT progress_pkey PRIMARY KEY (id),\n    CONSTRAINT progress_account_id_fkey FOREIGN KEY (account_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT progress_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT progress_solved_has_time CHECK ((status = 'solved'::progress_status) = (solved_at IS NOT NULL))\n);",
           "type": "table",
           "operation": "create",
@@ -585,6 +621,24 @@
           "path": "privileges.SEQUENCE.audit_events_id_seq.cmslearn_app"
         },
         {
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE generation_artefacts_id_seq TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.SEQUENCE.generation_artefacts_id_seq.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE generation_candidates_id_seq TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.SEQUENCE.generation_candidates_id_seq.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE generation_jobs_id_seq TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.SEQUENCE.generation_jobs_id_seq.cmslearn_app"
+        },
+        {
           "sql": "GRANT SELECT, USAGE ON SEQUENCE learner_accounts_serial_id_seq TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
@@ -631,6 +685,24 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.elevations.cmslearn_app"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT ON TABLE generation_artefacts TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.generation_artefacts.cmslearn_generator"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT ON TABLE generation_candidates TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.generation_candidates.cmslearn_generator"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE generation_jobs TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.generation_jobs.cmslearn_generator"
         },
         {
           "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE learner_accounts TO cmslearn_app;",
@@ -765,10 +837,22 @@
           "path": "privileges.TABLE.task_field_defs.cmslearn_app"
         },
         {
+          "sql": "GRANT SELECT ON TABLE task_field_defs TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_field_defs.cmslearn_generator"
+        },
+        {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_field_values TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.task_field_values.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE task_field_values TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_field_values.cmslearn_generator"
         },
         {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_statements TO cmslearn_app;",
@@ -783,10 +867,22 @@
           "path": "privileges.TABLE.task_topics.cmslearn_app"
         },
         {
+          "sql": "GRANT SELECT ON TABLE task_topics TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_topics.cmslearn_generator"
+        },
+        {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_types TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.task_types.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT ON TABLE task_types TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.task_types.cmslearn_generator"
         },
         {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_visibility TO cmslearn_app;",
@@ -819,6 +915,12 @@
           "path": "privileges.TABLE.topics.cmslearn_app"
         },
         {
+          "sql": "GRANT SELECT ON TABLE topics TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.topics.cmslearn_generator"
+        },
+        {
           "sql": "GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE track_stages TO cmslearn_app;",
           "type": "privilege",
           "operation": "create",
@@ -835,6 +937,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TYPE.task_field_kind.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT (checker, checker_path, content_hash, difficulty, id, memory_limit_mb, origin, seeded, status, task_type, time_limit_ms, title_en, title_th, verification, version) ON TABLE tasks TO cmslearn_generator;",
+          "type": "column_privilege",
+          "operation": "create",
+          "path": "column_privileges.TABLE.tasks.checker,checker_path,content_hash,difficulty,id,memory_limit_mb,origin,seeded,status,task_type,time_limit_ms,title_en,title_th,verification,version.cmslearn_generator"
         }
       ]
     }

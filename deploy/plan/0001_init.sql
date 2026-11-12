@@ -35,6 +35,14 @@ CREATE TYPE capability AS ENUM (
     'schema:apply'
 );
 
+CREATE TYPE generation_state AS ENUM (
+    'queued',
+    'running',
+    'failed',
+    'awaiting-evidence',
+    'done'
+);
+
 CREATE TYPE locale AS ENUM (
     'en',
     'th'
@@ -474,6 +482,61 @@ CREATE TABLE IF NOT EXISTS tasks (
 );
 
 CREATE INDEX IF NOT EXISTS tasks_published_idx ON tasks (difficulty, id) WHERE (status = 'published'::task_status);
+
+CREATE TABLE IF NOT EXISTS generation_jobs (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    task_id text NOT NULL,
+    task_version integer NOT NULL,
+    state generation_state DEFAULT 'queued'::generation_state NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    claimed_by text,
+    claimed_at timestamptz,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT generation_jobs_pkey PRIMARY KEY (id),
+    CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL))
+);
+
+CREATE INDEX IF NOT EXISTS generation_jobs_queue_idx ON generation_jobs (created_at) WHERE (state = 'queued'::generation_state);
+
+CREATE TABLE IF NOT EXISTS generation_artefacts (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    job_id bigint NOT NULL,
+    step smallint NOT NULL,
+    kind text NOT NULL,
+    locale text,
+    object_key text,
+    inline_text text,
+    model_id text NOT NULL,
+    prompt_version text NOT NULL,
+    seed bigint NOT NULL,
+    call_index integer NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT generation_artefacts_pkey PRIMARY KEY (id),
+    CONSTRAINT generation_artefacts_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
+    CONSTRAINT generation_artefacts_kind_check CHECK (length(btrim(kind)) > 0),
+    CONSTRAINT generation_artefacts_payload CHECK (object_key IS NOT NULL OR inline_text IS NOT NULL),
+    CONSTRAINT generation_artefacts_step_check CHECK (step >= 1 AND step <= 7)
+);
+
+CREATE INDEX IF NOT EXISTS generation_artefacts_job_idx ON generation_artefacts (job_id, step);
+
+CREATE TABLE IF NOT EXISTS generation_candidates (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    job_id bigint NOT NULL,
+    position integer NOT NULL,
+    approach text NOT NULL,
+    intended_complexity text NOT NULL,
+    fits_bounds boolean NOT NULL,
+    plan jsonb NOT NULL,
+    chosen boolean DEFAULT false NOT NULL,
+    reason text DEFAULT '' NOT NULL,
+    CONSTRAINT generation_candidates_pkey PRIMARY KEY (id),
+    CONSTRAINT generation_candidates_job_id_position_key UNIQUE (job_id, position),
+    CONSTRAINT generation_candidates_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
+    CONSTRAINT generation_candidates_approach_check CHECK (length(btrim(approach)) > 0)
+);
 
 CREATE TABLE IF NOT EXISTS progress (
     id bigint GENERATED ALWAYS AS IDENTITY,
@@ -979,6 +1042,12 @@ GRANT EXECUTE ON FUNCTION current_actor() TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE audit_events_id_seq TO cmslearn_app;
 
+GRANT SELECT, USAGE ON SEQUENCE generation_artefacts_id_seq TO cmslearn_app;
+
+GRANT SELECT, USAGE ON SEQUENCE generation_candidates_id_seq TO cmslearn_app;
+
+GRANT SELECT, USAGE ON SEQUENCE generation_jobs_id_seq TO cmslearn_app;
+
 GRANT SELECT, USAGE ON SEQUENCE learner_accounts_serial_id_seq TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;
@@ -994,6 +1063,12 @@ GRANT INSERT, SELECT ON TABLE audit_events TO cmslearn_app;
 GRANT INSERT, SELECT, UPDATE ON TABLE content_seed TO cmslearn_app;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE elevations TO cmslearn_app;
+
+GRANT INSERT, SELECT ON TABLE generation_artefacts TO cmslearn_generator;
+
+GRANT INSERT, SELECT ON TABLE generation_candidates TO cmslearn_generator;
+
+GRANT INSERT, SELECT, UPDATE ON TABLE generation_jobs TO cmslearn_generator;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE learner_accounts TO cmslearn_app;
 
@@ -1039,13 +1114,21 @@ GRANT SELECT ON TABLE task_examples TO cmslearn_judge;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_field_defs TO cmslearn_app;
 
+GRANT SELECT ON TABLE task_field_defs TO cmslearn_generator;
+
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_field_values TO cmslearn_app;
+
+GRANT SELECT ON TABLE task_field_values TO cmslearn_generator;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_statements TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_topics TO cmslearn_app;
 
+GRANT SELECT ON TABLE task_topics TO cmslearn_generator;
+
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_types TO cmslearn_app;
+
+GRANT SELECT ON TABLE task_types TO cmslearn_generator;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_visibility TO cmslearn_app;
 
@@ -1057,8 +1140,12 @@ GRANT SELECT ON TABLE tasks TO cmslearn_judge;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE topics TO cmslearn_app;
 
+GRANT SELECT ON TABLE topics TO cmslearn_generator;
+
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE track_stages TO cmslearn_app;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tracks TO cmslearn_app;
 
 GRANT USAGE ON TYPE task_field_kind TO cmslearn_app;
+
+GRANT SELECT (checker, checker_path, content_hash, difficulty, id, memory_limit_mb, origin, seeded, status, task_type, time_limit_ms, title_en, title_th, verification, version) ON TABLE tasks TO cmslearn_generator;
