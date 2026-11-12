@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **46 shipped · 8 partial · 8 planned** (63 features).
+Counts at last update: **47 shipped · 7 partial · 8 planned** (63 features).
 
 ---
 
@@ -42,7 +42,7 @@ Counts at last update: **46 shipped · 8 partial · 8 planned** (63 features).
 
 | F-013 | A task's fields are data: a task type and its fields are rows, so a new field or type needs no rebuild | A | ● | `deploy/schema/fields.sql`, `content/task_types.json`, `bank/src/seed.cpp`; `docs/decisions/0024-task-fields-are-data.md` |
 | F-014 | The authoring form is generated from those rows: adding a row adds a question, deleting one removes it, and nothing outside the type's fields can be written | A | ● | `api/src/task_plan.cpp`, `api/src/admin_routes.cpp`, `design/pages/admin_task_form.tsx`, `api/tests/task_form_e2e.sh` |
-| F-015 | A task's bytes live in object storage, the row holds the key, and a missing object is a refusal naming it, never empty content | C | ◐ | `core/src/object_store.cpp`, `tools/check-objects.sh`; the api and the seeder refuse-by-name half is still to come |
+| F-015 | A task's bytes live in object storage, the row holds the key, and a missing object is a refusal naming it at both doors, never empty content | C | ● | `core/src/object_store.cpp`, `api/src/admin_routes.cpp` (502 naming the key), `bank/src/seed.cpp` (`verify_objects` before any write), `tools/check-objects.sh`; the store requires a credential (`docs/decisions/0026`) |
 
 ## Judge
 
