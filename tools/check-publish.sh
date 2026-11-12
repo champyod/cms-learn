@@ -73,10 +73,13 @@ fi
 
 # A reference that does not reproduce its expected output stops the publish, even with verification recorded.
 "$generator" --out "$work/wrong" --id probe-wrong --title-en "Probe" --title-th "ทดสอบ" \
-  --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-mb 256 --checker token \
+  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-mb 256 --checker token \
   --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
   --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp" \
-  >/dev/null 2>&1
+  >/dev/null 2>&1 \
+  || { echo "publish gate FAILED: the generator refused the wrong-reference draft" >&2; exit 1; }
+[ -f "$work/wrong/examples/1.out" ] \
+  || { echo "publish gate FAILED: the wrong-reference draft was not written" >&2; exit 1; }
 printf '999\n' >"$work/wrong/examples/1.out"
 sed -i 's/"status": "pending"/"status": "verified"/' "$work/wrong/task.json"
 if "$promoter" "$work/wrong" "$work/artifacts" "$reference" >/dev/null 2>&1; then
