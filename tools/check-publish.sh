@@ -81,7 +81,13 @@ fi
 [ -f "$work/wrong/examples/1.out" ] \
   || { echo "publish gate FAILED: the wrong-reference draft was not written" >&2; exit 1; }
 printf '999\n' >"$work/wrong/examples/1.out"
+[ -f "$work/wrong/task.json" ] \
+  || { echo "publish gate FAILED: the wrong-reference draft carries no manifest" >&2; exit 1; }
 sed -i 's/"status": "pending"/"status": "verified"/' "$work/wrong/task.json"
+# Without this the assertion below could pass because the manifest stayed pending, which is a different
+# refusal than the corrupted output and would prove the wrong thing.
+grep -q '"status": "verified"' "$work/wrong/task.json" \
+  || { echo "publish gate FAILED: the wrong-reference draft could not be marked verified" >&2; exit 1; }
 if "$promoter" "$work/wrong" "$work/artifacts" "$reference" >/dev/null 2>&1; then
   bad "a reference that does not reproduce its output is refused" "the promoter published it"
 else
