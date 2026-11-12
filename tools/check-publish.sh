@@ -83,10 +83,15 @@ fi
 printf '999\n' >"$work/wrong/examples/1.out"
 [ -f "$work/wrong/task.json" ] \
   || { echo "publish gate FAILED: the wrong-reference draft carries no manifest" >&2; exit 1; }
+# The verification status, read as JSON rather than grepped: a draft carries no other status, so a plain
+# substring match would also accept a future nested field and prove the wrong thing.
+verification_status() {
+  python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["verification"]["status"])' "$1" 2>/dev/null
+}
+[ "$(verification_status "$work/wrong/task.json")" = "pending" ] \
+  || { echo "publish gate FAILED: the wrong-reference draft did not arrive unverified" >&2; exit 1; }
 sed -i 's/"status": "pending"/"status": "verified"/' "$work/wrong/task.json"
-# Without this the assertion below could pass because the manifest stayed pending, which is a different
-# refusal than the corrupted output and would prove the wrong thing.
-grep -q '"status": "verified"' "$work/wrong/task.json" \
+[ "$(verification_status "$work/wrong/task.json")" = "verified" ] \
   || { echo "publish gate FAILED: the wrong-reference draft could not be marked verified" >&2; exit 1; }
 if "$promoter" "$work/wrong" "$work/artifacts" "$reference" >/dev/null 2>&1; then
   bad "a reference that does not reproduce its output is refused" "the promoter published it"
