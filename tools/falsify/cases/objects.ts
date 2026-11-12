@@ -5,6 +5,7 @@ import type { Gate } from "../contract.ts";
 export const OBJECTS_GATE: Gate = {
   id: "objects",
   stage: [
+    "api/tests/object_readers_e2e.sh",
     "core/include/cms/object_store.hpp",
     "core/src/object_store.cpp",
     "core/src/object_get.cpp",
@@ -19,7 +20,11 @@ export const OBJECTS_GATE: Gate = {
   command: {
     command: "bash",
     args: ["tools/check-objects.sh"],
-    env: { CMS_OBJECT_GET: "{repo}/build/safety/core/cms_object_get" },
+    env: {
+      CMS_OBJECT_GET: "{repo}/build/safety/core/cms_object_get",
+      CMS_API_BINARY: "{repo}/build/safety/api/cms_api",
+      CMS_PROBE_REPO: "{repo}",
+    },
   },
   cases: [
     {
@@ -52,6 +57,19 @@ export const OBJECTS_GATE: Gate = {
         },
       ],
       expect: { status: "non-zero", message: "does not require CMSLEARN_S3_ACCESS_KEY_ID" },
+    },
+    {
+      // The proof lost: with the readers case forced to skip, the gate must refuse rather than report success.
+      // This is the case that would have caught the hole a skipped dependency left in the suite.
+      name: "readers-proof-skipped",
+      plant: [
+        {
+          kind: "write",
+          path: "api/tests/object_readers_e2e.sh",
+          content: "#!/usr/bin/env bash\necho \"  skipped: forced by the falsifier\"\nexit 77\n",
+        },
+      ],
+      expect: { status: "non-zero", message: "the object readers proof did not run" },
     },
     {
       // A credential in a tracked file: the example is read by every operator and committed forever.

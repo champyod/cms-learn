@@ -86,6 +86,9 @@ interface TestOutcome {
 
 const NOT_RUN_STATUSES = new Set(["Skipped", "Disabled", "Not Run"]);
 
+/// The one case that proves both object readers against a real store. It must never be an accepted skip.
+const STORE_PROOF = "api_object_readers_e2e";
+
 // ctest names the cases it did not run in a trailing section and marks each of them in the per-case
 // listing; both are read because a disabled case appears only in the listing.
 const NOT_RUN_LINE = /^\s*\d+ - (.+?) \((\w[\w ]*)\)[ \t]*$/gm;
@@ -251,6 +254,17 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
       tested.output,
     );
     if (crash) report.reasons.push(`sanitizer: ${crash[0].trim()}`);
+    return report;
+  }
+
+  // The store proof rests on the objects image, not on the live database, so no missing dependency explains its
+  // absence: a suite that drops it has dropped the only case both object readers run in.
+  const storeProofMissing = outcome.notRun.filter((entry) => entry.name.includes(STORE_PROOF));
+  if (storeProofMissing.length > 0) {
+    const names = storeProofMissing.map((entry) => `${entry.name} (${entry.status})`).join(", ");
+    report.reasons.push(
+      `the store proof did not run: ${names} — the case that proves both object readers must run, and a missing database does not explain it`,
+    );
     return report;
   }
 

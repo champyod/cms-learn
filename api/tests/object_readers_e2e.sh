@@ -4,19 +4,32 @@
 # an object the store does not hold.
 #
 # The store is a real S3 gateway (the `objects` image the stack runs), not a stub: the same client in core reads
-# it with the same credential path a deployment uses. Skips (exit 77) when docker or the image is missing.
+# it with the same credential path a deployment uses. A host with no docker skips (exit 77); a host with docker
+# but no store image FAILS, naming the image, because a broken environment must not look like a missing one.
 set -uo pipefail
 
 binary="${1:?usage: object_readers_e2e.sh <path to cms_api>}"
-repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# CMS_PROBE_REPO lets a gate run this case from a staged tree while reading the checkout it staged from: the
+# case is the proof, and the fixtures it reads (deploy/, content/, tools/) are not part of what was staged.
+repo="${CMS_PROBE_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 seeder="${2:-$(cd "$(dirname "$binary")/.." && pwd)/bank/cms_seed_content}"
 
 for tool in initdb pg_ctl createdb psql curl docker; do
   command -v "$tool" >/dev/null 2>&1 || { echo "  skipped: $tool is not installed"; exit 77; }
 done
 [ -x "$seeder" ] || { echo "  skipped: this tree has no cms_seed_content"; exit 77; }
-docker image inspect chrislusf/seaweedfs:4.51 >/dev/null 2>&1 || {
-  echo "  skipped: the objects image is not present"; exit 77; }
+# A host with no docker cannot run the proof, and says so. A host WITH docker that lacks the image is a
+# different matter: that is a broken environment, not a missing capability, and it must not turn into a silent
+# skip — the case that proves both readers is the only one that proves them.
+if ! command -v docker >/dev/null 2>&1; then
+  echo "  skipped: docker is not installed"
+  exit 77
+fi
+if ! docker image inspect chrislusf/seaweedfs:4.51 >/dev/null 2>&1; then
+  echo "  [!!] docker is installed but chrislusf/seaweedfs:4.51 is not present" >&2
+  echo "  [!!] the store proof needs that image; pull it or run this case where the stack's images are" >&2
+  exit 1
+fi
 
 work="$(mktemp -d)"
 port=$((64600 + (RANDOM % 40)))

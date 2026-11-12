@@ -50,6 +50,26 @@ if git -C "$repo" ls-files -z | xargs -0 grep -lnE "AKIA[0-9A-Z]{16}|aws_secret_
 fi
 note "no credential in a tracked file"
 
+# ── 4. the proof both readers rest on actually ran ──────────────────────────────────────────────
+# The gate above proves the contract of the client; the case below proves the two readers against a real S3
+# gateway. A suite that drops it cannot report success: a skip here is a failure of this gate, with the reason
+# the case gave, so "no docker" reads as "the proof did not run" and never as a pass.
+readers="$repo/api/tests/object_readers_e2e.sh"
+api_binary="${CMS_API_BINARY:-$repo/build/safety/api/cms_api}"
+[ -f "$readers" ] || fail "no readers case at $readers"
+[ -x "$api_binary" ] || fail "no api binary at $api_binary; build it with: cmake --build --preset safety"
+set +e
+bash "$readers" "$api_binary" >"$work/readers.log" 2>&1
+readers_status=$?
+set -e
+if [ "$readers_status" -eq 77 ]; then
+  printf 'objects gate FAILED: the object readers proof did not run, it skipped — %s\n' \
+    "$(grep -m1 'skipped' "$work/readers.log" || tail -1 "$work/readers.log")" >&2
+  exit 1
+fi
+[ "$readers_status" -eq 0 ] || fail "the object readers case failed: $(tail -3 "$work/readers.log")"
+note "the object readers case ran and passed ($(grep -c '\[ok\]' "$work/readers.log") assertion(s))"
+
 # ── 4. the client's behaviour, against a local S3 ────────────────────────────────────────────────
 port=$((34800 + (RANDOM % 200)))
 python3 - "$port" "$work" <<'PY' &
