@@ -135,6 +135,7 @@ Application images (`web`, `api`, `judge`, `schema`, `backup`) are built here an
 |---|---|---|---|
 | gcc / g++ | **16.2.0**, from the `gcc:16.2.0-trixie` image | GPL-3.0-or-later WITH GCC-exception-3.1 | every C++ translation unit: the workspace build, the gate and the api image |
 | pgschema | 1.13.4 | Apache-2.0 | schema plan and apply |
+| ccache | 4.11.3 | GPL-3.0 | compiler cache for the falsification harness |
 | isolate | v2.7 | GPL-2.0 | sandbox |
 | testlib | 0.9.41 | MIT | checker library |
 | Trivy | 0.66.0 | Apache-2.0 | security gate |
@@ -145,6 +146,26 @@ The compiler is pinned by image tag rather than by a distribution package: the a
 `gcc:16.2.0-trixie`, CI runs that same tag, and `cmake/ProjectSettings.cmake` refuses to configure under a
 compiler that is not GNU or is older than `CMS_MIN_GCC_MAJOR` (16). A development host therefore needs
 g++ 16 or newer; the gate's own run reports `g++ (GCC) 16.2.1`.
+
+### Compiler cache
+
+`tools/cpp/falsify.ts` builds a baseline tree and one tree per planted defect, and every tree carries the same
+source except the file a case plants. Without a compiler cache that is the same sanitizer build nine times, and
+the gate that proves the other gates stops being run — which is how a gate stops being true.
+
+The harness does **not** need `ccache`. It is an optimisation only: a machine without it builds the same tree once
+and takes the same time it always did, and the harness refuses only when a launcher is configured and the binary it
+names is missing (a broken environment, not a plain one).
+
+**Measured, 2026-11-14: 0 hits of 476 compiles.** The cache key is the preprocessed source and the exact command
+line, and the preprocessed text carries each tree's absolute path, so a tree at a fresh temporary path can never
+hit — `CCACHE_BASEDIR` does not rewrite the line markers. The launcher therefore buys same-path reuse (a re-run in
+the same directory, a rebuild after a comment change), and the speed-up the falsification harness actually relies
+on is a single shared tree rebuilt in place, not this cache. Do not add it expecting that win.
+
+To get it: install the distribution package (`pacman -S ccache`, `apt install ccache`, `brew install ccache`),
+or take the release at tag `v4.11.3` from the project's releases and build it with CMake — the harness only
+needs the binary on `PATH`.
 
 ### Obtaining the pinned schema tool
 

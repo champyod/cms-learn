@@ -27,6 +27,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   statfsSync,
   symlinkSync,
   writeFileSync,
@@ -79,9 +80,11 @@ int main() {
     examples: { input: "3\n", output: "3\n" },
     source: `#include <cstdio>
 int main() {
-    int cells[3] = {1, 2, 3};
-    cells[7] = 9;
-    std::printf("%d\\n", cells[0]);
+    int values[3] = {1, 2, 3};
+    int *slot = values;
+    int index = 7;
+    slot[index] = 42;
+    std::printf("%d\\n", values[0]);
     return 0;
 }`,
   },
@@ -148,29 +151,13 @@ function stagedEntries(repo: string): string[] {
   return [...STAGED_CONFIG, ...components, ...STAGED_DATA];
 }
 
-function buildTree(repo: string, work: string, name: string, source: string, examples?: { input: string; output: string }): string {
-  const root = join(work, name);
-  for (const entry of stagedEntries(repo)) {
-    cpSync(join(repo, entry), join(root, entry), {
-      recursive: true,
-      // build/ holds absolute paths into the original tree; copying it would make CMake reuse them.
-      filter: (path) => !path.includes("/build"),
-    });
-  }
-
-  // The root CMakeLists adds every component, and the presets resolve packages from the manifest, so a
-  // tree without them dies at configure and the case never reaches a compile. The installed packages are
-  // shared by link rather than copied: the manifest build would otherwise compile drogon and
-  // aws-sdk-cpp from source once per case, which is hours, not a gate.
-  const installed = join(repo, "build/vcpkg_installed");
-  if (existsSync(installed)) {
-    mkdirSync(join(root, "build"), { recursive: true });
-    symlinkSync(installed, join(root, "build/vcpkg_installed"), "dir");
-  }
-
-  // The demo task has to be a *task*: once real content is staged, the bank loader walks every
-  // directory under `content/tasks/`, and a folder holding only a solution and an example is a
-  // malformed task that makes the whole bank fail to load.
+/**
+ * Writes the demo task a case runs: its reference solution, its manifest, its statements and its examples.
+ *
+ * The document is written on every call, and the examples directory is emptied first, so a case that supplies
+ * no examples cannot inherit the previous case's — the same rule the tree reset below enforces for the source.
+ */
+function writeDemo(root: string, source: string, examples?: { input: string; output: string }): void {
   const demo = join(root, "content/tasks/demo");
   const solutions = join(demo, "solutions");
   mkdirSync(solutions, { recursive: true });
@@ -197,13 +184,36 @@ function buildTree(repo: string, work: string, name: string, source: string, exa
   );
   writeFileSync(join(demo, "statement.en.md"), "Read one integer and print it.\n");
   writeFileSync(join(demo, "statement.th.md"), "อ่านจำนวนเต็มหนึ่งจำนวนแล้วพิมพ์ออกมา\n");
-
+  rmSync(join(demo, "examples"), { recursive: true, force: true });
   if (examples) {
     const dir = join(demo, "examples");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "01.in"), examples.input);
     writeFileSync(join(dir, "01.out"), examples.output);
   }
+}
+
+function buildTree(repo: string, work: string, name: string, source: string, examples?: { input: string; output: string }): string {
+  const root = join(work, name);
+  for (const entry of stagedEntries(repo)) {
+    cpSync(join(repo, entry), join(root, entry), {
+      recursive: true,
+      // build/ holds absolute paths into the original tree; copying it would make CMake reuse them.
+      filter: (path) => !path.includes("/build"),
+    });
+  }
+
+  // The root CMakeLists adds every component, and the presets resolve packages from the manifest, so a
+  // tree without them dies at configure and the case never reaches a compile. The installed packages are
+  // shared by link rather than copied: the manifest build would otherwise compile drogon and
+  // aws-sdk-cpp from source once per case, which is hours, not a gate.
+  const installed = join(repo, "build/vcpkg_installed");
+  if (existsSync(installed)) {
+    mkdirSync(join(root, "build"), { recursive: true });
+    symlinkSync(installed, join(root, "build/vcpkg_installed"), "dir");
+  }
+
+  writeDemo(root, source, examples);
 
   return root;
 }
@@ -413,18 +423,33 @@ function stopBaseline(work: string, what: string, output: string): never {
  *
  * Returns "" when the baseline is already green: a staged tree that needs no exclusion gets none.
  */
-function baselineExclusion(repo: string, work: string): string {
-  const root = buildTree(repo, work, "baseline", CLEAN_SOURCE, CLEAN_EXAMPLES);
+/** The launcher the configure recorded, or "" when the tree was configured without a compiler cache. */
+function scImapLauncher(root: string): string {
+  const cache = join(root, "build", "safety", "CMakeCache.txt");
+  if (!existsSync(cache)) return "";
+  const found = /CMAKE_CXX_COMPILER_LAUNCHER:[^=]*=([^\n]*)/.exec(readFileSync(cache, "utf8"));
+  return found === null ? "" : found[1].trim();
+}
+
+function baselineExclusion(root: string, work: string): string {
   for (const step of BASELINE_STEPS) {
     const result = runIn(root, step.command, step.args);
     if (result.status !== 0) stopBaseline(work, step.what, result.output);
+  }
+  const launcher = scImapLauncher(root);
+  if (launcher !== "" && !existsSync(launcher)) {
+    console.error(
+      `the staged tree is configured to use the compiler cache at ${launcher}, which does not exist. Point the ` +
+        "launcher at a working ccache or configure without one (docs/dependencies.md, section 'Compiler cache').",
+    );
+    releaseLock();
+    process.exit(1);
   }
 
   const tested = runIn(root, "ctest", ["--preset", "safety"]);
   const failed = [...new Set([...tested.output.matchAll(FAILED_CASE)].map((match) => match[1].trim()))];
   // A non-zero status with nothing named is a ctest that could not run its cases, not a tree with failures.
   if (tested.status !== 0 && failed.length === 0) stopBaseline(work, "run its cases", tested.output);
-  rmSync(work, { recursive: true, force: true });
 
   if (failed.length === 0) {
     console.log("baseline      0 test(s) fail in a staged tree — every case runs the full suite");
@@ -438,6 +463,24 @@ function baselineExclusion(repo: string, work: string): string {
 
 const repo = join(import.meta.dir, "../..");
 mkdirSync(SCRATCH_ROOT, { recursive: true });
+// Every staged tree is compiled from the same source except for the file a case plants, so the work is the same
+// work repeated. A compiler cache keyed by the preprocessed source and the exact flags makes each tree after the
+// first cost one link plus one file — and the key is why a hit can never carry a defect from another tree.
+const CACHE_DIR = join(SCRATCH_ROOT, "ccache");
+mkdirSync(CACHE_DIR, { recursive: true });
+process.env.CCACHE_DIR = CACHE_DIR;
+process.env.CCACHE_BASEDIR = SCRATCH_ROOT;
+process.env.CCACHE_COMPILERCHECK = "content";
+// A cache is an optimisation, never a requirement: a machine without ccache builds the same tree once and takes
+// the same time as before it existed. Only a launcher that is configured and missing is a refusal, because that is
+// a broken environment rather than a plain one.
+const cacheAvailable = spawnSync("ccache", ["--version"], { encoding: "utf8" }).status === 0;
+if (!cacheAvailable) {
+  delete process.env.CCACHE_DIR;
+  delete process.env.CCACHE_BASEDIR;
+  delete process.env.CCACHE_COMPILERCHECK;
+}
+
 // The sweep below is keyed on a shared directory prefix, so without a lock one run deletes the tree another
 // run is still building. Two full safety builds at once exhaust the machine's memory long before they finish.
 const releaseLock = acquireLock(SCRATCH_ROOT);
@@ -447,38 +490,69 @@ refuseBelowFloor(SCRATCH_ROOT);
 // What a staged tree cannot prove is read from this run rather than written down here, and nothing inherited
 // from the caller survives: this run derives its own exclusion, and an unset one leaves the gate unchanged.
 delete process.env.CMS_CTEST_EXCLUDE;
-const baselineWork = mkdtempSync(join(SCRATCH_ROOT, SCRATCH_PREFIX));
-const exclusion = baselineExclusion(repo, baselineWork);
-if (exclusion !== "") process.env.CMS_CTEST_EXCLUDE = exclusion;
-
 const work = mkdtempSync(join(SCRATCH_ROOT, SCRATCH_PREFIX));
+
+// One tree for every planted case. Each case rewrites the demo task's files before its run and the tree is
+// reset to the clean source afterwards, so the build products are shared while the source a case is judged on
+// is that case's own — the plants live in `content/tasks/demo`, which no compilation reads, so a shared build
+// cannot carry one case's defect into another's verdict. Nine trees built from scratch was hours; this is one.
+const sharedRoot = buildTree(repo, work, "shared", CLEAN_SOURCE, CLEAN_EXAMPLES);
+// The baseline is that same tree: it is built once, its ctest names the cases a staged tree cannot prove, and
+// the planted cases reuse the build instead of paying for it again.
+const exclusion = baselineExclusion(sharedRoot, work);
+if (exclusion !== "") process.env.CMS_CTEST_EXCLUDE = exclusion;
 
 let caught = 0;
 let missed = 0;
+const startedAt = Date.now();
 
 try {
-  for (const testCase of CASES) {
-    const root = buildTree(repo, work, testCase.name, testCase.source, testCase.examples);
+  // A single case can be run for diagnosis; the gate never sets this, so a real run is every case.
+  const only = (process.env.CMS_FALSIFY_ONLY ?? "").split(",").filter(Boolean);
+  for (const testCase of CASES.filter((entry) => only.length === 0 || only.includes(entry.name))) {
+    const caseStarted = Date.now();
+    writeDemo(sharedRoot, testCase.source, testCase.examples);
+    const root = sharedRoot;
+    // The defect lives in the demo reference, which is a build product: it must be rebuilt for this case, and the
+    // binary's mtime proves it rather than the build system's word for it.
+    const reference = join(root, "build/safety/references/ref_demo_main");
+    const planted = join(root, "content/tasks/demo/solutions/main.cpp");
+    const rebuilt = runIn(root, "cmake", ["--build", "--preset", "safety", "--target", "ref_demo_main"]);
+    // A build-time defect is meant to fail this rebuild, and the gate reports that failure as the defect; the
+    // freshness check therefore only applies when the reference did build.
+    const fresh = existsSync(reference) && statSync(reference).mtimeMs >= statSync(planted).mtimeMs;
+    if (rebuilt.status === 0 && !fresh) {
+      console.log(
+        `WRONG RESULT  ${testCase.name.padEnd(28)} — the planted reference is older than its source, so this case ` +
+          "would be judged against another case's source",
+      );
+      missed += 1;
+      continue;
+    }
     // tidy only where the defect is invisible to the sanitizers: it is the slow half, and running it on
     // a case that already fails at build time proves nothing about static analysis.
     const report = runGate(root, { tidy: testCase.staticOnly === true });
     const text = causeOf(report, root);
 
+    const seconds = ((Date.now() - caseStarted) / 1000).toFixed(1);
     if (!report.ok && text.includes(testCase.expect)) {
-      console.log(`caught        ${testCase.name.padEnd(28)} (${testCase.expect})`);
+      console.log(`caught        ${testCase.name.padEnd(28)} ${seconds.padStart(6)}s (${testCase.expect})`);
       caught += 1;
     } else if (report.ok) {
-      console.log(`MISSED        ${testCase.name.padEnd(28)} — gate passed a planted defect`);
+      console.log(`MISSED        ${testCase.name.padEnd(28)} ${seconds.padStart(6)}s — gate passed a planted defect`);
       missed += 1;
     } else {
-      console.log(`WRONG REASON  ${testCase.name.padEnd(28)} — expected "${testCase.expect}", got: ${text.slice(0, 160)}`);
+      console.log(
+        `WRONG REASON  ${testCase.name.padEnd(28)} ${seconds.padStart(6)}s — expected "${testCase.expect}", got: ${text.slice(0, 160)}`,
+      );
       missed += 1;
     }
   }
 
   // The control: a correct solution must pass, otherwise the gate is failing everything and proves
   // nothing about the defects above.
-  const cleanRoot = buildTree(repo, work, "clean-control", CLEAN_SOURCE, CLEAN_EXAMPLES);
+  writeDemo(sharedRoot, CLEAN_SOURCE, CLEAN_EXAMPLES);
+  const cleanRoot = sharedRoot;
   const clean = runGate(cleanRoot);
   if (clean.ok) {
     console.log(`behaved       ${"clean-control".padEnd(28)} (a correct solution passes)`);
@@ -543,5 +617,14 @@ try {
   releaseLock();
 }
 
+const totalSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
+const stats = spawnSync("ccache", ["--show-stats"], { encoding: "utf8", env: process.env });
+const hits = /Hits:.{0,20}?(\d+)\s*\/\s*(\d+)/.exec(stats.stdout ?? "");
+console.log(
+  hits === null
+    ? "\ncache         stats unavailable"
+    : `\ncache         ${hits[1]} hit(s) of ${hits[2]} compile(s) served from ${CACHE_DIR}`,
+);
+console.log(`\ntotal         ${totalSeconds}s for ${caught + missed} case(s) across ${caught + missed + 1} staged tree(s)`);
 console.log(`\n${caught} case(s) behaved, ${missed} did not`);
 process.exit(missed === 0 ? 0 : 1);

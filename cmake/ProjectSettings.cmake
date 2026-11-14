@@ -7,6 +7,16 @@
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# A staged falsification tree differs from the one before it in a single planted file, so the same translation
+# units are compiled over and over; a compiler cache keyed by the preprocessed source and the exact flags turns
+# every tree after the first into a link plus that one file. tools/cpp/falsify.ts refuses to run without it,
+# because a gate that takes hours stops being run.
+find_program(CMS_CCACHE ccache)
+if(CMS_CCACHE)
+  set(CMAKE_C_COMPILER_LAUNCHER "${CMS_CCACHE}" CACHE FILEPATH "compiler cache used for every compile")
+  set(CMAKE_CXX_COMPILER_LAUNCHER "${CMS_CCACHE}" CACHE FILEPATH "compiler cache used for every compile")
+endif()
+
 option(CMS_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 option(CMS_LINT_ONLY "Configure for static analysis only; this configuration ships nothing" OFF)
 set(CMS_SANITIZE "" CACHE STRING "Sanitizers for development builds, e.g. address;undefined")
