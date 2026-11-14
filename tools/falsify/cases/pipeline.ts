@@ -8,6 +8,7 @@ export const PIPELINE_GATE: Gate = {
     "tools/check-pipeline.sh",
     "tools/apply-plan.sh",
     "tools/pinned-pgschema.sh",
+    "tools/postgres-cluster.sh",
     "tools/compare-plan.ts",
     "tools/render-plan.sh",
     "docs/dependencies.md",

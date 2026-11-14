@@ -11,6 +11,8 @@
 set -uo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=tools/postgres-cluster.sh
+. "$repo/tools/postgres-cluster.sh"
 work="$(mktemp -d)"
 port=$((56000 + (RANDOM % 500)))
 database=cmslearn_claim_gate
@@ -18,7 +20,7 @@ worker=gate-worker
 rows=4
 
 cleanup() {
-  pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1
+  pg_cluster_stop "$work" >/dev/null 2>&1 || true
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -29,6 +31,7 @@ ok() { printf '  [ok]   %s\n' "$1"; pass=$((pass + 1)); }
 bad() { printf '  [!!]   %s — %s\n' "$1" "$2"; fail=$((fail + 1)); }
 die() { printf 'claim gate FAILED: %s\n' "$*" >&2; exit 1; }
 
+pg_cluster_binaries
 for tool in initdb pg_ctl psql pgschema sha256sum; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     printf 'cannot be exercised: %s is not installed\n' "$tool" >&2
@@ -45,9 +48,9 @@ lease="$(grep -o 'CLAIM_LEASE{[0-9]\+}' "$repo/judge/include/cms/judge/worker.hp
 [ -n "$lease" ] || die "judge/include/cms/judge/worker.hpp no longer declares CLAIM_LEASE"
 backdate=$((lease * 3))
 
-initdb -D "$work/data" -U postgres -A trust >"$work/initdb.log" 2>&1 || die "initdb failed; see $work/initdb.log"
-pg_ctl -D "$work/data" -o "-c listen_addresses='' -c unix_socket_directories=$work -p $port" \
-  -l "$work/server.log" -w start >/dev/null 2>&1 || die "the scratch cluster did not start; see $work/server.log"
+pg_cluster_prepare "$work" || die "the scratch cluster cannot be handed to the postgres user"
+pg_cluster_init "$work" >"$work/initdb.log" 2>&1 || die "initdb failed; see $work/initdb.log"
+pg_cluster_start "$work" "$port" "$work/server.log" >/dev/null 2>&1 || die "the scratch cluster did not start; see $work/server.log"
 psql -X -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 -f "$repo/deploy/roles.sql" >/dev/null \
   || die "deploy/roles.sql failed"
 createdb -h "$work" -p "$port" -U postgres "$database" || die "could not create $database"

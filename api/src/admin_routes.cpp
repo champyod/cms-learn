@@ -215,46 +215,97 @@ auto handle_task_form(const std::shared_ptr<Panel>& panel, const drogon::HttpReq
   callback(html_response(*page));
 }
 
-/// The key a task's file-kind field holds, or nothing when the field is not a file the store can serve.
-auto object_key_of(db::connection& database, const std::string& task_id, const std::string& field_key)
-    -> Result<std::optional<std::string>> {
-  auto type_id = std::string{};
-  auto version = std::int64_t{0};
+/// One artefact a file-kind field names: the object's key, and the digest its row records (ADR 0027 §5).
+struct FieldArtefact {
+  std::string object_key;
+  std::string digest;
+};
+
+/// The task's type and version, which decide what its fields mean.
+struct TaskIdentity {
+  std::string type_id;
+  std::int64_t version{0};
+};
+
+auto task_identity_of(db::connection& database, const std::string& task_id) -> TaskIdentity {
+  auto identity = TaskIdentity{};
   for (const auto& row : database(sqlpp::select(db::tasks.taskType, db::tasks.version)
                                       .from(db::tasks)
                                       .where(db::tasks.id == task_id))) {
-    type_id = row.taskType.has_value() ? std::string{*row.taskType} : std::string{};
-    version = row.version;
+    identity.type_id = row.taskType.has_value() ? std::string{*row.taskType} : std::string{};
+    identity.version = row.version;
   }
-  if (type_id.empty()) {
-    return std::optional<std::string>{};
-  }
-  auto kind = std::string{};
+  return identity;
+}
+
+auto field_kind_of(db::connection& database, const TaskIdentity& task, const std::string& field_key)
+    -> std::string {
   for (const auto& row : database(sqlpp::select(db::taskFieldDefs.kind)
                                       .from(db::taskFieldDefs)
-                                      .where(db::taskFieldDefs.taskTypeId == type_id &&
+                                      .where(db::taskFieldDefs.taskTypeId == task.type_id &&
                                              db::taskFieldDefs.key == field_key))) {
-    kind = std::string{row.kind};
+    return std::string{row.kind};
   }
-  if (kind != "file") {
-    return std::optional<std::string>{};
-  }
-  auto stored = std::string{};
+  return {};
+}
+
+/// The JSON text a task's field holds, or nothing when the draft never filled it.
+auto stored_field_value(db::connection& database, const TaskIdentity& task, const std::string& task_id,
+                        const std::string& field_key) -> std::optional<std::string> {
+  auto stored = std::optional<std::string>{};
   for (const auto& row : database(sqlpp::select(db::taskFieldValues.value)
                                       .from(db::taskFieldValues)
                                       .where(db::taskFieldValues.taskId == task_id &&
-                                             db::taskFieldValues.taskVersion == version &&
+                                             db::taskFieldValues.taskVersion == task.version &&
                                              db::taskFieldValues.fieldKey == field_key))) {
     stored = std::string{row.value};
   }
-  if (stored.size() < 2 || stored.front() != '"' || stored.back() != '"') {
-    return std::optional<std::string>{};
-  }
-  return std::optional<std::string>{stored.substr(1, stored.size() - 2)};
+  return stored;
 }
 
-/// Serves the bytes of one file-kind field of one task, through the one client in core. A row that names a key
-/// the store does not hold is a 502 that names the key: a page served with empty bytes in its place would be the
+/// The artefact a file-kind field names, or nothing when the field is not a file the store can serve.
+///
+/// A field that is a file must hold an artefact id, so a stored key is refused here by name rather than read as
+/// one: the old reading and the record cannot both be true, and a reader that guessed would serve the wrong
+/// object or nothing at all.
+auto field_artefact_of(db::connection& database, const std::string& task_id,
+                       const std::string& field_key) -> Result<std::optional<FieldArtefact>> {
+  const auto task = task_identity_of(database, task_id);
+  if (task.type_id.empty() || field_kind_of(database, task, field_key) != "file") {
+    return std::optional<FieldArtefact>{};
+  }
+  const auto stored = stored_field_value(database, task, task_id, field_key);
+  if (!stored) {
+    return std::optional<FieldArtefact>{};
+  }
+  const auto value = nlohmann::json::parse(*stored, nullptr, false);
+  if (value.is_discarded() || !value.is_number_integer() || value.get<std::int64_t>() <= 0) {
+    return std::unexpected(Error::make(
+        ErrorCode::conflict,
+        "the field " + field_key + " holds " + *stored +
+            ", which is a store key or other text, not an artefact id; an existing draft has to be saved again"));
+  }
+  const auto artefact_id = value.get<std::int64_t>();
+  for (const auto& row : database(sqlpp::select(db::generationArtefacts.objectKey,
+                                               db::generationArtefacts.digest)
+                                      .from(db::generationArtefacts)
+                                      .where(db::generationArtefacts.id == artefact_id))) {
+    if (!row.objectKey.has_value()) {
+      return std::unexpected(Error::make(
+          ErrorCode::conflict, "the field " + field_key + " names artefact " +
+                                   std::to_string(artefact_id) + ", which holds inline text, not a stored object"));
+    }
+    return std::optional<FieldArtefact>{
+        FieldArtefact{.object_key = std::string{*row.objectKey}, .digest = std::string{row.digest}}};
+  }
+  return std::unexpected(Error::make(ErrorCode::not_found,
+                                     "the field " + field_key + " names artefact " +
+                                         std::to_string(artefact_id) + ", and no such artefact exists"));
+}
+
+/// Serves the bytes of one file-kind field of one task: the field's artefact id is resolved to the object's key
+/// and digest, and the bytes are checked against that digest before they are sent. An artefact whose object the
+/// store does not hold is a 502 that names the key: a page served with empty bytes in its place would be the
 /// defect ADR 0023 exists to prevent.
 auto handle_task_object(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
                         Callback&& callback, std::string_view task_id, std::string_view field_key)
@@ -282,24 +333,25 @@ auto handle_task_object(const std::shared_ptr<Panel>& panel, const drogon::HttpR
     callback(text_response(permitted.error().message, status_of(permitted.error().code)));
     return;
   }
-  const auto key = object_key_of(database, std::string{task_id}, std::string{field_key});
-  if (!key) {
-    callback(text_response(key.error().message, drogon::k500InternalServerError));
+  const auto artefact = field_artefact_of(database, std::string{task_id}, std::string{field_key});
+  if (!artefact) {
+    callback(text_response(artefact.error().message, status_of(artefact.error().code)));
     return;
   }
-  if (!key->has_value()) {
+  if (!artefact->has_value()) {
     callback(text_response("no object field " + std::string{field_key} + " on task " +
                                std::string{task_id},
                            drogon::k404NotFound));
     return;
   }
+  const auto& key = (*artefact)->object_key;
   const auto store = cms::store::make_store(panel->store_config);
   if (!store) {
-    callback(text_response("the object " + **key + " cannot be read: " + store.error().message,
+    callback(text_response("the object " + key + " cannot be read: " + store.error().message,
                            drogon::k502BadGateway));
     return;
   }
-  const auto bytes = (*store)->read(**key);
+  const auto bytes = (*store)->read_verified(key, (*artefact)->digest);
   if (!bytes) {
     callback(text_response(bytes.error().message, drogon::k502BadGateway));
     return;

@@ -12,26 +12,32 @@ set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 committed="$repo/db/include/cms/db/tables.hpp"
+# shellcheck source=tools/postgres-cluster.sh
+. "$repo/tools/postgres-cluster.sh"
 work="$(mktemp -d)"
 port=55433
 database=cmslearn_gate
 
-trap 'pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
-
 die() { printf 'db gate FAILED: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
 
+cleanup() {
+  pg_cluster_stop "$work" >/dev/null 2>&1 || true
+  rm -rf "$work"
+}
+trap cleanup EXIT
+
+pg_cluster_binaries
 for tool in initdb pg_ctl createdb psql; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is not installed"
 done
 
 [ -f "$committed" ] || die "db/include/cms/db/tables.hpp is missing; render it from the plan"
 
-initdb -D "$work/data" -U postgres -A trust >"$work/initdb.log" 2>&1 \
+pg_cluster_prepare "$work" || die "the scratch cluster cannot be handed to the postgres user"
+pg_cluster_init "$work" >"$work/initdb.log" 2>&1 \
   || die "initdb failed; see $work/initdb.log"
-pg_ctl -D "$work/data" \
-  -o "-c listen_addresses='' -c unix_socket_directories=$work -p $port" \
-  -l "$work/server.log" -w start >/dev/null 2>&1 \
+pg_cluster_start "$work" "$port" "$work/server.log" >/dev/null 2>&1 \
   || die "the scratch cluster did not start; see $work/server.log"
 
 psql -X -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 -f "$repo/deploy/roles.sql" >/dev/null \

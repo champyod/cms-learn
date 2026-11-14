@@ -18,14 +18,21 @@ plan_dir="$repo/deploy/plan"
 # Resolved first: a host whose pgschema moved would otherwise start a cluster and fail as "drift".
 # shellcheck source=tools/pinned-pgschema.sh
 . "$repo/tools/pinned-pgschema.sh"
+# shellcheck source=tools/postgres-cluster.sh
+. "$repo/tools/postgres-cluster.sh"
 work="$(mktemp -d)"
 port=55432
-
-trap 'pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
 
 die() { printf 'schema gate FAILED: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
 
+cleanup() {
+  pg_cluster_stop "$work" >/dev/null 2>&1 || true
+  rm -rf "$work"
+}
+trap cleanup EXIT
+
+pg_cluster_binaries
 for tool in initdb pg_ctl createdb psql sha256sum bun; do
   command -v "$tool" >/dev/null 2>&1 || die "$tool is not installed"
 done
@@ -38,11 +45,10 @@ done
   || die "deploy/plan does not match deploy/plan/CHECKSUMS"
 
 # The cluster listens on a unix socket inside $work only, so it cannot collide with a local server.
-initdb -D "$work/data" -U postgres -A trust >"$work/initdb.log" 2>&1 \
+pg_cluster_prepare "$work" || die "the scratch cluster cannot be handed to the postgres user"
+pg_cluster_init "$work" >"$work/initdb.log" 2>&1 \
   || die "initdb failed; see $work/initdb.log"
-pg_ctl -D "$work/data" \
-  -o "-c listen_addresses='' -c unix_socket_directories=$work -p $port" \
-  -l "$work/server.log" -w start >/dev/null 2>&1 \
+pg_cluster_start "$work" "$port" "$work/server.log" >/dev/null 2>&1 \
   || die "the scratch cluster did not start; see $work/server.log"
 
 psql -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 -f "$repo/deploy/roles.sql" >/dev/null \

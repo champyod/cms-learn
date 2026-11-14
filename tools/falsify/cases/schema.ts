@@ -8,6 +8,7 @@ export const SCHEMA_GATE: Gate = {
     "deploy",
     "docs/dependencies.md",
     "tools/pinned-pgschema.sh",
+    "tools/postgres-cluster.sh",
     "tools/check-schema.sh",
     "tools/apply-plan.sh",
     "tools/compare-plan.ts",

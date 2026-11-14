@@ -12,11 +12,15 @@ set -uo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 seeder="${1:-$repo/build/safety/bank/cms_seed_content}"
 
+# shellcheck source=tools/postgres-cluster.sh
+. "$repo/tools/postgres-cluster.sh"
+
 if [ ! -x "$seeder" ]; then
   echo "content gate FAILED: no seeder at $seeder; build it with: cmake --build --preset safety" >&2
   exit 1
 fi
 
+pg_cluster_binaries
 for tool in initdb pg_ctl psql; do
   command -v "$tool" >/dev/null 2>&1 || { echo "  skipped: $tool is not installed"; exit 77; }
 done
@@ -31,7 +35,7 @@ port=$((56000 + (RANDOM % 500)))
 database=cmslearn_content_gate
 
 cleanup() {
-  pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1
+  pg_cluster_stop "$work" >/dev/null 2>&1 || true
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -43,10 +47,9 @@ bad() { printf '  [!!]   %s — %s\n' "$1" "$2"; fail=$((fail + 1)); }
 
 psql_db() { psql -X -h "$work" -p "$port" -U postgres -d "$database" -tAc "$1" 2>/dev/null; }
 
-initdb -D "$work/data" -U postgres -A trust >"$work/initdb.log" 2>&1 || { echo "  [!!] initdb failed"; exit 1; }
-pg_ctl -D "$work/data" -o "-c listen_addresses='' -c unix_socket_directories=$work -p $port" \
-  -l "$work/pg.log" start >/dev/null 2>&1 || { echo "  [!!] pg_ctl failed"; exit 1; }
-sleep 1
+pg_cluster_prepare "$work" || { echo "  [!!] the cluster cannot be handed to the postgres user"; exit 1; }
+pg_cluster_init "$work" >"$work/initdb.log" 2>&1 || { echo "  [!!] initdb failed"; exit 1; }
+pg_cluster_start "$work" "$port" "$work/pg.log" >/dev/null 2>&1 || { echo "  [!!] pg_ctl failed"; exit 1; }
 psql -X -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 -f "$repo/deploy/roles.sql" >/dev/null 2>&1 \
   || { echo "  [!!] deploy/roles.sql failed"; exit 1; }
 psql -X -h "$work" -p "$port" -U postgres -q -c "CREATE DATABASE $database" >/dev/null 2>&1

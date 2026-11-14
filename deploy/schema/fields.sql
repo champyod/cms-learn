@@ -111,6 +111,44 @@ CREATE TRIGGER task_field_values_filled
   BEFORE INSERT OR UPDATE ON task_field_values
   FOR EACH ROW EXECUTE FUNCTION task_field_value_is_filled();
 
+-- A file-kind field names an artefact, never a store key: ADR 0027 §5 says so, and the panel resolves this id
+-- through generation_artefacts to the object's key and digest. A text value is the old reading, and accepting it
+-- here would leave one column with two meanings and a reader that has to guess which it holds.
+CREATE FUNCTION task_field_value_is_artefact_id() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  definition_kind text;
+  artefact_id bigint;
+BEGIN
+  SELECT d.kind INTO definition_kind
+    FROM tasks t
+    JOIN task_field_defs d ON d.task_type_id = t.task_type AND d.key = NEW.field_key
+   WHERE t.id = NEW.task_id AND t.version = NEW.task_version;
+  IF definition_kind IS DISTINCT FROM 'file' THEN
+    RETURN NEW;
+  END IF;
+  IF jsonb_typeof(NEW.value) <> 'number' OR (NEW.value #>> '{}') !~ '^[0-9]{1,18}$' THEN
+    RAISE EXCEPTION 'the field % holds %, which is a store key or other text, not an artefact id',
+      NEW.field_key, NEW.value
+      USING ERRCODE = 'check_violation';
+  END IF;
+  artefact_id := (NEW.value #>> '{}')::bigint;
+  IF NOT EXISTS (SELECT 1 FROM generation_artefacts a
+                  WHERE a.id = artefact_id AND a.object_key IS NOT NULL) THEN
+    RAISE EXCEPTION 'the field % names artefact %, which is not a stored object',
+      NEW.field_key, artefact_id
+      USING ERRCODE = 'foreign_key_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER task_field_values_artefact_id
+  BEFORE INSERT OR UPDATE ON task_field_values
+  FOR EACH ROW EXECUTE FUNCTION task_field_value_is_artefact_id();
+
 -- Removing a definition whose values exist would orphan them: the row stays, the value becomes unreadable,
 -- and nothing says which of the two is wrong.
 CREATE FUNCTION task_field_defs_refuse_orphaning() RETURNS trigger

@@ -19,6 +19,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON topics, tasks, task_topics, task_stateme
 GRANT SELECT, INSERT, UPDATE, DELETE ON task_visibility TO cmslearn_app;
 GRANT SELECT ON task_visibility TO cmslearn_judge;
 GRANT SELECT, INSERT, UPDATE ON content_seed TO cmslearn_app;
+-- A file-kind field holds an artefact id (ADR 0027 §5), so the panel resolves that id to the object's key and
+-- digest; the validation trigger reads the same columns, as the role that wrote the field.
+GRANT SELECT (id, object_key, digest) ON generation_artefacts TO cmslearn_app;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON tracks, track_stages, stage_tags TO cmslearn_app;
 -- The rung list is content the service writes once (the seed) and every page reads (the meter, the filter),

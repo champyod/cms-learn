@@ -2,7 +2,7 @@ import type { Gate } from "../contract.ts";
 
 export const JUDGE_GATE: Gate = {
   id: "judge",
-  stage: ["content", "deploy", "judge", "tools"],
+  stage: ["content", "deploy", "docs/dependencies.md", "judge", "tools"],
   command: {
     command: "bash",
     args: [

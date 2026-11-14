@@ -90,7 +90,9 @@ CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
 
 psql_db "SELECT set_config('cms.actor_id', 'a0000001-1111-4111-8111-0000000000f9', false), set_config('cms.actor_kind', 'admin', false), set_config('cms.invoked_by', 'object_readers_e2e', false); INSERT INTO admin_accounts (id, handle, status) VALUES ('a0000001-1111-4111-8111-0000000000f9', 'objects_author', 'active') ON CONFLICT DO NOTHING;" >/dev/null
 psql_db "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash, seeded) VALUES ('probe-object', 1, 'batch', 'published', 'Object probe', 'ทดสอบวัตถุ', 900, 1000, 256, 'token', 'original', 'verified', '', '', false) ON CONFLICT DO NOTHING;" >/dev/null
-psql_db "SELECT set_config('cms.actor_id', 'a0000001-1111-4111-8111-0000000000f9', false), set_config('cms.actor_kind', 'admin', false), set_config('cms.invoked_by', 'object_readers_e2e', false); INSERT INTO task_field_values (task_id, task_version, field_key, value) VALUES ('probe-object', 1, 'solution', '\"tasks/probe/absent.cpp\"') ON CONFLICT DO NOTHING;" >/dev/null
+# A row written under the old reading: the table refuses a key today, so the fixture is written the only way a
+# pre-existing row can be — as the schema owner with the rule switched off for that one statement.
+psql_db "ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id; INSERT INTO task_field_values (task_id, task_version, field_key, value) VALUES ('probe-object', 1, 'solution', '\"tasks/probe/absent.cpp\"'); ALTER TABLE task_field_values ENABLE TRIGGER task_field_values_artefact_id;" >/dev/null
 
 before="$(psql_db "SELECT version FROM content_state LIMIT 1" 2>/dev/null)"
 CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
@@ -109,6 +111,29 @@ CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
   "$seeder" --content "$repo/content" >"$work/seed3.log" 2>&1
 [ $? -eq 0 ] && ok "the seeder imports once the object exists, reading it through the store" \
   || bad "the seeder imports once the object exists, reading it through the store" "$(tail -2 "$work/seed3.log")"
+
+# ── the field's one meaning: an artefact id, and the table refuses anything else by name ──
+psql_refusal() { psql -X -h "$work" -p "$port" -U postgres -d objectprobe -tAq -c "$1" 2>&1; }
+refusal="$(psql_refusal "UPDATE task_field_values SET value = '\"tasks/probe/other.cpp\"'::jsonb WHERE task_id = 'probe-object' AND field_key = 'solution'")"
+printf '%s' "$refusal" | grep -q "the field solution" && printf '%s' "$refusal" | grep -q "not an artefact id" \
+  && ok "the table refuses a file field holding a store key, naming the field" \
+  || bad "the table refuses a file field holding a store key, naming the field" "$refusal"
+
+refusal="$(psql_refusal "UPDATE task_field_values SET value = to_jsonb(999999::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'")"
+printf '%s' "$refusal" | grep -q "the field solution" && printf '%s' "$refusal" | grep -q "999999" \
+  && ok "the table refuses a file field naming an artefact that does not exist" \
+  || bad "the table refuses a file field naming an artefact that does not exist" "$refusal"
+
+digest="$(sha256sum "$work/solution.cpp" | cut -d' ' -f1)"
+psql_db "INSERT INTO generation_jobs (task_id, task_version) VALUES ('probe-object', 1); INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, seed, call_index) SELECT max(id), 5, 'solution', 'tasks/probe/absent.cpp', '$digest', 'probe-model', 'probe-v1', 1, 0 FROM generation_jobs WHERE task_id = 'probe-object';" >/dev/null
+artefact="$(psql_db "SELECT max(id) FROM generation_artefacts")"
+[ -n "$artefact" ] && [ "$(psql_db "SELECT jsonb_typeof(value) FROM task_field_values WHERE task_id = 'probe-object' AND field_key = 'solution'")" = "string" ] \
+  && ok "a draft written under the old reading still holds a key" \
+  || bad "a draft written under the old reading still holds a key" "artefact ${artefact:-none}"
+psql_db "UPDATE task_field_values SET value = to_jsonb($artefact::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'" >/dev/null
+[ "$(psql_db "SELECT jsonb_typeof(value) FROM task_field_values WHERE task_id = 'probe-object' AND field_key = 'solution'")" = "number" ] \
+  && ok "an artefact id is what the field holds once it is saved again" \
+  || bad "an artefact id is what the field holds once it is saved again" "value is not a number"
 
 # ── the api: serves the bytes, and names the key when the object is gone ──
 cat > "$work/host.env" <<ENV
@@ -142,21 +167,43 @@ psql_db "SELECT set_config('cms.actor_id', '$admin_id', false), set_config('cms.
 session=aaaaaaaa-0000-4000-8000-0000000000f8
 psql_db "INSERT INTO sessions (id, account_kind, admin_id, expires_at) VALUES ('$session', 'admin', '$admin_id', now() + interval '1 hour')" >/dev/null
 
-curl -s -o "$work/body" -w '%{http_code}' --max-time 20 -H "Cookie: cms_session=$session" \
-  "http://127.0.0.1:$panel/admin/tasks/probe-object/field/solution" >"$work/status"
-[ "$(cat "$work/status")" = "200" ] && cmp -s "$work/body" "$work/solution.cpp" \
-  && ok "the api serves a file-kind field's bytes from the store" \
-  || bad "the api serves a file-kind field's bytes from the store" "HTTP $(cat "$work/status")"
+serve_field() {
+  curl -s -o "$work/body" -w '%{http_code}' --max-time 20 -H "Cookie: cms_session=$session" \
+    "http://127.0.0.1:$panel/admin/tasks/probe-object/field/$1"
+}
+
+code="$(serve_field solution)"
+[ "$code" = "200" ] && cmp -s "$work/body" "$work/solution.cpp" \
+  && ok "the api resolves an artefact id to the object and serves its bytes" \
+  || bad "the api resolves an artefact id to the object and serves its bytes" "HTTP $code"
 
 curl -s -o /dev/null -X DELETE "http://127.0.0.1:$s3_port/$bucket/tasks/probe/absent.cpp"
-code="$(curl -s -o "$work/body" -w '%{http_code}' --max-time 20 -H "Cookie: cms_session=$session" \
-  "http://127.0.0.1:$panel/admin/tasks/probe-object/field/solution")"
+code="$(serve_field solution)"
 [ "$code" = "502" ] && grep -q "tasks/probe/absent.cpp" "$work/body" \
   && ok "a missing object is a 502 naming the key, never empty content" \
   || bad "a missing object is a 502 naming the key, never empty content" "HTTP $code"
 
-code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 -H "Cookie: cms_session=$session" \
-  "http://127.0.0.1:$panel/admin/tasks/probe-object/field/statement")"
+printf 'int main() { return 1; }' >"$work/tampered.cpp"
+curl -s -o /dev/null -X PUT --data-binary @"$work/tampered.cpp" \
+  "http://127.0.0.1:$s3_port/$bucket/tasks/probe/absent.cpp"
+code="$(serve_field solution)"
+[ "$code" = "502" ] && grep -q "does not match the digest" "$work/body" \
+  && ok "an object replaced under its row is refused, not served by the api" \
+  || bad "an object replaced under its row is refused, not served by the api" "HTTP $code"
+
+psql_db "ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id; UPDATE task_field_values SET value = '\"tasks/probe/absent.cpp\"'::jsonb WHERE task_id = 'probe-object' AND field_key = 'solution'; ALTER TABLE task_field_values ENABLE TRIGGER task_field_values_artefact_id;" >/dev/null
+code="$(serve_field solution)"
+[ "$code" = "409" ] && grep -q "the field solution" "$work/body" && grep -q "not an artefact id" "$work/body" \
+  && ok "a draft written under the old reading is refused by name, never served as empty content" \
+  || bad "a draft written under the old reading is refused by name, never served as empty content" "HTTP $code"
+
+psql_db "ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id; UPDATE task_field_values SET value = to_jsonb(999999::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'; ALTER TABLE task_field_values ENABLE TRIGGER task_field_values_artefact_id;" >/dev/null
+code="$(serve_field solution)"
+[ "$code" = "404" ] && grep -q "the field solution" "$work/body" && grep -q "999999" "$work/body" \
+  && ok "a field naming an artefact that is gone is refused with the field and the id" \
+  || bad "a field naming an artefact that is gone is refused with the field and the id" "HTTP $code"
+
+code="$(serve_field statement)"
 [ "$code" = "404" ] && ok "a field that is not a file is not served from the store" \
   || bad "a field that is not a file is not served from the store" "HTTP $code"
 

@@ -35,6 +35,51 @@ auto to_int(std::string_view text, std::int64_t& number) -> bool {
   return parsed.ec == std::errc{} && parsed.ptr == text.end();
 }
 
+/// One submitted field value: the text the form carried, and the artefact id when the field is a file.
+struct FieldValue {
+  std::string text;
+  std::int64_t artefact_id{0};
+  bool is_artefact{false};
+};
+
+/// @return Nothing when @p artefact_id names a stored object, or the refusal naming @p field_key.
+auto refuse_unknown_artefact(db::connection& database, std::string_view field_key,
+                             std::int64_t artefact_id) -> Result<void> {
+  for (const auto& row : database(sqlpp::select(db::generationArtefacts.objectKey)
+                                      .from(db::generationArtefacts)
+                                      .where(db::generationArtefacts.id == artefact_id))) {
+    if (!row.objectKey.has_value()) {
+      return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                         "the field " + std::string{field_key} + " names artefact " +
+                                             std::to_string(artefact_id) +
+                                             ", which holds inline text, not a stored object"));
+    }
+    return {};
+  }
+  return std::unexpected(Error::make(
+      ErrorCode::invalid_argument, "the field " + std::string{field_key} + " names artefact " +
+                                       std::to_string(artefact_id) + ", and no such artefact exists"));
+}
+
+/// @brief Reads the artefact id a file-kind field carries, refusing a store key by the field's name.
+///
+/// ADR 0027 §5: a file field holds an artefact id, never text. The refusal names the field, because an author
+/// who pasted a key needs to read which field carried it.
+auto read_artefact_field(db::connection& database, std::string_view field_key, std::string_view text)
+    -> Result<std::int64_t> {
+  auto artefact_id = std::int64_t{0};
+  if (!to_int(text, artefact_id) || artefact_id <= 0) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument,
+        "the field " + std::string{field_key} + " holds a store key, not an artefact id; give the artefact's id"));
+  }
+  const auto known = refuse_unknown_artefact(database, field_key, artefact_id);
+  if (!known) {
+    return std::unexpected(known.error());
+  }
+  return artefact_id;
+}
+
 auto json_string_list(std::string_view text) -> std::vector<std::string> {
   auto values = std::vector<std::string>{};
   auto inside = false;
@@ -205,7 +250,7 @@ auto save_task_draft(db::connection& database, const Actor& actor, std::string_v
     }
   }
 
-  auto values = std::map<std::string, std::string>{};
+  auto values = std::map<std::string, FieldValue>{};
   for (const auto& field : *fields) {
     const auto found = submitted.find(field.key);
     const auto value = found == submitted.end() ? std::string{} : found->second;
@@ -234,7 +279,16 @@ auto save_task_draft(db::connection& database, const Actor& actor, std::string_v
             ErrorCode::invalid_argument, "the field " + field.key + " is outside the bounds its type allows"));
       }
     }
-    values[field.key] = value;
+    if (field.kind == "file") {
+      const auto artefact = read_artefact_field(database, field.key, value);
+      if (!artefact) {
+        return std::unexpected(artefact.error());
+      }
+      values[field.key] =
+          FieldValue{.text = value, .artefact_id = *artefact, .is_artefact = true};
+      continue;
+    }
+    values[field.key] = FieldValue{.text = value};
   }
 
   const auto title_en = std::string{form_field(body, TITLE_EN_KEY)};
@@ -265,10 +319,17 @@ auto save_task_draft(db::connection& database, const Actor& actor, std::string_v
         db::tasks.solution = std::string{}, db::tasks.contentHash = std::string{},
         db::tasks.seeded = false));
     for (const auto& [key, value] : values) {
+      if (value.is_artefact) {
+        database.execute_text(
+            "INSERT INTO task_field_values (task_id, task_version, field_key, value) "
+            "VALUES ($1, 1, $2, to_jsonb($3::bigint))",
+            {id, key, value.artefact_id});
+        continue;
+      }
       database.execute_text(
           "INSERT INTO task_field_values (task_id, task_version, field_key, value) "
           "VALUES ($1, 1, $2, to_jsonb($3::text))",
-          {id, key, value});
+          {id, key, value.text});
     }
     record_audit(database, actor.kind, actor.id, "panel.task_form", "task.draft_created", id);
   } catch (const std::exception& error) {

@@ -31,7 +31,7 @@ stage() {
   local dir="$1"
   rm -rf "$dir"
   mkdir -p "$dir"
-  cp -a "$repo/db" "$repo/deploy" "$repo/tools" "$dir/"
+  cp -a "$repo/db" "$repo/deploy" "$repo/docs" "$repo/tools" "$dir/"
 }
 
 # case_of <name> <expected substring> <command> <mutation run inside the staged root>

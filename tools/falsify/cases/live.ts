@@ -2,7 +2,7 @@ import type { Gate } from "../contract.ts";
 
 export const LIVE_GATE: Gate = {
   id: "live",
-  stage: ["deploy", "tools"],
+  stage: ["deploy", "docs/dependencies.md", "tools"],
   command: {
     command: "bash",
     args: ["tools/check-live.sh", "{repo}/build/safety"],
