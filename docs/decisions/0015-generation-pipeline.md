@@ -25,6 +25,18 @@ This describes the admin path, which always generates and never reads a cache. T
 puts the cache lookup of `docs/content-model.md` in front of the same seven steps and is otherwise
 unchanged.
 
+## Interpretation added 2026-11-14 — distinct approaches, not four copies
+
+Step 1 says "at least four candidate plans". It does not say the approaches must differ, and a reading that
+added that rule silently would be this repository's own defect class. It is recorded here instead.
+
+**Decision:** the four candidates must name distinct approaches.
+
+**Why:** the floor exists so step 2 has alternatives to compare. Four candidates naming one approach give the
+judge nothing to choose and make the rejection record meaningless, which is the outcome the floor exists to
+prevent. A step that cannot produce four distinct approaches refuses before it calls the model, so the cost
+is a named refusal rather than a padded list.
+
 ## 2. Parallelism is sharding, never redundancy
 
 Parallel means one job cut into independent parts so that no call is a bulk call. It never means the
