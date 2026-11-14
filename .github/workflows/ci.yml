@@ -277,6 +277,13 @@ jobs:
       - name: safety gate falsifiability
         run: bun run check:cpp:falsify
 
+      # The barrier gate needs a binary this lane has just built and the postgres server installed above.
+      # It runs before the live cases so a failure later in the job cannot hide it.
+      - name: generation barrier gate
+        run: |
+          bun run check:pipeline
+          bun run check:pipeline:falsify
+
       # The gates below read the binaries this lane just built, which is why they live here rather than in
       # the matrix job: a gate that skips for want of a binary is a gate that proves nothing.
       - name: database, content and query gates

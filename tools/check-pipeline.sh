@@ -10,11 +10,44 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-work="$(mktemp -d)"
-trap 'pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
 
 fail() { printf 'pipeline gate FAILED: %s\n' "$*" >&2; exit 1; }
 note() { printf '  %s\n' "$*"; }
+
+# Debian and Ubuntu put the server binaries under /usr/lib/postgresql/<version>/bin, which is not on PATH;
+# the gate finds them rather than reporting a gate that could not run for want of a file that exists.
+if ! command -v initdb >/dev/null 2>&1 || ! command -v pg_ctl >/dev/null 2>&1; then
+  pgdir="$(printf '%s\n' /usr/lib/postgresql/*/bin | sort | tail -1)"
+  if [ -x "$pgdir/initdb" ]; then
+    PATH="$pgdir:$PATH"
+  fi
+fi
+
+work="$(mktemp -d)"
+
+# PostgreSQL refuses to run as root, and a CI container's steps run as root: the cluster belongs to the
+# unprivileged postgres user, and only the server commands are handed to it.
+pg_user="$(id -un)"
+if [ "$(id -u)" -eq 0 ]; then
+  pg_user=postgres
+  id -u "$pg_user" >/dev/null 2>&1 || fail "the gate runs as root and there is no '$pg_user' user to own the cluster"
+  command -v runuser >/dev/null 2>&1 || fail "the gate runs as root and runuser is not installed"
+  chown "$pg_user" "$work"
+fi
+
+run_pg() {
+  if [ "$pg_user" != "$(id -un)" ]; then
+    runuser -u "$pg_user" -- "$@"
+  else
+    "$@"
+  fi
+}
+
+cleanup() {
+  run_pg pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1 || true
+  rm -rf "$work"
+}
+trap cleanup EXIT
 
 worker="${CMS_GENERATE_BINARY:-$repo/build/safety/generator/cms_generate}"
 [ -x "$worker" ] || fail "no generator worker at $worker; build it with: cmake --build --preset safety"
@@ -53,12 +86,14 @@ note "the worker refuses to start and names every missing key, printing no value
 
 # ── 4. the worker's role cannot publish or verify ───────────────────────────────────────────────
 port=$((64800 + (RANDOM % 80)))
-if ! command -v initdb >/dev/null 2>&1 || ! command -v pg_ctl >/dev/null 2>&1; then
-  note "the role half did not run: PostgreSQL server binaries are not installed"
-  fail "the role half of the pipeline gate did not run; a gate that passes without it proves nothing"
-fi
-initdb -D "$work/data" -U postgres -A trust >/dev/null 2>&1
-pg_ctl -D "$work/data" -o "-c listen_addresses='' -c unix_socket_directories=$work -p $port" \
+for tool in initdb pg_ctl psql createdb; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    note "the role half did not run: PostgreSQL binaries are not installed ($tool is missing)"
+    fail "the role half of the pipeline gate did not run; a gate that passes without it proves nothing"
+  }
+done
+run_pg initdb -D "$work/data" -U postgres -A trust >/dev/null 2>&1
+run_pg pg_ctl -D "$work/data" -o "-c listen_addresses='' -c unix_socket_directories=$work -p $port" \
   -l "$work/pg.log" start >/dev/null 2>&1
 sleep 1
 psql -X -h "$work" -p "$port" -U postgres -q -f "$repo/deploy/roles.sql" >/dev/null 2>&1

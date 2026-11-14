@@ -48,7 +48,7 @@
     "gate:schema": "bun run check:schema && bun run check:schema:falsify",
     "gate:deploy": "bun run check:stack && bun run check:stack:falsify && bun run check:deploy && bun run check:deploy:falsify && bun run check:upgrade && bun run check:upgrade:falsify",
     "gate:cpp": "bun run check:cpp && bun run check:cpp:falsify",
-    "gate:all": "bun run gate && bun run gate:deploy && bun run gate:cpp && bun run check:pm && bun run check:pm:falsify && bun run check:cli && bun run check:db && bun run check:content:db && bun run check:unseen && bun run check:verify && bun run check:templates && bun run falsify:templates && bun run check:island && bun run falsify:island && bun run check:settings && bun run falsify:settings && bun run check:catalogue && bun run check:generator && bun run falsify:generator && bun run check:publish && bun run falsify:publish && bun run check:isolation && bun run check:security && bun run check:security:falsify && bun run check:render && bun run check:scaffold && bun run check:visibility && bun run check:visibility:falsify && bun run check:judge && bun run check:judge:falsify && bun run check:live",
+    "gate:all": "bun run gate && bun run gate:deploy && bun run gate:cpp && bun run check:pm && bun run check:pm:falsify && bun run check:cli && bun run check:db && bun run check:content:db && bun run check:unseen && bun run check:verify && bun run check:templates && bun run falsify:templates && bun run check:island && bun run falsify:island && bun run check:settings && bun run falsify:settings && bun run check:catalogue && bun run check:generator && bun run falsify:generator && bun run check:publish && bun run falsify:publish && bun run check:pipeline && bun run check:pipeline:falsify && bun run check:isolation && bun run check:security && bun run check:security:falsify && bun run check:render && bun run check:scaffold && bun run check:visibility && bun run check:visibility:falsify && bun run check:judge && bun run check:judge:falsify && bun run check:live",
     "build:css": "bunx @tailwindcss/cli -i web/app.css -o web/public/app.css --minify",
     "check:cli": "bash tools/check-cli.sh",
     "check:cli:falsify": "bash tools/falsify-cli-gate.sh",
@@ -61,7 +61,8 @@
     "check:live": "bash tools/check-live.sh",
     "check:live:falsify": "bun run tools/falsify/runner.ts live",
     "check:objects": "bash tools/check-objects.sh",
-    "check:pipeline": "bash tools/check-pipeline.sh"
+    "check:pipeline": "bash tools/check-pipeline.sh",
+    "check:pipeline:falsify": "bun run tools/falsify/runner.ts pipeline"
   },
   "devDependencies": {
     "@codemirror/commands": "6.11.1",
