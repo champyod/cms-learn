@@ -251,12 +251,16 @@ TEST_CASE("a stage counts its tasks and how many of them the account solved", "[
   given_task(database, "probe-count-a", 2100, "prefix-sums");
   given_task(database, "probe-count-b", 2200, "prefix-sums");
   given_task(database, "probe-count-c", 2300, "prefix-sums");
+  // In band, in topic, and shares a difficulty with probe-count-a, but carries no grant: the count must leave it
+  // out for the same reason the offer does, and this row is what makes the count's dependence on the visibility
+  // rule observable.
+  given_hidden_task(database, "probe-count-hidden", 2100, "prefix-sums");
 
   const auto band = stage(2100, 2200, {"prefix-sums"});
   const auto audience = viewer_audience();
   const auto before = cms::bank::stage_progress(database, account, band, audience);
   REQUIRE(before.has_value());
-  CHECK(before->total == 2);   // the two in band, not the 2300 one
+  CHECK(before->total == 2);   // the two visible in band: not the 2300 one, not the grant-less one beside them
   CHECK(before->done == 0);
 
   solved(database, account, "probe-count-a");

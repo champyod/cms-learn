@@ -22,6 +22,17 @@ constexpr std::int32_t LOWEST_DIFFICULTY = 800;
 constexpr std::int32_t HIGHEST_DIFFICULTY = 3500;
 constexpr std::int32_t WIDENING_STEP = 200;
 
+/// The one rule that decides what a learner may see: a task carries a grant for one of the audience's encoded
+/// values. The serving query and the count both read this definition, because the count is what lets a stage say it
+/// has nothing left — and a rule written twice would let the two answers drift apart while one of them serves.
+auto is_visible_to(const std::vector<std::int64_t>& principals) {
+  return sqlpp::exists(
+      sqlpp::select(db::taskVisibility.taskId)
+          .from(db::taskVisibility)
+          .where(db::taskVisibility.taskId == db::tasks.id &&
+                 db::taskVisibility.principalId.in(principals)));
+}
+
 /// One candidate: published, visible to one of the audience's principals, carries a topic of the stage,
 /// inside the band, and not yet attempted by the account. Written as anti-joins so the planner can use
 /// progress's index for the last one.
@@ -30,11 +41,7 @@ auto find_in_band(db::connection& database, std::string_view account_id, const S
                   std::int32_t maximum) -> std::optional<NextTask> {
   const auto principals = std::vector<std::int64_t>(audience.begin(), audience.end());
 
-  const auto is_visible = sqlpp::exists(
-      sqlpp::select(db::taskVisibility.taskId)
-          .from(db::taskVisibility)
-          .where(db::taskVisibility.taskId == db::tasks.id &&
-                 db::taskVisibility.principalId.in(principals)));
+  const auto is_visible = is_visible_to(principals);
 
   const auto carries_stage_topic = sqlpp::exists(
       sqlpp::select(db::taskTopics.taskId)
@@ -65,18 +72,13 @@ auto find_in_band(db::connection& database, std::string_view account_id, const S
   return std::nullopt;
 }
 
-/// The stage's tasks the account may see, counted once. The visibility and topic predicates are the ones
-/// `find_in_band` uses; keeping them here as the same EXISTS clauses is what makes the count and the offer
-/// answer one question.
+/// The stage's tasks the account may see, counted once. The visibility rule is `is_visible_to`'s definition, the
+/// same one `find_in_band` reads, so the count and the offer cannot answer different questions.
 auto count_stage_tasks(db::connection& database, const Stage& stage,
                        std::span<const std::int64_t> audience,
                        const std::optional<std::string_view>& solved_by) -> std::int64_t {
   const auto principals = std::vector<std::int64_t>(audience.begin(), audience.end());
-  const auto is_visible = sqlpp::exists(
-      sqlpp::select(db::taskVisibility.taskId)
-          .from(db::taskVisibility)
-          .where(db::taskVisibility.taskId == db::tasks.id &&
-                 db::taskVisibility.principalId.in(principals)));
+  const auto is_visible = is_visible_to(principals);
   const auto carries_stage_topic = sqlpp::exists(
       sqlpp::select(db::taskTopics.taskId)
           .from(db::taskTopics)
