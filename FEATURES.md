@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **47 shipped · 7 partial · 8 planned** (63 features).
+Counts at last update: **48 shipped · 6 partial · 8 planned** (62 features).
 
 ---
 
@@ -89,7 +89,7 @@ Counts at last update: **47 shipped · 7 partial · 8 planned** (63 features).
 
 | ID | Feature | Class | State | Evidence |
 |---|---|---|---|---|
-| F-060 | CI running every gate and every falsification on each push | C | ◐ | `.github/workflows/ci.yml` — jobs `content`, `references`, `deploy-contract`, `security`, `gates`, `cpp-fast`, `cpp-full`; `cpp-full` runs `check:live`, `check:judge`, `check:visibility`, `check:db`, `check:unseen` and their falsifiers. Missing half: `cpp-full` also names `bun run check:render`, which has no `package.json` script (`bun` exits 1: "Script not found"), so the job is red until that name exists |
+| F-060 | CI running every gate and every falsification on each push | C | ● | `.github/workflows/ci.yml` — jobs `content`, `references`, `deploy-contract`, `security`, `gates`, `cpp-fast`, `cpp-full`. Every script name the workflow uses exists in `package.json` (checked: 40 named, 0 missing), and `check:render` now has one |
 | F-061 | Containerised stack (compose), no host installs | C | ● | `deploy/docker-compose.yml` — 10 services, contract asserted by `tools/check-deploy.sh` |
 | F-062 | Ingress and TLS | C | ● | `deploy/Caddyfile` + `deploy/proxy/Dockerfile` — Caddy 2.11.7, auto-ACME, HSTS, per-IP rate limits; `caddy validate` run inside the built image |
 | F-063 | Backups with a restore drill | A | ● | `deploy/backup/run.sh`, `restore-drill.sh` — verified end to end against Postgres 18.6 (250 users / 1000 submissions restored, live DB untouched) |
