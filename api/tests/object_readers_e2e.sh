@@ -94,23 +94,40 @@ psql_db "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, 
 # pre-existing row can be — as the schema owner with the rule switched off for that one statement.
 psql_db "ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id; INSERT INTO task_field_values (task_id, task_version, field_key, value) VALUES ('probe-object', 1, 'solution', '\"tasks/probe/absent.cpp\"'); ALTER TABLE task_field_values ENABLE TRIGGER task_field_values_artefact_id;" >/dev/null
 
-before="$(psql_db "SELECT version FROM content_state LIMIT 1" 2>/dev/null)"
+before="$(psql_db "SELECT version FROM content_seed LIMIT 1")"
 CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
   "$seeder" --content "$repo/content" >"$work/seed2.log" 2>&1
 status=$?
-after="$(psql_db "SELECT version FROM content_state LIMIT 1" 2>/dev/null)"
-[ "$status" -ne 0 ] && grep -q "tasks/probe/absent.cpp" "$work/seed2.log" && [ "$before" = "$after" ] \
-  && ok "the seeder refuses the missing object by key and writes nothing" \
-  || bad "the seeder refuses the missing object by key and writes nothing" \
+after="$(psql_db "SELECT version FROM content_seed LIMIT 1")"
+[ "$status" -ne 0 ] && grep -q "the field solution" "$work/seed2.log" \
+  && grep -q "not an artefact id" "$work/seed2.log" && [ "$before" = "$after" ] \
+  && ok "the seeder refuses a file field holding a store key, naming the field, and writes nothing" \
+  || bad "the seeder refuses a file field holding a store key, naming the field, and writes nothing" \
       "exit $status, version $before -> $after, $(tail -1 "$work/seed2.log")"
 
 printf 'int main() {}' >"$work/solution.cpp"
 curl -s -o /dev/null -X PUT --data-binary @"$work/solution.cpp" \
   "http://127.0.0.1:$s3_port/$bucket/tasks/probe/absent.cpp"
+# The object is there now and the field still holds a key: a seeder that read the column as a key would import.
 CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
   "$seeder" --content "$repo/content" >"$work/seed3.log" 2>&1
-[ $? -eq 0 ] && ok "the seeder imports once the object exists, reading it through the store" \
-  || bad "the seeder imports once the object exists, reading it through the store" "$(tail -2 "$work/seed3.log")"
+status=$?
+[ "$status" -ne 0 ] && grep -q "not an artefact id" "$work/seed3.log" \
+  && ok "the seeder refuses a store key even once the object exists" \
+  || bad "the seeder refuses a store key even once the object exists" "exit $status, $(tail -1 "$work/seed3.log")"
+
+# The same bytes recorded as an artefact, and the field naming its id: the seeder resolves and checks it.
+digest="$(sha256sum "$work/solution.cpp" | cut -d' ' -f1)"
+psql_db "INSERT INTO generation_jobs (task_id, task_version) VALUES ('probe-object', 1); INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, seed, call_index) SELECT max(id), 5, 'solution', 'tasks/probe/absent.cpp', '$digest', 'probe-model', 'probe-v1', 1, 0 FROM generation_jobs WHERE task_id = 'probe-object';" >/dev/null
+artefact="$(psql_db "SELECT max(id) FROM generation_artefacts")"
+psql_db "UPDATE task_field_values SET value = to_jsonb($artefact::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'" >/dev/null
+[ "$(psql_db "SELECT jsonb_typeof(value) FROM task_field_values WHERE task_id = 'probe-object' AND field_key = 'solution'")" = "number" ] \
+  && ok "an artefact id is what the field holds once it is saved again" \
+  || bad "an artefact id is what the field holds once it is saved again" "value is not a number"
+CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
+  "$seeder" --content "$repo/content" >"$work/seed4.log" 2>&1
+[ $? -eq 0 ] && ok "the seeder resolves the artefact id and checks the bytes against their digest" \
+  || bad "the seeder resolves the artefact id and checks the bytes against their digest" "$(tail -2 "$work/seed4.log")"
 
 # ── the field's one meaning: an artefact id, and the table refuses anything else by name ──
 psql_refusal() { psql -X -h "$work" -p "$port" -U postgres -d objectprobe -tAq -c "$1" 2>&1; }
@@ -124,16 +141,20 @@ printf '%s' "$refusal" | grep -q "the field solution" && printf '%s' "$refusal" 
   && ok "the table refuses a file field naming an artefact that does not exist" \
   || bad "the table refuses a file field naming an artefact that does not exist" "$refusal"
 
-digest="$(sha256sum "$work/solution.cpp" | cut -d' ' -f1)"
-psql_db "INSERT INTO generation_jobs (task_id, task_version) VALUES ('probe-object', 1); INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, seed, call_index) SELECT max(id), 5, 'solution', 'tasks/probe/absent.cpp', '$digest', 'probe-model', 'probe-v1', 1, 0 FROM generation_jobs WHERE task_id = 'probe-object';" >/dev/null
-artefact="$(psql_db "SELECT max(id) FROM generation_artefacts")"
-[ -n "$artefact" ] && [ "$(psql_db "SELECT jsonb_typeof(value) FROM task_field_values WHERE task_id = 'probe-object' AND field_key = 'solution'")" = "string" ] \
-  && ok "a draft written under the old reading still holds a key" \
-  || bad "a draft written under the old reading still holds a key" "artefact ${artefact:-none}"
-psql_db "UPDATE task_field_values SET value = to_jsonb($artefact::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'" >/dev/null
-[ "$(psql_db "SELECT jsonb_typeof(value) FROM task_field_values WHERE task_id = 'probe-object' AND field_key = 'solution'")" = "number" ] \
-  && ok "an artefact id is what the field holds once it is saved again" \
-  || bad "an artefact id is what the field holds once it is saved again" "value is not a number"
+# An object removed under the row that names it is the same refusal: the field, the id, and nothing written.
+curl -s -o /dev/null -X DELETE "http://127.0.0.1:$s3_port/$bucket/tasks/probe/absent.cpp"
+before="$(psql_db "SELECT version FROM content_seed LIMIT 1")"
+CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
+  "$seeder" --content "$repo/content" >"$work/seed5.log" 2>&1
+status=$?
+after="$(psql_db "SELECT version FROM content_seed LIMIT 1")"
+[ "$status" -ne 0 ] && grep -q "the field solution" "$work/seed5.log" \
+  && grep -q "artefact $artefact" "$work/seed5.log" && [ "$before" = "$after" ] \
+  && ok "the seeder refuses an artefact whose object is gone, naming the field and the id, and writes nothing" \
+  || bad "the seeder refuses an artefact whose object is gone, naming the field and the id, and writes nothing" \
+      "exit $status, version $before -> $after, $(tail -1 "$work/seed5.log")"
+curl -s -o /dev/null -X PUT --data-binary @"$work/solution.cpp" \
+  "http://127.0.0.1:$s3_port/$bucket/tasks/probe/absent.cpp"
 
 # ── the api: serves the bytes, and names the key when the object is gone ──
 cat > "$work/host.env" <<ENV

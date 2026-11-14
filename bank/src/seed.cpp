@@ -1,9 +1,12 @@
 #include <cms/bank/seed.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <map>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -333,9 +336,50 @@ auto write_task_types(db::connection& database, const Bank& bank) -> Result<void
   }
 }
 
-/// Every file-kind field value names an object. A row whose object is missing is refused here, before the
-/// digest gate and before any write: an import that seeded a task whose statement is absent would be the
-/// empty content ADR 0023 exists to prevent, and a transaction that rolls back leaves nothing half-written.
+/// The widest artefact id a file field can hold, matching the digits the column's own trigger accepts.
+constexpr std::size_t MAX_ARTEFACT_ID_DIGITS = 18;
+
+struct StoredObject {
+  std::string key;
+  std::string digest;
+};
+
+/// The id @p value names, or nothing when it names no id. A file-kind value is JSON: an id is a number, while the
+/// reading this column had before ADR 0027 §5 is a quoted store key. The table's trigger applies the same rule,
+/// so one sentence describes the refusal wherever it happens.
+auto artefact_id_in(std::string_view value) -> std::optional<std::int64_t> {
+  if (value.empty() || value.size() > MAX_ARTEFACT_ID_DIGITS) {
+    return std::nullopt;
+  }
+  auto id = std::int64_t{0};
+  for (const char digit : value) {
+    if (digit < '0' || digit > '9') {
+      return std::nullopt;
+    }
+    id = (id * 10) + (digit - '0');
+  }
+  return id;
+}
+
+/// The artefact @p id names, as the key and digest its row records; nothing when it names no stored object. An
+/// inline artefact is not one: a file field names bytes a tool reads from the store, never a row's own text.
+auto read_stored_object(db::connection& database, std::int64_t id) -> std::optional<StoredObject> {
+  for (const auto& row : database(sqlpp::select(db::generationArtefacts.objectKey,
+                                                db::generationArtefacts.digest)
+                                      .from(db::generationArtefacts)
+                                      .where(db::generationArtefacts.id == id))) {
+    if (!row.objectKey.has_value()) {
+      return std::nullopt;
+    }
+    return StoredObject{.key = std::string{*row.objectKey}, .digest = std::string{row.digest}};
+  }
+  return std::nullopt;
+}
+
+/// Every file-kind field value names an artefact, and its bytes are read back through the digest that artefact
+/// records. A value that names no artefact, or an artefact whose object is gone, is refused here before the digest
+/// gate and before any write: an import that seeded a task whose statement is absent would be the empty content
+/// ADR 0023 exists to prevent, and a transaction that rolls back leaves nothing half-written.
 auto verify_objects(db::connection& database, const cms::store::ObjectStore* objects) -> Result<void> {
   struct NamedValue {
     std::string task_id;
@@ -380,18 +424,32 @@ auto verify_objects(db::connection& database, const cms::store::ObjectStore* obj
     if (kind != "file") {
       continue;
     }
-    if (value.value.size() < 2 || value.value.front() != '"' || value.value.back() != '"') {
-      continue;
+    const auto subject = "the field " + value.field_key + " of task " + value.task_id + " version " +
+                         std::to_string(value.version);
+    const auto id = artefact_id_in(value.value);
+    if (!id) {
+      return std::unexpected(Error::make(
+          ErrorCode::invalid_argument,
+          subject + " holds " + value.value +
+              ", which is a store key or other text, not an artefact id"));
     }
-    const auto key = value.value.substr(1, value.value.size() - 2);
+    const auto object = read_stored_object(database, *id);
+    if (!object) {
+      return std::unexpected(Error::make(
+          ErrorCode::invalid_argument,
+          subject + " names artefact " + std::to_string(*id) + ", which is not a stored object"));
+    }
     if (objects == nullptr) {
       return std::unexpected(Error::make(
           ErrorCode::unavailable,
-          "the object " + key + " cannot be read: no object store is configured"));
+          subject + " names artefact " + std::to_string(*id) + " at " + object->key +
+              ", and no object store is configured to read it"));
     }
-    const auto bytes = objects->read(key);
+    const auto bytes = objects->read_verified(object->key, object->digest);
     if (!bytes) {
-      return std::unexpected(bytes.error());
+      return std::unexpected(Error::make(
+          bytes.error().code,
+          subject + " names artefact " + std::to_string(*id) + ": " + bytes.error().message));
     }
   }
   return {};
