@@ -50,23 +50,34 @@ specific refusal each time, because a harness that crashes also exits non-zero.
 
 | File | Holds |
 |---|---|
-| `types.sql` | the closed vocabularies: `setting_kind`, `principal_kind`, `principal_status`, `capability` |
-| `authority.sql` | `principals`, `roles`, `role_capabilities`, `principal_roles`, `sessions`, `elevations` |
-| `audit.sql` | `audit_events`, and the append-only guard |
+| `types.sql` | the closed vocabularies: `setting_kind`, `setting_tier`, `account_kind`, `admin_status`, `principal_status`, `actor_identity`, `capability`, `audit_operation`, `token_purpose`, `task_status`, `task_verification_status`, `task_checker_kind`, `task_origin_kind`, `locale`, `verdict_status` |
+| `authority.sql` | `admin_accounts`, `learner_accounts`, `system_accounts`, `roles`, `role_capabilities`, `admin_roles`, `sessions`, `elevations`, and their live-row indexes |
+| `audit.sql` | `audit_events` with a kind beside each actor id, and the append-only guard |
 | `settings.sql` | `settings`, `settings_meta`, `settings_plans`, `settings_audit` |
-| `settings_functions.sql` | the four functions the settings triggers need |
-| `settings_triggers.sql` | the four triggers |
+| `settings_functions.sql` | the functions the settings triggers need, including `current_actor()` returning kind and id |
+| `settings_triggers.sql` | the settings triggers |
 | `content.sql` | `topics`, `tasks`, `task_topics`, `task_statements`, `task_examples`, `content_seed`, and the published-row guard |
 | `curriculum.sql` | `tracks`, `track_stages`, `stage_tags` |
+| `levels.sql` | `levels`, `level_titles`, and the trigger that refuses a partial scale |
+| `fields.sql` | `task_types`, `task_field_defs`, `task_field_values`, and the triggers that carry the checks a compiler used to give |
+| `generation.sql` | `generation_state`, `generation_jobs`, `generation_candidates`, `generation_artefacts` |
+| `progress.sql` | `progress` — what an account has touched, one row per account and task version |
+| `submissions.sql` | `submissions` |
+| `tokens.sql` | `learner_tokens` |
+| `visibility.sql` | `task_visibility` |
 | `grants.sql` | role grants, row-level security, and the `PUBLIC` revokes |
+
+Note the names: an account is a `learner_accounts`, `admin_accounts` or `system_accounts` row, not a
+`principals` row — that table was replaced in `docs/decisions/0016-learner-and-admin-accounts.md`, and
+`principal_status` survives only as the learner status vocabulary.
 
 ## Invariants
 
-1. **A system principal cannot have a session.** Three independent barriers: no password hash and no
-   email on the row, the composite foreign key `(principal_id, principal_kind)` with the column pinned
-   to `'user'`, and a login query filtered on `kind = 'user'`. Any one of them would do; a future code
-   path that forgets the filter still cannot mint one.
-2. **A handle carries no colon unless it is a system principal.** `system:root` occupies a namespace a
+1. **The system account cannot hold a session.** Three independent barriers: its row carries no
+   password hash and no address, `sessions` names one account kind and exactly one id column with a
+   foreign key per kind, and the sign-in query filters on the kind it serves. Any one of them would do;
+   a future code path that forgets the filter still cannot mint one.
+2. **A handle carries no colon unless it is the system account.** `system:bootstrap` occupies a namespace a
    human cannot register, so a log line naming it is never confused with an ordinary account.
 3. **A value cannot disagree with its kind.** `settings_value_matches_kind` is a single CHECK whose
    nested CASE proves, per branch, that the text is a boolean, an in-range int64, or free text.
@@ -81,7 +92,7 @@ specific refusal each time, because a harness that crashes also exits non-zero.
    the application role holds only `SELECT`; `UPDATE` and `DELETE` are refused by a trigger for the
    owner too.
 8. **History outlives the row.** `settings_audit` carries no foreign key to `settings`, and
-   `audit_events` none to anything it describes, so deleting a setting or a principal leaves the record
+   `audit_events` none to anything it describes, so deleting a setting or an account leaves the record
    of what happened intact.
 
 ## Query layer
@@ -96,7 +107,7 @@ Three rules that fell out of the library's contract, each learned from a compile
 
 1. A standalone name tag uses `SQLPP_CREATE_NAME_TAG(name)`; the `..._FOR_SQL_AND_CPP` form defines a
    namespace-scope `_sqlpp_name_tag` and therefore cannot appear twice in one namespace.
-2. The C++ member name is the macro's **second** argument, so a column is `valueText`, `principalId`,
+2. The C++ member name is the macro's **second** argument, so a column is `valueText`, `learnerId`,
    `expiresAt` — the SQL name stays snake_case and only the C++ side is camelCase.
 3. `sqlpp::current_timestamp` is not comparable to a column, so "now" is a bound parameter. That is
    also the better contract: the clock becomes an explicit input a test can pin.
