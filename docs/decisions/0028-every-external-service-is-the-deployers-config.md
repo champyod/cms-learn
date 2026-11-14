@@ -34,7 +34,7 @@ configuration, refuse to start without it, and never print its value.**
 
 A container in the stack, started on demand, with its own database role and its own copy of the deployer's
 model configuration. It never holds a copy of the service's own credentials beyond what its role grants, and
-its role cannot publish or verify — `0029`'s design already removes those grants.
+its role cannot publish or verify, and the schema grants that a record rather than a convention.
 
 ## 5. Consequence
 
