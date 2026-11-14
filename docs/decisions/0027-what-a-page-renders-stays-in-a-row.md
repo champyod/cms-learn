@@ -40,5 +40,6 @@ the required credential, the missing object refused by name, the key in the row 
 ## 5. Consequence for the pipeline
 
 Step 4 (the statement writer) writes a **row**. Step 5 (the solution writer) and step 6 (the test case
-writer) write **objects**. A `file`-kind field holds an artefact id, never text — that rule comes from this
-record and applies to any new field the authoring form grows.
+writer) write **objects**. A `file`-kind field holds a `generation_artefacts.id`, never text — the database
+enforces it with a trigger, the form refuses a key by name, and the reader resolves the id to the object's
+key and digest before serving anything.
