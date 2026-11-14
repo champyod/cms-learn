@@ -1,42 +1,6 @@
 #pragma once
 
-#include <cstdlib>
-#include <memory>
+// The rule for finding a live database lives in core, because the api and the generator both need it and the
+// api must stay optional for the generator's build. This header is the include the api's cases already name.
 
-#include <catch2/catch_test_macros.hpp>
-#include <drogon/orm/DbClient.h>
-
-#include <cms/db/connection.hpp>
-
-namespace cms::test {
-
-/// @brief The pool the live tests run on, named by CMSLEAN_TEST_DSN.
-///
-/// One client for the whole binary: creating a second Drogon client in a process that already holds one
-/// deadlocks its pool, and the tests only need a connection, not a pool each.
-[[nodiscard]] inline auto live_client() -> const std::shared_ptr<::drogon::orm::DbClient>& {
-  const auto* dsn = std::getenv("CMSLEAN_TEST_DSN");
-  REQUIRE(dsn != nullptr);
-  // Leaked on purpose: Drogon's pool teardown deadlocks ("Resource deadlock avoided") when no case ever
-  // issued a query, and one pool left to process exit is not a defect. Keeping it reachable means the
-  // destructor never runs, so a query-free case exits like every other one instead of racing teardown.
-  static const auto* const owner =
-      new std::shared_ptr<::drogon::orm::DbClient>(::drogon::orm::DbClient::newPgClient(dsn, 4));
-  static const auto client = *owner;
-  return client;
-}
-
-/// @brief The database a live test runs against, named by CMSLEAN_TEST_DSN.
-///
-/// Each test binary wants its own database, used once. The cases seed fixed principals, bootstrap
-/// refuses a database that already holds one — which is the behaviour under test — and the audit log is
-/// append-only, so a fixed fixture cannot be cleared away for a second run.
-inline auto live_database() -> cms::db::connection {
-  return cms::db::connection{std::make_shared<const cms::db::connection_config>(
-      cms::db::connection_config{.client = live_client()})};
-}
-
-/// @brief Whether this binary was given a database to run against.
-inline auto has_live_database() -> bool { return std::getenv("CMSLEAN_TEST_DSN") != nullptr; }
-
-}  // namespace cms::test
+#include <cms/testing/live_database.hpp>
