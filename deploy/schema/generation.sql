@@ -43,6 +43,9 @@ CREATE TABLE generation_artefacts (
   locale text,
   object_key text,
   inline_text text,
+  -- The digest of the payload's own bytes, required: an artefact is read by its content address, and a row
+  -- that cannot name one would make the read a guess (ADR 0023 §2, ADR 0027 §2).
+  digest text NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
   model_id text NOT NULL,
   prompt_version text NOT NULL,
   seed bigint NOT NULL,

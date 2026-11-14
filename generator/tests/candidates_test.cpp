@@ -22,10 +22,9 @@
 #include <cms/db/tables.hpp>
 
 #include "live_database.hpp"
+#include "pipeline_fixture.hpp"
 
 namespace {
-
-constexpr auto THAI_TITLE = "ทดสอบ";
 
 auto brief() -> cms::generate::Brief {
   auto value = cms::generate::Brief{};
@@ -70,25 +69,6 @@ struct StoredRow {
   bool chosen{false};
   std::string reason;
 };
-
-auto prepare_job(cms::db::connection& database, std::string_view task_id) -> std::int64_t {
-  database.execute_text(
-      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, "
-      "memory_limit_mb, checker, origin, verification, solution, content_hash) "
-      "VALUES ($1, 1, 'draft', 'Probe', $2, 900, 1000, 256, 'token', 'original', 'pending', '', '')",
-      {std::string{task_id}, std::string{THAI_TITLE}});
-  database.execute_text("INSERT INTO generation_jobs (task_id, task_version) VALUES ($1, 1)",
-                        {std::string{task_id}});
-  auto job = std::int64_t{0};
-  for (const auto& row : database(sqlpp::select(cms::db::generationJobs.id)
-                                      .from(cms::db::generationJobs)
-                                      .where(cms::db::generationJobs.taskId == std::string{task_id})
-                                      .order_by(cms::db::generationJobs.id.desc())
-                                      .limit(1))) {
-    job = row.id;
-  }
-  return job;
-}
 
 auto read_rows(cms::db::connection& database, std::int64_t job) -> std::vector<StoredRow> {
   auto rows = std::vector<StoredRow>{};
@@ -141,7 +121,7 @@ TEST_CASE("the plan stage's rows land in generation_candidates", "[generate][liv
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = cms::generate::test::live_database();
-  const auto job = prepare_job(database, "pipeline-plan-probe");
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-plan-probe");
   const auto judgement = plan_and_decide();
   auto sink = cms::generate::SqlCandidateSink{*cms::generate::test::live_client()};
 
@@ -157,7 +137,7 @@ TEST_CASE("a stored row carries the plan, the fit and the reason", "[generate][l
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = cms::generate::test::live_database();
-  const auto job = prepare_job(database, "pipeline-row-probe");
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-row-probe");
   auto sink = cms::generate::SqlCandidateSink{*cms::generate::test::live_client()};
 
   REQUIRE(sink.record(job, plan_and_decide().records).has_value());
@@ -182,7 +162,7 @@ TEST_CASE("a decision the database refuses leaves no row behind", "[generate][li
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = cms::generate::test::live_database();
-  const auto job = prepare_job(database, "pipeline-rollback-probe");
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-rollback-probe");
   auto records = plan_and_decide().records;
   records[2].position = 1;
   auto sink = cms::generate::SqlCandidateSink{*cms::generate::test::live_client()};

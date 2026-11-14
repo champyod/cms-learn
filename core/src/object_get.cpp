@@ -15,9 +15,12 @@ auto from_environment(std::string_view name) -> std::string {
 }  // namespace
 
 /// Reads one object and prints its bytes; every refusal names its reason and never the credential.
+///
+/// A second argument is the digest the row records, and then the bytes are checked against it before they
+/// are printed: that is the read an artefact goes through.
 auto main(int argc, char** argv) -> int {
-  if (argc != 2) {
-    std::cerr << "usage: cms_object_get <key>\n";
+  if (argc != 2 && argc != 3) {
+    std::cerr << "usage: cms_object_get <key> [<digest>]\n";
     return 64;
   }
   const auto config = cms::store::StoreConfig{
@@ -32,7 +35,7 @@ auto main(int argc, char** argv) -> int {
     std::cerr << store.error().message << "\n";
     return 2;
   }
-  const auto bytes = (*store)->read(argv[1]);
+  const auto bytes = argc == 3 ? (*store)->read_verified(argv[1], argv[2]) : (*store)->read(argv[1]);
   if (!bytes) {
     std::cerr << bytes.error().message << "\n";
     return bytes.error().code == cms::ErrorCode::not_found ? 4 : 1;

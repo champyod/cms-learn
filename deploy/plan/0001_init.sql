@@ -508,6 +508,7 @@ CREATE TABLE IF NOT EXISTS generation_artefacts (
     locale text,
     object_key text,
     inline_text text,
+    digest text NOT NULL,
     model_id text NOT NULL,
     prompt_version text NOT NULL,
     seed bigint NOT NULL,
@@ -515,6 +516,7 @@ CREATE TABLE IF NOT EXISTS generation_artefacts (
     created_at timestamptz DEFAULT now() NOT NULL,
     CONSTRAINT generation_artefacts_pkey PRIMARY KEY (id),
     CONSTRAINT generation_artefacts_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
+    CONSTRAINT generation_artefacts_digest_check CHECK (digest ~ '^[0-9a-f]{64}$'::text),
     CONSTRAINT generation_artefacts_kind_check CHECK (length(btrim(kind)) > 0),
     CONSTRAINT generation_artefacts_payload CHECK (object_key IS NOT NULL OR inline_text IS NOT NULL),
     CONSTRAINT generation_artefacts_step_check CHECK (step >= 1 AND step <= 7)
@@ -920,6 +922,39 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION task_field_value_is_artefact_id()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  definition_kind text;
+  artefact_id bigint;
+BEGIN
+  SELECT d.kind INTO definition_kind
+    FROM tasks t
+    JOIN task_field_defs d ON d.task_type_id = t.task_type AND d.key = NEW.field_key
+   WHERE t.id = NEW.task_id AND t.version = NEW.task_version;
+  IF definition_kind IS DISTINCT FROM 'file' THEN
+    RETURN NEW;
+  END IF;
+  IF jsonb_typeof(NEW.value) <> 'number' OR (NEW.value #>> '{}') !~ '^[0-9]{1,18}$' THEN
+    RAISE EXCEPTION 'the field % holds %, which is a store key or other text, not an artefact id',
+      NEW.field_key, NEW.value
+      USING ERRCODE = 'check_violation';
+  END IF;
+  artefact_id := (NEW.value #>> '{}')::bigint;
+  IF NOT EXISTS (SELECT 1 FROM generation_artefacts a
+                  WHERE a.id = artefact_id AND a.object_key IS NOT NULL) THEN
+    RAISE EXCEPTION 'the field % names artefact %, which is not a stored object',
+      NEW.field_key, artefact_id
+      USING ERRCODE = 'foreign_key_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION task_field_value_is_filled()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1016,6 +1051,11 @@ CREATE OR REPLACE TRIGGER task_field_defs_refuse_orphaning
     BEFORE DELETE ON task_field_defs
     FOR EACH ROW
     EXECUTE FUNCTION task_field_defs_refuse_orphaning();
+
+CREATE OR REPLACE TRIGGER task_field_values_artefact_id
+    BEFORE INSERT OR UPDATE ON task_field_values
+    FOR EACH ROW
+    EXECUTE FUNCTION task_field_value_is_artefact_id();
 
 CREATE OR REPLACE TRIGGER task_field_values_filled
     BEFORE INSERT OR UPDATE ON task_field_values
@@ -1147,5 +1187,7 @@ GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE track_stages TO cmslearn_app;
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE tracks TO cmslearn_app;
 
 GRANT USAGE ON TYPE task_field_kind TO cmslearn_app;
+
+GRANT SELECT (digest, id, object_key) ON TABLE generation_artefacts TO cmslearn_app;
 
 GRANT SELECT (checker, checker_path, content_hash, difficulty, id, memory_limit_mb, origin, seeded, status, task_type, time_limit_ms, title_en, title_th, verification, version) ON TABLE tasks TO cmslearn_generator;

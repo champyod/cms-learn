@@ -339,7 +339,7 @@
           "path": "public.generation_jobs.generation_jobs_queue_idx"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS generation_artefacts (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    job_id bigint NOT NULL,\n    step smallint NOT NULL,\n    kind text NOT NULL,\n    locale text,\n    object_key text,\n    inline_text text,\n    model_id text NOT NULL,\n    prompt_version text NOT NULL,\n    seed bigint NOT NULL,\n    call_index integer NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_artefacts_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_artefacts_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_artefacts_kind_check CHECK (length(btrim(kind)) > 0),\n    CONSTRAINT generation_artefacts_payload CHECK (object_key IS NOT NULL OR inline_text IS NOT NULL),\n    CONSTRAINT generation_artefacts_step_check CHECK (step >= 1 AND step <= 7)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS generation_artefacts (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    job_id bigint NOT NULL,\n    step smallint NOT NULL,\n    kind text NOT NULL,\n    locale text,\n    object_key text,\n    inline_text text,\n    digest text NOT NULL,\n    model_id text NOT NULL,\n    prompt_version text NOT NULL,\n    seed bigint NOT NULL,\n    call_index integer NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_artefacts_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_artefacts_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_artefacts_digest_check CHECK (digest ~ '^[0-9a-f]{64}$'::text),\n    CONSTRAINT generation_artefacts_kind_check CHECK (length(btrim(kind)) > 0),\n    CONSTRAINT generation_artefacts_payload CHECK (object_key IS NOT NULL OR inline_text IS NOT NULL),\n    CONSTRAINT generation_artefacts_step_check CHECK (step >= 1 AND step <= 7)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.generation_artefacts"
@@ -507,6 +507,12 @@
           "path": "public.task_field_members_exist"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION task_field_value_is_artefact_id()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  definition_kind text;\n  artefact_id bigint;\nBEGIN\n  SELECT d.kind INTO definition_kind\n    FROM tasks t\n    JOIN task_field_defs d ON d.task_type_id = t.task_type AND d.key = NEW.field_key\n   WHERE t.id = NEW.task_id AND t.version = NEW.task_version;\n  IF definition_kind IS DISTINCT FROM 'file' THEN\n    RETURN NEW;\n  END IF;\n  IF jsonb_typeof(NEW.value) <> 'number' OR (NEW.value #>> '{}') !~ '^[0-9]{1,18}$' THEN\n    RAISE EXCEPTION 'the field % holds %, which is a store key or other text, not an artefact id',\n      NEW.field_key, NEW.value\n      USING ERRCODE = 'check_violation';\n  END IF;\n  artefact_id := (NEW.value #>> '{}')::bigint;\n  IF NOT EXISTS (SELECT 1 FROM generation_artefacts a\n                  WHERE a.id = artefact_id AND a.object_key IS NOT NULL) THEN\n    RAISE EXCEPTION 'the field % names artefact %, which is not a stored object',\n      NEW.field_key, artefact_id\n      USING ERRCODE = 'foreign_key_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_field_value_is_artefact_id"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION task_field_value_is_filled()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  definition task_field_defs;\nBEGIN\n  SELECT d.* INTO definition\n    FROM tasks t\n    JOIN task_field_defs d ON d.task_type_id = t.task_type AND d.key = NEW.field_key\n   WHERE t.id = NEW.task_id AND t.version = NEW.task_version;\n  IF NOT FOUND THEN\n    RAISE EXCEPTION 'no field % is defined for task % version %',\n      NEW.field_key, NEW.task_id, NEW.task_version\n      USING ERRCODE = 'foreign_key_violation';\n  END IF;\n  IF definition.required AND (NEW.value = 'null'::jsonb OR NEW.value = '\"\"'::jsonb\n      OR NEW.value = '[]'::jsonb OR NEW.value = '{}'::jsonb) THEN\n    RAISE EXCEPTION 'field % is required and cannot hold an empty value', NEW.field_key\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -571,6 +577,12 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.task_field_defs.task_field_defs_refuse_orphaning"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER task_field_values_artefact_id\n    BEFORE INSERT OR UPDATE ON task_field_values\n    FOR EACH ROW\n    EXECUTE FUNCTION task_field_value_is_artefact_id();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.task_field_values.task_field_values_artefact_id"
         },
         {
           "sql": "CREATE OR REPLACE TRIGGER task_field_values_filled\n    BEFORE INSERT OR UPDATE ON task_field_values\n    FOR EACH ROW\n    EXECUTE FUNCTION task_field_value_is_filled();",
@@ -937,6 +949,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TYPE.task_field_kind.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT (digest, id, object_key) ON TABLE generation_artefacts TO cmslearn_app;",
+          "type": "column_privilege",
+          "operation": "create",
+          "path": "column_privileges.TABLE.generation_artefacts.digest,id,object_key.cmslearn_app"
         },
         {
           "sql": "GRANT SELECT (checker, checker_path, content_hash, difficulty, id, memory_limit_mb, origin, seeded, status, task_type, time_limit_ms, title_en, title_th, verification, version) ON TABLE tasks TO cmslearn_generator;",

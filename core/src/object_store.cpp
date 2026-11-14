@@ -1,27 +1,38 @@
 #include <cms/object_store.hpp>
 
 #include <aws/core/Aws.h>
-#include <aws/core/utils/memory/stl/AWSStringStream.h>
 #include <aws/core/auth/AWSCredentials.h>
 #include <aws/core/client/ClientConfiguration.h>
+#include <aws/core/utils/memory/stl/AWSStringStream.h>
 #include <aws/s3/S3Client.h>
 #include <aws/s3/S3ClientConfiguration.h>
 #include <aws/s3/S3EndpointProvider.h>
 #include <aws/s3/S3Errors.h>
 #include <aws/s3/model/GetObjectRequest.h>
 #include <aws/s3/model/GetObjectResult.h>
+#include <aws/s3/model/PutObjectRequest.h>
 
+#include <array>
+#include <cstddef>
+#include <cstdint>
 #include <exception>
 #include <istream>
 #include <iterator>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <string_view>
+
+#include <sodium.h>
 
 namespace cms::store {
 namespace {
 
 constexpr char ALLOCATION_TAG[] = "cms::store";
+constexpr std::size_t DIGEST_LENGTH = 64;
+constexpr std::size_t HEX_DIGITS_PER_BYTE = 2;
+constexpr unsigned NIBBLE_SHIFT = 4;
+constexpr unsigned NIBBLE_MASK = 0x0fu;
 
 /// The SDK starts its background runtime once per process; logging stays off so no request detail reaches a
 /// log line.
@@ -46,7 +57,48 @@ class S3Store final : public ObjectStore {
         client_(Aws::Auth::AWSCredentials{config.access_key_id, config.secret_access_key},
                 Aws::MakeShared<Aws::S3::S3EndpointProvider>(ALLOCATION_TAG), client) {}
 
-  auto read(std::string_view key) const -> Result<std::string> override {
+  auto read(std::string_view key) const -> Result<std::string> override { return fetch(key); }
+
+  auto read_verified(std::string_view key, std::string_view digest) const -> Result<std::string> override {
+    if (!is_digest(digest)) {
+      return std::unexpected(Error::make(
+          ErrorCode::invalid_argument,
+          "the row records no content address for the object at key " + std::string{key}));
+    }
+    const auto bytes = fetch(key);
+    if (!bytes) {
+      return std::unexpected(bytes.error());
+    }
+    const auto stored = digest_of(*bytes);
+    if (stored != digest) {
+      return std::unexpected(Error::make(
+          ErrorCode::conflict, "the object at key " + std::string{key} +
+                                   " does not match the digest its row records: the row says " +
+                                   std::string{digest} + ", the stored bytes hash to " + stored));
+    }
+    return bytes;
+  }
+
+  auto write(std::string_view key, std::string_view bytes) -> Result<std::string> override {
+    auto body = Aws::MakeShared<Aws::StringStream>(ALLOCATION_TAG);
+    body->write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+
+    auto request = Aws::S3::Model::PutObjectRequest{};
+    request.SetBucket(bucket_);
+    request.SetKey(std::string{key});
+    request.SetBody(body);
+
+    const auto outcome = client_.PutObject(request);
+    if (!outcome.IsSuccess()) {
+      return std::unexpected(Error::make(ErrorCode::unavailable, "the store refused " + std::string{key} +
+                                                                     ": " +
+                                                                     outcome.GetError().GetMessage()));
+    }
+    return digest_of(bytes);
+  }
+
+ private:
+  auto fetch(std::string_view key) const -> Result<std::string> {
     auto request = Aws::S3::Model::GetObjectRequest{};
     request.SetBucket(bucket_);
     request.SetKey(std::string{key});
@@ -71,12 +123,38 @@ class S3Store final : public ObjectStore {
                                                                    failure.GetMessage()));
   }
 
- private:
   std::string bucket_;
   Aws::S3::S3Client client_;
 };
 
 }  // namespace
+
+auto digest_of(std::string_view bytes) -> std::string {
+  auto hash = std::array<unsigned char, crypto_hash_sha256_BYTES>{};
+  crypto_hash_sha256(hash.data(), reinterpret_cast<const unsigned char*>(bytes.data()), bytes.size());
+  constexpr std::string_view DIGITS = "0123456789abcdef";
+  auto hex = std::string{};
+  hex.reserve(hash.size() * HEX_DIGITS_PER_BYTE);
+  for (const auto byte : hash) {
+    hex.push_back(DIGITS[byte >> NIBBLE_SHIFT]);
+    hex.push_back(DIGITS[byte & NIBBLE_MASK]);
+  }
+  return hex;
+}
+
+auto is_digest(std::string_view digest) -> bool {
+  if (digest.size() != DIGEST_LENGTH) {
+    return false;
+  }
+  for (const auto character : digest) {
+    const auto is_digit = character >= '0' && character <= '9';
+    const auto is_lower_hex = character >= 'a' && character <= 'f';
+    if (!is_digit && !is_lower_hex) {
+      return false;
+    }
+  }
+  return true;
+}
 
 auto make_store(const StoreConfig& config) -> Result<std::unique_ptr<ObjectStore>> {
   auto missing = std::string{};

@@ -286,6 +286,11 @@ struct GenerationArtefacts_ {
     using data_type = std::optional<::sqlpp::text>;
     using has_default = std::true_type;
   };
+  struct Digest {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(digest, digest);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
   struct ModelId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(model_id, modelId);
     using data_type = ::sqlpp::text;
@@ -314,8 +319,8 @@ struct GenerationArtefacts_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_artefacts, generationArtefacts);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, JobId, Step, Kind, Locale, ObjectKey, InlineText, ModelId, PromptVersion, Seed, CallIndex, CreatedAt>;
-  using _required_insert_columns = sqlpp::detail::type_set<JobId, Step, Kind, ModelId, PromptVersion, Seed, CallIndex>;
+      sqlpp::table_columns<T, Id, JobId, Step, Kind, Locale, ObjectKey, InlineText, Digest, ModelId, PromptVersion, Seed, CallIndex, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Step, Kind, Digest, ModelId, PromptVersion, Seed, CallIndex>;
 };
 
 struct GenerationCandidates_ {
