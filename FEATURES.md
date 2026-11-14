@@ -96,7 +96,7 @@ Counts at last update: **48 shipped · 6 partial · 8 planned** (62 features).
 | F-064 | Observability: judge queue depth, submission latency, error rate | C | ◐ | `/metrics` exists on the api only (`api/src/main.cpp`); the judge has none, and queue depth/latency/error-rate are not exposed |
 | F-065 | Image and dependency CVE scanning | C | ● | `tools/security-scan.sh` — Trivy 0.66.0 for secrets, fixable CVEs and deployment hardening; `tools/falsify/cases/security.ts` catches 3 planted defects and keeps a clean file green |
 | F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | C | ○ | ADR 0001 §1 |
-| F-067 | Discord failure notification from CI (secret set by the operator) | C | ◐ | `.github/workflows/ci.yml` — wired and exercised via `simulate_failure`, `DISCORD_WEBHOOK_URL` not yet set |
+| F-067 | Discord failure notification from CI (secret set by the operator) | C | ◐ | `.github/workflows/ci.yml` — the job exists and is exercised through `simulate_failure`. **Blocked on the operator**: `DISCORD_WEBHOOK_URL` is not in the repository secrets, and no code change can set it |
 | F-068 | Deploy job, gated on a tag rather than on every push | C | ○ | needs the three service images; CI reports "no target yet" |
 | F-069 | Single-server exposure contract: only the proxy is public, db/dashboards loopback, judge has no egress | A | ● | `tools/check-deploy.sh` + `tools/falsify/cases/deploy.ts` — 7/7 broken stacks rejected |
 | F-070 | WAF + IP reputation at the edge, CRS evaluated **in-band** so the attack itself gets 403 | C | ● | `deploy/crowdsec/` — verified `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
