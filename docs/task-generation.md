@@ -180,18 +180,23 @@ Named people in the statement, chosen to fit the story rather than sprinkled at 
 
 ## Gates
 
-| Gate | Fails when |
-|---|---|
-| `check:brief-leak` | any published artifact shares a verbatim span of eight words or more with the brief, the description, or the plan |
-| `check:algo-leak` | `misdirection.enabled` and the statement names `lean_to` or the intended algorithm outside the allowed hint level |
-| `check:hint-leak` | a hint contains a distinctive line of the reference solution, or names a hidden algorithm |
-| `check:cast` | a named person appears in a statement without a cast entry, or the two locales disagree about who they are |
-| `check:generator` | two runs with the same seed produce different bytes |
-| `decoy-scores` | the decoy scores zero, or full |
-| `subtask-solution` | a subtask solution passes tests outside its group, or fails its own |
-| `check:exposure` | a `hidden` task is returned by the serving query, or a `shared` task has no published status |
+Only one of the gates this section originally listed exists today. The rest are **specified, not
+written**, and a reader who trusts a table is worse off than a reader who finds nothing — so the table
+now says which is which.
 
-Each ships with a falsification case, matching every other gate in this repository.
+| Gate | State | Fails when |
+|---|---|---|
+| `check:generator` | **built** | the loader refuses a draft, or two runs of the same input differ |
+| `check:brief-leak` | **not written** | a published artefact shares a verbatim span of eight words or more with the brief, the description or the plan |
+| `check:algo-leak` | **not written** | `misdirection.enabled` and the statement names `lean_to` or the intended algorithm |
+| `check:hint-leak` | **not written** | a hint contains a distinctive line of the reference solution |
+| `check:cast` | **not written** | a named person appears without a cast entry, or the two locales disagree about who they are |
+| `decoy-scores` | **not written** | the decoy scores zero, or full |
+| `subtask-solution` | **not written** | a subtask solution passes tests outside its group, or fails its own |
+| `check:exposure` | **not written** | a `hidden` task is returned by the serving query |
+
+The written one ships with a falsification case, like every other gate in this repository. The unwritten
+ones ship with nothing, which is the point of the column: **a leak is not caught today.**
 
 ## Why this shape: the evidence
 

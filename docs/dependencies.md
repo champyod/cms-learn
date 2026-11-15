@@ -9,12 +9,12 @@ carries. A dependency that is not in this table is not allowed in the build.
 |---|---|---|---|
 | drogon | **1.9.14** (overlay port) | MIT | HTTP server, routing, `orm::DbClient` Postgres pool, sessions |
 | inja | baseline `ab9a05e7` | MIT | template rendering — declared, not yet included by any source file |
-| simdjson | **5.1.0** (overlay port, `default-features: false`, `utf8-validation`) | Apache-2.0 | request and JSON parsing — declared, not yet included by any source file |
+| simdjson | **5.1.0** (overlay port, `default-features: false`, `utf8-validation`) | Apache-2.0 | JSON parsing in the api's settings and manifest readers, and in the generator's candidate reader (`generator/src/candidate.cpp`) |
 | libsodium | baseline `ab9a05e7` | ISC | sealing credentials with `CMSLEARN_SEAL_KEY` — declared; the sealing code is not written |
 | spdlog | baseline `ab9a05e7` | MIT | structured logging — declared, not yet included by any source file |
 | sqlpp23 | **0.70**, the version the pinned baseline resolves | BSD-2-Clause | compile-time-checked SQL; executed through the connector in `db/` |
 | catch2 | baseline `ab9a05e7`, `tests` feature only | BSL-1.0 | core, db and judge tests |
-| aws-sdk-cpp | baseline `ab9a05e7`, `default-features: false`, `s3` feature only | Apache-2.0 | `PutObject`, `GetObject`, `HeadObject`, `ListObjectsV2` for task assets — declared, not yet included by any source file |
+| aws-sdk-cpp | baseline `ab9a05e7`, `default-features: false`, `s3` feature only | Apache-2.0 | the one object-store client in `core/src/object_store.cpp`: `GetObject` to read, `PutObject` to write; nothing else in the tree speaks S3 |
 | openssl | **3.6.5#2**, transitive — never named in any manifest | Apache-2.0 | TLS under `curl`, `libpq`, `trantor` (Drogon), `aws-c-cal`, `s2n` and `aws-sdk-cpp`. Its version is decided by the dependency graph, not by us |
 
 `aws-sdk-cpp` declares `dynamodb`, `kinesis` and `s3` as default features, so naming the port without
