@@ -135,13 +135,20 @@ inline auto name_the_actor(cms::db::connection& database) -> void {
                         {std::string{ACTOR}});
 }
 
+/// One case's call on the probe task. The index is the case's own, because ctest runs every case as its own
+/// process: a counter would start at zero in each of them and every case would claim the same artefact row.
+struct Probe {
+  std::int64_t call_index{0};
+};
+
 /// One task type of the probe's own, a file-kind field on it, and one draft task of that type.
 ///
 /// The writes run in a transaction of their own: the audit trigger reads its actor from a transaction-local
 /// setting, and a pooled connection is free to put that setting and the insert that needs it on two different
-/// sessions — which is exactly the flake this fixture had. The argument names the database under test; what makes
-/// the setting and the write meet is the transaction opened below.
-inline auto prepare(cms::db::connection&) -> void {
+/// sessions — which is exactly the flake this fixture had. The connection argument names the database under test;
+/// what makes the setting and the write meet is the transaction opened below. @p call_index names the case's own
+/// call, so the artefact it writes is its own row.
+inline auto prepare(cms::db::connection&, std::int64_t call_index) -> Probe {
   auto transaction = cms::db::Transaction{*live_client()};
   auto& database = transaction.connection();
   name_the_actor(database);
@@ -160,15 +167,21 @@ inline auto prepare(cms::db::connection&) -> void {
       "repeat('b', 64), false) ON CONFLICT DO NOTHING",
       {std::string{TASK_ID}, std::string{TYPE_ID}});
   transaction.commit();
+  return Probe{.call_index = call_index};
 }
 
-/// The artefact written last: one case runs at a time on one connection, so this is the row it just inserted.
-[[nodiscard]] inline auto last_artefact(cms::db::connection& database) -> std::int64_t {
+/// The row the probe wrote: found by its call identity, not by "the newest id". A database that still holds
+/// another case's rows would otherwise hand this case the wrong artefact.
+[[nodiscard]] inline auto artefact_of(cms::db::connection& database, std::int64_t job,
+                                      const Probe& probe) -> std::int64_t {
   auto id = std::int64_t{0};
   for (const auto& row : database(sqlpp::select(cms::db::generationArtefacts.id)
                                       .from(cms::db::generationArtefacts)
-                                      .order_by(cms::db::generationArtefacts.id.desc())
-                                      .limit(1))) {
+                                      .where(cms::db::generationArtefacts.jobId == job &&
+                                             cms::db::generationArtefacts.step == STEP &&
+                                             cms::db::generationArtefacts.kind == std::string{"solution"} &&
+                                             cms::db::generationArtefacts.locale.is_null() &&
+                                             cms::db::generationArtefacts.callIndex == probe.call_index))) {
     id = row.id;
   }
   return id;
@@ -198,15 +211,9 @@ inline auto prepare(cms::db::connection&) -> void {
   return last_job(database);
 }
 
-/// The row whose call the fixture is recording: one artefact per model call, so each write names its own call.
-[[nodiscard]] inline auto next_call_index() -> std::int64_t {
-  static auto call_index = std::int64_t{0};
-  return call_index++;
-}
-
 /// An artefact a step wrote to the store, as the row records it: the key, the digest of the bytes, and the call.
-inline auto add_artefact(cms::db::connection& database, std::string_view key, std::string_view digest)
-    -> std::int64_t {
+inline auto add_artefact(cms::db::connection& database, const Probe& probe, std::string_view key,
+                         std::string_view digest) -> std::int64_t {
   const auto job = insert_job(database);
   database.execute_text(
       "INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, "
@@ -215,12 +222,13 @@ inline auto add_artefact(cms::db::connection& database, std::string_view key, st
       "SET object_key = excluded.object_key, inline_text = NULL, digest = excluded.digest, "
       "model_id = excluded.model_id, prompt_version = excluded.prompt_version, seed = excluded.seed",
       {job, STEP, std::string{key}, std::string{digest}, std::string{MODEL_ID},
-       std::string{PROMPT_VERSION}, next_call_index()});
-  return last_artefact(database);
+       std::string{PROMPT_VERSION}, probe.call_index});
+  return artefact_of(database, job, probe);
 }
 
 /// An artefact whose bytes are its row's own text: a file field names bytes a tool reads from the store, not this.
-inline auto add_inline_artefact(cms::db::connection& database, std::string_view digest) -> std::int64_t {
+inline auto add_inline_artefact(cms::db::connection& database, const Probe& probe,
+                                std::string_view digest) -> std::int64_t {
   const auto job = insert_job(database);
   database.execute_text(
       "INSERT INTO generation_artefacts (job_id, step, kind, inline_text, digest, model_id, prompt_version, "
@@ -229,8 +237,8 @@ inline auto add_inline_artefact(cms::db::connection& database, std::string_view 
       "SET inline_text = excluded.inline_text, object_key = NULL, digest = excluded.digest, "
       "model_id = excluded.model_id, prompt_version = excluded.prompt_version, seed = excluded.seed",
       {job, STEP, std::string{digest}, std::string{MODEL_ID}, std::string{PROMPT_VERSION},
-       next_call_index()});
-  return last_artefact(database);
+       probe.call_index});
+  return artefact_of(database, job, probe);
 }
 
 inline auto set_field_value(cms::db::connection& database, std::int64_t artefact_id) -> void {

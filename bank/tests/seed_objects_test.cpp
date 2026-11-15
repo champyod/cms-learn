@@ -24,12 +24,12 @@ TEST_CASE("a file field naming an artefact id is resolved and checked against it
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = fixture::live_database();
-  fixture::prepare(database);
+  const auto probe = fixture::prepare(database, 1);
   auto store = fixture::MemoryStore{};
   const auto bytes = std::string{"int main() { return 0; }"};
   store.put(fixture::OBJECT_KEY, bytes);
   const auto artefact =
-      fixture::add_artefact(database, fixture::OBJECT_KEY, cms::store::digest_of(bytes));
+      fixture::add_artefact(database, probe, fixture::OBJECT_KEY, cms::store::digest_of(bytes));
   fixture::set_field_value(database, artefact);
 
   const auto report = fixture::seed_once(fixture::bank_or_fail(), &store);
@@ -43,10 +43,10 @@ TEST_CASE("an artefact id whose object is gone refuses the import and writes not
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = fixture::live_database();
-  fixture::prepare(database);
+  const auto probe = fixture::prepare(database, 2);
   auto store = fixture::MemoryStore{};
   const auto artefact =
-      fixture::add_artefact(database, fixture::OBJECT_KEY, cms::store::digest_of("int main() {}"));
+      fixture::add_artefact(database, probe, fixture::OBJECT_KEY, cms::store::digest_of("int main() {}"));
   fixture::set_field_value(database, artefact);
   const auto before = fixture::seed_state(database);
   const auto tasks_before = fixture::count_tasks(database);
@@ -65,10 +65,10 @@ TEST_CASE("an id naming no stored object is refused by name", "[seed][live]") {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = fixture::live_database();
-  fixture::prepare(database);
+  const auto probe = fixture::prepare(database, 3);
   auto store = fixture::MemoryStore{};
   const auto artefact =
-      fixture::add_artefact(database, fixture::OBJECT_KEY, cms::store::digest_of("int main() {}"));
+      fixture::add_artefact(database, probe, fixture::OBJECT_KEY, cms::store::digest_of("int main() {}"));
   fixture::set_field_value(database, artefact);
   database.execute_text("DELETE FROM generation_artefacts WHERE id = $1", {artefact});
   const auto before = fixture::seed_state(database);
@@ -86,9 +86,9 @@ TEST_CASE("an inline artefact is not a stored object for a file field", "[seed][
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = fixture::live_database();
-  fixture::prepare(database);
+  const auto probe = fixture::prepare(database, 4);
   auto store = fixture::MemoryStore{};
-  const auto artefact = fixture::add_inline_artefact(database, cms::store::digest_of("int main() {}"));
+  const auto artefact = fixture::add_inline_artefact(database, probe, cms::store::digest_of("int main() {}"));
   database.execute_text("ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id",
                         {});
   fixture::set_field_value(database, artefact);
@@ -108,7 +108,7 @@ TEST_CASE("a file field still holding a store key is refused by name, not skippe
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = fixture::live_database();
-  fixture::prepare(database);
+  fixture::prepare(database, 5);
   auto store = fixture::MemoryStore{};
   // The object is there: a seeder that still read the value as a key would import and call this a success.
   store.put(fixture::OBJECT_KEY, "int main() {}");
@@ -130,11 +130,11 @@ TEST_CASE("bytes that no longer hash to their address are refused", "[seed][live
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = fixture::live_database();
-  fixture::prepare(database);
+  const auto probe = fixture::prepare(database, 6);
   auto store = fixture::MemoryStore{};
   store.put(fixture::OBJECT_KEY, "int main() { return 1; }");
   const auto artefact =
-      fixture::add_artefact(database, fixture::OBJECT_KEY, cms::store::digest_of("int main() {}"));
+      fixture::add_artefact(database, probe, fixture::OBJECT_KEY, cms::store::digest_of("int main() {}"));
   fixture::set_field_value(database, artefact);
 
   const auto report = fixture::seed_once(fixture::bank_or_fail(), &store);
@@ -149,9 +149,9 @@ TEST_CASE("a file field naming an artefact with no store configured is refused",
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = fixture::live_database();
-  fixture::prepare(database);
+  const auto probe = fixture::prepare(database, 7);
   const auto artefact =
-      fixture::add_artefact(database, fixture::OBJECT_KEY, cms::store::digest_of("int main() {}"));
+      fixture::add_artefact(database, probe, fixture::OBJECT_KEY, cms::store::digest_of("int main() {}"));
   fixture::set_field_value(database, artefact);
 
   const auto report = fixture::seed_once(fixture::bank_or_fail(), nullptr);
