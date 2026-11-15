@@ -24,7 +24,10 @@ CREATE TABLE generation_jobs (
   CONSTRAINT generation_jobs_claim CHECK (
     (claimed_by IS NULL) = (claimed_at IS NULL) AND
     (claimed_by IS NULL) = (lease_expires_at IS NULL)
-  )
+  ),
+  -- One job per task version. A second job for the same version would repeat every model call and write a record
+  -- nobody can tell from the first, so a re-run is a new task version — which is what the version is for.
+  CONSTRAINT generation_jobs_task_version_unique UNIQUE (task_id, task_version)
 );
 
 CREATE INDEX generation_jobs_queue_idx ON generation_jobs (created_at)
@@ -70,15 +73,55 @@ CREATE TRIGGER generation_jobs_move_forward
 CREATE TABLE generation_candidates (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   job_id bigint NOT NULL REFERENCES generation_jobs (id) ON DELETE CASCADE,
-  position integer NOT NULL,
+  position integer NOT NULL CHECK (position > 0),
   approach text NOT NULL CHECK (length(btrim(approach)) > 0),
   intended_complexity text NOT NULL,
   fits_bounds boolean NOT NULL,
   plan jsonb NOT NULL,
   chosen boolean NOT NULL DEFAULT false,
-  reason text NOT NULL DEFAULT '',
+  -- Every row of a decision says why it is there: the chosen one why it won, the others why they lost. A blank
+  -- reason is a decision that explains nothing, and the record is the evidence.
+  reason text NOT NULL CHECK (length(btrim(reason)) > 0),
   UNIQUE (job_id, position)
 );
+
+-- A decision is a set, and one row cannot see the set: two rows marked chosen are two answers to one question, and
+-- a position above the highest recorded one names a candidate the decision does not have. The check therefore runs
+-- at commit, when every row the caller wrote in that transaction is visible, so a set that breaks the rule lands
+-- nowhere instead of halfway.
+CREATE FUNCTION generation_candidates_are_one_decision() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  recorded bigint;
+  highest integer;
+  chosen_rows bigint;
+BEGIN
+  SELECT count(*), max(position), count(*) FILTER (WHERE chosen)
+    INTO recorded, highest, chosen_rows
+    FROM generation_candidates WHERE job_id = NEW.job_id;
+  IF recorded = 0 THEN
+    RETURN NULL;
+  END IF;
+  IF chosen_rows <> 1 THEN
+    RAISE EXCEPTION 'generation job % records % chosen candidates; a decision chooses exactly one',
+      NEW.job_id, chosen_rows
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF highest <> recorded THEN
+    RAISE EXCEPTION 'generation job % records % candidates numbered to %, so position % is not a candidate',
+      NEW.job_id, recorded, highest, highest
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER generation_candidates_one_decision
+  AFTER INSERT OR UPDATE ON generation_candidates
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION generation_candidates_are_one_decision();
 
 CREATE TABLE generation_artefacts (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -96,7 +139,11 @@ CREATE TABLE generation_artefacts (
   seed bigint NOT NULL,
   call_index integer NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT generation_artefacts_payload CHECK (object_key IS NOT NULL OR inline_text IS NOT NULL)
+  CONSTRAINT generation_artefacts_payload CHECK (object_key IS NOT NULL OR inline_text IS NOT NULL),
+  -- One row per model call (ADR 0030): recording the same call again replaces its row rather than adding a second,
+  -- while a second call at the same step, kind and locale is a second row. A locale may be absent, and two absent
+  -- locales are one locale, which NULLS NOT DISTINCT states.
+  CONSTRAINT generation_artefacts_call_unique UNIQUE NULLS NOT DISTINCT (job_id, step, kind, locale, call_index)
 );
 
 CREATE INDEX generation_artefacts_job_idx ON generation_artefacts (job_id, step);

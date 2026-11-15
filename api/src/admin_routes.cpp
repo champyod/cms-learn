@@ -21,6 +21,7 @@
 
 #include <cms/capability.hpp>
 #include <cms/db/connection.hpp>
+#include <cms/db/field_advice.hpp>
 #include <cms/db/tables.hpp>
 #include <cms/settings_snapshot.hpp>
 
@@ -280,10 +281,11 @@ auto field_artefact_of(db::connection& database, const std::string& task_id,
   }
   const auto value = nlohmann::json::parse(*stored, nullptr, false);
   if (value.is_discarded() || !value.is_number_integer() || value.get<std::int64_t>() <= 0) {
-    return std::unexpected(Error::make(
-        ErrorCode::conflict,
-        "the field " + field_key + " holds " + *stored +
-            ", which is a store key or other text, not an artefact id; an existing draft has to be saved again"));
+    const auto advice = db::file_field_advice(database, field_key);
+    if (!advice) {
+      return std::unexpected(advice.error());
+    }
+    return std::unexpected(Error::make(ErrorCode::conflict, *advice));
   }
   const auto artefact_id = value.get<std::int64_t>();
   for (const auto& row : database(sqlpp::select(db::generationArtefacts.objectKey,

@@ -124,18 +124,26 @@ struct SeedState {
 }
 
 /// The actor every definition write here names: a task type change is an audit event, and the tables refuse one
-/// that does not say who made it.
+/// that does not say who made it. The settings are transaction-local, so the caller must have opened the
+/// transaction the writes run in.
 inline auto name_the_actor(cms::db::connection& database) -> void {
+  database.execute_text("SELECT set_config('cms.actor_id', $1, true)", {std::string{ACTOR}});
+  database.execute_text("SELECT set_config('cms.actor_kind', 'admin', true)", {});
+  database.execute_text("SELECT set_config('cms.invoked_by', 'seed_objects_test', true)", {});
   database.execute_text("INSERT INTO admin_accounts (id, handle, status) VALUES ($1::uuid, "
                         "'seed_objects_probe', 'active') ON CONFLICT (id) DO NOTHING",
                         {std::string{ACTOR}});
-  database.execute_text("SELECT set_config('cms.actor_id', $1, false)", {std::string{ACTOR}});
-  database.execute_text("SELECT set_config('cms.actor_kind', 'admin', false)", {});
-  database.execute_text("SELECT set_config('cms.invoked_by', 'seed_objects_test', false)", {});
 }
 
 /// One task type of the probe's own, a file-kind field on it, and one draft task of that type.
-inline auto prepare(cms::db::connection& database) -> void {
+///
+/// The writes run in a transaction of their own: the audit trigger reads its actor from a transaction-local
+/// setting, and a pooled connection is free to put that setting and the insert that needs it on two different
+/// sessions — which is exactly the flake this fixture had. The argument names the database under test; what makes
+/// the setting and the write meet is the transaction opened below.
+inline auto prepare(cms::db::connection&) -> void {
+  auto transaction = cms::db::Transaction{*live_client()};
+  auto& database = transaction.connection();
   name_the_actor(database);
   database.execute_text(
       "INSERT INTO task_types (id, title_en, position) VALUES ($1, 'Probe', 900) "
@@ -151,6 +159,7 @@ inline auto prepare(cms::db::connection& database) -> void {
       "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original', 'pending', '', "
       "repeat('b', 64), false) ON CONFLICT DO NOTHING",
       {std::string{TASK_ID}, std::string{TYPE_ID}});
+  transaction.commit();
 }
 
 /// The artefact written last: one case runs at a time on one connection, so this is the row it just inserted.
@@ -165,10 +174,7 @@ inline auto prepare(cms::db::connection& database) -> void {
   return id;
 }
 
-/// One generation job for the probe task, as a step's write would create it.
-[[nodiscard]] inline auto insert_job(cms::db::connection& database) -> std::int64_t {
-  database.execute_text("INSERT INTO generation_jobs (task_id, task_version) VALUES ($1, 1)",
-                        {std::string{TASK_ID}});
+[[nodiscard]] inline auto last_job(cms::db::connection& database) -> std::int64_t {
   auto job = std::int64_t{0};
   for (const auto& row : database(sqlpp::select(cms::db::generationJobs.id)
                                       .from(cms::db::generationJobs)
@@ -180,15 +186,36 @@ inline auto prepare(cms::db::connection& database) -> void {
   return job;
 }
 
+/// The probe's one generation job, created the first time a case asks for it. A task version has exactly one job —
+/// the schema refuses a second — so the fixture reuses the row its cases share instead of inserting one per call.
+[[nodiscard]] inline auto insert_job(cms::db::connection& database) -> std::int64_t {
+  const auto existing = last_job(database);
+  if (existing != 0) {
+    return existing;
+  }
+  database.execute_text("INSERT INTO generation_jobs (task_id, task_version) VALUES ($1, 1)",
+                        {std::string{TASK_ID}});
+  return last_job(database);
+}
+
+/// The row whose call the fixture is recording: one artefact per model call, so each write names its own call.
+[[nodiscard]] inline auto next_call_index() -> std::int64_t {
+  static auto call_index = std::int64_t{0};
+  return call_index++;
+}
+
 /// An artefact a step wrote to the store, as the row records it: the key, the digest of the bytes, and the call.
 inline auto add_artefact(cms::db::connection& database, std::string_view key, std::string_view digest)
     -> std::int64_t {
   const auto job = insert_job(database);
   database.execute_text(
       "INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, "
-      "seed, call_index) VALUES ($1, $2, 'solution', $3, $4, $5, $6, 1, 0)",
+      "seed, call_index) VALUES ($1, $2, 'solution', $3, $4, $5, $6, 1, $7) "
+      "ON CONFLICT (job_id, step, kind, locale, call_index) DO UPDATE "
+      "SET object_key = excluded.object_key, inline_text = NULL, digest = excluded.digest, "
+      "model_id = excluded.model_id, prompt_version = excluded.prompt_version, seed = excluded.seed",
       {job, STEP, std::string{key}, std::string{digest}, std::string{MODEL_ID},
-       std::string{PROMPT_VERSION}});
+       std::string{PROMPT_VERSION}, next_call_index()});
   return last_artefact(database);
 }
 
@@ -197,8 +224,12 @@ inline auto add_inline_artefact(cms::db::connection& database, std::string_view 
   const auto job = insert_job(database);
   database.execute_text(
       "INSERT INTO generation_artefacts (job_id, step, kind, inline_text, digest, model_id, prompt_version, "
-      "seed, call_index) VALUES ($1, $2, 'solution', 'int main() {}', $3, $4, $5, 1, 0)",
-      {job, STEP, std::string{digest}, std::string{MODEL_ID}, std::string{PROMPT_VERSION}});
+      "seed, call_index) VALUES ($1, $2, 'solution', 'int main() {}', $3, $4, $5, 1, $6) "
+      "ON CONFLICT (job_id, step, kind, locale, call_index) DO UPDATE "
+      "SET inline_text = excluded.inline_text, object_key = NULL, digest = excluded.digest, "
+      "model_id = excluded.model_id, prompt_version = excluded.prompt_version, seed = excluded.seed",
+      {job, STEP, std::string{digest}, std::string{MODEL_ID}, std::string{PROMPT_VERSION},
+       next_call_index()});
   return last_artefact(database);
 }
 

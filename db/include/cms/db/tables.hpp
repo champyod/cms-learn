@@ -367,13 +367,13 @@ struct GenerationCandidates_ {
   struct Reason {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(reason, reason);
     using data_type = ::sqlpp::text;
-    using has_default = std::true_type;
+    using has_default = std::false_type;
   };
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_candidates, generationCandidates);
   template <typename T>
   using _table_columns =
       sqlpp::table_columns<T, Id, JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan, Chosen, Reason>;
-  using _required_insert_columns = sqlpp::detail::type_set<JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan, Reason>;
 };
 
 struct GenerationJobs_ {

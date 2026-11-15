@@ -118,9 +118,9 @@ TEST_CASE("a file field still holding a store key is refused by name, not skippe
   const auto report = fixture::seed_once(fixture::bank_or_fail(), &store);
 
   REQUIRE(!report.has_value());
-  CHECK(report.error().message.find("the field solution") != std::string::npos);
-  CHECK(report.error().message.find("not an artefact id") != std::string::npos);
-  CHECK(report.error().message.find(std::string{fixture::OBJECT_KEY}) != std::string::npos);
+  CHECK(report.error().message.find("the field solution needs the id of a stored artefact") != std::string::npos);
+  CHECK(report.error().message.find("the generation pipeline writes that id") != std::string::npos);
+  CHECK(report.error().message.find(std::string{fixture::OBJECT_KEY}) == std::string::npos);
   CHECK(fixture::seed_state(database).version == before.version);
   CHECK(store.verified_digest().empty());
 }

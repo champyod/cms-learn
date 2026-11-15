@@ -20,6 +20,7 @@
 
 #include <cms/db/connection.hpp>
 #include <cms/db/tables.hpp>
+#include <cms/db/transaction.hpp>
 
 #include "live_database.hpp"
 #include "pipeline_fixture.hpp"
@@ -171,4 +172,115 @@ TEST_CASE("a decision the database refuses leaves no row behind", "[generate][li
 
   REQUIRE(!written.has_value());
   CHECK(read_rows(database, job).empty());
+}
+
+namespace {
+
+/// Runs one statement on the live database and returns the refusal, empty when it ran. A decision's own check is
+/// deferred to commit, so the helper forces pending constraints to fire before it asks: a half-written decision
+/// then fails here with the rule's own sentence rather than at a commit whose message would be generic.
+auto refused_now(std::string_view sql, std::vector<cms::db::bound_value> parameters) -> std::string {
+  auto transaction = cms::db::Transaction{*cms::generate::test::live_client()};
+  auto& connection = transaction.connection();
+  try {
+    connection.execute_text(std::string{sql}, std::move(parameters));
+    connection.execute_text("SET CONSTRAINTS ALL IMMEDIATE", {});
+  } catch (const std::exception& failure) {
+    return std::string{failure.what()};
+  }
+  return {};
+}
+
+/// One decision row, with the facts the record refuses varied by the caller.
+constexpr std::string_view ROW_SQL =
+    "INSERT INTO generation_candidates (job_id, position, approach, intended_complexity, fits_bounds, plan, "
+    "chosen, reason) VALUES ";
+
+}  // namespace
+
+TEST_CASE("a decision recorded twice is a conflict, not an outage", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-replay-probe");
+  auto sink = cms::generate::SqlCandidateSink{*cms::generate::test::live_client()};
+  REQUIRE(sink.record(job, plan_and_decide().records).has_value());
+
+  const auto replay = sink.record(job, plan_and_decide().records);
+
+  REQUIRE(!replay.has_value());
+  CHECK(replay.error().code == cms::ErrorCode::conflict);
+  CHECK(replay.error().message.find("already records a decision at position") != std::string::npos);
+  CHECK(read_rows(database, job).size() == 4);
+}
+
+TEST_CASE("a decision with two chosen candidates is refused", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-two-chosen-probe");
+
+  const auto refusal = refused_now(
+      std::string{ROW_SQL} + "($1, 1, 'a', 'O(n)', true, '{\"k\":1}', true, 'won'), "
+                             "($1, 2, 'b', 'O(n)', true, '{\"k\":2}', true, 'also won')",
+      {job});
+
+  CHECK(refusal.find("a decision chooses exactly one") != std::string::npos);
+}
+
+TEST_CASE("a position the decision does not have is refused", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-gap-probe");
+
+  const auto refusal = refused_now(
+      std::string{ROW_SQL} + "($1, 1, 'a', 'O(n)', true, '{\"k\":1}', true, 'won'), "
+                             "($1, 3, 'c', 'O(n)', true, '{\"k\":3}', false, 'lost')",
+      {job});
+
+  CHECK(refusal.find("position 3 is not a candidate") != std::string::npos);
+}
+
+TEST_CASE("a chosen candidate with a blank reason is refused", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-blank-reason-probe");
+
+  const auto refusal =
+      refused_now(std::string{ROW_SQL} + "($1, 1, 'a', 'O(n)', true, '{\"k\":1}', true, '   ')", {job});
+
+  CHECK(refusal.find("generation_candidates_reason_check") != std::string::npos);
+}
+
+TEST_CASE("a candidate numbered below one is refused", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-zero-position-probe");
+
+  const auto refusal = refused_now(
+      std::string{ROW_SQL} + "($1, 0, 'a', 'O(n)', true, '{\"k\":1}', true, 'won')", {job});
+
+  CHECK(refusal.find("generation_candidates_position_check") != std::string::npos);
+}
+
+TEST_CASE("two jobs for one task version are refused", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  (void)cms::generate::test::prepare_job(database, "pipeline-one-job-probe");
+
+  const auto refusal = refused_now(
+      "INSERT INTO generation_jobs (task_id, task_version) VALUES ($1, 1)",
+      {std::string{"pipeline-one-job-probe"}});
+
+  CHECK(refusal.find("generation_jobs_task_version_unique") != std::string::npos);
 }

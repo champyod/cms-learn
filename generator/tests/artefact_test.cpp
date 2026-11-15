@@ -238,3 +238,35 @@ TEST_CASE("a digest that is not a content address is refused by the table", "[ge
 
   CHECK(refusal.find("generation_artefacts_digest_check") != std::string::npos);
 }
+
+TEST_CASE("recording the same call twice leaves one row", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-call-replay-probe");
+  auto store = cms::generate::test::MemoryStore{};
+  auto sink = cms::generate::SqlArtefactSink{*cms::generate::test::live_client(), store};
+
+  REQUIRE(sink.record(job, {inline_artefact("chosen: segment tree")}).has_value());
+  REQUIRE(sink.record(job, {inline_artefact("chosen: segment tree")}).has_value());
+
+  CHECK(artefact_rows(database, job) == 1);
+}
+
+TEST_CASE("a second call at the same step is a second row", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto job = cms::generate::test::prepare_job(database, "pipeline-second-call-probe");
+  auto store = cms::generate::test::MemoryStore{};
+  auto sink = cms::generate::SqlArtefactSink{*cms::generate::test::live_client(), store};
+  auto second = inline_artefact("chosen: the other plan");
+  second.call.call_index = 1;
+
+  REQUIRE(sink.record(job, {inline_artefact("chosen: segment tree")}).has_value());
+  REQUIRE(sink.record(job, {second}).has_value());
+
+  CHECK(artefact_rows(database, job) == 2);
+}

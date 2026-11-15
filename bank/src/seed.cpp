@@ -13,6 +13,7 @@
 
 #include <sqlpp23/sqlpp23.h>
 
+#include <cms/db/field_advice.hpp>
 #include <cms/db/tables.hpp>
 
 #include "seed_curriculum.hpp"
@@ -428,10 +429,13 @@ auto verify_objects(db::connection& database, const cms::store::ObjectStore* obj
                          std::to_string(value.version);
     const auto id = artefact_id_in(value.value);
     if (!id) {
+      const auto advice = db::file_field_advice(database, value.field_key);
+      if (!advice) {
+        return std::unexpected(advice.error());
+      }
       return std::unexpected(Error::make(
           ErrorCode::invalid_argument,
-          subject + " holds " + value.value +
-              ", which is a store key or other text, not an artefact id"));
+          "task " + value.task_id + " version " + std::to_string(value.version) + ": " + *advice));
     }
     const auto object = read_stored_object(database, *id);
     if (!object) {

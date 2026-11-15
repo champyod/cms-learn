@@ -102,10 +102,11 @@ CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
   "$seeder" --content "$repo/content" >"$work/seed2.log" 2>&1
 status=$?
 after="$(psql_db "SELECT version FROM content_seed LIMIT 1")"
-[ "$status" -ne 0 ] && grep -q "the field solution" "$work/seed2.log" \
-  && grep -q "not an artefact id" "$work/seed2.log" && [ "$before" = "$after" ] \
-  && ok "the seeder refuses a file field holding a store key, naming the field, and writes nothing" \
-  || bad "the seeder refuses a file field holding a store key, naming the field, and writes nothing" \
+[ "$status" -ne 0 ] && grep -q "the field solution needs the id of a stored artefact" "$work/seed2.log" \
+  && grep -q "the generation pipeline writes that id" "$work/seed2.log" \
+  && ! grep -q "tasks/probe/absent.cpp" "$work/seed2.log" && [ "$before" = "$after" ] \
+  && ok "the seeder refuses a file field holding a store key with the one message, naming the field and the next step, and writes nothing" \
+  || bad "the seeder refuses a file field holding a store key with the one message, naming the field and the next step, and writes nothing" \
       "exit $status, version $before -> $after, $(tail -1 "$work/seed2.log")"
 
 printf 'int main() {}' >"$work/solution.cpp"
@@ -115,7 +116,7 @@ curl -s -o /dev/null -X PUT --data-binary @"$work/solution.cpp" \
 CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
   "$seeder" --content "$repo/content" >"$work/seed3.log" 2>&1
 status=$?
-[ "$status" -ne 0 ] && grep -q "not an artefact id" "$work/seed3.log" \
+[ "$status" -ne 0 ] && grep -q "needs the id of a stored artefact" "$work/seed3.log" \
   && ok "the seeder refuses a store key even once the object exists" \
   || bad "the seeder refuses a store key even once the object exists" "exit $status, $(tail -1 "$work/seed3.log")"
 
@@ -135,9 +136,11 @@ CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
 # ── the field's one meaning: an artefact id, and the table refuses anything else by name ──
 psql_refusal() { psql -X -h "$work" -p "$port" -U postgres -d objectprobe -tAq -c "$1" 2>&1; }
 refusal="$(psql_refusal "UPDATE task_field_values SET value = '\"tasks/probe/other.cpp\"'::jsonb WHERE task_id = 'probe-object' AND field_key = 'solution'")"
-printf '%s' "$refusal" | grep -q "the field solution" && printf '%s' "$refusal" | grep -q "not an artefact id" \
-  && ok "the table refuses a file field holding a store key, naming the field" \
-  || bad "the table refuses a file field holding a store key, naming the field" "$refusal"
+printf '%s' "$refusal" | grep -q "the field solution needs the id of a stored artefact" \
+  && printf '%s' "$refusal" | grep -q "the generation pipeline writes that id" \
+  && ! printf '%s' "$refusal" | grep -q "tasks/probe/other.cpp" \
+  && ok "the table refuses a file field holding a store key with the one message, naming the field and the next step, and never echoing the value" \
+  || bad "the table refuses a file field holding a store key with the one message, naming the field and the next step, and never echoing the value" "$refusal"
 
 refusal="$(psql_refusal "UPDATE task_field_values SET value = to_jsonb(999999::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'")"
 printf '%s' "$refusal" | grep -q "the field solution" && printf '%s' "$refusal" | grep -q "999999" \
@@ -217,9 +220,10 @@ code="$(serve_field solution)"
 
 psql_db "ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id; UPDATE task_field_values SET value = '\"tasks/probe/absent.cpp\"'::jsonb WHERE task_id = 'probe-object' AND field_key = 'solution'; ALTER TABLE task_field_values ENABLE TRIGGER task_field_values_artefact_id;" >/dev/null
 code="$(serve_field solution)"
-[ "$code" = "409" ] && grep -q "the field solution" "$work/body" && grep -q "not an artefact id" "$work/body" \
-  && ok "a draft written under the old reading is refused by name, never served as empty content" \
-  || bad "a draft written under the old reading is refused by name, never served as empty content" "HTTP $code"
+[ "$code" = "409" ] && grep -q "the field solution needs the id of a stored artefact" "$work/body" \
+  && ! grep -q "tasks/probe/absent.cpp" "$work/body" \
+  && ok "a draft written under the old reading is refused by the one message, never served as empty content" \
+  || bad "a draft written under the old reading is refused by the one message, never served as empty content" "HTTP $code"
 
 psql_db "ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id; UPDATE task_field_values SET value = to_jsonb(999999::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'; ALTER TABLE task_field_values ENABLE TRIGGER task_field_values_artefact_id;" >/dev/null
 code="$(serve_field solution)"

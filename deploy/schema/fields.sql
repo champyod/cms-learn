@@ -114,6 +114,18 @@ CREATE TRIGGER task_field_values_filled
 -- A file-kind field names an artefact, never a store key: ADR 0027 §5 says so, and the panel resolves this id
 -- through generation_artefacts to the object's key and digest. A text value is the old reading, and accepting it
 -- here would leave one column with two meanings and a reader that has to guess which it holds.
+
+-- The one wording for the one refusal. The trigger below raises it, and the panel, the seeder and the authoring
+-- form ask this function for the same sentence instead of composing their own: a copy per layer is how four texts
+-- describing one rule appear. It names the field and the next step, and never echoes the value it refused.
+CREATE FUNCTION file_field_advice(field_key text) RETURNS text
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT 'the field ' || field_key || ' needs the id of a stored artefact, not the file''s text; ' ||
+         'the generation pipeline writes that id when it stores the file, so store the file there first, ' ||
+         'then save the draft again'
+$$;
+
 CREATE FUNCTION task_field_value_is_artefact_id() RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog, public
@@ -130,8 +142,7 @@ BEGIN
     RETURN NEW;
   END IF;
   IF jsonb_typeof(NEW.value) <> 'number' OR (NEW.value #>> '{}') !~ '^[0-9]{1,18}$' THEN
-    RAISE EXCEPTION 'the field % holds %, which is a store key or other text, not an artefact id',
-      NEW.field_key, NEW.value
+    RAISE EXCEPTION '%', file_field_advice(NEW.field_key)
       USING ERRCODE = 'check_violation';
   END IF;
   artefact_id := (NEW.value #>> '{}')::bigint;

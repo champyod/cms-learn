@@ -1,5 +1,6 @@
 #include <cms/generate/artefact.hpp>
 
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <memory>
@@ -24,10 +25,6 @@ auto refused(std::string_view message) -> Error {
   return Error::make(ErrorCode::invalid_argument, message);
 }
 
-auto optional_text(const std::string& value) -> std::optional<std::string> {
-  return value.empty() ? std::nullopt : std::optional<std::string>{value};
-}
-
 /// Hashes the bytes and returns both the address and, for a store artefact, the key the bytes were written to.
 auto address_of(cms::store::ObjectStore& store, const Artefact& artefact) -> Result<std::string> {
   if (artefact.home == ArtefactHome::row) {
@@ -40,25 +37,38 @@ auto address_of(cms::store::ObjectStore& store, const Artefact& artefact) -> Res
   return store.write(artefact.object_key, artefact.bytes);
 }
 
+/// One row per model call (ADR 0030). Recording the same call again replaces the row it already wrote — a step
+/// re-run must not leave two rows naming one call — while a second call at the same step, kind and locale is a
+/// second row, which the unique key on (job, step, kind, locale, call_index) states.
+constexpr std::string_view RECORD_ARTEFACT = R"(
+INSERT INTO generation_artefacts (job_id, step, kind, locale, object_key, inline_text, digest, model_id,
+                                  prompt_version, seed, call_index)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+ON CONFLICT (job_id, step, kind, locale, call_index) DO UPDATE
+SET object_key = excluded.object_key, inline_text = excluded.inline_text, digest = excluded.digest,
+    model_id = excluded.model_id, prompt_version = excluded.prompt_version, seed = excluded.seed
+)";
+
+auto text_or_null(const std::string& value) -> cms::db::bound_value {
+  return value.empty() ? cms::db::bound_value{std::nullptr_t{}} : cms::db::bound_value{value};
+}
+
 auto insert_artefact(cms::db::connection& database, std::int64_t job_id, const Artefact& artefact,
                      const std::string& digest) -> void {
-  database(sqlpp::insert_into(cms::db::generationArtefacts)
-               .set(cms::db::generationArtefacts.jobId = job_id,
-                    cms::db::generationArtefacts.step = static_cast<std::int64_t>(artefact.step),
-                    cms::db::generationArtefacts.kind = artefact.kind,
-                    cms::db::generationArtefacts.locale = optional_text(artefact.locale),
-                    cms::db::generationArtefacts.objectKey =
-                        artefact.home == ArtefactHome::store ? std::optional<std::string>{artefact.object_key}
-                                                            : std::nullopt,
-                    cms::db::generationArtefacts.inlineText =
-                        artefact.home == ArtefactHome::row ? std::optional<std::string>{artefact.bytes}
-                                                           : std::nullopt,
-                    cms::db::generationArtefacts.digest = digest,
-                    cms::db::generationArtefacts.modelId = artefact.call.model_id,
-                    cms::db::generationArtefacts.promptVersion = artefact.call.prompt_version,
-                    cms::db::generationArtefacts.seed = artefact.call.seed,
-                    cms::db::generationArtefacts.callIndex =
-                        static_cast<std::int64_t>(artefact.call.call_index)));
+  const auto is_store = artefact.home == ArtefactHome::store;
+  database.execute_text(
+      std::string{RECORD_ARTEFACT},
+      {job_id,
+       static_cast<std::int64_t>(artefact.step),
+       artefact.kind,
+       text_or_null(artefact.locale),
+       is_store ? cms::db::bound_value{artefact.object_key} : cms::db::bound_value{std::nullptr_t{}},
+       is_store ? cms::db::bound_value{std::nullptr_t{}} : cms::db::bound_value{artefact.bytes},
+       digest,
+       artefact.call.model_id,
+       artefact.call.prompt_version,
+       static_cast<std::int64_t>(artefact.call.seed),
+       static_cast<std::int64_t>(artefact.call.call_index)});
 }
 
 struct ArtefactRow {

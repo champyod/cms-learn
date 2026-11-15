@@ -495,6 +495,7 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
     created_at timestamptz DEFAULT now() NOT NULL,
     updated_at timestamptz DEFAULT now() NOT NULL,
     CONSTRAINT generation_jobs_pkey PRIMARY KEY (id),
+    CONSTRAINT generation_jobs_task_version_unique UNIQUE (task_id, task_version),
     CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
     CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL) AND (claimed_by IS NULL) = (lease_expires_at IS NULL))
 );
@@ -518,6 +519,7 @@ CREATE TABLE IF NOT EXISTS generation_artefacts (
     call_index integer NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL,
     CONSTRAINT generation_artefacts_pkey PRIMARY KEY (id),
+    CONSTRAINT generation_artefacts_call_unique UNIQUE NULLS NOT DISTINCT (job_id, step, kind, locale, call_index),
     CONSTRAINT generation_artefacts_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
     CONSTRAINT generation_artefacts_digest_check CHECK (digest ~ '^[0-9a-f]{64}$'::text),
     CONSTRAINT generation_artefacts_kind_check CHECK (length(btrim(kind)) > 0),
@@ -536,11 +538,13 @@ CREATE TABLE IF NOT EXISTS generation_candidates (
     fits_bounds boolean NOT NULL,
     plan jsonb NOT NULL,
     chosen boolean DEFAULT false NOT NULL,
-    reason text DEFAULT '' NOT NULL,
+    reason text NOT NULL,
     CONSTRAINT generation_candidates_pkey PRIMARY KEY (id),
     CONSTRAINT generation_candidates_job_id_position_key UNIQUE (job_id, position),
     CONSTRAINT generation_candidates_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
-    CONSTRAINT generation_candidates_approach_check CHECK (length(btrim(approach)) > 0)
+    CONSTRAINT generation_candidates_approach_check CHECK (length(btrim(approach)) > 0),
+    CONSTRAINT generation_candidates_position_check CHECK ("position" > 0),
+    CONSTRAINT generation_candidates_reason_check CHECK (length(btrim(reason)) > 0)
 );
 
 CREATE TABLE IF NOT EXISTS progress (
@@ -700,6 +704,49 @@ BEGIN
       USING ERRCODE = 'insufficient_privilege';
   END IF;
   RETURN (raw_kind::account_kind, raw_id::uuid);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION file_field_advice(
+    field_key text
+)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT 'the field ' || field_key || ' needs the id of a stored artefact, not the file''s text; ' ||
+         'the generation pipeline writes that id when it stores the file, so store the file there first, ' ||
+         'then save the draft again'
+$$;
+
+CREATE OR REPLACE FUNCTION generation_candidates_are_one_decision()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  recorded bigint;
+  highest integer;
+  chosen_rows bigint;
+BEGIN
+  SELECT count(*), max(position), count(*) FILTER (WHERE chosen)
+    INTO recorded, highest, chosen_rows
+    FROM generation_candidates WHERE job_id = NEW.job_id;
+  IF recorded = 0 THEN
+    RETURN NULL;
+  END IF;
+  IF chosen_rows <> 1 THEN
+    RAISE EXCEPTION 'generation job % records % chosen candidates; a decision chooses exactly one',
+      NEW.job_id, chosen_rows
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF highest <> recorded THEN
+    RAISE EXCEPTION 'generation job % records % candidates numbered to %, so position % is not a candidate',
+      NEW.job_id, recorded, highest, highest
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
 END;
 $$;
 
@@ -970,8 +1017,7 @@ BEGIN
     RETURN NEW;
   END IF;
   IF jsonb_typeof(NEW.value) <> 'number' OR (NEW.value #>> '{}') !~ '^[0-9]{1,18}$' THEN
-    RAISE EXCEPTION 'the field % holds %, which is a store key or other text, not an artefact id',
-      NEW.field_key, NEW.value
+    RAISE EXCEPTION '%', file_field_advice(NEW.field_key)
       USING ERRCODE = 'check_violation';
   END IF;
   artefact_id := (NEW.value #>> '{}')::bigint;
@@ -1040,6 +1086,12 @@ CREATE OR REPLACE TRIGGER audit_events_append_only
     BEFORE UPDATE OR DELETE ON audit_events
     FOR EACH ROW
     EXECUTE FUNCTION reject_mutation();
+
+CREATE CONSTRAINT TRIGGER generation_candidates_one_decision
+    AFTER INSERT OR UPDATE ON generation_candidates
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION generation_candidates_are_one_decision();
 
 CREATE OR REPLACE TRIGGER generation_jobs_move_forward
     BEFORE UPDATE ON generation_jobs

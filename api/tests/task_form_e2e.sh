@@ -126,10 +126,12 @@ status="$(post "$session" "csrf_token=$token" "type_id=batch" "title_en=Probe ba
 
 status="$(post "$session" "csrf_token=$token" "type_id=batch" "title_en=Probe key file" "title_th=กุญแจ" \
   "difficulty=1200" "statement=x" "solution=tasks/probe/absent.cpp")"
-[ "$status" = "400" ] && grep -q 'the field solution' "$work/body" && grep -q 'not an artefact id' "$work/body" \
+[ "$status" = "400" ] && grep -q 'the field solution needs the id of a stored artefact' "$work/body" \
+  && grep -q 'the generation pipeline writes that id' "$work/body" \
+  && ! grep -q 'tasks/probe/absent.cpp' "$work/body" \
   && [ "$(psql_db "SELECT count(*) FROM tasks WHERE title_en = 'Probe key file'")" = "0" ] \
-  && ok "a file field holding a store key is refused by name and writes nothing" \
-  || bad "a file field holding a store key is refused by name and writes nothing" "HTTP $status"
+  && ok "a file field holding a store key is refused by one message naming the field and the next step, writes nothing, and never echoes the value" \
+  || bad "a file field holding a store key is refused by one message naming the field and the next step, writes nothing, and never echoes the value" "HTTP $status"
 
 # The value a file field carries: the id of a stored artefact, which the panel resolves to the object's bytes.
 digest="$(printf 'int main() {}' | sha256sum | cut -d' ' -f1)"

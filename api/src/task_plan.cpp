@@ -18,6 +18,7 @@
 #include <cms/api/authorize.hpp>
 #include <cms/api/form_body.hpp>
 #include <cms/capability.hpp>
+#include <cms/db/field_advice.hpp>
 #include <cms/db/tables.hpp>
 
 namespace cms::api {
@@ -69,9 +70,11 @@ auto read_artefact_field(db::connection& database, std::string_view field_key, s
     -> Result<std::int64_t> {
   auto artefact_id = std::int64_t{0};
   if (!to_int(text, artefact_id) || artefact_id <= 0) {
-    return std::unexpected(Error::make(
-        ErrorCode::invalid_argument,
-        "the field " + std::string{field_key} + " holds a store key, not an artefact id; give the artefact's id"));
+    const auto advice = db::file_field_advice(database, field_key);
+    if (!advice) {
+      return std::unexpected(advice.error());
+    }
+    return std::unexpected(Error::make(ErrorCode::invalid_argument, *advice));
   }
   const auto known = refuse_unknown_artefact(database, field_key, artefact_id);
   if (!known) {
