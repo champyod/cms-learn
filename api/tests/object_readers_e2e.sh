@@ -14,6 +14,10 @@ binary="${1:?usage: object_readers_e2e.sh <path to cms_api>}"
 repo="${CMS_PROBE_REPO:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 seeder="${2:-$(cd "$(dirname "$binary")/.." && pwd)/bank/cms_seed_content}"
 
+# shellcheck source=../../tools/postgres-cluster.sh
+. "$repo/tools/postgres-cluster.sh"
+
+pg_cluster_binaries
 for tool in initdb pg_ctl createdb psql curl docker; do
   command -v "$tool" >/dev/null 2>&1 || { echo "  skipped: $tool is not installed"; exit 77; }
 done
@@ -40,7 +44,7 @@ container="cms-objects-probe-$RANDOM"
 cleanup() {
   [ -n "${api_pid:-}" ] && kill -9 "$api_pid" 2>/dev/null
   docker rm -f "$container" >/dev/null 2>&1
-  pg_ctl -D "$work/data" -m immediate stop >/dev/null 2>&1
+  pg_cluster_stop "$work" >/dev/null 2>&1 || true
   rm -rf "$work"
 }
 trap cleanup EXIT
@@ -52,10 +56,9 @@ bad() { printf '  [!!]   %s — %s\n' "$1" "$2"; fail=$((fail + 1)); }
 psql_db() { psql -X -h "$work" -p "$port" -U postgres -d objectprobe -tAq -c "$1"; }
 
 seed_cluster() {
-  initdb -D "$work/data" -U postgres -A trust >/dev/null 2>&1
-  pg_ctl -D "$work/data" -o "-c listen_addresses='' -c unix_socket_directories=$work -p $port" \
-    -l "$work/pg.log" start >/dev/null 2>&1
-  sleep 1
+  pg_cluster_prepare "$work"
+  pg_cluster_init "$work" >/dev/null 2>&1
+  pg_cluster_start "$work" "$port" "$work/pg.log" >/dev/null 2>&1
   psql -X -h "$work" -p "$port" -U postgres -q -f "$repo/deploy/roles.sql" >/dev/null 2>&1
   createdb -h "$work" -p "$port" -U postgres objectprobe
   PGHOST="$work" PGPORT="$port" PGDATABASE=objectprobe PGUSER=postgres \
