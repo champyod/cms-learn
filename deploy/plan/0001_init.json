@@ -327,10 +327,16 @@
           "path": "public.tasks.tasks_published_idx"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS generation_jobs (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    state generation_state DEFAULT 'queued'::generation_state NOT NULL,\n    attempts integer DEFAULT 0 NOT NULL,\n    claimed_by text,\n    claimed_at timestamptz,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_jobs_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL))\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS generation_jobs (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    state generation_state DEFAULT 'queued'::generation_state NOT NULL,\n    attempts integer DEFAULT 0 NOT NULL,\n    claimed_by text,\n    claimed_at timestamptz,\n    lease_expires_at timestamptz,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_jobs_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL) AND (claimed_by IS NULL) = (lease_expires_at IS NULL))\n);",
           "type": "table",
           "operation": "create",
           "path": "public.generation_jobs"
+        },
+        {
+          "sql": "CREATE INDEX IF NOT EXISTS generation_jobs_lease_idx ON generation_jobs (lease_expires_at) WHERE (state = 'running'::generation_state);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.generation_jobs.generation_jobs_lease_idx"
         },
         {
           "sql": "CREATE INDEX IF NOT EXISTS generation_jobs_queue_idx ON generation_jobs (created_at) WHERE (state = 'queued'::generation_state);",
@@ -453,6 +459,12 @@
           "path": "public.current_actor"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION generation_job_moves_forward()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  IF OLD.state IN ('done', 'failed') THEN\n    IF NEW.state <> OLD.state OR NEW.claimed_by IS DISTINCT FROM OLD.claimed_by THEN\n      RAISE EXCEPTION 'generation job % is %; it is finished and nothing reopens it', OLD.id, OLD.state\n        USING ERRCODE = 'restrict_violation';\n    END IF;\n    RETURN NEW;\n  END IF;\n  IF NEW.state = OLD.state THEN\n    RETURN NEW;\n  END IF;\n  IF (OLD.state = 'queued' AND NEW.state IN ('running', 'failed')) OR\n     (OLD.state = 'running' AND NEW.state IN ('awaiting-evidence', 'done', 'failed')) OR\n     (OLD.state = 'awaiting-evidence' AND NEW.state IN ('done', 'failed')) THEN\n    RETURN NEW;\n  END IF;\n  RAISE EXCEPTION 'generation job % cannot move from % to %', OLD.id, OLD.state, NEW.state\n    USING ERRCODE = 'check_violation';\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.generation_job_moves_forward"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION levels_partition_the_scale()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nAS $$\nDECLARE\n  expected integer := 800;\n  current_min integer;\nBEGIN\n  FOR current_min IN SELECT difficulty_min FROM levels ORDER BY difficulty_min LOOP\n    IF current_min <> expected THEN\n      RAISE EXCEPTION 'level list is not a partition of 800..3500: a band starts at %, expected %',\n        current_min, expected;\n    END IF;\n    expected := (SELECT difficulty_max + 100 FROM levels WHERE difficulty_min = current_min);\n  END LOOP;\n  IF expected - 100 <> 3500 THEN\n    RAISE EXCEPTION 'level list is not a partition of 800..3500: the last band ends at %, expected 3500',\n      expected - 100;\n  END IF;\n  RETURN NULL;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -529,6 +541,12 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.audit_events.audit_events_append_only"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER generation_jobs_move_forward\n    BEFORE UPDATE ON generation_jobs\n    FOR EACH ROW\n    EXECUTE FUNCTION generation_job_moves_forward();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.generation_jobs.generation_jobs_move_forward"
         },
         {
           "sql": "CREATE CONSTRAINT TRIGGER levels_partition_check\n    AFTER INSERT OR UPDATE OR DELETE ON levels\n    DEFERRABLE INITIALLY DEFERRED\n    FOR EACH ROW\n    EXECUTE FUNCTION levels_partition_the_scale();",

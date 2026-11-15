@@ -491,12 +491,15 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
     attempts integer DEFAULT 0 NOT NULL,
     claimed_by text,
     claimed_at timestamptz,
+    lease_expires_at timestamptz,
     created_at timestamptz DEFAULT now() NOT NULL,
     updated_at timestamptz DEFAULT now() NOT NULL,
     CONSTRAINT generation_jobs_pkey PRIMARY KEY (id),
     CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
-    CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL))
+    CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL) AND (claimed_by IS NULL) = (lease_expires_at IS NULL))
 );
+
+CREATE INDEX IF NOT EXISTS generation_jobs_lease_idx ON generation_jobs (lease_expires_at) WHERE (state = 'running'::generation_state);
 
 CREATE INDEX IF NOT EXISTS generation_jobs_queue_idx ON generation_jobs (created_at) WHERE (state = 'queued'::generation_state);
 
@@ -697,6 +700,33 @@ BEGIN
       USING ERRCODE = 'insufficient_privilege';
   END IF;
   RETURN (raw_kind::account_kind, raw_id::uuid);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION generation_job_moves_forward()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF OLD.state IN ('done', 'failed') THEN
+    IF NEW.state <> OLD.state OR NEW.claimed_by IS DISTINCT FROM OLD.claimed_by THEN
+      RAISE EXCEPTION 'generation job % is %; it is finished and nothing reopens it', OLD.id, OLD.state
+        USING ERRCODE = 'restrict_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF NEW.state = OLD.state THEN
+    RETURN NEW;
+  END IF;
+  IF (OLD.state = 'queued' AND NEW.state IN ('running', 'failed')) OR
+     (OLD.state = 'running' AND NEW.state IN ('awaiting-evidence', 'done', 'failed')) OR
+     (OLD.state = 'awaiting-evidence' AND NEW.state IN ('done', 'failed')) THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'generation job % cannot move from % to %', OLD.id, OLD.state, NEW.state
+    USING ERRCODE = 'check_violation';
 END;
 $$;
 
@@ -1010,6 +1040,11 @@ CREATE OR REPLACE TRIGGER audit_events_append_only
     BEFORE UPDATE OR DELETE ON audit_events
     FOR EACH ROW
     EXECUTE FUNCTION reject_mutation();
+
+CREATE OR REPLACE TRIGGER generation_jobs_move_forward
+    BEFORE UPDATE ON generation_jobs
+    FOR EACH ROW
+    EXECUTE FUNCTION generation_job_moves_forward();
 
 CREATE CONSTRAINT TRIGGER levels_partition_check
     AFTER INSERT OR UPDATE OR DELETE ON levels

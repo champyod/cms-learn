@@ -89,10 +89,11 @@ TEST_CASE("the plan body is kept as one minified JSON object", "[generate]") {
 TEST_CASE("each shard is told which candidate it is and what the teacher set", "[generate]") {
   const auto prompt = cms::generate::planner_prompt(brief(), 2, 4);
 
-  CHECK(prompt.find("candidate 2 of 4") != std::string::npos);
-  CHECK(prompt.find("technique: prefix-sums") != std::string::npos);
-  CHECK(prompt.find("difficulty: 1800") != std::string::npos);
-  CHECK(prompt.find("fits_bounds") != std::string::npos);
+  REQUIRE(prompt.has_value());
+  CHECK(prompt->find("candidate 2 of 4") != std::string::npos);
+  CHECK(prompt->find("technique: prefix-sums") != std::string::npos);
+  CHECK(prompt->find("difficulty: 1800") != std::string::npos);
+  CHECK(prompt->find("fits_bounds") != std::string::npos);
 }
 
 TEST_CASE("a run below the floor of four is refused before a call", "[generate]") {

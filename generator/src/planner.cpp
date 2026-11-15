@@ -7,6 +7,8 @@
 #include <utility>
 #include <vector>
 
+#include <cms/generate/data_frame.hpp>
+
 #include "text.hpp"
 
 namespace cms::generate {
@@ -40,10 +42,14 @@ auto repeated_approach(const std::vector<CandidatePlan>& candidates) -> std::opt
 
 }  // namespace
 
-auto planner_prompt(const Brief& brief, std::size_t shard, std::size_t count) -> std::string {
+auto planner_prompt(const Brief& brief, std::size_t shard, std::size_t count) -> Result<std::string> {
+  const auto data = frame_data(ModelData{.label = "the teacher's brief", .text = render_brief(brief)});
+  if (!data) {
+    return std::unexpected(data.error());
+  }
   auto prompt = std::string{ROLE};
   prompt += "\n\n";
-  prompt += render_brief(brief);
+  prompt += *data;
   prompt += "\nThis is candidate " + std::to_string(shard) + " of " + std::to_string(count) +
             ". The other proposals are written independently, so take the approach this brief suggests most "
             "strongly rather than a plan that agrees with one you cannot see.\n\n";
@@ -67,7 +73,11 @@ auto plan_candidates(ModelClient& client, const Brief& brief, std::size_t count)
   auto candidates = std::vector<CandidatePlan>{};
   candidates.reserve(count);
   for (std::size_t shard = 1; shard <= count; ++shard) {
-    auto completion = client.complete(planner_prompt(brief, shard, count));
+    const auto prompt = planner_prompt(brief, shard, count);
+    if (!prompt) {
+      return std::unexpected(prompt.error());
+    }
+    auto completion = client.complete(*prompt);
     if (!completion) {
       return std::unexpected(completion.error());
     }

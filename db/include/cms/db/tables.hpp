@@ -412,6 +412,11 @@ struct GenerationJobs_ {
     using data_type = std::optional<::sqlpp::timestamp>;
     using has_default = std::true_type;
   };
+  struct LeaseExpiresAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(lease_expires_at, leaseExpiresAt);
+    using data_type = std::optional<::sqlpp::timestamp>;
+    using has_default = std::true_type;
+  };
   struct CreatedAt {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
     using data_type = ::sqlpp::timestamp;
@@ -425,7 +430,7 @@ struct GenerationJobs_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_jobs, generationJobs);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, TaskId, TaskVersion, State, Attempts, ClaimedBy, ClaimedAt, CreatedAt, UpdatedAt>;
+      sqlpp::table_columns<T, Id, TaskId, TaskVersion, State, Attempts, ClaimedBy, ClaimedAt, LeaseExpiresAt, CreatedAt, UpdatedAt>;
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion>;
 };
 

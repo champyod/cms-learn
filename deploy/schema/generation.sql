@@ -12,15 +12,60 @@ CREATE TABLE generation_jobs (
   attempts integer NOT NULL DEFAULT 0,
   claimed_by text,
   claimed_at timestamptz,
+  -- When the claim runs out. A worker that dies holds the row only until this moment: the next claim takes a
+  -- running job whose lease expired, which is what keeps one dead worker from parking a job forever.
+  lease_expires_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version)
     REFERENCES tasks (id, version) ON DELETE CASCADE,
-  CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL))
+  -- The claim is all three facts or none: a name with no moment cannot be compared, and a deadline with no
+  -- holder belongs to nobody.
+  CONSTRAINT generation_jobs_claim CHECK (
+    (claimed_by IS NULL) = (claimed_at IS NULL) AND
+    (claimed_by IS NULL) = (lease_expires_at IS NULL)
+  )
 );
 
 CREATE INDEX generation_jobs_queue_idx ON generation_jobs (created_at)
   WHERE state = 'queued';
+
+-- The other half of the queue: a running job whose lease ran out is claimable again, and the claim finds it
+-- through this index instead of reading every running row.
+CREATE INDEX generation_jobs_lease_idx ON generation_jobs (lease_expires_at)
+  WHERE state = 'running';
+
+-- A job moves the way the record allows and no other way: queued starts, running ends in evidence, a verdict or
+-- a failure, and evidence ends in a verdict or a failure. A finished or failed job is terminal, and a terminal
+-- row cannot be given a new holder: a second worker taking it would be work done twice that nobody asked for.
+CREATE FUNCTION generation_job_moves_forward() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF OLD.state IN ('done', 'failed') THEN
+    IF NEW.state <> OLD.state OR NEW.claimed_by IS DISTINCT FROM OLD.claimed_by THEN
+      RAISE EXCEPTION 'generation job % is %; it is finished and nothing reopens it', OLD.id, OLD.state
+        USING ERRCODE = 'restrict_violation';
+    END IF;
+    RETURN NEW;
+  END IF;
+  IF NEW.state = OLD.state THEN
+    RETURN NEW;
+  END IF;
+  IF (OLD.state = 'queued' AND NEW.state IN ('running', 'failed')) OR
+     (OLD.state = 'running' AND NEW.state IN ('awaiting-evidence', 'done', 'failed')) OR
+     (OLD.state = 'awaiting-evidence' AND NEW.state IN ('done', 'failed')) THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'generation job % cannot move from % to %', OLD.id, OLD.state, NEW.state
+    USING ERRCODE = 'check_violation';
+END;
+$$;
+
+CREATE TRIGGER generation_jobs_move_forward
+  BEFORE UPDATE ON generation_jobs
+  FOR EACH ROW EXECUTE FUNCTION generation_job_moves_forward();
 
 CREATE TABLE generation_candidates (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

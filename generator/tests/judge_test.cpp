@@ -162,8 +162,9 @@ TEST_CASE("step 2 refuses a set it cannot choose between", "[generate]") {
 TEST_CASE("the judge is shown the plan it is choosing between, numbered from one", "[generate]") {
   const auto prompt = cms::generate::judge_prompt(four_candidates());
 
-  CHECK(prompt.find("position 1") != std::string::npos);
-  CHECK(prompt.find("position 4") != std::string::npos);
-  CHECK(prompt.find("approach: mo's algorithm") != std::string::npos);
-  CHECK(prompt.find("fits the declared bounds: no") != std::string::npos);
+  REQUIRE(prompt.has_value());
+  CHECK(prompt->find("candidate 1") != std::string::npos);
+  CHECK(prompt->find("candidate 4") != std::string::npos);
+  CHECK(prompt->find("approach: mo's algorithm") != std::string::npos);
+  CHECK(prompt->find("fits the declared bounds: no") != std::string::npos);
 }

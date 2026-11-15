@@ -35,6 +35,11 @@ struct Judgement {
     -> Result<Judgement>;
 
 /// @brief The prompt step 2 sends.
-[[nodiscard]] auto judge_prompt(const std::vector<CandidatePlan>& candidates) -> std::string;
+///
+/// Each candidate travels in its own labelled data block, so a plan's own words cannot be read as an
+/// instruction; the answer is then validated against the offered set and the bounds (ADR 0029).
+///
+/// @return The prompt, or a refusal when a candidate carries the frame's own markers.
+[[nodiscard]] auto judge_prompt(const std::vector<CandidatePlan>& candidates) -> Result<std::string>;
 
 }  // namespace cms::generate

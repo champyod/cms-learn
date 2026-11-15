@@ -30,9 +30,14 @@ constexpr std::size_t MINIMUM_CANDIDATES = 4;
     -> Result<std::vector<CandidatePlan>>;
 
 /// @brief The prompt one shard of step 1 sends.
+///
+/// The teacher's brief travels inside a labelled data block, never pasted into the instruction: a brief is
+/// content to plan from, and the boundary is what ADR 0029 makes of that sentence.
+///
 /// @param shard The 1-based shard this call owns.
 /// @param count How many shards the run has, so the model knows it proposes one of several.
+/// @return The prompt, or a refusal when the brief carries the frame's own markers.
 [[nodiscard]] auto planner_prompt(const Brief& brief, std::size_t shard, std::size_t count)
-    -> std::string;
+    -> Result<std::string>;
 
 }  // namespace cms::generate
