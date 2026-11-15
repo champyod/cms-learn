@@ -357,7 +357,7 @@
           "path": "public.generation_artefacts.generation_artefacts_job_idx"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS generation_candidates (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    job_id bigint NOT NULL,\n    position integer NOT NULL,\n    approach text NOT NULL,\n    intended_complexity text NOT NULL,\n    fits_bounds boolean NOT NULL,\n    plan jsonb NOT NULL,\n    chosen boolean DEFAULT false NOT NULL,\n    reason text NOT NULL,\n    CONSTRAINT generation_candidates_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_candidates_job_id_position_key UNIQUE (job_id, position),\n    CONSTRAINT generation_candidates_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_candidates_approach_check CHECK (length(btrim(approach)) > 0),\n    CONSTRAINT generation_candidates_position_check CHECK (\"position\" > 0),\n    CONSTRAINT generation_candidates_reason_check CHECK (length(btrim(reason)) > 0)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS generation_candidates (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    job_id bigint NOT NULL,\n    position integer NOT NULL,\n    approach text NOT NULL,\n    intended_complexity text NOT NULL,\n    fits_bounds boolean NOT NULL,\n    plan jsonb NOT NULL,\n    chosen boolean DEFAULT false NOT NULL,\n    reason text NOT NULL,\n    call_artefact_id bigint NOT NULL,\n    CONSTRAINT generation_candidates_pkey PRIMARY KEY (id),\n    CONSTRAINT generation_candidates_job_id_position_key UNIQUE (job_id, position),\n    CONSTRAINT generation_candidates_call_fkey FOREIGN KEY (call_artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_candidates_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_candidates_approach_check CHECK (length(btrim(approach)) > 0),\n    CONSTRAINT generation_candidates_position_check CHECK (\"position\" > 0),\n    CONSTRAINT generation_candidates_reason_check CHECK (length(btrim(reason)) > 0)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.generation_candidates"
@@ -465,6 +465,18 @@
           "path": "public.file_field_advice"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION file_field_unknown_artefact(\n    field_key text,\n    artefact_id bigint\n)\nRETURNS text\nLANGUAGE sql\nIMMUTABLE\nAS $$\n  SELECT 'artefact ' || artefact_id || ' is not a stored object the field ' || field_key ||\n         ' can use: it is either not recorded or recorded without an object; ' ||\n         'the generation pipeline stores the file and records its id, so store the file there first, ' ||\n         'then save the draft again'\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.file_field_unknown_artefact"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION generation_artefact_is_cited()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  cited record;\nBEGIN\n  -- A job's own delete cascades to its artefacts after the job row is gone; its decisions are going with it, so the\n  -- citation is not a reason to refuse.\n  IF NOT EXISTS (SELECT 1 FROM generation_jobs j WHERE j.id = OLD.job_id) THEN\n    RETURN OLD;\n  END IF;\n  SELECT c.job_id, c.position INTO cited\n    FROM generation_candidates c\n   WHERE c.call_artefact_id = OLD.id\n   LIMIT 1;\n  IF FOUND THEN\n    RAISE EXCEPTION 'artefact % is the call that produced position % of generation job %; the decision cannot lose the call that made it',\n      OLD.id, cited.position, cited.job_id\n      USING ERRCODE = 'restrict_violation';\n  END IF;\n  RETURN OLD;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.generation_artefact_is_cited"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION generation_candidates_are_one_decision()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  recorded bigint;\n  highest integer;\n  chosen_rows bigint;\nBEGIN\n  SELECT count(*), max(position), count(*) FILTER (WHERE chosen)\n    INTO recorded, highest, chosen_rows\n    FROM generation_candidates WHERE job_id = NEW.job_id;\n  IF recorded = 0 THEN\n    RETURN NULL;\n  END IF;\n  IF chosen_rows <> 1 THEN\n    RAISE EXCEPTION 'generation job % records % chosen candidates; a decision chooses exactly one',\n      NEW.job_id, chosen_rows\n      USING ERRCODE = 'check_violation';\n  END IF;\n  IF highest <> recorded THEN\n    RAISE EXCEPTION 'generation job % records % candidates numbered to %, so position % is not a candidate',\n      NEW.job_id, recorded, highest, highest\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NULL;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -531,7 +543,7 @@
           "path": "public.task_field_members_exist"
         },
         {
-          "sql": "CREATE OR REPLACE FUNCTION task_field_value_is_artefact_id()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  definition_kind text;\n  artefact_id bigint;\nBEGIN\n  SELECT d.kind INTO definition_kind\n    FROM tasks t\n    JOIN task_field_defs d ON d.task_type_id = t.task_type AND d.key = NEW.field_key\n   WHERE t.id = NEW.task_id AND t.version = NEW.task_version;\n  IF definition_kind IS DISTINCT FROM 'file' THEN\n    RETURN NEW;\n  END IF;\n  IF jsonb_typeof(NEW.value) <> 'number' OR (NEW.value #>> '{}') !~ '^[0-9]{1,18}$' THEN\n    RAISE EXCEPTION '%', file_field_advice(NEW.field_key)\n      USING ERRCODE = 'check_violation';\n  END IF;\n  artefact_id := (NEW.value #>> '{}')::bigint;\n  IF NOT EXISTS (SELECT 1 FROM generation_artefacts a\n                  WHERE a.id = artefact_id AND a.object_key IS NOT NULL) THEN\n    RAISE EXCEPTION 'the field % names artefact %, which is not a stored object',\n      NEW.field_key, artefact_id\n      USING ERRCODE = 'foreign_key_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "sql": "CREATE OR REPLACE FUNCTION task_field_value_is_artefact_id()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  definition_kind text;\n  artefact_id bigint;\nBEGIN\n  SELECT d.kind INTO definition_kind\n    FROM tasks t\n    JOIN task_field_defs d ON d.task_type_id = t.task_type AND d.key = NEW.field_key\n   WHERE t.id = NEW.task_id AND t.version = NEW.task_version;\n  IF definition_kind IS DISTINCT FROM 'file' THEN\n    RETURN NEW;\n  END IF;\n  IF jsonb_typeof(NEW.value) <> 'number' OR (NEW.value #>> '{}') !~ '^[0-9]{1,18}$' THEN\n    RAISE EXCEPTION '%', file_field_advice(NEW.field_key)\n      USING ERRCODE = 'check_violation';\n  END IF;\n  artefact_id := (NEW.value #>> '{}')::bigint;\n  IF NOT EXISTS (SELECT 1 FROM generation_artefacts a\n                  WHERE a.id = artefact_id AND a.object_key IS NOT NULL) THEN\n    RAISE EXCEPTION '%', file_field_unknown_artefact(NEW.field_key, artefact_id)\n      USING ERRCODE = 'foreign_key_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
           "path": "public.task_field_value_is_artefact_id"
@@ -553,6 +565,12 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.audit_events.audit_events_append_only"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER generation_artefacts_are_cited\n    BEFORE DELETE ON generation_artefacts\n    FOR EACH ROW\n    EXECUTE FUNCTION generation_artefact_is_cited();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.generation_artefacts.generation_artefacts_are_cited"
         },
         {
           "sql": "CREATE CONSTRAINT TRIGGER generation_candidates_one_decision\n    AFTER INSERT OR UPDATE ON generation_candidates\n    DEFERRABLE INITIALLY DEFERRED\n    FOR EACH ROW\n    EXECUTE FUNCTION generation_candidates_are_one_decision();",

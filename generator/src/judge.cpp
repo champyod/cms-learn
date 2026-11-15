@@ -185,7 +185,7 @@ auto judge_candidates(ModelClient& client, const std::vector<CandidatePlan>& can
   if (!applied) {
     return std::unexpected(applied.error());
   }
-  return Judgement{.records = std::move(records), .call = completion->call};
+  return Judgement{.records = std::move(records), .answer = completion->text, .call = completion->call};
 }
 
 }  // namespace cms::generate

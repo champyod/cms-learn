@@ -82,6 +82,9 @@ CREATE TABLE generation_candidates (
   -- Every row of a decision says why it is there: the chosen one why it won, the others why they lost. A blank
   -- reason is a decision that explains nothing, and the record is the evidence.
   reason text NOT NULL CHECK (length(btrim(reason)) > 0),
+  -- The call that produced this plan (ADR 0030). Required, so a candidate cannot be recorded without the request
+  -- that made it; the reference is added after the artefact table, which is defined below because it holds them all.
+  call_artefact_id bigint NOT NULL,
   UNIQUE (job_id, position)
 );
 
@@ -147,6 +150,45 @@ CREATE TABLE generation_artefacts (
 );
 
 CREATE INDEX generation_artefacts_job_idx ON generation_artefacts (job_id, step);
+
+-- A candidate names the call that produced it. The reference is its own constraint, declared after both tables, so
+-- the order they are created in does not decide whether a candidate can be written without one. It does not cascade:
+-- a call row is evidence, and deleting it would silently delete the decision that cites it.
+ALTER TABLE generation_candidates
+  ADD CONSTRAINT generation_candidates_call_fkey
+  FOREIGN KEY (call_artefact_id) REFERENCES generation_artefacts (id) ON DELETE NO ACTION;
+
+-- NO ACTION checks at the end of the statement, so deleting a job still removes its decisions and their calls
+-- together while a lone artefact delete is refused. The refusal a foreign key gives names its constraint and
+-- nothing else, so this trigger says which decision would lose its provenance instead.
+CREATE FUNCTION generation_artefact_is_cited() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  cited record;
+BEGIN
+  -- A job's own delete cascades to its artefacts after the job row is gone; its decisions are going with it, so the
+  -- citation is not a reason to refuse.
+  IF NOT EXISTS (SELECT 1 FROM generation_jobs j WHERE j.id = OLD.job_id) THEN
+    RETURN OLD;
+  END IF;
+  SELECT c.job_id, c.position INTO cited
+    FROM generation_candidates c
+   WHERE c.call_artefact_id = OLD.id
+   LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'artefact % is the call that produced position % of generation job %; the decision cannot lose the call that made it',
+      OLD.id, cited.position, cited.job_id
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER generation_artefacts_are_cited
+  BEFORE DELETE ON generation_artefacts
+  FOR EACH ROW EXECUTE FUNCTION generation_artefact_is_cited();
 
 -- The worker's role holds the record and reads the brief; it holds no privilege that could publish or verify.
 -- Written as its own grants so a reader sees what the role can do and, by omission, what it cannot.

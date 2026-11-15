@@ -539,8 +539,10 @@ CREATE TABLE IF NOT EXISTS generation_candidates (
     plan jsonb NOT NULL,
     chosen boolean DEFAULT false NOT NULL,
     reason text NOT NULL,
+    call_artefact_id bigint NOT NULL,
     CONSTRAINT generation_candidates_pkey PRIMARY KEY (id),
     CONSTRAINT generation_candidates_job_id_position_key UNIQUE (job_id, position),
+    CONSTRAINT generation_candidates_call_fkey FOREIGN KEY (call_artefact_id) REFERENCES generation_artefacts (id),
     CONSTRAINT generation_candidates_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
     CONSTRAINT generation_candidates_approach_check CHECK (length(btrim(approach)) > 0),
     CONSTRAINT generation_candidates_position_check CHECK ("position" > 0),
@@ -717,6 +719,47 @@ AS $$
   SELECT 'the field ' || field_key || ' needs the id of a stored artefact, not the file''s text; ' ||
          'the generation pipeline writes that id when it stores the file, so store the file there first, ' ||
          'then save the draft again'
+$$;
+
+CREATE OR REPLACE FUNCTION file_field_unknown_artefact(
+    field_key text,
+    artefact_id bigint
+)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT 'artefact ' || artefact_id || ' is not a stored object the field ' || field_key ||
+         ' can use: it is either not recorded or recorded without an object; ' ||
+         'the generation pipeline stores the file and records its id, so store the file there first, ' ||
+         'then save the draft again'
+$$;
+
+CREATE OR REPLACE FUNCTION generation_artefact_is_cited()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  cited record;
+BEGIN
+  -- A job's own delete cascades to its artefacts after the job row is gone; its decisions are going with it, so the
+  -- citation is not a reason to refuse.
+  IF NOT EXISTS (SELECT 1 FROM generation_jobs j WHERE j.id = OLD.job_id) THEN
+    RETURN OLD;
+  END IF;
+  SELECT c.job_id, c.position INTO cited
+    FROM generation_candidates c
+   WHERE c.call_artefact_id = OLD.id
+   LIMIT 1;
+  IF FOUND THEN
+    RAISE EXCEPTION 'artefact % is the call that produced position % of generation job %; the decision cannot lose the call that made it',
+      OLD.id, cited.position, cited.job_id
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  RETURN OLD;
+END;
 $$;
 
 CREATE OR REPLACE FUNCTION generation_candidates_are_one_decision()
@@ -1023,8 +1066,7 @@ BEGIN
   artefact_id := (NEW.value #>> '{}')::bigint;
   IF NOT EXISTS (SELECT 1 FROM generation_artefacts a
                   WHERE a.id = artefact_id AND a.object_key IS NOT NULL) THEN
-    RAISE EXCEPTION 'the field % names artefact %, which is not a stored object',
-      NEW.field_key, artefact_id
+    RAISE EXCEPTION '%', file_field_unknown_artefact(NEW.field_key, artefact_id)
       USING ERRCODE = 'foreign_key_violation';
   END IF;
   RETURN NEW;
@@ -1086,6 +1128,11 @@ CREATE OR REPLACE TRIGGER audit_events_append_only
     BEFORE UPDATE OR DELETE ON audit_events
     FOR EACH ROW
     EXECUTE FUNCTION reject_mutation();
+
+CREATE OR REPLACE TRIGGER generation_artefacts_are_cited
+    BEFORE DELETE ON generation_artefacts
+    FOR EACH ROW
+    EXECUTE FUNCTION generation_artefact_is_cited();
 
 CREATE CONSTRAINT TRIGGER generation_candidates_one_decision
     AFTER INSERT OR UPDATE ON generation_candidates

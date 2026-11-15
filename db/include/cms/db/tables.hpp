@@ -369,11 +369,16 @@ struct GenerationCandidates_ {
     using data_type = ::sqlpp::text;
     using has_default = std::false_type;
   };
+  struct CallArtefactId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(call_artefact_id, callArtefactId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_candidates, generationCandidates);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan, Chosen, Reason>;
-  using _required_insert_columns = sqlpp::detail::type_set<JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan, Reason>;
+      sqlpp::table_columns<T, Id, JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan, Chosen, Reason, CallArtefactId>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan, Reason, CallArtefactId>;
 };
 
 struct GenerationJobs_ {

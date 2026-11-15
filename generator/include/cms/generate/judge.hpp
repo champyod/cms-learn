@@ -15,6 +15,8 @@ namespace cms::generate {
 struct Judgement {
   /// One record per candidate, in position order, with exactly one marked chosen.
   std::vector<CandidateRecord> records;
+  /// The answer the judge wrote, kept so the call that produced it can be recorded with its own bytes (ADR 0030).
+  std::string answer;
   ModelCall call;
 };
 

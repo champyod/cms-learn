@@ -71,7 +71,7 @@ auto recorded(const cms::Result<cms::generate::Judgement>& judged,
   if (!judged.has_value()) {
     return false;
   }
-  const auto written = sink.record(1, judged->records);
+  const auto written = sink.record(1, *judged);
   return written.has_value();
 }
 
@@ -144,7 +144,7 @@ TEST_CASE("a steered answer naming a candidate that was never offered is refused
   REQUIRE(!judged.has_value());
   CHECK_FALSE(recorded(judged, sink));
   CHECK(judged.error().message.find("not a position between 1 and 4") != std::string::npos);
-  CHECK(sink.rows().empty());
+  CHECK(sink.judgement().records.empty());
   CHECK(sink.job_id() == 0);
 }
 
@@ -158,7 +158,7 @@ TEST_CASE("a steered answer choosing the plan that does not fit the bounds is re
   REQUIRE(!judged.has_value());
   CHECK_FALSE(recorded(judged, sink));
   CHECK(judged.error().message.find("does not fit the declared bounds") != std::string::npos);
-  CHECK(sink.rows().empty());
+  CHECK(sink.judgement().records.empty());
 }
 
 TEST_CASE("a brief that tries to pick the winner is data: the pipeline refuses the result it steers",
