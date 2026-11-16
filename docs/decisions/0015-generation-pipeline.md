@@ -25,6 +25,21 @@ This describes the admin path, which always generates and never reads a cache. T
 puts the cache lookup of `docs/content-model.md` in front of the same seven steps and is otherwise
 unchanged.
 
+## Interpretation added 2026-11-17 — what "a machine proof" means, and where the limits live
+
+Step 3 asks for "a formal specification, a machine proof, and the limits for the whole task and for each
+subtask". Two of those need reading against what was decided later.
+
+**The machine proof is a differential check, not a formal proof.** *"the verifier accepts"* at step 3 and
+*"the reference agrees with brute force on the small cases"* at step 5 name the same evidence: a brute-force
+oracle the pipeline also writes, run against the reference on inputs small enough to enumerate. That is what
+makes a claim about correctness machine-checkable here — a proof assistant is a different project, and a prose
+argument is not machine evidence at all. Feature `F-012` is this check.
+
+**The limits are the task's, and a subtask has a constraint instead.** `docs/decisions/0033` records why: the
+olympiad statements state one time and one memory limit per task, and per-subtask limits are the rare
+exception. So step 3 derives **one** limit pair from the complexity and the bounds, and each subtask carries
+the constraint that defines its group.
 ## Interpretation added 2026-11-14 — distinct approaches, not four copies
 
 Step 1 says "at least four candidate plans". It does not say the approaches must differ, and a reading that
