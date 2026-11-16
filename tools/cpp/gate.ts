@@ -249,11 +249,14 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
     const detail = failed.length > 0 ? failed.slice(0, 3).join(", ") : "see output";
     report.reasons.push(`ctest failed${failed.length > 3 ? ` (+${failed.length - 3} more)` : ""}: ${detail}`);
     // A sanitizer report on stdout/stderr of the test is not in the ctest summary — surface it, with its
-    // detail: "runtime error:" alone names nothing, while "signed integer overflow" names the defect.
+    // detail: "runtime error:" alone names nothing, while "signed integer overflow" names the defect. CMake
+    // re-indents a failed test's stderr and wraps long lines, so the report is rejoined before it is read:
+    // a message split after "signed" must not become the reason "runtime error: signed".
+    const flat = tested.output.replace(/\n\s+/g, " ");
     const crash = /(ERROR: (?:Address|Leak)Sanitizer[^\n]*|runtime error: [^\n]*|stack-buffer-overflow[^\n]*)/.exec(
-      tested.output,
+      flat,
     );
-    if (crash) report.reasons.push(`sanitizer: ${crash[0].trim()}`);
+    if (crash) report.reasons.push(`sanitizer: ${crash[0].split(/\s+#\d/)[0].trim().slice(0, 200)}`);
     return report;
   }
 

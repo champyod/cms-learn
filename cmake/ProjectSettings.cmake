@@ -9,8 +9,9 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # A staged falsification tree differs from the one before it in a single planted file, so the same translation
 # units are compiled over and over; a compiler cache keyed by the preprocessed source and the exact flags turns
-# every tree after the first into a link plus that one file. tools/cpp/falsify.ts refuses to run without it,
-# because a gate that takes hours stops being run.
+# a rebuild into a link plus that one file. The harness treats the cache as an optimisation, not a requirement:
+# a machine without it builds the same tree once, and only a configured launcher whose binary is missing is
+# refused, because that is a broken environment rather than a plain one.
 find_program(CMS_CCACHE ccache)
 if(CMS_CCACHE)
   set(CMAKE_C_COMPILER_LAUNCHER "${CMS_CCACHE}" CACHE FILEPATH "compiler cache used for every compile")

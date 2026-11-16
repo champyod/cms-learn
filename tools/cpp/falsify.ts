@@ -17,12 +17,12 @@
 // re-runs that one step itself so the log carries the first `CMake Error` line instead.
 
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   closeSync,
   cpSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   openSync,
   readFileSync,
   readdirSync,
@@ -193,8 +193,28 @@ function writeDemo(root: string, source: string, examples?: { input: string; out
   }
 }
 
-function buildTree(repo: string, work: string, name: string, source: string, examples?: { input: string; output: string }): string {
-  const root = join(work, name);
+/** Everything a staged tree is compiled from: the component sources, the data, the presets and the modules.
+ * The checkout path is part of the digest too: a tree's cache and package links name absolute paths, so two
+ * checkouts never share one. */
+function stagedTreeDigest(repo: string): string {
+  const hash = createHash("sha256");
+  hash.update("cms-learn-cpp-falsify-tree-v1\n");
+  hash.update(`repo ${repo}\n`);
+  const hashPath = (path: string, relative: string): void => {
+    if (statSync(path).isDirectory()) {
+      hash.update(`d ${relative}\n`);
+      for (const entry of readdirSync(path).sort()) hashPath(join(path, entry), `${relative}/${entry}`);
+    } else {
+      hash.update(`f ${relative}\n`);
+      hash.update(readFileSync(path));
+    }
+  };
+  for (const entry of stagedEntries(repo).sort()) hashPath(join(repo, entry), entry);
+  return hash.digest("hex");
+}
+
+/** Copies the source and configuration a configure reads, and links the installed packages every tree compiles against. */
+function stageTree(repo: string, root: string): void {
   for (const entry of stagedEntries(repo)) {
     cpSync(join(repo, entry), join(root, entry), {
       recursive: true,
@@ -203,18 +223,48 @@ function buildTree(repo: string, work: string, name: string, source: string, exa
     });
   }
 
-  // The root CMakeLists adds every component, and the presets resolve packages from the manifest, so a
-  // tree without them dies at configure and the case never reaches a compile. The installed packages are
-  // shared by link rather than copied: the manifest build would otherwise compile drogon and
-  // aws-sdk-cpp from source once per case, which is hours, not a gate.
+  linkInstalled(repo, root);
+}
+
+/** Links the installed packages a tree compiles against; re-pointed on reuse so a checkout that moved cannot
+ * leave a dangling link. */
+function linkInstalled(repo: string, root: string): void {
   const installed = join(repo, "build/vcpkg_installed");
-  if (existsSync(installed)) {
-    mkdirSync(join(root, "build"), { recursive: true });
-    symlinkSync(installed, join(root, "build/vcpkg_installed"), "dir");
+  if (!existsSync(installed)) return;
+  mkdirSync(join(root, "build"), { recursive: true });
+  const link = join(root, "build/vcpkg_installed");
+  rmSync(link, { force: true });
+  symlinkSync(installed, link, "dir");
+}
+
+const STAGED_MARKER = ".staged";
+
+/**
+ * Stages the tree this source digest names, or reuses the one an earlier run staged and built.
+ *
+ * The path is the digest, so a second run in the same checkout state lands on the same directory and its
+ * build products — and the compiler cache keyed by that path — are reused; a changed source or preset gets a
+ * different directory instead of a stale build. A tree without the marker is one a killed run left half
+ * copied, and is staged again.
+ *
+ * @return true when this run staged it, false when it reused an earlier run's tree.
+ */
+function stageOrReuse(repo: string, root: string, digest: string): boolean {
+  const marker = join(root, STAGED_MARKER);
+  if (existsSync(marker) && readFileSync(marker, "utf8").trim() === digest) {
+    linkInstalled(repo, root);
+    return false;
   }
+  rmSync(root, { recursive: true, force: true });
+  stageTree(repo, root);
+  writeFileSync(marker, `${digest}\n`);
+  return true;
+}
 
+function buildTree(repo: string, work: string, name: string, source: string, examples?: { input: string; output: string }): string {
+  const root = join(work, name);
+  stageTree(repo, root);
   writeDemo(root, source, examples);
-
   return root;
 }
 
@@ -229,6 +279,7 @@ function configureWith(root: string, cache: Record<string, string>): { status: n
   const result = spawnSync("cmake", ["--preset", "safety", ...overrides], {
     cwd: root,
     encoding: "utf8",
+    env: { ...process.env },
     maxBuffer: 32 * 1024 * 1024,
   });
   return { status: result.status ?? 127, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
@@ -240,13 +291,14 @@ function gnuCompilerVersion(): string {
   return (result.stdout ?? "").trim();
 }
 
-const SCRATCH_PREFIX = "cms-learn-cpp-falsify-";
+const TREE_PREFIX = "tree-";
+const LEGACY_PREFIX = "cms-learn-cpp-falsify-";
 const SCRATCH_ROOT =
   process.env.CMS_FALSIFY_SCRATCH ?? join(process.env.XDG_CACHE_HOME ?? join(homedir(), ".cache"), "cms-learn", "falsify");
 
-// One staged tree plus its safety build measures 0.65 GiB on this repository. Every case's tree survives
-// until the finally sweep, so a full run holds nine of them and peaks near 5.9 GiB; the floor is that
-// peak plus headroom for the tidy pass, and it is checked before the first byte is staged.
+// One staged tree plus its safety build measures 0.65 GiB on this repository. A run keeps one tree, its
+// three probe trees and the tidy pass; the floor is that plus headroom, and it is checked before the first
+// byte is staged.
 const REQUIRED_BYTES = 8 * 1024 ** 3;
 
 function formatGib(bytes: number): string {
@@ -336,12 +388,12 @@ function acquireLock(root: string): () => void {
   return (): void => rmSync(path, { force: true });
 }
 
-/** A killed run leaves its tree behind; nothing else may occupy the scratch root between runs. */
-function sweepOrphans(root: string): void {
+/** A killed run leaves its tree behind; every tree but the one this run reuses is stale. */
+function sweepOrphans(root: string, keep: string): void {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
-    if (entry.isDirectory() && entry.name.startsWith(SCRATCH_PREFIX)) {
-      rmSync(join(root, entry.name), { recursive: true, force: true });
-    }
+    if (!entry.isDirectory()) continue;
+    const stale = entry.name.startsWith(LEGACY_PREFIX) || (entry.name.startsWith(TREE_PREFIX) && join(root, entry.name) !== keep);
+    if (stale) rmSync(join(root, entry.name), { recursive: true, force: true });
   }
 }
 
@@ -363,7 +415,12 @@ function streamLines(stream: string | null): string[] {
 
 /** The line a "see output" reason swallowed: the first `CMake Error`, else the first stderr line. */
 function firstErrorLine(command: string, args: string[], root: string): string {
-  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+  const result = spawnSync(command, args, {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env },
+    maxBuffer: 32 * 1024 * 1024,
+  });
   const stderr = streamLines(result.stderr);
   return stderr.find((line) => line.startsWith("CMake Error")) ?? stderr[0] ?? streamLines(result.stdout)[0] ?? "";
 }
@@ -399,7 +456,12 @@ const FAILED_CASE = /^\s*\d+\s+-\s+(.+?)\s+\((?:Failed|Timeout|Exception)\)\s*$/
 
 /** One command in a staged tree, both streams kept: cmake reports on stderr and ctest splits the two. */
 function runIn(root: string, command: string, args: string[]): { status: number; output: string } {
-  const result = spawnSync(command, args, { cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  const result = spawnSync(command, args, {
+    cwd: root,
+    encoding: "utf8",
+    env: { ...process.env },
+    maxBuffer: 64 * 1024 * 1024,
+  });
   return { status: result.status ?? 127, output: `${result.stdout ?? ""}${result.stderr ?? ""}` };
 }
 
@@ -461,6 +523,22 @@ function baselineExclusion(root: string, work: string): string {
   return failed.map(escapeForCtest).join("|");
 }
 
+interface CacheStats {
+  /** Hits since the cache was created. */
+  hits: number;
+  /** Cacheable compiles since the cache was created; its delta is this run's compile count. */
+  calls: number;
+}
+
+/** The cache totals a run subtracts from to state what this run hit; null when ccache is absent. */
+function cacheStats(): CacheStats | null {
+  const result = spawnSync("ccache", ["--show-stats"], { encoding: "utf8", env: process.env });
+  if (result.status !== 0) return null;
+  const hits = /^\s*Hits:\s*(\d+)\s*\/\s*(\d+)/m.exec(result.stdout ?? "");
+  // A cache that has never compiled prints no Hits line; that is zero calls, not missing stats.
+  return hits === null ? { hits: 0, calls: 0 } : { hits: Number(hits[1]), calls: Number(hits[2]) };
+}
+
 const repo = join(import.meta.dir, "../..");
 mkdirSync(SCRATCH_ROOT, { recursive: true });
 // Every staged tree is compiled from the same source except for the file a case plants, so the work is the same
@@ -481,38 +559,49 @@ if (!cacheAvailable) {
   delete process.env.CCACHE_COMPILERCHECK;
 }
 
-// The sweep below is keyed on a shared directory prefix, so without a lock one run deletes the tree another
-// run is still building. Two full safety builds at once exhaust the machine's memory long before they finish.
+const startedAt = Date.now();
+
+// The tree a run builds is named by the source and configuration it is built from: the same checkout in the same
+// state lands on the same directory, so a second run reuses the first run's build and the compiler cache entries
+// keyed by that path. A changed source gets its own tree rather than a stale one, and the planted defect is
+// rebuilt per case below, so one case's build cannot decide another case's verdict.
+const digest = stagedTreeDigest(repo);
+const tree = join(SCRATCH_ROOT, `${TREE_PREFIX}${digest.slice(0, 16)}`);
+
+// The sweep is keyed on a shared directory prefix, so without a lock one run deletes the tree another run is
+// still building. Two full safety builds at once exhaust the machine's memory long before they finish.
 const releaseLock = acquireLock(SCRATCH_ROOT);
-sweepOrphans(SCRATCH_ROOT);
+sweepOrphans(SCRATCH_ROOT, tree);
 refuseBelowFloor(SCRATCH_ROOT);
+
+const cacheBefore = cacheStats();
+const staged = stageOrReuse(repo, tree, digest);
+console.log(`tree          ${staged ? "staged" : "reused"} at ${tree}`);
+writeDemo(tree, CLEAN_SOURCE, CLEAN_EXAMPLES);
+// The probe trees are configure-time and empty-tree checks; they are rebuilt every run, so a reused tree
+// cannot carry one of them from a previous run.
+for (const name of ["empty-tree", "compiler-minimum", "compiler-family"]) {
+  rmSync(join(tree, name), { recursive: true, force: true });
+}
 
 // What a staged tree cannot prove is read from this run rather than written down here, and nothing inherited
 // from the caller survives: this run derives its own exclusion, and an unset one leaves the gate unchanged.
 delete process.env.CMS_CTEST_EXCLUDE;
-const work = mkdtempSync(join(SCRATCH_ROOT, SCRATCH_PREFIX));
-
-// One tree for every planted case. Each case rewrites the demo task's files before its run and the tree is
-// reset to the clean source afterwards, so the build products are shared while the source a case is judged on
-// is that case's own — the plants live in `content/tasks/demo`, which no compilation reads, so a shared build
-// cannot carry one case's defect into another's verdict. Nine trees built from scratch was hours; this is one.
-const sharedRoot = buildTree(repo, work, "shared", CLEAN_SOURCE, CLEAN_EXAMPLES);
-// The baseline is that same tree: it is built once, its ctest names the cases a staged tree cannot prove, and
-// the planted cases reuse the build instead of paying for it again.
-const exclusion = baselineExclusion(sharedRoot, work);
+// The tree is built once, its ctest names the cases a staged tree cannot prove, and the planted cases reuse
+// the build instead of paying for it again.
+const exclusion = baselineExclusion(tree, tree);
 if (exclusion !== "") process.env.CMS_CTEST_EXCLUDE = exclusion;
 
 let caught = 0;
 let missed = 0;
-const startedAt = Date.now();
 
 try {
   // A single case can be run for diagnosis; the gate never sets this, so a real run is every case.
   const only = (process.env.CMS_FALSIFY_ONLY ?? "").split(",").filter(Boolean);
   for (const testCase of CASES.filter((entry) => only.length === 0 || only.includes(entry.name))) {
     const caseStarted = Date.now();
-    writeDemo(sharedRoot, testCase.source, testCase.examples);
-    const root = sharedRoot;
+    writeDemo(tree, testCase.source, testCase.examples);
+    const root = tree;
     // The defect lives in the demo reference, which is a build product: it must be rebuilt for this case, and the
     // binary's mtime proves it rather than the build system's word for it.
     const reference = join(root, "build/safety/references/ref_demo_main");
@@ -551,8 +640,8 @@ try {
 
   // The control: a correct solution must pass, otherwise the gate is failing everything and proves
   // nothing about the defects above.
-  writeDemo(sharedRoot, CLEAN_SOURCE, CLEAN_EXAMPLES);
-  const cleanRoot = sharedRoot;
+  writeDemo(tree, CLEAN_SOURCE, CLEAN_EXAMPLES);
+  const cleanRoot = tree;
   const clean = runGate(cleanRoot);
   if (clean.ok) {
     console.log(`behaved       ${"clean-control".padEnd(28)} (a correct solution passes)`);
@@ -563,7 +652,7 @@ try {
   }
 
   // An empty tree must not be green: "nothing to compile" is unplugged, not passing.
-  const emptyRoot = join(work, "empty-tree");
+  const emptyRoot = join(tree, "empty-tree");
   mkdirSync(join(emptyRoot, "content/tasks"), { recursive: true });
   const empty = runGate(emptyRoot);
   if (!empty.ok && reasonText(empty).includes("no C++ source")) {
@@ -577,7 +666,7 @@ try {
   // The compiler refusal is a configure-time defect: raise the required major above the installed compiler
   // and configure must stop naming both numbers. A check that never fires leaves the configure green, so
   // this case fails on that instead of passing for the wrong reason.
-  const minimumRoot = buildTree(repo, work, "compiler-minimum", CLEAN_SOURCE);
+  const minimumRoot = buildTree(repo, tree, "compiler-minimum", CLEAN_SOURCE);
   const refusal = configureWith(minimumRoot, { CMS_MIN_GCC_MAJOR: "99" });
   const installed = gnuCompilerVersion();
   const named = refusal.status !== 0 && installed !== "" && refusal.output.includes(installed) && refusal.output.includes("99");
@@ -594,7 +683,7 @@ try {
   // compiling a smaller language, so a family test on the version floor passes it for the wrong reason. The
   // preset configures with g++, so the override is also what proves the check reads the compiler that
   // actually configured rather than the one the preset asked for.
-  const clangRoot = buildTree(repo, work, "compiler-family", CLEAN_SOURCE);
+  const clangRoot = buildTree(repo, tree, "compiler-family", CLEAN_SOURCE);
   const clangRefusal = configureWith(clangRoot, { CMAKE_CXX_COMPILER: "clang++" });
   const clangNamed =
     clangRefusal.status !== 0 &&
@@ -613,18 +702,16 @@ try {
     missed += 1;
   }
 } finally {
-  rmSync(work, { recursive: true, force: true });
   releaseLock();
 }
 
 const totalSeconds = ((Date.now() - startedAt) / 1000).toFixed(1);
-const stats = spawnSync("ccache", ["--show-stats"], { encoding: "utf8", env: process.env });
-const hits = /Hits:.{0,20}?(\d+)\s*\/\s*(\d+)/.exec(stats.stdout ?? "");
-console.log(
-  hits === null
+const cacheAfter = cacheStats();
+const cacheLine =
+  cacheBefore === null || cacheAfter === null
     ? "\ncache         stats unavailable"
-    : `\ncache         ${hits[1]} hit(s) of ${hits[2]} compile(s) served from ${CACHE_DIR}`,
-);
-console.log(`\ntotal         ${totalSeconds}s for ${caught + missed} case(s) across ${caught + missed + 1} staged tree(s)`);
+    : `\ncache         ${cacheAfter.hits - cacheBefore.hits} hit(s) of ${cacheAfter.calls - cacheBefore.calls} compile(s) this run (served from ${CACHE_DIR})`;
+console.log(cacheLine);
+console.log(`\ntotal         ${totalSeconds}s for ${caught + missed} case(s) on a ${staged ? "staged" : "reused"} tree`);
 console.log(`\n${caught} case(s) behaved, ${missed} did not`);
 process.exit(missed === 0 ? 0 : 1);

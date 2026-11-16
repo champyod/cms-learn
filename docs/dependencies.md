@@ -149,19 +149,27 @@ g++ 16 or newer; the gate's own run reports `g++ (GCC) 16.2.1`.
 
 ### Compiler cache
 
-`tools/cpp/falsify.ts` builds a baseline tree and one tree per planted defect, and every tree carries the same
-source except the file a case plants. Without a compiler cache that is the same sanitizer build nine times, and
-the gate that proves the other gates stops being run — which is how a gate stops being true.
+`tools/cpp/falsify.ts` builds one staged tree and plants a defect into its demo reference for each case. The tree
+is named by a digest of the source and configuration it is built from and of the checkout path, so a second run in
+the same checkout state lands on the same directory and reuses the first run's build products; a changed source or
+preset gets its own directory instead of a stale build, and a tree whose staging did not finish is staged again
+(the `.staged` marker). The planted defect is not part of that digest: it is written into the demo reference,
+rebuilt for every case, and a case is judged only when the rebuilt binary is newer than the source it plants, so
+one case cannot be decided by another case's build.
 
 The harness does **not** need `ccache`. It is an optimisation only: a machine without it builds the same tree once
 and takes the same time it always did, and the harness refuses only when a launcher is configured and the binary it
 names is missing (a broken environment, not a plain one).
 
-**Measured, 2026-11-14: 0 hits of 476 compiles.** The cache key is the preprocessed source and the exact command
-line, and the preprocessed text carries each tree's absolute path, so a tree at a fresh temporary path can never
-hit — `CCACHE_BASEDIR` does not rewrite the line markers. The launcher therefore buys same-path reuse (a re-run in
-the same directory, a rebuild after a comment change), and the speed-up the falsification harness actually relies
-on is a single shared tree rebuilt in place, not this cache. Do not add it expecting that win.
+**Measured, 2026-11-16: 1 hit of 121 compiles on the run that staged the tree, and 6 hits of 6 compiles on the run
+that reused it** (the `cache` line states this run's delta, not the cache's lifetime totals). A tree at a fresh
+temporary path could never hit: the preprocessed source carries that path and `CCACHE_BASEDIR` does not rewrite
+line markers (measured 2026-11-14: 0 hits of 476 compiles). The fixed path is what lets the later run's per-case
+reference rebuilds hit.
+
+Wall time on this machine, back to back on the same checkout state: the run that staged the tree took 4162.4 s;
+the run that reused it took 3373.8 s. The difference is the baseline sanitizer build, which the reused tree skips
+(its build step takes 1.2 s, and staging/configure are unchanged); the two clang-tidy passes dominate either way.
 
 To get it: install the distribution package (`pacman -S ccache`, `apt install ccache`, `brew install ccache`),
 or take the release at tag `v4.11.3` from the project's releases and build it with CMake — the harness only
