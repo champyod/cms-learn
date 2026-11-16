@@ -1,6 +1,6 @@
 {
-  "task": "",
-  "reference_digest": "823ceffb7fdb1ec9fc6bc9f8f3e18941d4c8551532de3557a205da0e9b1e171c",
+  "task": "range-sum-query",
+  "reference_digest": "f0bf08b851c756ed00f22354a05c4f1e3c2b740f6113d24fdd23e0d497f1692f",
   "cases": [
     {
       "input": "examples/1.in",

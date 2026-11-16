@@ -1,6 +1,6 @@
 {
-  "task": "",
-  "reference_digest": "86c14febc98270f11cfcb1f916b052c7b2c0cb6720c3525f1634ce06c4a12fde",
+  "task": "grid-shortest-path",
+  "reference_digest": "d749e6775ce68c083d4b0000a892db1892bf09975dee06e791b830f3bb63e002",
   "cases": [
     {
       "input": "examples/1.in",

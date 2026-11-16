@@ -31,11 +31,9 @@ for task_path in "$repo"/content/tasks/*/; do
     bad "$task verified against its reference" "no reference executable at $reference"
     continue
   fi
-  # The verifier hashes the reference path into the manifest, so the path it is handed must not depend on
-  # where the checkout lives: hand it the path relative to the repository root and run it there. A
-  # references directory outside the repository keeps its absolute spelling.
-  relative_reference="${reference#"$repo"/}"
-  if output="$( cd "$repo" && "$verifier" "$task_path" "$relative_reference" --write 2>&1 )"; then
+  # A task's identity is the reference's bytes, not the path handed over, so the absolute path a caller has is the
+  # one to pass: a manifest must not remember where the checkout sat.
+  if output="$("$verifier" "$task_path" "$reference" --write 2>&1)"; then
     ok "$task: $output"
     tasks=$((tasks + 1))
   else
@@ -44,6 +42,19 @@ for task_path in "$repo"/content/tasks/*/; do
 done
 
 [ "$tasks" -gt 0 ] && ok "$tasks task(s) were verified" || bad "at least one task was verified" "none"
+
+# One reference, written two ways — absolute with a trailing separator, and relative from the repository root —
+# must describe one task. The digest is the file's bytes; nothing about the spelling may reach the document. The
+# verifier prints instead of writing when --write is absent.
+absolute_manifest="$("$verifier" "$repo/content/tasks/range-sum-query/" "$references/ref_range_sum_query_main" 2>&1)"
+relative_manifest="$( cd "$repo" && "$verifier" "content/tasks/range-sum-query" \
+  "${references#"$repo"/}/ref_range_sum_query_main" 2>&1 )"
+if [ -n "$absolute_manifest" ] && [ "$absolute_manifest" = "$relative_manifest" ]; then
+  ok "a reference's digest names its bytes, not the path it was found at"
+else
+  bad "a reference's digest names its bytes, not the path it was found at" \
+      "the two spellings produced different manifests"
+fi
 
 if git -C "$repo" diff --quiet -- 'content/tasks/*/tests/manifest.json'; then
   ok "every committed manifest is what the reference produces"

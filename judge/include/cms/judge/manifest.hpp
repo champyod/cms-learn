@@ -20,7 +20,10 @@ struct CaseEntry {
 
 /// @brief What a task's test data amounts to, as the judge reads it.
 struct Manifest {
+  /// The task directory's own name, so a manifest says which task it describes.
   std::string task;
+  /// The digest of the reference executable's bytes. Where that file sits is not part of a task's identity: two
+  /// checkouts of the same tree must describe the same task (ADR 0023 §2 says the same for a task's bytes).
   std::string reference_digest;
   std::vector<CaseEntry> cases;
 };

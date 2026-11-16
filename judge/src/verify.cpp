@@ -51,6 +51,14 @@ auto read_text(const std::filesystem::path& path) -> Result<std::string> {
   return buffer.str();
 }
 
+/// The name the manifest records for @p task_dir. Every caller that globs the content tree hands a directory with a
+/// trailing separator, and `filename()` of such a path is empty — a manifest whose task is "" is an identity with a
+/// hole in it.
+auto task_name(const std::filesystem::path& task_dir) -> std::string {
+  const auto name = task_dir.filename().string();
+  return name.empty() ? task_dir.parent_path().filename().string() : name;
+}
+
 /// Runs @p program with @p input on its standard input and @p output as its standard output.
 /// Returns the exit status, or -1 when the program could not be started.
 auto run_program(const std::string& program, const std::filesystem::path& input,
@@ -142,8 +150,15 @@ auto verify_task(const std::filesystem::path& task_dir, const std::filesystem::p
         Error::make(ErrorCode::invalid_argument, task_dir.string() + ": the task has no case"));
   }
 
-  auto manifest = Manifest{.task = task_dir.filename().string(),
-                           .reference_digest = digest(reference.string()),
+  // The identity is the reference's bytes, not the string that names where they sit: a clone of this checkout at
+  // another path holds the same task, and a manifest that moved with the directory would say otherwise.
+  const auto reference_bytes = read_text(reference);
+  if (!reference_bytes) {
+    return std::unexpected(reference_bytes.error());
+  }
+
+  auto manifest = Manifest{.task = task_name(task_dir),
+                           .reference_digest = digest(*reference_bytes),
                            .cases = {}};
   const auto scratch = std::filesystem::temp_directory_path() /
                        ("cms-verify-" + std::to_string(::getpid()) + ".out");
