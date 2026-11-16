@@ -9,7 +9,8 @@
 // It never decides whether C++ is correct; it reads what the toolchain said and refuses to soften it.
 
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { availableParallelism, tmpdir } from "node:os";
 import { join, relative } from "node:path";
 
 import {
@@ -32,6 +33,10 @@ export interface GateReport {
   analysed: number;
   /** Whether static analysis ran at all; the fast tier turns it off and says so in its verdict. */
   tidy: boolean;
+  /** Workers the static analysis was split across; 0 when it did not run. */
+  workers: number;
+  /** Wall time the static analysis took, in milliseconds; 0 when it did not run. */
+  analysisMillis: number;
   findings: Finding[];
   /** Human-readable reasons, in the order they were discovered. Empty when ok. */
   reasons: string[];
@@ -54,6 +59,101 @@ function run(command: string, args: string[], cwd: string, env?: Record<string, 
     // cmake writes build output to stderr; both streams belong to the same report.
     output: `${result.stdout ?? ""}${result.stderr ?? ""}`,
   };
+}
+
+/** More than one clang-tidy over a slice of the units; four is what the memory a unit costs allows. */
+const DEFAULT_TIDY_WORKERS = 4;
+
+/** What the shell needs to treat a value as one word, whatever it contains. */
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/** The pool size: what CMS_TIDY_WORKERS names, else a small fixed default, never more than the units. */
+function tidyWorkerCount(units: number): number {
+  const requested = Number(process.env.CMS_TIDY_WORKERS ?? "");
+  const workers = Number.isInteger(requested) && requested > 0 ? requested : Math.min(DEFAULT_TIDY_WORKERS, availableParallelism());
+  return Math.max(1, Math.min(workers, units));
+}
+
+/**
+ * Splits the units round-robin: sorted paths cluster by directory, and a contiguous slice would hand one
+ * worker the heavy half of the tree while another idles. Every unit lands in exactly one slice.
+ */
+function tidySlices(units: string[], workers: number): string[][] {
+  const slices: string[][] = Array.from({ length: workers }, () => []);
+  units.forEach((unit, index) => slices[index % workers].push(unit));
+  return slices.filter((slice) => slice.length > 0);
+}
+
+interface TidyPoolResult {
+  /** Every finding the workers reported, in slice order; the set a single run would have printed. */
+  findings: Finding[];
+  /** One line per worker that did not finish cleanly; empty when every unit was read. */
+  failures: string[];
+  /** The slices, in worker order. */
+  slices: string[][];
+  /** Wall time of the pool, in milliseconds. */
+  millis: number;
+}
+
+/**
+ * Runs clang-tidy as a pool: each worker gets one slice of the units and writes its own report.
+ *
+ * The pool exists because one clang-tidy over every unit is the whole cost of the slow pass. Slices are
+ * disjoint, so the merged finding set is the single run's set with nothing lost or counted twice; and a
+ * worker that dies leaves its units unread, which must fail the gate rather than pass as an empty slice.
+ */
+export function analyseTidy(root: string, units: string[], workers: number): TidyPoolResult {
+  const slices = tidySlices(units, workers);
+  const scratch = mkdtempSync(join(tmpdir(), "cms-tidy-"));
+  const database = join(root, "build", TIDY_PRESET);
+  const config = join(root, ".clang-tidy");
+  const started = Date.now();
+  // Each worker is a subshell of its own: without the parentheses the `&` would background only the
+  // status write and the workers would run one after another.
+  const commands = slices.map(
+    (slice, index) =>
+      `( ${["clang-tidy", "-p", database, "--config-file", config, ...slice].map(shellQuote).join(" ")} > ${shellQuote(join(scratch, `worker-${index}.out`))} 2>&1; printf '%s' $? > ${shellQuote(join(scratch, `worker-${index}.status`))} )`,
+  );
+  const launched = spawnSync("bash", ["-c", `${commands.join(" & ")} & wait`], {
+    cwd: root,
+    encoding: "utf8",
+    maxBuffer: 32 * 1024 * 1024,
+  });
+  const millis = Date.now() - started;
+
+  const outputs = slices.map((_, index) => {
+    const output = join(scratch, `worker-${index}.out`);
+    const status = join(scratch, `worker-${index}.status`);
+    return {
+      output: existsSync(output) ? readFileSync(output, "utf8") : "",
+      status: existsSync(status) ? Number(readFileSync(status, "utf8").trim()) : null,
+    };
+  });
+  const parsed = outputs.map((worker) => parseTidyOutput(worker.output));
+  const failures: string[] = [];
+  if (launched.status !== 0) {
+    failures.push(`clang-tidy pool failed (exit ${launched.status ?? "signal"})`);
+  }
+  for (const [index, worker] of outputs.entries()) {
+    const slice = slices[index];
+    const name = `clang-tidy worker ${index + 1}/${slices.length}`;
+    if (worker.status === null || Number.isNaN(worker.status)) {
+      failures.push(`${name} did not report a status on ${slice.length} unit(s): ${slice[0]}`);
+      continue;
+    }
+    if (worker.status !== 0 || hasFailure(parsed[index])) {
+      const rules = rulesOf(parsed[index]);
+      const lastLine = worker.output.split("\n").map((line) => line.trim()).filter(Boolean).at(-1) ?? "";
+      failures.push(
+        `${name} (exit ${worker.status}) on ${slice.length} unit(s): ${rules.join(", ") || lastLine.slice(0, 140) || slice[0]}`,
+      );
+    }
+  }
+  const findings = parsed.flatMap((worker) => worker.findings);
+  rmSync(scratch, { recursive: true, force: true });
+  return { findings, failures, slices, millis };
 }
 
 /** Every `.cpp` this repo ships, found on disk rather than trusted from a manifest. */
@@ -176,6 +276,8 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
     skipped: [],
     analysed: 0,
     tidy,
+    workers: 0,
+    analysisMillis: 0,
     findings: [],
     reasons: [],
   };
@@ -319,20 +421,18 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
   // bare flag swallows the first source path and reports "no input files specified" — which then parses
   // as if it were a diagnostic. Promotion belongs in .clang-tidy (`WarningsAsErrors: '*'`), where it
   // is visible and applies the same way to a human running the tool by hand.
-  const tidyRun = run(
-    "clang-tidy",
-    ["-p", join(root, "build", TIDY_PRESET), "--config-file", join(cpp, ".clang-tidy"), ...units],
-    cpp,
-  );
-  const tidyDiagnostics = parseTidyOutput(tidyRun.output);
-  report.findings.push(...tidyDiagnostics.findings);
-  report.analysed = units.size;
-  if (tidyRun.status !== 0 || hasFailure(tidyDiagnostics)) {
-    const rules = rulesOf(tidyDiagnostics);
-    // A non-zero exit with no parsed diagnostic means the tool itself failed (usage, config, crash) —
-    // report its own line rather than inventing a rule name.
-    const lastLine = tidyRun.output.split("\n").map((l) => l.trim()).filter(Boolean).at(-1) ?? "";
-    report.reasons.push(`clang-tidy: ${rules.join(", ") || lastLine.slice(0, 140) || `exit ${tidyRun.status}`}`);
+  const unitList = [...units].sort();
+  const pool = analyseTidy(cpp, unitList, tidyWorkerCount(unitList.length));
+  report.findings.push(...pool.findings);
+  report.analysed = unitList.length;
+  report.workers = pool.slices.length;
+  report.analysisMillis = pool.millis;
+  if (pool.failures.length > 0) {
+    // Name the rule first, then the workers that did not finish: a dead worker left units unread, so
+    // the slice count alone must never read as a clean sweep.
+    const rules = rulesOf({ findings: pool.findings, unlocated: [] });
+    if (rules.length > 0) report.reasons.push(`clang-tidy: ${rules.join(", ")}`);
+    report.reasons.push(...pool.failures.slice(0, 3));
     return report;
   }
 
@@ -356,7 +456,9 @@ function format(report: GateReport, root: string): string {
   const parts = [
     `${report.targets} target(s) built`,
     `${report.cases} case(s) passed`,
-    report.tidy ? `${report.analysed} unit(s) analysed` : "static analysis skipped (fast tier)",
+    report.tidy
+      ? `${report.analysed} unit(s) analysed in ${report.workers} worker(s) in ${Math.round(report.analysisMillis / 1000)} s`
+      : "static analysis skipped (fast tier)",
     report.ok ? "0 finding(s)" : `${report.findings.length} finding(s)`,
   ];
   // Which tools produced the verdict is part of the verdict: clang-tidy's check set grows between major
