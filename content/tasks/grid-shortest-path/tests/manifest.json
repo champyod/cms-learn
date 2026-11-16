@@ -1,6 +1,6 @@
 {
   "task": "",
-  "reference_digest": "77b1b4599eef54cc9c26c4863e375ccc2b9a305718078b8fbad2bc3d4dcb6424",
+  "reference_digest": "86c14febc98270f11cfcb1f916b052c7b2c0cb6720c3525f1634ce06c4a12fde",
   "cases": [
     {
       "input": "examples/1.in",

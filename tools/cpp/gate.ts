@@ -30,6 +30,8 @@ export interface GateReport {
   skipped: string[];
   /** Translation units clang-tidy analysed. */
   analysed: number;
+  /** Whether static analysis ran at all; the fast tier turns it off and says so in its verdict. */
+  tidy: boolean;
   findings: Finding[];
   /** Human-readable reasons, in the order they were discovered. Empty when ok. */
   reasons: string[];
@@ -173,6 +175,7 @@ export function runGate(root: string, options: { tidy?: boolean } = {}): GateRep
     cases: 0,
     skipped: [],
     analysed: 0,
+    tidy,
     findings: [],
     reasons: [],
   };
@@ -353,7 +356,7 @@ function format(report: GateReport, root: string): string {
   const parts = [
     `${report.targets} target(s) built`,
     `${report.cases} case(s) passed`,
-    `${report.analysed} unit(s) analysed`,
+    report.tidy ? `${report.analysed} unit(s) analysed` : "static analysis skipped (fast tier)",
     report.ok ? "0 finding(s)" : `${report.findings.length} finding(s)`,
   ];
   // Which tools produced the verdict is part of the verdict: clang-tidy's check set grows between major
@@ -380,8 +383,10 @@ function format(report: GateReport, root: string): string {
 }
 
 if (import.meta.main) {
-  const root = process.argv[2] ?? join(import.meta.dir, "../..");
-  const report = runGate(root);
+  const args = process.argv.slice(2);
+  // Only an explicit --no-tidy turns static analysis off; anything else keeps the full gate.
+  const root = args.find((argument) => !argument.startsWith("--")) ?? join(import.meta.dir, "../..");
+  const report = runGate(root, { tidy: !args.includes("--no-tidy") });
   console.log(format(report, root));
   process.exit(report.ok ? 0 : 1);
 }

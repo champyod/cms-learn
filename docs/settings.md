@@ -77,6 +77,7 @@ that entry carries.
 | `site.registration_open` | bool | operator | `false` | hot |
 | `site.registration_domain_allowlist` | text | operator | empty | hot |
 | `site.registration_requires_approval` | bool | operator | `true` | hot |
+| `site.registration_requires_email` | bool | operator | `true` | hot |
 
 ### Brand and navigation
 

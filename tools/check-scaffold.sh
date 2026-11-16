@@ -111,8 +111,14 @@ generator=()
 if command -v ninja >/dev/null; then
   generator=(-G Ninja)
 fi
+# Core links the object store, so its AWSSDK package comes from the vcpkg tree; a bare configure without
+# the toolchain and the manifest's installed packages fails at find_package, not at the scaffold.
 "${CMAKE:-cmake}" -S "$repo" -B "$work/build" "${generator[@]}" \
   -DCMAKE_BUILD_TYPE=Release -DCMS_BUILD_TESTS=OFF -DCMS_WITH_API=OFF -DCMS_WITH_JUDGE=OFF \
+  -DCMAKE_TOOLCHAIN_FILE="$repo/cmake/vcpkg-toolchain.cmake" \
+  -DVCPKG_MANIFEST_DIR="$repo/api" \
+  -DVCPKG_INSTALLED_DIR="$repo/build/vcpkg_installed" \
+  -DVCPKG_MANIFEST_FEATURES=tests \
   >/dev/null || fail "cmake could not configure the workspace"
 
 if command -v cargo >/dev/null; then

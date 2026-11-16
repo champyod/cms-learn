@@ -31,7 +31,11 @@ for task_path in "$repo"/content/tasks/*/; do
     bad "$task verified against its reference" "no reference executable at $reference"
     continue
   fi
-  if output="$("$verifier" "$task_path" "$reference" --write 2>&1)"; then
+  # The verifier hashes the reference path into the manifest, so the path it is handed must not depend on
+  # where the checkout lives: hand it the path relative to the repository root and run it there. A
+  # references directory outside the repository keeps its absolute spelling.
+  relative_reference="${reference#"$repo"/}"
+  if output="$( cd "$repo" && "$verifier" "$task_path" "$relative_reference" --write 2>&1 )"; then
     ok "$task: $output"
     tasks=$((tasks + 1))
   else

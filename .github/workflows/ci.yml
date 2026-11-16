@@ -4,8 +4,11 @@ on:
   push:
     branches: [master, main]
   pull_request:
-  # Nightly, because the full lane builds the api and then falsifies the gate: too slow for a pull
-  # request, and the defects it catches are the ones that only appear in that half of the tree.
+  # Two tiers. A push runs the fast tier (`bun run gate:fast`): schema, content, build, unit, live and
+  # end-to-end cases. The full proof — every falsification and the clang-tidy analysis — runs nightly
+  # (daily at 02:17 UTC) and on demand (`bun run gate:all` locally). The falsification alone measured
+  # 3374 s on a reused staged tree, and a defect it catches is worth catching once a day, not forty
+  # times a week.
   schedule:
     - cron: "17 2 * * *"
   workflow_dispatch:
@@ -48,9 +51,9 @@ jobs:
           echo "::error::simulated failure — testing the notification path"
           exit 1
 
-      # Deliberately a separate step, not folded into the one above: a gate that only ever prints OK
-      # is a gate nobody has seen fail, and this is the step that keeps it honest.
+      # The falsification runs belong to the full proof: they run nightly and on demand, not on every push.
       - name: gate falsifiability
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bun run validate:falsify
 
   references:
@@ -67,6 +70,7 @@ jobs:
         run: bash tools/check-references.sh
 
       - name: reference gate falsifiability
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bun run check:references:falsify
 
   # The compose file is a security contract: ports, isolation, pinning, the Caddyfile and the
@@ -74,6 +78,8 @@ jobs:
   deploy-contract:
     name: deployment contract
     runs-on: ubuntu-latest
+    # The deploy contract, the upgrade drill and isolation need docker and belong to the full proof.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -101,6 +107,8 @@ jobs:
   security:
     name: security scan
     runs-on: ubuntu-latest
+    # The scan and its falsifier belong to the full proof: nightly and on demand.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
 
@@ -137,36 +145,37 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql
 
       - name: schema gate
-        run: |
-          bun run check:schema
-          bun run check:schema:falsify
+        run: bun run check:schema
 
       - name: package manager gate
-        run: |
-          bun run check:pm
-          bun run check:pm:falsify
+        run: bun run check:pm
 
       - name: control client gate
-        run: |
-          bun run check:cli
-          bun run check:cli:falsify
+        run: bun run check:cli
 
       - name: template and island gates
         run: |
           bun run check:templates
-          bun run falsify:templates
           bun run check:island
-          bun run falsify:island
 
       - name: settings and catalogue gates
         run: |
           bun run check:settings
-          bun run falsify:settings
           bun run check:catalogue
 
       - name: stack gate
+        run: bun run check:stack
+
+      # The falsification runs are the full proof's work: nightly and on demand, not on every push.
+      - name: gate falsifiability
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
-          bun run check:stack
+          bun run check:schema:falsify
+          bun run check:pm:falsify
+          bun run check:cli:falsify
+          bun run falsify:templates
+          bun run falsify:island
+          bun run falsify:settings
           bun run check:stack:falsify
 
   # C++ sits on the internet-facing path (ADR 0006), so its safety is a gate and not a promise. CMake
@@ -176,9 +185,9 @@ jobs:
   # and a static-analysis-only defect must each be caught by name.
   #
   # Two lanes, one toolchain: both compile under C++26 with the compiler the api image ships (gcc 16.2.0)
-  # and both resolve packages from the same pinned vcpkg baseline. They differ in what they compile — this
-  # lane skips the api build, which is the slow half, so a pull request gets a verdict in minutes, while
-  # `cpp-full` is the lane that gates the api.
+  # and both resolve packages from the same pinned vcpkg baseline. This lane skips the api build and the
+  # clang-tidy analysis, so a pull request gets a build-and-test verdict in minutes; `cpp-full` builds the
+  # api and, on the full tier, runs the analysis.
   cpp-fast:
     name: cpp fast
     runs-on: ubuntu-latest
@@ -221,14 +230,14 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: build, run and analyse
+      - name: build, run and test
         env:
           CMS_CPP_PRESET: safety-core
-        run: bun run check:cpp
+        run: bun run check:cpp:fast
 
-  # The full lane: the same compiler and the same baseline, but the api is compiled too. The api build and
-  # the falsification run are the slow half, so they run where nobody is waiting on them — a push to a
-  # gated branch, a manual run, or the nightly schedule.
+  # The lane that builds the api. A push runs the fast tier here; the slow half — the clang-tidy analysis
+  # and every falsification — runs nightly and on demand (the schedule interval is stated at the top of the
+  # file), and `gate:all` is the same proof from a checkout.
   cpp-full:
     name: cpp full
     runs-on: ubuntu-latest
@@ -271,22 +280,33 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - name: build, run and analyse
+      # A push runs the fast tier here: build, unit, live and end-to-end cases, and the fast gates. Its
+      # last line names everything it left for the full proof.
+      - name: fast tier (every push)
+        if: github.event_name == 'push'
+        run: bun run gate:fast
+
+      # The full proof runs nightly and on demand: the clang-tidy analysis and every falsification.
+      - name: full tier — build, run and analyse
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bun run check:cpp
 
-      - name: safety gate falsifiability
+      - name: full tier — safety gate falsifiability
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bun run check:cpp:falsify
 
       # The barrier gate needs a binary this lane has just built and the postgres server installed above.
       # It runs before the live cases so a failure later in the job cannot hide it.
-      - name: generation barrier gate
+      - name: full tier — generation barrier gate
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bun run check:pipeline
           bun run check:pipeline:falsify
 
       # The gates below read the binaries this lane just built, which is why they live here rather than in
       # the matrix job: a gate that skips for want of a binary is a gate that proves nothing.
-      - name: database, content and query gates
+      - name: full tier — database, content and query gates
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bun run check:db
           bun run check:content:db
@@ -294,24 +314,28 @@ jobs:
           bun run check:visibility
           bun run check:visibility:falsify
 
-      - name: verifier, judge and render gates
+      - name: full tier — verifier, judge and render gates
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bun run check:verify
           bun run check:judge
           bun run check:judge:falsify
           bun run check:render
 
-      - name: live database cases
+      - name: full tier — live database cases
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bun run check:live
 
-      - name: generation and publish gates
+      - name: full tier — generation and publish gates
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: |
           bun run check:generator
           bun run falsify:generator
           bun run check:publish
           bun run falsify:publish
 
-      - name: workspace scaffold gate
+      - name: full tier — workspace scaffold gate
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bun run check:scaffold
 
   # CD is not wired yet: there is no image to build and no host to deploy to (F-061/F-062 are

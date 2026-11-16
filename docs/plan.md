@@ -100,11 +100,19 @@ unseen task by one indexed query.
 
 ## E8 — continuous integration
 
-**Deliverable:** every gate and every falsification runs on each push, in a job that can fail.
+**Deliverable:** every gate runs in a job that can fail, in two tiers: the fast set on a change, the full
+proof nightly.
+
+The split exists because the full proof costs hours, not minutes. The falsification harness alone measured
+3374 s on a reused staged tree (4162 s when that tree had to be staged and built), and `check:cpp` — the
+build, 130 cases and the clang-tidy pass — measured 1513 s. Running either on every push makes a change wait
+tens of minutes for a defect the nightly run still catches; the fast set is what a change must pass, and the
+split does not reduce the full set.
 
 | Step | Work | Gate | Falsification |
 |---|---|---|---|
-| E8.1 | `.github/workflows/ci.yml`: `content`, `references`, `deploy-contract`, `security`, `gates`, `cpp-fast` and `cpp-full` jobs; `cpp-full` also runs `check:live`, `check:judge`, `check:visibility`, `check:db`, `check:unseen` and their falsifiers | none yet — CI was verified by parsing the file with `yq` and resolving every `bun run` it names to a `package.json` script; one name (`check:render`) does not resolve and is reported rather than claimed | — no falsifier: a gate removed from a job is not detected by any gate today |
+| E8.1 | two named commands: `bun run gate:fast` (schema, content, build, unit, live and end-to-end cases, and the fast gates) and `bun run gate:all` (the same plus every falsification, the clang-tidy analysis, the deploy contract, the security scan and isolation). The fast tier ends with one line naming what it did not run; on this machine it took 493 s (8.2 min, build tree warm) | both exit zero; the fast tier's line names the proof it skipped | remove a gate from `gate:all` and the full tier stops running it — no gate detects that yet |
+| E8.2 | `.github/workflows/ci.yml`: `content`, `references`, `deploy-contract`, `security`, `gates`, `cpp-fast` and `cpp-full` jobs. Every push runs the fast tier; the full tier runs nightly (daily 02:17 UTC, `schedule`) and on demand (`workflow_dispatch`) | `yq` parses the file and every `bun run` it names resolves to a `package.json` script | — no falsifier: a gate removed from the full tier is not detected by any gate today |
 
 ## Decisions that shaped this plan
 

@@ -7,6 +7,7 @@ lives in `.agents/` on the machine that made the decision.
 |---|---|
 | What this project is, and what actually works today | [`../README.md`](../README.md) |
 | What is being built, in what order, and how each step is proven | [`plan.md`](plan.md) |
+| Which gates run on a change, and when the full proof runs | [`plan.md`](plan.md) §E8 |
 | Which packages and images are used, at which version and licence | [`dependencies.md`](dependencies.md) |
 | What was decided, and what it costs | [`decisions/`](decisions/) |
 | The domain: topics, modules, tracks, tasks, lifecycle | [`content-model.md`](content-model.md) |
