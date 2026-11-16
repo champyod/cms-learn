@@ -464,6 +464,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     difficulty integer NOT NULL,
     time_limit_ms integer NOT NULL,
     memory_limit_mb integer NOT NULL,
+    points integer DEFAULT 100 NOT NULL,
     checker task_checker_kind NOT NULL,
     checker_path text DEFAULT '' NOT NULL,
     origin task_origin_kind NOT NULL,
@@ -476,6 +477,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),
     CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),
     CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),
+    CONSTRAINT tasks_points_check CHECK (points >= 1 AND points <= 1000),
     CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),
     CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),
     CONSTRAINT tasks_title_th_check CHECK (length(btrim(title_th)) > 0)
@@ -617,6 +619,19 @@ CREATE TABLE IF NOT EXISTS task_statements (
     CONSTRAINT task_statements_pkey PRIMARY KEY (task_id, task_version, locale),
     CONSTRAINT task_statements_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
     CONSTRAINT task_statements_body_check CHECK (length(btrim(body)) > 0)
+);
+
+CREATE TABLE IF NOT EXISTS task_subtasks (
+    task_id text,
+    task_version integer,
+    position integer,
+    points integer NOT NULL,
+    constraint_text text NOT NULL,
+    CONSTRAINT task_subtasks_pkey PRIMARY KEY (task_id, task_version, position),
+    CONSTRAINT task_subtasks_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT task_subtasks_constraint_text_check CHECK (length(btrim(constraint_text)) > 0),
+    CONSTRAINT task_subtasks_points_check CHECK (points > 0 AND points <= 1000),
+    CONSTRAINT task_subtasks_position_check CHECK ("position" > 0)
 );
 
 CREATE TABLE IF NOT EXISTS topics (
@@ -1100,6 +1115,112 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION task_points_keep_the_partition()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  recorded bigint;
+  awarded bigint;
+BEGIN
+  IF NEW.points = OLD.points THEN
+    RETURN NULL;
+  END IF;
+  SELECT count(*), coalesce(sum(s.points), 0) INTO recorded, awarded
+    FROM task_subtasks s WHERE s.task_id = NEW.id AND s.task_version = NEW.version;
+  IF recorded > 0 AND awarded <> NEW.points THEN
+    RAISE EXCEPTION 'task % version % is worth % now, and its subtasks add up to %; move them together',
+      NEW.id, NEW.version, NEW.points, awarded
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION task_published_needs_its_subtasks()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  mode text;
+  recorded bigint;
+BEGIN
+  IF NEW.status <> 'published' THEN
+    RETURN NEW;
+  END IF;
+  SELECT v.value #>> '{}' INTO mode
+    FROM task_field_values v
+   WHERE v.task_id = NEW.id AND v.task_version = NEW.version AND v.field_key = 'score_mode';
+  IF mode IS DISTINCT FROM 'subtasks' THEN
+    RETURN NEW;
+  END IF;
+  SELECT count(*) INTO recorded
+    FROM task_subtasks s WHERE s.task_id = NEW.id AND s.task_version = NEW.version;
+  IF recorded = 0 THEN
+    RAISE EXCEPTION 'task % version % scores by subtask and has none; it cannot be published',
+      NEW.id, NEW.version
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION task_subtasks_are_a_partition()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  task_key text;
+  task_version_here integer;
+  total integer;
+  recorded bigint;
+  awarded bigint;
+  mode text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    task_key := OLD.task_id;
+    task_version_here := OLD.task_version;
+  ELSE
+    task_key := NEW.task_id;
+    task_version_here := NEW.task_version;
+  END IF;
+
+  SELECT t.points INTO total FROM tasks t WHERE t.id = task_key AND t.version = task_version_here;
+  IF NOT FOUND THEN
+    RETURN NULL;  -- the task is gone and the cascade took its subtasks with it
+  END IF;
+
+  SELECT count(*), coalesce(sum(s.points), 0) INTO recorded, awarded
+    FROM task_subtasks s WHERE s.task_id = task_key AND s.task_version = task_version_here;
+
+  SELECT v.value #>> '{}' INTO mode
+    FROM task_field_values v
+   WHERE v.task_id = task_key AND v.task_version = task_version_here AND v.field_key = 'score_mode';
+
+  IF mode IS DISTINCT FROM 'subtasks' THEN
+    IF recorded > 0 THEN
+      RAISE EXCEPTION 'task % version % scores by %, not by subtask, so it cannot carry subtasks',
+        task_key, task_version_here, coalesce(mode, 'no declared score mode')
+        USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+  END IF;
+
+  IF awarded <> total THEN
+    RAISE EXCEPTION 'task % version % scores by subtask, so its subtasks must add up to %, and they add up to %',
+      task_key, task_version_here, total, awarded
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION task_type_audit()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1196,6 +1317,18 @@ CREATE OR REPLACE TRIGGER task_field_values_filled
     FOR EACH ROW
     EXECUTE FUNCTION task_field_value_is_filled();
 
+CREATE CONSTRAINT TRIGGER task_subtasks_follow_the_total
+    AFTER UPDATE ON tasks
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION task_points_keep_the_partition();
+
+CREATE CONSTRAINT TRIGGER task_subtasks_partition
+    AFTER INSERT OR UPDATE OR DELETE ON task_subtasks
+    DEFERRABLE INITIALLY DEFERRED
+    FOR EACH ROW
+    EXECUTE FUNCTION task_subtasks_are_a_partition();
+
 CREATE OR REPLACE TRIGGER task_types_audit
     AFTER INSERT OR UPDATE OR DELETE ON task_types
     FOR EACH ROW
@@ -1205,6 +1338,11 @@ CREATE OR REPLACE TRIGGER tasks_published_immutable
     BEFORE UPDATE ON tasks
     FOR EACH ROW
     EXECUTE FUNCTION reject_published_task_change();
+
+CREATE OR REPLACE TRIGGER tasks_published_needs_subtasks
+    BEFORE INSERT OR UPDATE OF status ON tasks
+    FOR EACH ROW
+    EXECUTE FUNCTION task_published_needs_its_subtasks();
 
 REVOKE EXECUTE ON FUNCTION current_actor() FROM PUBLIC;
 

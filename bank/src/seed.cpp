@@ -16,6 +16,8 @@
 #include <cms/db/field_advice.hpp>
 #include <cms/db/tables.hpp>
 
+#include <cms/bank/scoring.hpp>
+
 #include "seed_curriculum.hpp"
 
 namespace cms::bank {
@@ -75,12 +77,18 @@ auto write_topics(db::connection& database, const Bank& bank,
   return written;
 }
 
+auto optional_text(const std::string& value) -> std::optional<std::string> {
+  return value.empty() ? std::nullopt : std::optional<std::string>{value};
+}
+
 /// The identity columns are the only ones a re-seed updates in place; everything derived from the files
 /// is replaced, so a removed example cannot survive an edit.
 auto write_task_row(db::connection& database, const Task& task, bool is_update) {
   if (is_update) {
     database(sqlpp::update(db::tasks)
-                 .set(db::tasks.status = task.status, db::tasks.titleEn = task.title_en,
+                 .set(db::tasks.status = task.status,
+                      db::tasks.taskType = optional_text(task.task_type),
+                      db::tasks.titleEn = task.title_en,
                       db::tasks.titleTh = task.title_th, db::tasks.difficulty = task.difficulty,
                       db::tasks.timeLimitMs = task.time_limit_ms,
                       db::tasks.memoryLimitMb = task.memory_limit_mb,
@@ -89,6 +97,7 @@ auto write_task_row(db::connection& database, const Task& task, bool is_update) 
                       db::tasks.origin = task.origin_kind,
                       db::tasks.verification = task.verification_status,
                       db::tasks.solution = task.solution,
+                      db::tasks.points = task.points,
                       db::tasks.contentHash = task.content_hash,
                       db::tasks.seeded = true, db::tasks.seededAt = db::now_stamp())
                  .where(db::tasks.id == task.id && db::tasks.version == task.version));
@@ -96,12 +105,56 @@ auto write_task_row(db::connection& database, const Task& task, bool is_update) 
   }
   database(sqlpp::insert_into(db::tasks).set(
       db::tasks.id = task.id, db::tasks.version = task.version, db::tasks.status = task.status,
+      db::tasks.taskType = optional_text(task.task_type),
       db::tasks.titleEn = task.title_en, db::tasks.titleTh = task.title_th,
       db::tasks.difficulty = task.difficulty, db::tasks.timeLimitMs = task.time_limit_ms,
       db::tasks.memoryLimitMb = task.memory_limit_mb, db::tasks.checker = task.checker_kind,
       db::tasks.checkerPath = task.checker_path, db::tasks.origin = task.origin_kind,
       db::tasks.verification = task.verification_status, db::tasks.solution = task.solution,
-      db::tasks.contentHash = task.content_hash, db::tasks.seeded = true));
+      db::tasks.points = task.points, db::tasks.contentHash = task.content_hash,
+      db::tasks.seeded = true));
+}
+
+/// The score mode the content declares, written where the record reads it: the subtask rules ask this row which mode
+/// the task scores by (ADR 0033 §4). A task that declares none keeps whatever an administrator set.
+auto write_score_mode(db::connection& database, const Task& task) -> void {
+  if (task.score_mode.empty()) {
+    return;
+  }
+  database.execute_text(
+      "INSERT INTO task_field_values (task_id, task_version, field_key, value) "
+      "VALUES ($1, $2, 'score_mode', to_jsonb($3::text)) "
+      "ON CONFLICT (task_id, task_version, field_key) DO UPDATE SET value = excluded.value",
+      {task.id, static_cast<std::int64_t>(task.version), task.score_mode});
+}
+
+/// The scoring groups are replaced as one set: a re-seed that drops a subtask must not leave the old row scoring.
+auto write_subtasks(db::connection& database, const Task& task) -> void {
+  database(sqlpp::delete_from(db::taskSubtasks)
+               .where(db::taskSubtasks.taskId == task.id &&
+                      db::taskSubtasks.taskVersion == task.version));
+  for (const auto& subtask : task.subtasks) {
+    database(sqlpp::insert_into(db::taskSubtasks).set(
+        db::taskSubtasks.taskId = task.id, db::taskSubtasks.taskVersion = task.version,
+        db::taskSubtasks.position = subtask.position, db::taskSubtasks.points = subtask.points,
+        db::taskSubtasks.constraintText = subtask.constraint_text));
+  }
+}
+
+/// @return The scoring groups as the rows hold them, which is what the statement's section is rendered from.
+auto read_subtasks(db::connection& database, const Task& task) -> std::vector<Subtask> {
+  auto subtasks = std::vector<Subtask>{};
+  for (const auto& row : database(sqlpp::select(db::taskSubtasks.position, db::taskSubtasks.points,
+                                                db::taskSubtasks.constraintText)
+                                      .from(db::taskSubtasks)
+                                      .where(db::taskSubtasks.taskId == task.id &&
+                                             db::taskSubtasks.taskVersion == task.version)
+                                      .order_by(db::taskSubtasks.position.asc()))) {
+    subtasks.push_back(Subtask{.position = static_cast<std::int32_t>(row.position),
+                               .points = static_cast<std::int32_t>(row.points),
+                               .constraint_text = std::string{row.constraintText}});
+  }
+  return subtasks;
 }
 
 auto replace_children(db::connection& database, const Task& task, bool is_update) {
@@ -121,10 +174,20 @@ auto replace_children(db::connection& database, const Task& task, bool is_update
         db::taskTopics.taskId = task.id, db::taskTopics.taskVersion = task.version,
         db::taskTopics.topic = topic));
   }
+  // The section is rendered from the rows just written, so the statement and the judge read one record of the
+  // scoring (ADR 0033 §4): a subtask edited on a row cannot leave a statement describing the old points.
+  const auto subtasks = read_subtasks(database, task);
   for (const auto& [locale, body] : task.statements) {
+    const auto section = scoring_section(locale, subtasks, task.points);
+    auto with_scoring = std::string{body};
+    if (!section.empty()) {
+      with_scoring.reserve(with_scoring.size() + 2 + section.size());
+      with_scoring += "\n\n";
+      with_scoring += section;
+    }
     database(sqlpp::insert_into(db::taskStatements).set(
         db::taskStatements.taskId = task.id, db::taskStatements.taskVersion = task.version,
-        db::taskStatements.locale = locale, db::taskStatements.body = body));
+        db::taskStatements.locale = locale, db::taskStatements.body = with_scoring));
   }
   for (const auto& example : task.examples) {
     database(sqlpp::insert_into(db::taskExamples).set(
@@ -258,6 +321,8 @@ auto import_tasks(db::connection& database, const Bank& bank, const std::map<Tas
     // administrator made to a re-imported task must survive the import.
     const auto is_update = found != existing.end();
     write_task_row(database, task, is_update);
+    write_score_mode(database, task);
+    write_subtasks(database, task);
     replace_children(database, task, is_update);
     if (is_update) {
       ++report.tasks_updated;

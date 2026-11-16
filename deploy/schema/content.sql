@@ -18,6 +18,9 @@ CREATE TABLE tasks (
   difficulty integer NOT NULL,
   time_limit_ms integer NOT NULL,
   memory_limit_mb integer NOT NULL,
+  -- What the task is scored out of, stated once on the task: ADR 0033 §2 puts the limits and the total here, never
+  -- on a subtask. A task that never names a total is worth 100, the number an olympiad task page states.
+  points integer NOT NULL DEFAULT 100 CHECK (points BETWEEN 1 AND 1000),
   checker task_checker_kind NOT NULL,
   checker_path text NOT NULL DEFAULT '',
   origin task_origin_kind NOT NULL,
@@ -75,6 +78,141 @@ CREATE TABLE task_examples (
   CONSTRAINT task_examples_task_fkey FOREIGN KEY (task_id, task_version)
     REFERENCES tasks (id, version) ON DELETE CASCADE
 );
+
+-- A subtask is a group of tests, worth points, defined by the constraint that makes the simpler idea sufficient
+-- (ADR 0033 §2). It carries no limits: time and memory are the task's, stated once.
+CREATE TABLE task_subtasks (
+  task_id text NOT NULL,
+  task_version integer NOT NULL,
+  position integer NOT NULL CHECK (position > 0),
+  points integer NOT NULL CHECK (points > 0 AND points <= 1000),
+  -- The constraint that defines the group, e.g. 'n <= 2000'. Free text, because the values it names belong to the
+  -- task's statement and not to a second vocabulary here.
+  constraint_text text NOT NULL CHECK (length(btrim(constraint_text)) > 0),
+  CONSTRAINT task_subtasks_pkey PRIMARY KEY (task_id, task_version, position),
+  CONSTRAINT task_subtasks_task_fkey FOREIGN KEY (task_id, task_version)
+    REFERENCES tasks (id, version) ON DELETE CASCADE
+);
+
+-- A task's subtasks are a partition of its total, and they only exist on a task that scores by subtask. Both are
+-- facts about a set of rows rather than about one row, so the check runs at commit, when the whole set a caller
+-- wrote is visible: a set that breaks either rule lands nowhere instead of halfway.
+CREATE FUNCTION task_subtasks_are_a_partition() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  task_key text;
+  task_version_here integer;
+  total integer;
+  recorded bigint;
+  awarded bigint;
+  mode text;
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    task_key := OLD.task_id;
+    task_version_here := OLD.task_version;
+  ELSE
+    task_key := NEW.task_id;
+    task_version_here := NEW.task_version;
+  END IF;
+
+  SELECT t.points INTO total FROM tasks t WHERE t.id = task_key AND t.version = task_version_here;
+  IF NOT FOUND THEN
+    RETURN NULL;  -- the task is gone and the cascade took its subtasks with it
+  END IF;
+
+  SELECT count(*), coalesce(sum(s.points), 0) INTO recorded, awarded
+    FROM task_subtasks s WHERE s.task_id = task_key AND s.task_version = task_version_here;
+
+  SELECT v.value #>> '{}' INTO mode
+    FROM task_field_values v
+   WHERE v.task_id = task_key AND v.task_version = task_version_here AND v.field_key = 'score_mode';
+
+  IF mode IS DISTINCT FROM 'subtasks' THEN
+    IF recorded > 0 THEN
+      RAISE EXCEPTION 'task % version % scores by %, not by subtask, so it cannot carry subtasks',
+        task_key, task_version_here, coalesce(mode, 'no declared score mode')
+        USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NULL;
+  END IF;
+
+  IF awarded <> total THEN
+    RAISE EXCEPTION 'task % version % scores by subtask, so its subtasks must add up to %, and they add up to %',
+      task_key, task_version_here, total, awarded
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER task_subtasks_partition
+  AFTER INSERT OR UPDATE OR DELETE ON task_subtasks
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION task_subtasks_are_a_partition();
+
+-- The total is part of the partition too: moving it while subtasks exist must keep them adding up to it.
+CREATE FUNCTION task_points_keep_the_partition() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  recorded bigint;
+  awarded bigint;
+BEGIN
+  IF NEW.points = OLD.points THEN
+    RETURN NULL;
+  END IF;
+  SELECT count(*), coalesce(sum(s.points), 0) INTO recorded, awarded
+    FROM task_subtasks s WHERE s.task_id = NEW.id AND s.task_version = NEW.version;
+  IF recorded > 0 AND awarded <> NEW.points THEN
+    RAISE EXCEPTION 'task % version % is worth % now, and its subtasks add up to %; move them together',
+      NEW.id, NEW.version, NEW.points, awarded
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+
+CREATE CONSTRAINT TRIGGER task_subtasks_follow_the_total
+  AFTER UPDATE ON tasks
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION task_points_keep_the_partition();
+
+-- A published task is what a learner is served, so a task that scores by subtask cannot reach that state with no
+-- subtasks to score against.
+CREATE FUNCTION task_published_needs_its_subtasks() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  mode text;
+  recorded bigint;
+BEGIN
+  IF NEW.status <> 'published' THEN
+    RETURN NEW;
+  END IF;
+  SELECT v.value #>> '{}' INTO mode
+    FROM task_field_values v
+   WHERE v.task_id = NEW.id AND v.task_version = NEW.version AND v.field_key = 'score_mode';
+  IF mode IS DISTINCT FROM 'subtasks' THEN
+    RETURN NEW;
+  END IF;
+  SELECT count(*) INTO recorded
+    FROM task_subtasks s WHERE s.task_id = NEW.id AND s.task_version = NEW.version;
+  IF recorded = 0 THEN
+    RAISE EXCEPTION 'task % version % scores by subtask and has none; it cannot be published',
+      NEW.id, NEW.version
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tasks_published_needs_subtasks
+  BEFORE INSERT OR UPDATE OF status ON tasks
+  FOR EACH ROW EXECUTE FUNCTION task_published_needs_its_subtasks();
 
 CREATE TABLE content_seed (
   singleton boolean PRIMARY KEY DEFAULT true,

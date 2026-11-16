@@ -143,6 +143,83 @@ auto parse_limits(const simdjson::dom::object& object, std::string_view where, T
 }
 
 
+/// The task type and the score mode the content declares, both optional: content that predates the authoring form
+/// names neither, and keeps loading.
+auto parse_authoring(const simdjson::dom::object& object, std::string_view where, Task& task)
+    -> Result<void> {
+  (void)where;
+  task.task_type = detail::field_text(object, "task_type").value_or("");
+  task.score_mode = detail::field_text(object, "score_mode").value_or("");
+  return {};
+}
+
+constexpr std::int64_t DEFAULT_POINTS = 100;
+constexpr std::int64_t MINIMUM_POINTS = 1;
+constexpr std::int64_t MAXIMUM_POINTS = 1000;
+
+/// The total a task is scored out of. Absent means the default, so the content that predates subtasks keeps loading.
+auto parse_points(const simdjson::dom::object& object, std::string_view where, Task& task)
+    -> Result<void> {
+  task.points = static_cast<std::int32_t>(DEFAULT_POINTS);
+  const auto points = detail::field_integer(object, "points");
+  if (!points.has_value()) {
+    return {};
+  }
+  if (*points < MINIMUM_POINTS || *points > MAXIMUM_POINTS) {
+    return std::unexpected(detail::fail(
+        where, "points must be between " + std::to_string(MINIMUM_POINTS) + " and " +
+                   std::to_string(MAXIMUM_POINTS)));
+  }
+  task.points = static_cast<std::int32_t>(*points);
+  return {};
+}
+
+/// The scoring groups. An absent array is a task with none, which is the only shape the content had before ADR 0033;
+/// a subtask names its position, its points and the constraint that defines its group.
+auto parse_subtasks(const simdjson::dom::object& object, std::string_view where, Task& task)
+    -> Result<void> {
+  auto array = simdjson::dom::array{};
+  if (object.at_key("subtasks").get_array().get(array) != simdjson::SUCCESS) {
+    return {};
+  }
+  for (const auto element : array) {
+    auto entry = simdjson::dom::object{};
+    if (element.get_object().get(entry) != simdjson::SUCCESS) {
+      return std::unexpected(detail::fail(where, "a subtask is not an object"));
+    }
+    const auto position = required_integer(entry, "position", where);
+    if (!position) {
+      return std::unexpected(position.error());
+    }
+    const auto points = required_integer(entry, "points", where);
+    if (!points) {
+      return std::unexpected(points.error());
+    }
+    const auto constraint_text = required_text(entry, "constraint", where);
+    if (!constraint_text) {
+      return std::unexpected(constraint_text.error());
+    }
+    if (*position < 1) {
+      return std::unexpected(detail::fail(where, "a subtask position counts from one"));
+    }
+    if (*points < MINIMUM_POINTS || *points > MAXIMUM_POINTS) {
+      return std::unexpected(detail::fail(
+          where, "a subtask's points must be between " + std::to_string(MINIMUM_POINTS) + " and " +
+                     std::to_string(MAXIMUM_POINTS)));
+    }
+    for (const auto& seen : task.subtasks) {
+      if (seen.position == *position) {
+        return std::unexpected(detail::fail(
+            where, "subtask position " + std::to_string(*position) + " is named twice"));
+      }
+    }
+    task.subtasks.push_back(Subtask{.position = static_cast<std::int32_t>(*position),
+                                    .points = static_cast<std::int32_t>(*points),
+                                    .constraint_text = *constraint_text});
+  }
+  return {};
+}
+
 auto parse_checker(const simdjson::dom::object& object, std::string_view where, Task& task)
     -> Result<void> {
   const auto checker = nested(object, "checker");
@@ -223,6 +300,15 @@ auto parse_manifest(const std::filesystem::path& directory, Task& task) -> Resul
       return step;
     }
     if (const auto step = parse_limits(object, where, task); !step) {
+      return step;
+    }
+    if (const auto step = parse_authoring(object, where, task); !step) {
+      return step;
+    }
+    if (const auto step = parse_points(object, where, task); !step) {
+      return step;
+    }
+    if (const auto step = parse_subtasks(object, where, task); !step) {
       return step;
     }
     if (const auto step = parse_checker(object, where, task); !step) {

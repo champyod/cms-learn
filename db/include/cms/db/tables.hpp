@@ -10,6 +10,39 @@
 
 namespace cms::db {
 
+struct TaskSubtasks_ {
+  struct TaskId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskVersion {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_version, taskVersion);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Points {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(points, points);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct ConstraintText {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(constraint_text, constraintText);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_subtasks, taskSubtasks);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, TaskId, TaskVersion, Position, Points, ConstraintText>;
+  using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Position, Points, ConstraintText>;
+};
+
 struct AdminAccounts_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -1336,6 +1369,11 @@ struct Tasks_ {
     using data_type = ::sqlpp::integral;
     using has_default = std::false_type;
   };
+  struct Points {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(points, points);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
   struct Checker {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(checker, checker);
     using data_type = ::sqlpp::text;
@@ -1379,7 +1417,7 @@ struct Tasks_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(tasks, tasks);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, Version, TaskType, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryLimitMb, Checker, CheckerPath, Origin, Verification, Solution, ContentHash, Seeded, SeededAt>;
+      sqlpp::table_columns<T, Id, Version, TaskType, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryLimitMb, Points, Checker, CheckerPath, Origin, Verification, Solution, ContentHash, Seeded, SeededAt>;
   using _required_insert_columns = sqlpp::detail::type_set<Id, Version, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryLimitMb, Checker, Origin, Verification, Solution, ContentHash>;
 };
 
@@ -1497,6 +1535,7 @@ struct Tracks_ {
   using _required_insert_columns = sqlpp::detail::type_set<Id, Position, TitleEn, TitleTh, DescriptionEn, DescriptionTh, ContentHash>;
 };
 
+using TaskSubtasks = ::sqlpp::table_t<TaskSubtasks_>;
 using AdminAccounts = ::sqlpp::table_t<AdminAccounts_>;
 using AdminRoles = ::sqlpp::table_t<AdminRoles_>;
 using AuditEvents = ::sqlpp::table_t<AuditEvents_>;
@@ -1532,6 +1571,7 @@ using Topics = ::sqlpp::table_t<Topics_>;
 using TrackStages = ::sqlpp::table_t<TrackStages_>;
 using Tracks = ::sqlpp::table_t<Tracks_>;
 
+inline const TaskSubtasks taskSubtasks{};
 inline const AdminAccounts adminAccounts{};
 inline const AdminRoles adminRoles{};
 inline const AuditEvents auditEvents{};

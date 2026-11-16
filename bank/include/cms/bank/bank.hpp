@@ -24,16 +24,34 @@ struct Example {
   std::string expected_output;
 };
 
+/// @brief One scoring group of a task: points, and the constraint that makes the simpler idea sufficient.
+///
+/// A subtask carries no limits (ADR 0033 §2): time and memory are the task's, stated once.
+struct Subtask {
+  std::int32_t position{0};
+  std::int32_t points{0};
+  std::string constraint_text;
+};
+
 /// @brief One task, as the files under `content/tasks/<id>/` describe it.
 struct Task {
   std::string id;
   std::int32_t version{0};
   std::string status;
+  /// The task type whose fields the authoring form renders; empty when the content names none.
+  std::string task_type;
+  /// The score mode the content declares, written as the task type's `score_mode` field value; empty when it declares
+  /// none. It is what decides whether the task may carry subtasks (ADR 0033 §4).
+  std::string score_mode;
   std::string title_en;
   std::string title_th;
   std::int32_t difficulty{0};
   std::int32_t time_limit_ms{0};
   std::int32_t memory_limit_mb{0};
+  /// What the task is scored out of, stated once on the task (ADR 0033 §2).
+  std::int32_t points{100};
+  /// The scoring groups, in position order; empty when the task is not scored by subtask.
+  std::vector<Subtask> subtasks;
   std::string checker_kind;
   std::string checker_path;
   std::string origin_kind;
@@ -111,6 +129,14 @@ struct TaskTypeDefinition {
   std::int32_t position{0};
   std::vector<FieldDefinition> fields;
 };
+
+/// @brief Reads one task directory: `task.json`, its statements, its examples and its solution.
+///
+/// The authoring path and the tests both need one task, not a whole bank; parsing a directory is the seam they share.
+///
+/// @param directory The `content/tasks/<id>` directory.
+/// @return The task with its content hash filled in, or the first thing wrong with it.
+[[nodiscard]] auto load_task(const std::filesystem::path& directory) -> Result<Task>;
 
 struct Bank {
   std::vector<Topic> topics;

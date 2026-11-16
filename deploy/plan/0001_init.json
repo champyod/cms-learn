@@ -315,7 +315,7 @@
           "path": "public.task_visibility"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS tasks (\n    id text,\n    version integer,\n    task_type text,\n    status task_status NOT NULL,\n    title_en text NOT NULL,\n    title_th text NOT NULL,\n    difficulty integer NOT NULL,\n    time_limit_ms integer NOT NULL,\n    memory_limit_mb integer NOT NULL,\n    checker task_checker_kind NOT NULL,\n    checker_path text DEFAULT '' NOT NULL,\n    origin task_origin_kind NOT NULL,\n    verification task_verification_status NOT NULL,\n    solution text NOT NULL,\n    content_hash text NOT NULL,\n    seeded boolean DEFAULT true NOT NULL,\n    seeded_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT tasks_pkey PRIMARY KEY (id, version),\n    CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),\n    CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),\n    CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),\n    CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),\n    CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),\n    CONSTRAINT tasks_title_th_check CHECK (length(btrim(title_th)) > 0)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS tasks (\n    id text,\n    version integer,\n    task_type text,\n    status task_status NOT NULL,\n    title_en text NOT NULL,\n    title_th text NOT NULL,\n    difficulty integer NOT NULL,\n    time_limit_ms integer NOT NULL,\n    memory_limit_mb integer NOT NULL,\n    points integer DEFAULT 100 NOT NULL,\n    checker task_checker_kind NOT NULL,\n    checker_path text DEFAULT '' NOT NULL,\n    origin task_origin_kind NOT NULL,\n    verification task_verification_status NOT NULL,\n    solution text NOT NULL,\n    content_hash text NOT NULL,\n    seeded boolean DEFAULT true NOT NULL,\n    seeded_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT tasks_pkey PRIMARY KEY (id, version),\n    CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),\n    CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),\n    CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),\n    CONSTRAINT tasks_points_check CHECK (points >= 1 AND points <= 1000),\n    CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),\n    CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),\n    CONSTRAINT tasks_title_th_check CHECK (length(btrim(title_th)) > 0)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.tasks"
@@ -409,6 +409,12 @@
           "type": "table",
           "operation": "create",
           "path": "public.task_statements"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS task_subtasks (\n    task_id text,\n    task_version integer,\n    position integer,\n    points integer NOT NULL,\n    constraint_text text NOT NULL,\n    CONSTRAINT task_subtasks_pkey PRIMARY KEY (task_id, task_version, position),\n    CONSTRAINT task_subtasks_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_subtasks_constraint_text_check CHECK (length(btrim(constraint_text)) > 0),\n    CONSTRAINT task_subtasks_points_check CHECK (points > 0 AND points <= 1000),\n    CONSTRAINT task_subtasks_position_check CHECK (\"position\" > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.task_subtasks"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS topics (\n    id text,\n    label_en text NOT NULL,\n    label_th text NOT NULL,\n    CONSTRAINT topics_pkey PRIMARY KEY (id),\n    CONSTRAINT topics_id_shape CHECK (id ~ '^[a-z0-9][a-z0-9-]{1,63}$'::text),\n    CONSTRAINT topics_label_en_check CHECK (length(btrim(label_en)) > 0),\n    CONSTRAINT topics_label_th_check CHECK (length(btrim(label_th)) > 0)\n);",
@@ -555,6 +561,24 @@
           "path": "public.task_field_value_is_filled"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION task_points_keep_the_partition()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  recorded bigint;\n  awarded bigint;\nBEGIN\n  IF NEW.points = OLD.points THEN\n    RETURN NULL;\n  END IF;\n  SELECT count(*), coalesce(sum(s.points), 0) INTO recorded, awarded\n    FROM task_subtasks s WHERE s.task_id = NEW.id AND s.task_version = NEW.version;\n  IF recorded > 0 AND awarded <> NEW.points THEN\n    RAISE EXCEPTION 'task % version % is worth % now, and its subtasks add up to %; move them together',\n      NEW.id, NEW.version, NEW.points, awarded\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NULL;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_points_keep_the_partition"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION task_published_needs_its_subtasks()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  mode text;\n  recorded bigint;\nBEGIN\n  IF NEW.status <> 'published' THEN\n    RETURN NEW;\n  END IF;\n  SELECT v.value #>> '{}' INTO mode\n    FROM task_field_values v\n   WHERE v.task_id = NEW.id AND v.task_version = NEW.version AND v.field_key = 'score_mode';\n  IF mode IS DISTINCT FROM 'subtasks' THEN\n    RETURN NEW;\n  END IF;\n  SELECT count(*) INTO recorded\n    FROM task_subtasks s WHERE s.task_id = NEW.id AND s.task_version = NEW.version;\n  IF recorded = 0 THEN\n    RAISE EXCEPTION 'task % version % scores by subtask and has none; it cannot be published',\n      NEW.id, NEW.version\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_published_needs_its_subtasks"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION task_subtasks_are_a_partition()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  task_key text;\n  task_version_here integer;\n  total integer;\n  recorded bigint;\n  awarded bigint;\n  mode text;\nBEGIN\n  IF TG_OP = 'DELETE' THEN\n    task_key := OLD.task_id;\n    task_version_here := OLD.task_version;\n  ELSE\n    task_key := NEW.task_id;\n    task_version_here := NEW.task_version;\n  END IF;\n\n  SELECT t.points INTO total FROM tasks t WHERE t.id = task_key AND t.version = task_version_here;\n  IF NOT FOUND THEN\n    RETURN NULL;  -- the task is gone and the cascade took its subtasks with it\n  END IF;\n\n  SELECT count(*), coalesce(sum(s.points), 0) INTO recorded, awarded\n    FROM task_subtasks s WHERE s.task_id = task_key AND s.task_version = task_version_here;\n\n  SELECT v.value #>> '{}' INTO mode\n    FROM task_field_values v\n   WHERE v.task_id = task_key AND v.task_version = task_version_here AND v.field_key = 'score_mode';\n\n  IF mode IS DISTINCT FROM 'subtasks' THEN\n    IF recorded > 0 THEN\n      RAISE EXCEPTION 'task % version % scores by %, not by subtask, so it cannot carry subtasks',\n        task_key, task_version_here, coalesce(mode, 'no declared score mode')\n        USING ERRCODE = 'check_violation';\n    END IF;\n    RETURN NULL;\n  END IF;\n\n  IF awarded <> total THEN\n    RAISE EXCEPTION 'task % version % scores by subtask, so its subtasks must add up to %, and they add up to %',\n      task_key, task_version_here, total, awarded\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NULL;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.task_subtasks_are_a_partition"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION task_type_audit()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  actor actor_identity := current_actor();\nBEGIN\n  INSERT INTO audit_events (actor_kind, learner_actor_id, admin_actor_id, system_actor_id,\n                            invoked_by, action, subject, detail)\n  VALUES (actor.kind,\n          CASE WHEN actor.kind = 'learner' THEN actor.id END,\n          CASE WHEN actor.kind = 'admin' THEN actor.id END,\n          CASE WHEN actor.kind = 'system' THEN actor.id END,\n          coalesce(current_setting('cms.invoked_by', true), ''),\n          'task.type.' || lower(TG_OP),\n          CASE WHEN TG_OP = 'DELETE' THEN OLD.id ELSE NEW.id END,\n          jsonb_build_object('position', CASE WHEN TG_OP = 'DELETE' THEN OLD.position ELSE NEW.position END));\n  RETURN NULL;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -645,6 +669,18 @@
           "path": "public.task_field_values.task_field_values_filled"
         },
         {
+          "sql": "CREATE CONSTRAINT TRIGGER task_subtasks_follow_the_total\n    AFTER UPDATE ON tasks\n    DEFERRABLE INITIALLY DEFERRED\n    FOR EACH ROW\n    EXECUTE FUNCTION task_points_keep_the_partition();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.tasks.task_subtasks_follow_the_total"
+        },
+        {
+          "sql": "CREATE CONSTRAINT TRIGGER task_subtasks_partition\n    AFTER INSERT OR UPDATE OR DELETE ON task_subtasks\n    DEFERRABLE INITIALLY DEFERRED\n    FOR EACH ROW\n    EXECUTE FUNCTION task_subtasks_are_a_partition();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.task_subtasks.task_subtasks_partition"
+        },
+        {
           "sql": "CREATE OR REPLACE TRIGGER task_types_audit\n    AFTER INSERT OR UPDATE OR DELETE ON task_types\n    FOR EACH ROW\n    EXECUTE FUNCTION task_type_audit();",
           "type": "table.trigger",
           "operation": "create",
@@ -655,6 +691,12 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.tasks.tasks_published_immutable"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER tasks_published_needs_subtasks\n    BEFORE INSERT OR UPDATE OF status ON tasks\n    FOR EACH ROW\n    EXECUTE FUNCTION task_published_needs_its_subtasks();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.tasks.tasks_published_needs_subtasks"
         },
         {
           "sql": "REVOKE EXECUTE ON FUNCTION current_actor() FROM PUBLIC;",
