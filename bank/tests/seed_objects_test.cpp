@@ -76,8 +76,7 @@ TEST_CASE("an id naming no stored object is refused by name", "[seed][live]") {
   const auto report = fixture::seed_once(fixture::bank_or_fail(), &store);
 
   REQUIRE(!report.has_value());
-  CHECK(fixture::names_field_and_id(report.error(), artefact));
-  CHECK(report.error().message.find("not a stored object") != std::string::npos);
+  CHECK(fixture::says_unknown_artefact(report.error(), artefact));
   CHECK(fixture::seed_state(database).version == before.version);
 }
 
@@ -98,8 +97,7 @@ TEST_CASE("an inline artefact is not a stored object for a file field", "[seed][
   const auto report = fixture::seed_once(fixture::bank_or_fail(), &store);
 
   REQUIRE(!report.has_value());
-  CHECK(fixture::names_field_and_id(report.error(), artefact));
-  CHECK(report.error().message.find("not a stored object") != std::string::npos);
+  CHECK(fixture::says_unknown_artefact(report.error(), artefact));
   CHECK(store.verified_digest().empty());
 }
 

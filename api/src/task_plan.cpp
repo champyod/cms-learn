@@ -43,23 +43,22 @@ struct FieldValue {
   bool is_artefact{false};
 };
 
-/// @return Nothing when @p artefact_id names a stored object, or the refusal naming @p field_key.
+/// @return Nothing when @p artefact_id names a stored object, or the one refusal for an id that names none.
 auto refuse_unknown_artefact(db::connection& database, std::string_view field_key,
                              std::int64_t artefact_id) -> Result<void> {
   for (const auto& row : database(sqlpp::select(db::generationArtefacts.objectKey)
                                       .from(db::generationArtefacts)
                                       .where(db::generationArtefacts.id == artefact_id))) {
-    if (!row.objectKey.has_value()) {
-      return std::unexpected(Error::make(ErrorCode::invalid_argument,
-                                         "the field " + std::string{field_key} + " names artefact " +
-                                             std::to_string(artefact_id) +
-                                             ", which holds inline text, not a stored object"));
+    if (row.objectKey.has_value()) {
+      return {};
     }
-    return {};
+    break;
   }
-  return std::unexpected(Error::make(
-      ErrorCode::invalid_argument, "the field " + std::string{field_key} + " names artefact " +
-                                       std::to_string(artefact_id) + ", and no such artefact exists"));
+  const auto advice = db::file_field_unknown_artefact(database, field_key, artefact_id);
+  if (!advice) {
+    return std::unexpected(advice.error());
+  }
+  return std::unexpected(Error::make(ErrorCode::invalid_argument, *advice));
 }
 
 /// @brief Reads the artefact id a file-kind field carries, refusing a store key by the field's name.

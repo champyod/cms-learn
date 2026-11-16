@@ -126,6 +126,18 @@ AS $$
          'then save the draft again'
 $$;
 
+-- The second refusal a file field can raise: the id names no object the field can use — either no artefact row at
+-- all, or one whose payload is inline text rather than a stored object. One sentence for both, naming the id and
+-- the next step, for the same reason the first refusal has one.
+CREATE FUNCTION file_field_unknown_artefact(field_key text, artefact_id bigint) RETURNS text
+LANGUAGE sql IMMUTABLE
+AS $$
+  SELECT 'artefact ' || artefact_id || ' is not a stored object the field ' || field_key ||
+         ' can use: it is either not recorded or recorded without an object; ' ||
+         'the generation pipeline stores the file and records its id, so store the file there first, ' ||
+         'then save the draft again'
+$$;
+
 CREATE FUNCTION task_field_value_is_artefact_id() RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = pg_catalog, public
@@ -148,8 +160,7 @@ BEGIN
   artefact_id := (NEW.value #>> '{}')::bigint;
   IF NOT EXISTS (SELECT 1 FROM generation_artefacts a
                   WHERE a.id = artefact_id AND a.object_key IS NOT NULL) THEN
-    RAISE EXCEPTION 'the field % names artefact %, which is not a stored object',
-      NEW.field_key, artefact_id
+    RAISE EXCEPTION '%', file_field_unknown_artefact(NEW.field_key, artefact_id)
       USING ERRCODE = 'foreign_key_violation';
   END IF;
   RETURN NEW;

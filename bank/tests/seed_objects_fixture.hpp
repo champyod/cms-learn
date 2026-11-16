@@ -286,4 +286,15 @@ inline auto set_legacy_key_value(cms::db::connection& database, std::string_view
          error.message.find(std::to_string(artefact_id)) != std::string::npos;
 }
 
+/// @brief Whether @p error carries the seeder's sentence for an id that names no stored object, in full: the
+/// location prefix, the id, the field and the next step. A looser check would stay green through a rewrite.
+[[nodiscard]] inline auto says_unknown_artefact(const cms::Error& error, std::int64_t artefact_id) -> bool {
+  const auto expected = "task " + std::string{TASK_ID} + " version 1: artefact " +
+                        std::to_string(artefact_id) + " is not a stored object the field " +
+                        std::string{FIELD_KEY} + " can use: it is either not recorded or recorded without an "
+                                                 "object; the generation pipeline stores the file and records its "
+                                                 "id, so store the file there first, then save the draft again";
+  return error.message == expected;
+}
+
 }  // namespace cms::bank::test

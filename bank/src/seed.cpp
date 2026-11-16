@@ -439,9 +439,13 @@ auto verify_objects(db::connection& database, const cms::store::ObjectStore* obj
     }
     const auto object = read_stored_object(database, *id);
     if (!object) {
+      const auto advice = db::file_field_unknown_artefact(database, value.field_key, *id);
+      if (!advice) {
+        return std::unexpected(advice.error());
+      }
       return std::unexpected(Error::make(
           ErrorCode::invalid_argument,
-          subject + " names artefact " + std::to_string(*id) + ", which is not a stored object"));
+          "task " + value.task_id + " version " + std::to_string(value.version) + ": " + *advice));
     }
     if (objects == nullptr) {
       return std::unexpected(Error::make(

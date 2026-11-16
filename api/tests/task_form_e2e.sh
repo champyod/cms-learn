@@ -133,6 +133,14 @@ status="$(post "$session" "csrf_token=$token" "type_id=batch" "title_en=Probe ke
   && ok "a file field holding a store key is refused by one message naming the field and the next step, writes nothing, and never echoes the value" \
   || bad "a file field holding a store key is refused by one message naming the field and the next step, writes nothing, and never echoes the value" "HTTP $status"
 
+status="$(post "$session" "csrf_token=$token" "type_id=batch" "title_en=Probe unknown file" "title_th=ไม่ทราบ" \
+  "difficulty=1200" "statement=x" "solution=999999")"
+[ "$status" = "400" ] && grep -q 'artefact 999999 is not a stored object the field solution can use' "$work/body" \
+  && grep -q 'store the file there first' "$work/body" \
+  && [ "$(psql_db "SELECT count(*) FROM tasks WHERE title_en = 'Probe unknown file'")" = "0" ] \
+  && ok "a file field naming an artefact that does not exist is refused by the one sentence and writes nothing" \
+  || bad "a file field naming an artefact that does not exist is refused by the one sentence and writes nothing" "HTTP $status"
+
 # The value a file field carries: the id of a stored artefact, which the panel resolves to the object's bytes.
 digest="$(printf 'int main() {}' | sha256sum | cut -d' ' -f1)"
 psql_db "INSERT INTO generation_jobs (task_id, task_version) SELECT id, version FROM tasks WHERE title_en = 'Probe draft'; INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, seed, call_index) SELECT max(id), 5, 'solution', 'tasks/probe/form.cpp', '$digest', 'probe-model', 'probe-v1', 1, 0 FROM generation_jobs;" >/dev/null

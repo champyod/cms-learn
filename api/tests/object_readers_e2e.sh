@@ -143,9 +143,14 @@ printf '%s' "$refusal" | grep -q "the field solution needs the id of a stored ar
   || bad "the table refuses a file field holding a store key with the one message, naming the field and the next step, and never echoing the value" "$refusal"
 
 refusal="$(psql_refusal "UPDATE task_field_values SET value = to_jsonb(999999::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'")"
-printf '%s' "$refusal" | grep -q "the field solution" && printf '%s' "$refusal" | grep -q "999999" \
-  && ok "the table refuses a file field naming an artefact that does not exist" \
-  || bad "the table refuses a file field naming an artefact that does not exist" "$refusal"
+printf '%s' "$refusal" | grep -q "artefact 999999 is not a stored object the field solution can use" \
+  && printf '%s' "$refusal" | grep -q "store the file there first" \
+  && ok "the table refuses an artefact id that names no stored object, with the one sentence" \
+  || bad "the table refuses an artefact id that names no stored object, with the one sentence" "$refusal"
+
+# The field goes back to its stored artefact, so a table that failed to refuse above cannot leak into the cases
+# below; this case owns its own damage and no other.
+psql_db "UPDATE task_field_values SET value = to_jsonb($artefact::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'" >/dev/null
 
 # An object removed under the row that names it is the same refusal: the field, the id, and nothing written.
 curl -s -o /dev/null -X DELETE "http://127.0.0.1:$s3_port/$bucket/tasks/probe/absent.cpp"
@@ -227,9 +232,10 @@ code="$(serve_field solution)"
 
 psql_db "ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id; UPDATE task_field_values SET value = to_jsonb(999999::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'; ALTER TABLE task_field_values ENABLE TRIGGER task_field_values_artefact_id;" >/dev/null
 code="$(serve_field solution)"
-[ "$code" = "404" ] && grep -q "the field solution" "$work/body" && grep -q "999999" "$work/body" \
-  && ok "a field naming an artefact that is gone is refused with the field and the id" \
-  || bad "a field naming an artefact that is gone is refused with the field and the id" "HTTP $code"
+[ "$code" = "404" ] && grep -q "artefact 999999 is not a stored object the field solution can use" "$work/body" \
+  && grep -q "store the file there first" "$work/body" \
+  && ok "the reader refuses an artefact id that names no stored object, with the one sentence" \
+  || bad "the reader refuses an artefact id that names no stored object, with the one sentence" "HTTP $code"
 
 code="$(serve_field statement)"
 [ "$code" = "404" ] && ok "a field that is not a file is not served from the store" \

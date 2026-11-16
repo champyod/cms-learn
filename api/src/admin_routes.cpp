@@ -292,17 +292,17 @@ auto field_artefact_of(db::connection& database, const std::string& task_id,
                                                db::generationArtefacts.digest)
                                       .from(db::generationArtefacts)
                                       .where(db::generationArtefacts.id == artefact_id))) {
-    if (!row.objectKey.has_value()) {
-      return std::unexpected(Error::make(
-          ErrorCode::conflict, "the field " + field_key + " names artefact " +
-                                   std::to_string(artefact_id) + ", which holds inline text, not a stored object"));
+    if (row.objectKey.has_value()) {
+      return std::optional<FieldArtefact>{
+          FieldArtefact{.object_key = std::string{*row.objectKey}, .digest = std::string{row.digest}}};
     }
-    return std::optional<FieldArtefact>{
-        FieldArtefact{.object_key = std::string{*row.objectKey}, .digest = std::string{row.digest}}};
+    break;
   }
-  return std::unexpected(Error::make(ErrorCode::not_found,
-                                     "the field " + field_key + " names artefact " +
-                                         std::to_string(artefact_id) + ", and no such artefact exists"));
+  const auto advice = db::file_field_unknown_artefact(database, field_key, artefact_id);
+  if (!advice) {
+    return std::unexpected(advice.error());
+  }
+  return std::unexpected(Error::make(ErrorCode::not_found, *advice));
 }
 
 /// Serves the bytes of one file-kind field of one task: the field's artefact id is resolved to the object's key
