@@ -24,7 +24,7 @@ The pipeline produces **these shapes**, not new ones.
 | **reference solution** | **model, no template** — a template would yield a formula, not an algorithm | C++17 | passes every generated case at full score, inside the declared limits |
 | **partial solution, one per subtask** | **model, one per subtask** | C++17 | passes its own subtask's cases and **fails the next subtask's** |
 | **statement** | **fixed sections** (task, input, output, constraints, examples, scoring), the **model writes the prose inside each** | markdown, one file per locale | a leak gate; it never names the intended algorithm or `lean_to` |
-| **examples** | **derived** from the generator, never written by the model | `.in` / `.out` | the reference reproduces each expected output exactly |
+| **examples** | **derived** from the stored brute-force program, run on the smallest case the bounds allow (`0034`), never written by the model | `.in` / `.out` | the reference reproduces each expected output exactly |
 | **manifest** | **deterministic**, written by the verifier | JSON with digests | every digest matches the bytes |
 
 ## 3. The rule behind the split
