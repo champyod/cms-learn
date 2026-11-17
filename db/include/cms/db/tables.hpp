@@ -430,6 +430,16 @@ struct GenerationJobs_ {
     using data_type = ::sqlpp::integral;
     using has_default = std::false_type;
   };
+  struct Brief {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(brief, brief);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  struct Description {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(description, description);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
   struct State {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(state, state);
     using data_type = ::sqlpp::text;
@@ -468,7 +478,7 @@ struct GenerationJobs_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_jobs, generationJobs);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, TaskId, TaskVersion, State, Attempts, ClaimedBy, ClaimedAt, LeaseExpiresAt, CreatedAt, UpdatedAt>;
+      sqlpp::table_columns<T, Id, TaskId, TaskVersion, Brief, Description, State, Attempts, ClaimedBy, ClaimedAt, LeaseExpiresAt, CreatedAt, UpdatedAt>;
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion>;
 };
 

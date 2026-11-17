@@ -1,4 +1,6 @@
 import type { Gate } from "./contract.ts";
+import { ALGO_LEAK_GATE } from "./cases/algo_leak.ts";
+import { BRIEF_LEAK_GATE } from "./cases/brief_leak.ts";
 import { CONTENT_GATE } from "./cases/content.ts";
 import { DEPLOY_GATE } from "./cases/deploy.ts";
 import { OBJECTS_GATE } from "./cases/objects.ts";
@@ -16,6 +18,8 @@ import { VISIBILITY_GATE } from "./cases/visibility.ts";
 /** Every gate the runner knows, in the order it reports them. */
 export const GATES: readonly Gate[] = [
   PM_GATE,
+  BRIEF_LEAK_GATE,
+  ALGO_LEAK_GATE,
   REFERENCES_GATE,
   SCHEMA_GATE,
   STACK_GATE,

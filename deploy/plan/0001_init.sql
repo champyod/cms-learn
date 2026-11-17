@@ -489,6 +489,8 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
     id bigint GENERATED ALWAYS AS IDENTITY,
     task_id text NOT NULL,
     task_version integer NOT NULL,
+    brief text DEFAULT '' NOT NULL,
+    description text DEFAULT '' NOT NULL,
     state generation_state DEFAULT 'queued'::generation_state NOT NULL,
     attempts integer DEFAULT 0 NOT NULL,
     claimed_by text,
@@ -499,7 +501,9 @@ CREATE TABLE IF NOT EXISTS generation_jobs (
     CONSTRAINT generation_jobs_pkey PRIMARY KEY (id),
     CONSTRAINT generation_jobs_task_version_unique UNIQUE (task_id, task_version),
     CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
-    CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL) AND (claimed_by IS NULL) = (lease_expires_at IS NULL))
+    CONSTRAINT generation_jobs_brief_check CHECK (brief = btrim(brief)),
+    CONSTRAINT generation_jobs_claim CHECK ((claimed_by IS NULL) = (claimed_at IS NULL) AND (claimed_by IS NULL) = (lease_expires_at IS NULL)),
+    CONSTRAINT generation_jobs_description_check CHECK (description = btrim(description))
 );
 
 CREATE INDEX IF NOT EXISTS generation_jobs_lease_idx ON generation_jobs (lease_expires_at) WHERE (state = 'running'::generation_state);

@@ -86,15 +86,18 @@ struct StoredArtefact {
   std::string bytes;
 };
 
-/// @brief Reads the artefact of @p step and @p kind for @p job, checking it against the digest the row records.
+/// @brief Reads the artefact of @p step, @p kind and @p locale for @p job, checking it against the digest the row
+/// records.
 ///
 /// A store artefact goes through the verifying read, so bytes that no longer match their address are refused.
 /// An inline artefact is hashed here, because the row is its only home.
 ///
-/// @return The verified payload, `not_found` when the row or object is missing, `conflict` when the bytes do not
-/// match, or `unavailable` with the store's reason.
+/// @param locale The locale whose row is wanted. Empty asks for the newest row of that step and kind, whatever
+/// locale it carries, which is what a step with one artefact per call means.
+/// @return The verified payload, `not_found` when the row or object is missing — naming the locale when one was
+/// asked for — `conflict` when the bytes do not match, or `unavailable` with the store's reason.
 [[nodiscard]] auto read_artefact(::drogon::orm::DbClient& client, const cms::store::ObjectStore& store,
-                                 std::int64_t job_id, std::int16_t step, std::string_view kind)
-    -> Result<StoredArtefact>;
+                                 std::int64_t job_id, std::int16_t step, std::string_view kind,
+                                 std::string_view locale = {}) -> Result<StoredArtefact>;
 
 }  // namespace cms::generate

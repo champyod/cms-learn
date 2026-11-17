@@ -8,6 +8,11 @@ CREATE TABLE generation_jobs (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   task_id text NOT NULL,
   task_version integer NOT NULL,
+  -- What the teacher asked for, written when the job is created and before any model call (ADR 0036 §2). An empty
+  -- request is refused by name when the leak checks run, so a job created before the form existed is not compared
+  -- against nothing; the step's writer never reads these two columns, which is the absence the leak rule promises.
+  brief text NOT NULL DEFAULT '' CHECK (brief = btrim(brief)),
+  description text NOT NULL DEFAULT '' CHECK (description = btrim(description)),
   state generation_state NOT NULL DEFAULT 'queued',
   attempts integer NOT NULL DEFAULT 0,
   claimed_by text,

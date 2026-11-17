@@ -51,6 +51,8 @@ step "editor island" bun run check:island
 step "settings" bun run check:settings
 step "catalogue" bun run check:catalogue
 step "generator" bun run check:generator
+step "brief leak" bun run check:brief-leak
+step "algorithm leak" bun run check:algo-leak
 step "publish" bun run check:publish
 step "generation barrier" bun run check:pipeline
 step "workspace scaffold" bun run check:scaffold

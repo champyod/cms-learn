@@ -12,18 +12,21 @@ writes what they want in prose; a model that does not distinguish "this tells yo
 
 | Kind | Who reads it | Where it lives | May appear in the statement |
 |---|---|---|---|
-| **Brief** | the model, as a directive | the generation request, audited | never |
-| **Description** | the model as context in later calls; the admin for identification | the task row, admin-only | never |
+| **Brief** | the model, as a directive | the generation job row, readable only by the worker role (ADR 0036) | never |
+| **Description** | the model as context in later calls; the admin for identification | the generation job row, then the task row for the admin | never |
 | **Plan** | the model and every gate | the task row, structured | never — but its numbers must be satisfied |
 | **Statement** and **story** | students | `content/` | it *is* the statement |
 
 The brief says *what the admin wants*. The plan says *what is objectively true about the task*: topics,
-difficulty, limits, subtask constraints, the decoy target, the cast rules, the locale. Only the plan is
-checkable, so the plan is what the gates read.
+difficulty, limits, subtask constraints, the decoy target, the cast rules, the locale. Only the plan and
+the stored request are checkable, so those are what the leak gates read.
 
-The brief is never stored beside the statement, and never rendered. It survives in the generation audit
-row — what was asked, with which model and seed — because a task whose origin cannot be reconstructed
-is a task nobody can defend.
+The brief is stored once, on the generation job row, and never rendered (ADR 0036 §2). The statement
+step never receives it: the statement is written from step 3's input, output and constraints plus one
+sentence describing the trap, so a copied span cannot come from the writer's input. The leak check
+compares the title and the statement the step wrote against the request on the row and against the four
+texts the chosen plan holds — its approach, its intended complexity, the plan body and the judge's
+reason — and the temporary copy it reads is gone by the end of the run (ADR 0035).
 
 ## Two generation paths, and they must not share a cache
 
@@ -187,16 +190,16 @@ now says which is which.
 | Gate | State | Fails when |
 |---|---|---|
 | `check:generator` | **built** | the loader refuses a draft, or two runs of the same input differ |
-| `check:brief-leak` | **not written** | a published artefact shares a verbatim span of eight words or more with the brief, the description or the plan |
-| `check:algo-leak` | **not written** | `misdirection.enabled` and the statement names `lean_to` or the intended algorithm |
+| `check:brief-leak` | **built** | a title or a statement repeats eight English words or thirty-two Thai characters of the brief, the description, or the plan's approach, complexity, body or judge's reason |
+| `check:algo-leak` | **built** | a title or a statement names the intended approach by topic id, English label, Thai label or acronym, whether or not misdirection is on |
 | `check:hint-leak` | **not written** | a hint contains a distinctive line of the reference solution |
 | `check:cast` | **not written** | a named person appears without a cast entry, or the two locales disagree about who they are |
 | `decoy-scores` | **not written** | the decoy scores zero, or full |
 | `subtask-solution` | **not written** | a subtask solution passes tests outside its group, or fails its own |
 | `check:exposure` | **not written** | a `hidden` task is returned by the serving query |
 
-The written one ships with a falsification case, like every other gate in this repository. The unwritten
-ones ship with nothing, which is the point of the column: **a leak is not caught today.**
+Each written gate ships with its falsification cases, like every other gate in this repository. The
+unwritten ones ship with nothing, which is the point of the column: **a leak is not caught today.**
 
 ## Why this shape: the evidence
 

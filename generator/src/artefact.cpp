@@ -77,10 +77,12 @@ struct ArtefactRow {
   std::string digest;
 };
 
-auto read_row(cms::db::connection& database, std::int64_t job_id, std::int16_t step,
-              std::string_view kind) -> Result<ArtefactRow> {
+/// @return The newest row of @p step and @p kind, taking the first whose locale is @p locale when one is asked for.
+auto read_row(cms::db::connection& database, std::int64_t job_id, std::int16_t step, std::string_view kind,
+              std::string_view locale) -> Result<ArtefactRow> {
   auto found = std::optional<ArtefactRow>{};
-  for (const auto& row : database(sqlpp::select(cms::db::generationArtefacts.objectKey,
+  for (const auto& row : database(sqlpp::select(cms::db::generationArtefacts.locale,
+                                               cms::db::generationArtefacts.objectKey,
                                                cms::db::generationArtefacts.inlineText,
                                                cms::db::generationArtefacts.digest)
                                        .from(cms::db::generationArtefacts)
@@ -88,19 +90,27 @@ auto read_row(cms::db::connection& database, std::int64_t job_id, std::int16_t s
                                               cms::db::generationArtefacts.step ==
                                                   static_cast<std::int64_t>(step) &&
                                               cms::db::generationArtefacts.kind == std::string{kind})
-                                       .order_by(cms::db::generationArtefacts.id.desc())
-                                       .limit(1))) {
-    found = ArtefactRow{
-        .object_key = row.objectKey.has_value() ? std::optional<std::string>{std::string{*row.objectKey}}
-                                                : std::nullopt,
-        .inline_text =
-            row.inlineText.has_value() ? std::optional<std::string>{std::string{*row.inlineText}} : std::nullopt,
-        .digest = std::string{row.digest}};
+                                       .order_by(cms::db::generationArtefacts.id.desc()))) {
+    const auto row_locale =
+        row.locale.has_value() ? std::optional<std::string>{std::string{*row.locale}} : std::nullopt;
+    if (!locale.empty() && row_locale != std::optional<std::string>{std::string{locale}}) {
+      continue;
+    }
+    found = ArtefactRow{.object_key = row.objectKey.has_value()
+                                          ? std::optional<std::string>{std::string{*row.objectKey}}
+                                          : std::nullopt,
+                        .inline_text = row.inlineText.has_value()
+                                           ? std::optional<std::string>{std::string{*row.inlineText}}
+                                           : std::nullopt,
+                        .digest = std::string{row.digest}};
+    break;
   }
   if (!found) {
+    const auto wanted = locale.empty() ? std::string{} : " and locale \"" + std::string{locale} + "\"";
     return std::unexpected(Error::make(ErrorCode::not_found,
                                        "no artefact of step " + std::to_string(step) + " and kind \"" +
-                                           std::string{kind} + "\" for job " + std::to_string(job_id)));
+                                           std::string{kind} + "\"" + wanted + " for job " +
+                                           std::to_string(job_id)));
   }
   return *found;
 }
@@ -162,11 +172,11 @@ auto SqlArtefactSink::record(std::int64_t job_id, const std::vector<Artefact>& a
 }
 
 auto read_artefact(::drogon::orm::DbClient& client, const cms::store::ObjectStore& store,
-                   std::int64_t job_id, std::int16_t step, std::string_view kind)
+                   std::int64_t job_id, std::int16_t step, std::string_view kind, std::string_view locale)
     -> Result<StoredArtefact> {
   try {
     auto transaction = cms::db::Transaction{client};
-    const auto row = read_row(transaction.connection(), job_id, step, kind);
+    const auto row = read_row(transaction.connection(), job_id, step, kind, locale);
     if (!row) {
       return std::unexpected(row.error());
     }
