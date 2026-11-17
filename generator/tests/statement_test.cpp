@@ -518,8 +518,7 @@ TEST_CASE("a leaked statement writes no row and ends the claim failed", "[genera
   CHECK(job_state(database, claimed.id) == "failed");
 }
 
-TEST_CASE("both locale rows are written after the checks, and the reader takes one locale at a time",
-          "[generate][live]") {
+TEST_CASE("both locale rows are written, and read back one locale at a time", "[generate][live]") {
   if (!cms::generate::test::has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
