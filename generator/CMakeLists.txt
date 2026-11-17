@@ -6,8 +6,9 @@ include(DrogonCompat)
 cms_learn_align_jsoncpp()
 
 add_library(cms_generate_model STATIC src/artefact.cpp src/brief.cpp src/candidate.cpp src/candidates.cpp
-                                   src/claim.cpp src/config.cpp src/data_frame.cpp src/judge.cpp
-                                   src/planner.cpp src/recorded.cpp)
+                                   src/claim.cpp src/config.cpp src/data_frame.cpp src/judge.cpp src/limits.cpp
+                                   src/oracle.cpp src/planner.cpp src/recorded.cpp src/specification.cpp
+                                   src/specification_sink.cpp)
 add_library(cms::generate_model ALIAS cms_generate_model)
 target_include_directories(cms_generate_model PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

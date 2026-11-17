@@ -363,6 +363,12 @@
           "path": "public.generation_candidates"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS generation_specifications (\n    job_id bigint,\n    specification jsonb NOT NULL,\n    time_limit_ms integer NOT NULL,\n    memory_limit_mb integer NOT NULL,\n    derivation text NOT NULL,\n    answer_artefact_id bigint NOT NULL,\n    oracle_artefact_id bigint NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_specifications_pkey PRIMARY KEY (job_id),\n    CONSTRAINT generation_specifications_answer_artefact_id_fkey FOREIGN KEY (answer_artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_specifications_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_specifications_oracle_artefact_id_fkey FOREIGN KEY (oracle_artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_specifications_calls_distinct CHECK (answer_artefact_id <> oracle_artefact_id),\n    CONSTRAINT generation_specifications_derivation_check CHECK (length(btrim(derivation)) > 0),\n    CONSTRAINT generation_specifications_memory_limit_mb_check CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),\n    CONSTRAINT generation_specifications_time_limit_ms_check CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.generation_specifications"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS progress (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    account_id uuid NOT NULL,\n    task_id text NOT NULL,\n    task_version integer NOT NULL,\n    status progress_status DEFAULT 'attempted'::progress_status NOT NULL,\n    attempted_at timestamptz DEFAULT now() NOT NULL,\n    solved_at timestamptz,\n    CONSTRAINT progress_pkey PRIMARY KEY (id),\n    CONSTRAINT progress_account_id_fkey FOREIGN KEY (account_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT progress_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT progress_solved_has_time CHECK ((status = 'solved'::progress_status) = (solved_at IS NOT NULL))\n);",
           "type": "table",
           "operation": "create",
@@ -811,6 +817,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.generation_jobs.cmslearn_generator"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT ON TABLE generation_specifications TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.generation_specifications.cmslearn_generator"
         },
         {
           "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE learner_accounts TO cmslearn_app;",

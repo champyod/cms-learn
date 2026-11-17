@@ -551,6 +551,25 @@ CREATE TABLE IF NOT EXISTS generation_candidates (
     CONSTRAINT generation_candidates_reason_check CHECK (length(btrim(reason)) > 0)
 );
 
+CREATE TABLE IF NOT EXISTS generation_specifications (
+    job_id bigint,
+    specification jsonb NOT NULL,
+    time_limit_ms integer NOT NULL,
+    memory_limit_mb integer NOT NULL,
+    derivation text NOT NULL,
+    answer_artefact_id bigint NOT NULL,
+    oracle_artefact_id bigint NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT generation_specifications_pkey PRIMARY KEY (job_id),
+    CONSTRAINT generation_specifications_answer_artefact_id_fkey FOREIGN KEY (answer_artefact_id) REFERENCES generation_artefacts (id),
+    CONSTRAINT generation_specifications_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
+    CONSTRAINT generation_specifications_oracle_artefact_id_fkey FOREIGN KEY (oracle_artefact_id) REFERENCES generation_artefacts (id),
+    CONSTRAINT generation_specifications_calls_distinct CHECK (answer_artefact_id <> oracle_artefact_id),
+    CONSTRAINT generation_specifications_derivation_check CHECK (length(btrim(derivation)) > 0),
+    CONSTRAINT generation_specifications_memory_limit_mb_check CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),
+    CONSTRAINT generation_specifications_time_limit_ms_check CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000)
+);
+
 CREATE TABLE IF NOT EXISTS progress (
     id bigint GENERATED ALWAYS AS IDENTITY,
     account_id uuid NOT NULL,
@@ -1381,6 +1400,8 @@ GRANT INSERT, SELECT ON TABLE generation_artefacts TO cmslearn_generator;
 GRANT INSERT, SELECT ON TABLE generation_candidates TO cmslearn_generator;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE generation_jobs TO cmslearn_generator;
+
+GRANT INSERT, SELECT ON TABLE generation_specifications TO cmslearn_generator;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE learner_accounts TO cmslearn_app;
 

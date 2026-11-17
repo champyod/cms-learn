@@ -190,11 +190,29 @@ CREATE TRIGGER generation_artefacts_are_cited
   BEFORE DELETE ON generation_artefacts
   FOR EACH ROW EXECUTE FUNCTION generation_artefact_is_cited();
 
+-- Step 3's record: the specification it read the plan into, the one limit pair it derived, and the oracle it wrote.
+-- The limits are the task's (ADR 0015, interpretation of 2026-11-17); their band is the band a task's own columns
+-- allow, so a derivation that lands outside it is refused here as well as by the step (deploy/schema/content.sql:39).
+CREATE TABLE generation_specifications (
+  job_id bigint PRIMARY KEY REFERENCES generation_jobs (id) ON DELETE CASCADE,
+  specification jsonb NOT NULL,
+  time_limit_ms integer NOT NULL CHECK (time_limit_ms BETWEEN 100 AND 20000),
+  memory_limit_mb integer NOT NULL CHECK (memory_limit_mb BETWEEN 16 AND 1024),
+  -- The sentence a reader needs to see that the limit was computed, not chosen: the complexity, the bound, the
+  -- operations, the band, and how the value landed in it.
+  derivation text NOT NULL CHECK (length(btrim(derivation)) > 0),
+  answer_artefact_id bigint NOT NULL REFERENCES generation_artefacts (id) ON DELETE NO ACTION,
+  oracle_artefact_id bigint NOT NULL REFERENCES generation_artefacts (id) ON DELETE NO ACTION,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT generation_specifications_calls_distinct CHECK (answer_artefact_id <> oracle_artefact_id)
+);
+
 -- The worker's role holds the record and reads the brief; it holds no privilege that could publish or verify.
 -- Written as its own grants so a reader sees what the role can do and, by omission, what it cannot.
 GRANT SELECT, INSERT, UPDATE ON generation_jobs TO cmslearn_generator;
 GRANT SELECT, INSERT ON generation_candidates TO cmslearn_generator;
 GRANT SELECT, INSERT ON generation_artefacts TO cmslearn_generator;
+GRANT SELECT, INSERT ON generation_specifications TO cmslearn_generator;
 GRANT SELECT (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms,
               memory_limit_mb, checker, checker_path, origin, verification, content_hash, seeded)
   ON tasks TO cmslearn_generator;

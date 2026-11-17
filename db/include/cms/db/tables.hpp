@@ -472,6 +472,54 @@ struct GenerationJobs_ {
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion>;
 };
 
+struct GenerationSpecifications_ {
+  struct JobId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Specification {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(specification, specification);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TimeLimitMs {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(time_limit_ms, timeLimitMs);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct MemoryLimitMb {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(memory_limit_mb, memoryLimitMb);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Derivation {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(derivation, derivation);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct AnswerArtefactId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(answer_artefact_id, answerArtefactId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct OracleArtefactId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(oracle_artefact_id, oracleArtefactId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_specifications, generationSpecifications);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, JobId, Specification, TimeLimitMs, MemoryLimitMb, Derivation, AnswerArtefactId, OracleArtefactId, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Specification, TimeLimitMs, MemoryLimitMb, Derivation, AnswerArtefactId, OracleArtefactId>;
+};
+
 struct LearnerAccounts_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -1544,6 +1592,7 @@ using Elevations = ::sqlpp::table_t<Elevations_>;
 using GenerationArtefacts = ::sqlpp::table_t<GenerationArtefacts_>;
 using GenerationCandidates = ::sqlpp::table_t<GenerationCandidates_>;
 using GenerationJobs = ::sqlpp::table_t<GenerationJobs_>;
+using GenerationSpecifications = ::sqlpp::table_t<GenerationSpecifications_>;
 using LearnerAccounts = ::sqlpp::table_t<LearnerAccounts_>;
 using LearnerTokens = ::sqlpp::table_t<LearnerTokens_>;
 using LevelTitles = ::sqlpp::table_t<LevelTitles_>;
@@ -1580,6 +1629,7 @@ inline const Elevations elevations{};
 inline const GenerationArtefacts generationArtefacts{};
 inline const GenerationCandidates generationCandidates{};
 inline const GenerationJobs generationJobs{};
+inline const GenerationSpecifications generationSpecifications{};
 inline const LearnerAccounts learnerAccounts{};
 inline const LearnerTokens learnerTokens{};
 inline const LevelTitles levelTitles{};
