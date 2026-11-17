@@ -3,6 +3,7 @@ import type { Gate, Plant } from "../contract.ts";
 /// A clean fixture for one technique: `dp`, whose id, English label, Thai label and acronym are four spellings of
 /// the same answer. The leak cases put one of them in a title or a statement.
 const CLEAN: Readonly<Record<string, string>> = {
+  "locales.txt": "en\nth\n",
   "technique.txt": "dp\n",
   "title.en.txt": "Counting the ways\n",
   "title.th.txt": "การนับจำนวนวิธี\n",
@@ -16,6 +17,26 @@ const fixture = (directory: string, overrides: Readonly<Record<string, string>> 
     path: `${directory}/${name}`,
     content,
   }));
+
+const filesAt = (directory: string, files: Readonly<Record<string, string>>): Plant[] =>
+  Object.entries(files).map(([name, content]) => ({ kind: "write", path: `${directory}/${name}`, content }));
+
+const englishOnly = (directory: string, overrides: Readonly<Record<string, string>> = {}): Plant[] => {
+  const files: Record<string, string> = { ...CLEAN, ...overrides, "locales.txt": "en\n" };
+  delete files["title.th.txt"];
+  delete files["statement.th.txt"];
+  return filesAt(directory, files);
+};
+
+const englishAndFrench = (directory: string, overrides: Readonly<Record<string, string>> = {}): Plant[] => {
+  const files: Record<string, string> = { ...CLEAN, "locales.txt": "en\nfr\n" };
+  delete files["title.th.txt"];
+  delete files["statement.th.txt"];
+  files["title.fr.txt"] = "Compter les façons\n";
+  files["statement.fr.txt"] = "# Compter les façons\n\nOn vous donne n et le nombre de façons à imprimer.\n";
+  Object.assign(files, overrides);
+  return filesAt(directory, files);
+};
 
 const command = (directory: string) => ({
   command: "bash",
@@ -35,6 +56,22 @@ export const ALGO_LEAK_GATE: Gate = {
       plant: fixture("fixtures/algo-clean"),
       command: command("fixtures/algo-clean"),
       expect: { status: "zero" },
+    },
+    {
+      // English-only ships, so the gate must pass it without a second language to lean on.
+      name: "english-only-passes",
+      plant: englishOnly("fixtures/algo-english"),
+      command: command("fixtures/algo-english"),
+      expect: { status: "zero" },
+    },
+    {
+      // A third language is matched by the same names as any other.
+      name: "french-statement-names-the-label",
+      plant: englishAndFrench("fixtures/algo-french", {
+        "statement.fr.txt": "# Compter les façons\n\nOn construit une table de Dynamic programming.\n",
+      }),
+      command: command("fixtures/algo-french"),
+      expect: { status: "non-zero", message: "names the intended approach" },
     },
     {
       // The English label: the spelling a writer reaches for first.

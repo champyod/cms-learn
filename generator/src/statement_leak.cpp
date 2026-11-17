@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <optional>
 #include <sstream>
@@ -304,76 +305,116 @@ auto refusal(const LeakSubject& subject, std::string_view surface, std::string_v
                                                       std::string{source} + ": \"" + std::string{span} + "\"");
 }
 
-auto read_text(const char* path) -> Result<std::string> {
-  auto stream = std::ifstream{std::string{path}, std::ios::binary};
+auto read_file(const std::filesystem::path& file) -> Result<std::string> {
+  auto stream = std::ifstream{file, std::ios::binary};
   if (!stream) {
     return std::unexpected(
-        Error::make(ErrorCode::not_found, "the leak check cannot read " + std::string{path}));
+        Error::make(ErrorCode::not_found, "the leak check cannot read " + file.string()));
   }
   auto buffer = std::ostringstream{};
   buffer << stream.rdbuf();
   return buffer.str();
 }
 
+/// @return The locales the temporary copy declares, in the order the task lists them.
+auto declared_locales(const std::filesystem::path& directory) -> Result<std::vector<std::string>> {
+  const auto listing = read_file(directory / leak_file::LOCALES);
+  if (!listing) {
+    return std::unexpected(listing.error());
+  }
+  auto locales = std::vector<std::string>{};
+  auto stream = std::istringstream{*listing};
+  auto line = std::string{};
+  while (std::getline(stream, line)) {
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    if (!line.empty()) {
+      locales.push_back(line);
+    }
+  }
+  if (locales.empty()) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "the temporary copy declares no locale in " +
+                                           std::string{leak_file::LOCALES}));
+  }
+  return locales;
+}
+
+/// @return One subject per declared locale: the title and the statement a student of that language reads.
+auto subjects_in(const std::filesystem::path& directory) -> Result<std::vector<LeakSubject>> {
+  const auto locales = declared_locales(directory);
+  if (!locales) {
+    return std::unexpected(locales.error());
+  }
+  auto subjects = std::vector<LeakSubject>{};
+  subjects.reserve(locales->size());
+  for (const auto& locale : *locales) {
+    const auto title = read_file(directory / title_file(locale));
+    if (!title) {
+      return std::unexpected(title.error());
+    }
+    const auto statement = read_file(directory / statement_file(locale));
+    if (!statement) {
+      return std::unexpected(statement.error());
+    }
+    subjects.push_back(LeakSubject{.locale = locale, .title = *title, .statement = *statement});
+  }
+  return subjects;
+}
+
 auto run_brief(int argc, char** argv) -> int {
-  if (argc != 12) {
-    std::fprintf(stderr,
-                 "usage: cms_generate_leak brief <brief> <description> <plan-approach> <plan-complexity> "
-                 "<plan-body> <plan-reason> <title-en> <title-th> <statement-en> <statement-th>\n");
+  if (argc != 3) {
+    std::fprintf(stderr, "usage: cms_generate_leak brief <directory>\n");
     return 64;
   }
-  auto texts = std::array<std::string, 10>{};
-  for (std::size_t index = 0; index < texts.size(); ++index) {
-    auto text = read_text(argv[static_cast<int>(index) + 2]);
-    if (!text) {
-      std::fprintf(stderr, "%s\n", text.error().message.c_str());
+  const auto directory = std::filesystem::path{argv[2]};
+  const auto brief = read_file(directory / leak_file::BRIEF);
+  const auto description = read_file(directory / leak_file::DESCRIPTION);
+  const auto approach = read_file(directory / leak_file::PLAN_APPROACH);
+  const auto complexity = read_file(directory / leak_file::PLAN_COMPLEXITY);
+  const auto body = read_file(directory / leak_file::PLAN_BODY);
+  const auto reason = read_file(directory / leak_file::PLAN_REASON);
+  const auto subjects = subjects_in(directory);
+  for (const auto* text : {&brief, &description, &approach, &complexity, &body, &reason}) {
+    if (!*text) {
+      std::fprintf(stderr, "%s\n", text->error().message.c_str());
       return 2;
     }
-    texts[index] = std::move(*text);
   }
-  const auto request = StatementRequest{.brief = texts[0], .description = texts[1]};
+  if (!subjects) {
+    std::fprintf(stderr, "%s\n", subjects.error().message.c_str());
+    return 2;
+  }
+  const auto request = StatementRequest{.brief = *brief, .description = *description};
   const auto plan = PlanTexts{
-      .approach = texts[2], .intended_complexity = texts[3], .plan = texts[4], .reason = texts[5]};
-  const auto locales = std::array<std::pair<std::string_view, std::size_t>, 2>{{{"en", 6}, {"th", 7}}};
-  for (const auto& [locale, first] : locales) {
-    const auto subject =
-        LeakSubject{.locale = std::string{locale}, .title = texts[first], .statement = texts[first + 2]};
-    const auto checked = check_brief_leak(subject, request, plan);
-    if (!checked) {
-      std::fprintf(stderr, "%s\n", checked.error().message.c_str());
-      return 1;
-    }
+      .approach = *approach, .intended_complexity = *complexity, .plan = *body, .reason = *reason};
+  const auto checked = check_brief_leak(*subjects, request, plan);
+  if (!checked) {
+    std::fprintf(stderr, "%s\n", checked.error().message.c_str());
+    return 1;
   }
   return 0;
 }
 
 auto run_algo(int argc, char** argv) -> int {
-  if (argc != 10) {
-    std::fprintf(stderr,
-                 "usage: cms_generate_leak algo <technique-id> <technique-en> <technique-th> <acronym> "
-                 "<title-en> <title-th> <statement-en> <statement-th>\n");
+  if (argc != 7) {
+    std::fprintf(stderr, "usage: cms_generate_leak algo <directory> <technique-id> <technique-en> "
+                         "<technique-th> <acronym>\n");
     return 64;
   }
+  const auto directory = std::filesystem::path{argv[2]};
   const auto technique = TechniqueNames{
-      .id = argv[2], .english = argv[3], .thai = argv[4], .acronym = std::string{argv[5]} == "-" ? "" : argv[5]};
-  auto texts = std::array<std::string, 4>{};
-  for (std::size_t index = 0; index < texts.size(); ++index) {
-    auto text = read_text(argv[static_cast<int>(index) + 6]);
-    if (!text) {
-      std::fprintf(stderr, "%s\n", text.error().message.c_str());
-      return 2;
-    }
-    texts[index] = std::move(*text);
+      .id = argv[3], .english = argv[4], .thai = argv[5], .acronym = std::string{argv[6]} == "-" ? "" : argv[6]};
+  const auto subjects = subjects_in(directory);
+  if (!subjects) {
+    std::fprintf(stderr, "%s\n", subjects.error().message.c_str());
+    return 2;
   }
-  const auto locales = std::array<std::pair<std::string_view, std::size_t>, 2>{{{"en", 0}, {"th", 1}}};
-  for (const auto& [locale, first] : locales) {
-    const auto subject =
-        LeakSubject{.locale = std::string{locale}, .title = texts[first], .statement = texts[first + 2]};
-    const auto checked = check_algo_leak(subject, technique);
-    if (!checked) {
-      std::fprintf(stderr, "%s\n", checked.error().message.c_str());
-      return 1;
-    }
+  const auto checked = check_algo_leak(*subjects, technique);
+  if (!checked) {
+    std::fprintf(stderr, "%s\n", checked.error().message.c_str());
+    return 1;
   }
   return 0;
 }
@@ -395,13 +436,16 @@ auto named_technique(std::string_view text, const TechniqueNames& technique) -> 
   return std::nullopt;
 }
 
-auto check_brief_leak(const LeakSubject& subject, const StatementRequest& request, const PlanTexts& plan)
-    -> Result<void> {
+auto check_brief_leak(const std::vector<LeakSubject>& subjects, const StatementRequest& request,
+                      const PlanTexts& plan) -> Result<void> {
+  if (subjects.empty()) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "the brief check was handed no locale, so there is nothing to compare"));
+  }
   if (trimmed(request.brief).empty() && trimmed(request.description).empty()) {
     return std::unexpected(Error::make(
         ErrorCode::invalid_argument,
-        "the job row stores no request: brief and description are empty, so there is nothing to compare the " +
-            subject.locale + " title and statement against"));
+        "the job row stores no request: brief and description are empty, so there is nothing to compare against"));
   }
   if (trimmed(request.brief).empty()) {
     return std::unexpected(
@@ -419,36 +463,44 @@ auto check_brief_leak(const LeakSubject& subject, const StatementRequest& reques
                                               {"the plan's intended complexity", folded(plan.intended_complexity)},
                                               {"the plan", folded(plan.plan)},
                                               {"the plan's reason", folded(plan.reason)}}};
-  for (auto& [surface, text] : surface_of(subject)) {
-    const auto folded_text = folded(text);
-    for (const auto& source : sources) {
-      if (source.text.empty()) {
-        continue;
-      }
-      if (const auto span = repeated_words(folded_text, source.text)) {
-        return std::unexpected(refusal(subject, surface, "8 words", source.name, *span));
-      }
-      if (const auto span = repeated_characters(compacted(folded_text), compacted(source.text))) {
-        return std::unexpected(refusal(subject, surface, "32 characters", source.name, *span));
+  for (const auto& subject : subjects) {
+    for (auto& [surface, text] : surface_of(subject)) {
+      const auto folded_text = folded(text);
+      for (const auto& source : sources) {
+        if (source.text.empty()) {
+          continue;
+        }
+        if (const auto span = repeated_words(folded_text, source.text)) {
+          return std::unexpected(refusal(subject, surface, "8 words", source.name, *span));
+        }
+        if (const auto span = repeated_characters(compacted(folded_text), compacted(source.text))) {
+          return std::unexpected(refusal(subject, surface, "32 characters", source.name, *span));
+        }
       }
     }
   }
   return {};
 }
 
-auto check_algo_leak(const LeakSubject& subject, const TechniqueNames& technique) -> Result<void> {
+auto check_algo_leak(const std::vector<LeakSubject>& subjects, const TechniqueNames& technique) -> Result<void> {
+  if (subjects.empty()) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "the algorithm check was handed no locale, so there is nothing to compare"));
+  }
   if (technique.id.empty() && technique.english.empty() && technique.thai.empty() && technique.acronym.empty()) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                        "the algorithm check was handed no technique name to match; the plan names "
                                        "the technique and the vocabulary names its labels"));
   }
-  for (const auto& [surface, text] : surface_of(subject)) {
-    const auto name = named_technique(text, technique);
-    if (name) {
-      return std::unexpected(Error::make(ErrorCode::invalid_argument,
-                                         "the " + std::string{surface} + " (" + subject.locale +
-                                             ") names the intended approach \"" + *name +
-                                             "\"; a statement never names the technique (ADR 0036 §3)"));
+  for (const auto& subject : subjects) {
+    for (const auto& [surface, text] : surface_of(subject)) {
+      const auto name = named_technique(text, technique);
+      if (name) {
+        return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                           "the " + std::string{surface} + " (" + subject.locale +
+                                               ") names the intended approach \"" + *name +
+                                               "\"; a statement never names the technique (ADR 0036 §3)"));
+      }
     }
   }
   return {};
@@ -456,7 +508,7 @@ auto check_algo_leak(const LeakSubject& subject, const TechniqueNames& technique
 
 auto leak_command(int argc, char** argv) -> int {
   if (argc < 2) {
-    std::fprintf(stderr, "usage: cms_generate_leak <brief|algo> <files...>\n");
+    std::fprintf(stderr, "usage: cms_generate_leak <brief|algo> <directory> [<technique names>]\n");
     return 64;
   }
   const auto mode = std::string_view{argv[1]};
@@ -466,7 +518,7 @@ auto leak_command(int argc, char** argv) -> int {
   if (mode == "algo") {
     return run_algo(argc, argv);
   }
-  std::fprintf(stderr, "usage: cms_generate_leak <brief|algo> <files...>\n");
+  std::fprintf(stderr, "usage: cms_generate_leak <brief|algo> <directory> [<technique names>]\n");
   return 64;
 }
 

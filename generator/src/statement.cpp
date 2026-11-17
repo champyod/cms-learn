@@ -80,12 +80,9 @@ auto section_at(Sections& sections, std::size_t index) -> decltype(auto) {
   }
 }
 
-auto language_of(std::string_view locale) -> std::string_view {
-  return locale == THAI_LOCALE ? "Thai (ภาษาไทย)" : "English";
-}
-
 auto constraints_text(const Specification& specification) -> std::string {
-  auto text = "1 <= n <= " + std::to_string(specification.bounds.max_n) + "\n";
+  auto text = std::to_string(specification.bounds.min_n) + " <= n <= " +
+              std::to_string(specification.bounds.max_n) + "\n";
   text += "each value between " + std::to_string(specification.bounds.value_min) + " and " +
           std::to_string(specification.bounds.value_max) + "\n";
   text += "the smallest case reads n = " + std::to_string(specification.bounds.min_n) + "\n";
@@ -99,6 +96,24 @@ auto framed(std::string_view label, std::string_view text) -> Result<std::string
   return frame_data(ModelData{.label = std::string{label}, .text = std::string{text}});
 }
 
+/// @return Whether @p text carries a decimal digit, ASCII or Thai, which ADR 0034 §3 keeps out of the example's
+/// prose because every number there is machine-derived.
+auto has_number(std::string_view text) -> bool {
+  for (std::size_t index = 0; index < text.size(); ++index) {
+    const auto byte = static_cast<unsigned char>(text[index]);
+    if (byte >= '0' && byte <= '9') {
+      return true;
+    }
+    if (byte == 0xE0U && index + 2 < text.size() && static_cast<unsigned char>(text[index + 1]) == 0xB9U) {
+      const auto third = static_cast<unsigned char>(text[index + 2]);
+      if (third >= 0x90U && third <= 0x99U) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 auto example_block(const ExamplePair& example) -> std::string {
   return "Input:\n\n```\n" + example.input + "```\n\nOutput:\n\n```\n" + example.answer + "```\n";
 }
@@ -110,11 +125,17 @@ auto row_of(const LocalizedStatement& statement, const ExamplePair& example, std
 
 auto artefacts_for(const Step4Answer& answer, const OracleCheck& oracle, const LeakProof& proof)
     -> Result<std::vector<Artefact>> {
+  auto missing = std::string{};
   if (!proof.is_brief_checked) {
-    return std::unexpected(refuse("the statement rows are refused: check:brief-leak has not run over them"));
+    missing = "check:brief-leak";
   }
   if (!proof.is_algo_checked) {
-    return std::unexpected(refuse("the statement rows are refused: check:algo-leak has not run over them"));
+    missing += missing.empty() ? "check:algo-leak" : " and check:algo-leak";
+  }
+  if (!missing.empty()) {
+    return std::unexpected(refuse("the statement rows are refused: " + missing +
+                                  (missing.find(" and ") == std::string::npos ? " has" : " have") +
+                                  " not run over them"));
   }
   if (answer.statements.empty()) {
     return std::unexpected(refuse("the answer carries no statement to record"));
@@ -133,9 +154,9 @@ auto artefacts_for(const Step4Answer& answer, const OracleCheck& oracle, const L
   artefacts.reserve(answer.statements.size() * 2);
   for (std::size_t index = 0; index < answer.statements.size(); ++index) {
     const auto& statement = answer.statements[index];
-    if (!is_supported_locale(statement.locale)) {
-      return std::unexpected(refuse("a statement is written for the locale \"" + statement.locale +
-                                    "\", which is not en or th"));
+    if (!is_locale_tag(statement.locale)) {
+      return std::unexpected(refuse("a statement is written for a locale whose tag \"" + statement.locale +
+                                    "\" is not lowercase letters, digits and dashes"));
     }
     for (std::size_t other = 0; other < index; ++other) {
       if (answer.statements[other].locale == statement.locale) {
@@ -147,9 +168,15 @@ auto artefacts_for(const Step4Answer& answer, const OracleCheck& oracle, const L
       return std::unexpected(refuse("the " + statement.locale + " statement carries no title"));
     }
     for (std::size_t section = 0; section < SECTIONS.size(); ++section) {
-      if (trimmed(section_at(statement.sections, section)).empty()) {
+      const auto& prose = section_at(statement.sections, section);
+      if (trimmed(prose).empty()) {
         return std::unexpected(refuse("the " + statement.locale + " statement has a blank section \"" +
                                       std::string{SECTIONS[section].key} + "\""));
+      }
+      if (SECTIONS[section].key == "example" && has_number(prose)) {
+        return std::unexpected(refuse("the " + statement.locale +
+                                      " statement's example section carries a number; ADR 0034 §3 makes the "
+                                      "example's bytes machine-derived and the prose around it number-free"));
       }
     }
     for (const auto kind : {TITLE_KIND, STATEMENT_KIND}) {
@@ -161,6 +188,13 @@ auto artefacts_for(const Step4Answer& answer, const OracleCheck& oracle, const L
                                    .bytes = row_of(statement, answer.example, kind),
                                    .call = answer.calls[index]});
     }
+    artefacts.push_back(Artefact{.step = STATEMENT_STEP,
+                                 .kind = std::string{ANSWER_KIND},
+                                 .locale = statement.locale,
+                                 .home = ArtefactHome::row,
+                                 .object_key = {},
+                                 .bytes = answer.answer_json[index],
+                                 .call = answer.calls[index]});
   }
   return artefacts;
 }
@@ -177,16 +211,18 @@ auto write_file(const std::filesystem::path& file, std::string_view text) -> Res
 
 }  // namespace
 
-auto title_file(std::string_view locale) -> std::string {
-  return "title." + std::string{locale} + ".txt";
-}
-
-auto statement_file(std::string_view locale) -> std::string {
-  return "statement." + std::string{locale} + ".txt";
-}
-
-auto is_supported_locale(std::string_view locale) -> bool {
-  return locale == ENGLISH_LOCALE || locale == THAI_LOCALE;
+auto is_locale_tag(std::string_view locale) -> bool {
+  if (locale.empty()) {
+    return false;
+  }
+  for (const auto character : locale) {
+    const auto is_lower = character >= 'a' && character <= 'z';
+    const auto is_digit = character >= '0' && character <= '9';
+    if (!is_lower && !is_digit && character != '-') {
+      return false;
+    }
+  }
+  return true;
 }
 
 auto render_statement(const LocalizedStatement& statement, const ExamplePair& example) -> std::string {
@@ -292,11 +328,11 @@ auto read_technique_names(const std::filesystem::path& vocabulary, std::string_v
   return std::unexpected(refuse("the topic vocabulary does not define the technique \"" + std::string{id} + "\""));
 }
 
-auto statement_prompt(const Specification& specification, std::string_view trap, std::string_view locale)
-    -> Result<std::string> {
-  if (!is_supported_locale(locale)) {
-    return std::unexpected(refuse("step 4 cannot write a statement for the locale \"" + std::string{locale} +
-                                  "\"; it writes en and th"));
+auto statement_prompt(const Specification& specification, std::string_view trap,
+                      const LocaleDeclaration& locale) -> Result<std::string> {
+  if (!is_locale_tag(locale.tag) || trimmed(locale.name).empty()) {
+    return std::unexpected(refuse("step 4 cannot write a statement for the locale \"" + locale.tag +
+                                  "\": a locale needs a tag and the language's own name"));
   }
   if (trimmed(trap).empty()) {
     return std::unexpected(refuse("step 4 was handed no trap sentence to describe (ADR 0036 §3)"));
@@ -312,7 +348,7 @@ auto statement_prompt(const Specification& specification, std::string_view trap,
   }
   auto prompt = std::string{"You are step 4 of a task-generation pipeline. You write the statement of one "
                             "programming task for a school judge, in "};
-  prompt += language_of(locale);
+  prompt += locale.name;
   prompt +=
       ".\n"
       "You are not told the intended algorithm, and the statement must not name one, or hint at one by its "
@@ -330,7 +366,7 @@ auto statement_prompt(const Specification& specification, std::string_view trap,
       "  \"example\": one or two sentences that introduce the worked example, with no number in them;\n"
       "  \"scoring\": the section that says how the subtasks are scored.\n"
       "Every section is prose in ";
-  prompt += language_of(locale);
+  prompt += locale.name;
   prompt += "; the worked example's input and answer are supplied by the pipeline, so never write them.\n";
   return prompt;
 }
@@ -382,17 +418,26 @@ auto write_statement(ModelClient& client, const StatementInput& input, const Ora
   if (input.locales.empty()) {
     return std::unexpected(refuse("step 4 was asked for no locale; a task ships at least one"));
   }
+  auto has_english = false;
   for (std::size_t index = 0; index < input.locales.size(); ++index) {
-    if (!is_supported_locale(input.locales[index])) {
-      return std::unexpected(refuse("step 4 cannot write the locale \"" + input.locales[index] +
-                                    "\"; it writes en and th"));
+    const auto& declaration = input.locales[index];
+    if (!is_locale_tag(declaration.tag) || trimmed(declaration.name).empty()) {
+      return std::unexpected(refuse("step 4 was handed the locale \"" + declaration.tag +
+                                    "\" without a tag and the language's own name"));
+    }
+    if (declaration.tag == ENGLISH_LOCALE) {
+      has_english = true;
     }
     for (std::size_t other = 0; other < index; ++other) {
-      if (input.locales[other] == input.locales[index]) {
-        return std::unexpected(refuse("step 4 was asked for the locale \"" + input.locales[index] +
+      if (input.locales[other].tag == declaration.tag) {
+        return std::unexpected(refuse("step 4 was asked for the locale \"" + declaration.tag +
                                       "\" twice; one locale is one statement"));
       }
     }
+  }
+  if (!has_english) {
+    return std::unexpected(refuse("the declared locales carry no \"" + std::string{ENGLISH_LOCALE} +
+                                  "\"; ADR 0014 makes English the one language a task always ships"));
   }
   if (trimmed(oracle_check.smallest_input).empty() || trimmed(oracle_check.answer).empty()) {
     return std::unexpected(refuse("the oracle check carries no smallest case or no answer to show as the example"));
@@ -414,8 +459,8 @@ auto write_statement(ModelClient& client, const StatementInput& input, const Ora
                             .example = ExamplePair{.input = oracle_check.smallest_input, .answer = oracle_check.answer},
                             .answer_json = {},
                             .calls = {}};
-  for (const auto& locale : input.locales) {
-    const auto prompt = statement_prompt(input.specification, input.trap, locale);
+  for (const auto& declaration : input.locales) {
+    const auto prompt = statement_prompt(input.specification, input.trap, declaration);
     if (!prompt) {
       return std::unexpected(prompt.error());
     }
@@ -423,7 +468,7 @@ auto write_statement(ModelClient& client, const StatementInput& input, const Ora
     if (!completion) {
       return std::unexpected(completion.error());
     }
-    auto statement = parse_statement_answer(completion->text, locale, completion->call);
+    auto statement = parse_statement_answer(completion->text, declaration.tag, completion->call);
     if (!statement) {
       return std::unexpected(statement.error());
     }
@@ -557,6 +602,14 @@ auto LeakWorkspace::write(const TechniqueNames& technique) -> Result<void> {
 }
 
 auto LeakWorkspace::write(const Step4Answer& answer) -> Result<void> {
+  auto locales = std::string{};
+  for (const auto& statement : answer.statements) {
+    locales += statement.locale + "\n";
+  }
+  const auto written_locales = write_file(directory_ / leak_file::LOCALES, locales);
+  if (!written_locales) {
+    return written_locales;
+  }
   for (const auto& statement : answer.statements) {
     const auto title = write_file(directory_ / title_file(statement.locale), statement.title);
     if (!title) {

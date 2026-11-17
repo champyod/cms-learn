@@ -21,16 +21,18 @@ class ObjectStore;
 
 namespace cms::generate {
 
-/// The two locales a task ships, and the only values a statement row's locale may hold.
+/// The one locale the authoring record requires (ADR 0014: English always). Every other locale is optional and
+/// symmetric, so it is data the caller declares, never a constant here.
 inline constexpr std::string_view ENGLISH_LOCALE = "en";
-inline constexpr std::string_view THAI_LOCALE = "th";
 
 /// The step the statement artefacts are recorded under (ADR 0015).
 inline constexpr std::int16_t STATEMENT_STEP = 4;
 
-/// The kinds the two rows per locale carry: the page heading and the statement a student reads.
+/// The kinds the rows per locale carry: the page heading, the statement a student reads, and the answer the model
+/// actually sent, kept beside them so a dispute can read it (ADR 0030 §2).
 inline constexpr std::string_view TITLE_KIND = "title";
 inline constexpr std::string_view STATEMENT_KIND = "statement";
+inline constexpr std::string_view ANSWER_KIND = "answer";
 
 /// @brief The prose of each fixed section, as the model wrote it. The example's bytes are not here: no model
 /// writes a number ADR 0034 makes machine-derived.
@@ -63,6 +65,15 @@ struct Step4Answer {
   ExamplePair example;
   std::vector<std::string> answer_json;
   std::vector<ModelCall> calls;
+};
+
+/// @brief One locale the task ships: the tag its rows carry, and the language's own name for the prompt.
+///
+/// The name is data because a prompt that names a language is the only place one is needed; no function, constant
+/// or branch in this step knows a language, so a locale the authoring surface adds later needs no code.
+struct LocaleDeclaration {
+  std::string tag;
+  std::string name;
 };
 
 /// @brief The teacher's request, as the job row stores it (ADR 0036 §2).
@@ -110,16 +121,21 @@ inline constexpr std::string_view PLAN_COMPLEXITY = "plan-complexity.txt";
 inline constexpr std::string_view PLAN_BODY = "plan.txt";
 inline constexpr std::string_view PLAN_REASON = "plan-reason.txt";
 inline constexpr std::string_view TECHNIQUE = "technique.txt";
+inline constexpr std::string_view LOCALES = "locales.txt";
 }  // namespace leak_file
 
 /// @return The file one locale's title is written to in the check's temporary copy.
-[[nodiscard]] auto title_file(std::string_view locale) -> std::string;
+[[nodiscard]] inline auto title_file(std::string_view locale) -> std::string {
+  return "title." + std::string{locale} + ".txt";
+}
 
 /// @return The file one locale's statement is written to in the check's temporary copy.
-[[nodiscard]] auto statement_file(std::string_view locale) -> std::string;
+[[nodiscard]] inline auto statement_file(std::string_view locale) -> std::string {
+  return "statement." + std::string{locale} + ".txt";
+}
 
-/// @return Whether @p locale is one of the two the task ships.
-[[nodiscard]] auto is_supported_locale(std::string_view locale) -> bool;
+/// @return Whether @p locale has the shape of a language tag: lowercase letters, digits and dashes, non-empty.
+[[nodiscard]] auto is_locale_tag(std::string_view locale) -> bool;
 
 /// @brief Renders one locale's markdown: the title, then the six sections in the order ADR 0031 names them, with the
 /// example's bytes taken from @p example rather than from the answer.
@@ -140,20 +156,21 @@ inline constexpr std::string_view TECHNIQUE = "technique.txt";
 ///
 /// The request, the plan, the approach and the technique are not parameters, so no prompt can carry them.
 [[nodiscard]] auto statement_prompt(const Specification& specification, std::string_view trap,
-                                    std::string_view locale) -> Result<std::string>;
+                                    const LocaleDeclaration& locale) -> Result<std::string>;
 
 /// @brief Reads one locale's answer: its title and the six sections, each named when it is missing or blank.
 [[nodiscard]] auto parse_statement_answer(std::string_view answer, std::string_view locale,
                                           const ModelCall& call) -> Result<LocalizedStatement>;
 
-/// @brief The facts step 4 writes from: the specification, its limit, the stored oracle, the trap and the technique.
+/// @brief The facts step 4 writes from: the specification, the trap and the technique, for the locales it ships.
+///
+/// The oracle's bytes arrive with the oracle check, and the limits are step 3's: a field this step never reads is
+/// a claim nobody checks, so neither is a member here.
 struct StatementInput {
   Specification specification;
-  DerivedLimit limit;
-  std::string oracle_source;
   std::string trap;
   TechniqueNames technique;
-  std::vector<std::string> locales;
+  std::vector<LocaleDeclaration> locales;
 };
 
 /// @brief Runs step 4: one call per locale, the example taken from @p oracle_check, and both statements rendered.
@@ -235,7 +252,7 @@ class LeakWorkspace {
   /// @brief Writes the technique id, which the algorithm check resolves against the vocabulary.
   [[nodiscard]] auto write(const TechniqueNames& technique) -> Result<void>;
 
-  /// @brief Writes each locale's title and statement as the check receives them.
+  /// @brief Writes the declared locale set and each locale's title and statement as the check receives them.
   [[nodiscard]] auto write(const Step4Answer& answer) -> Result<void>;
 
   /// @return The file inside the directory a name from `leak_file` or a generated locale name refers to.
@@ -256,11 +273,12 @@ class LeakWorkspace {
 /// @p plan, quoting the subject's own span and never the source's (ADR 0037 §3).
 ///
 /// @return Nothing when nothing is repeated, or the refusal naming the source and quoting the subject's span.
-[[nodiscard]] auto check_brief_leak(const LeakSubject& subject, const StatementRequest& request,
+[[nodiscard]] auto check_brief_leak(const std::vector<LeakSubject>& subjects, const StatementRequest& request,
                                     const PlanTexts& plan) -> Result<void>;
 
-/// @brief Refuses @p subject when it names @p technique by id, English label, Thai label or acronym (ADR 0036 §3).
-[[nodiscard]] auto check_algo_leak(const LeakSubject& subject, const TechniqueNames& technique) -> Result<void>;
+/// @brief Refuses any subject in @p subjects when it names @p technique by id, any label or acronym (ADR 0036 §3).
+[[nodiscard]] auto check_algo_leak(const std::vector<LeakSubject>& subjects, const TechniqueNames& technique)
+    -> Result<void>;
 
 /// @return The acronym one English label is matchable by: the initial letters of its words, or empty when the label
 /// is one word and its initial is no name.

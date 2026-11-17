@@ -7,8 +7,9 @@
 # The rule lives in generator/src/statement_leak.cpp and the program is compiled from this tree on every run, so a
 # defect planted in the rule makes this gate go red instead of passing on an older binary.
 #
-# A fixture directory holds: technique.txt (the topic id), title.en.txt, title.th.txt, statement.en.txt,
-# statement.th.txt. The labels come from content/topics.json, the one place a topic id is defined.
+# A fixture directory holds: locales.txt (one language tag per line), technique.txt (the topic id), and
+# title.<tag>.txt and statement.<tag>.txt for every tag the set declares. The labels come from content/topics.json,
+# the one place a topic id is defined; the gate names no language, so a set is checked exactly as it ships.
 set -uo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -47,6 +48,7 @@ names_of() { # <topic id>
 compare() { # <fixture directory>
   local directory="$1" locale kind
   [ -f "$directory/technique.txt" ] || die "the fixture $directory holds no technique.txt"
+  [ -f "$directory/locales.txt" ] || die "the fixture $directory holds no locales.txt"
   local id
   id="$(sed -n '1p' "$directory/technique.txt")"
   [ -n "$id" ] || die "the fixture $directory names no technique"
@@ -54,14 +56,14 @@ compare() { # <fixture directory>
   resolved="$(names_of "$id")" || die "content/topics.json does not define the technique \"$id\""
   local fields=()
   while IFS= read -r line; do fields+=("$line"); done <<<"$resolved"
-  for locale in en th; do
+  while IFS= read -r locale; do
+    [ -n "$locale" ] || continue
     for kind in title statement; do
-      [ -f "$directory/$kind.$locale.txt" ] || die "the fixture $directory holds no $kind.$locale.txt"
+      [ -f "$directory/$kind.$locale.txt" ] \
+        || die "the fixture $directory declares $locale but holds no $kind.$locale.txt"
     done
-  done
-  "$work/leak" algo "${fields[0]}" "${fields[1]}" "${fields[2]}" - \
-    "$directory/title.en.txt" "$directory/title.th.txt" \
-    "$directory/statement.en.txt" "$directory/statement.th.txt"
+  done <"$directory/locales.txt"
+  "$work/leak" algo "$directory" "${fields[0]}" "${fields[1]}" "${fields[2]}" -
 }
 
 expect_clean() { # <fixture directory>
@@ -99,6 +101,7 @@ fi
 
 clean="$work/clean"
 mkdir -p "$clean"
+printf '%s\n' "en" "th" >"$clean/locales.txt"
 printf '%s\n' "dp" >"$clean/technique.txt"
 printf '%s\n' "Counting the ways" >"$clean/title.en.txt"
 printf '%s\n' "การนับจำนวนวิธี" >"$clean/title.th.txt"
@@ -106,6 +109,21 @@ printf '%s\n' "# Counting the ways" "" "You are given n and must print the numbe
 printf '%s\n' "# การนับจำนวนวิธี" "" "กำหนดค่า n แล้วพิมพ์จำนวนวิธีทั้งหมด" >"$clean/statement.th.txt"
 
 expect_clean "$clean"
+
+english_only="$work/english-only"
+cp -R "$clean" "$english_only"
+printf '%s\n' "en" >"$english_only/locales.txt"
+rm -f "$english_only/title.th.txt" "$english_only/statement.th.txt"
+expect_clean "$english_only"
+
+english_and_french="$work/english-and-french"
+cp -R "$clean" "$english_and_french"
+printf '%s\n' "en" "fr" >"$english_and_french/locales.txt"
+rm -f "$english_and_french/title.th.txt" "$english_and_french/statement.th.txt"
+printf '%s\n' "Compter les façons" >"$english_and_french/title.fr.txt"
+printf '%s\n' "# Compter les façons" "" "On vous donne n et le nombre de façons à imprimer." \
+  >"$english_and_french/statement.fr.txt"
+expect_clean "$english_and_french"
 
 leaked_title="$work/leaked-title"
 cp -R "$clean" "$leaked_title"
@@ -122,4 +140,10 @@ cp -R "$clean" "$leaked_thai"
 printf '%s\n' "การนับจำนวนวิธี" "" "ใช้การโปรแกรมพลวัตกับค่าที่กำหนด" >"$leaked_thai/statement.th.txt"
 expect_refused "$leaked_thai" "the Thai label in a statement"
 
-printf '\nthe clean control passes, and the label, the id and the Thai label are refused\n'
+leaked_french="$work/leaked-french"
+cp -R "$english_and_french" "$leaked_french"
+printf '%s\n' "# Compter les façons" "" "On construit une table de Dynamic programming." \
+  >"$leaked_french/statement.fr.txt"
+expect_refused "$leaked_french" "the English label in a French statement"
+
+printf '\nthe clean controls pass, and the label, the id, the Thai label and a French statement are refused\n'
