@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **50 shipped · 6 partial · 8 planned** (64 features).
+Counts at last update: **50 shipped · 5 partial · 9 planned** (64 features).
 
 ---
 
@@ -41,10 +41,6 @@ Counts at last update: **50 shipped · 6 partial · 8 planned** (64 features).
 | F-016 | Task visibility: one encoded principal column; a task with no visibility row is hidden and `content:read` reveals it (ADR 0010) | A | ● | `bank/include/cms/bank/visibility.hpp`, `docs/decisions/0010-task-visibility.md`, `tools/check-visibility.sh` + `tools/falsify/cases/visibility.ts` |
 | F-017 | The statement step writes a task's title and statement in each locale it ships: six fixed sections in the order ADR 0031 names, and the worked example taken from the stored brute-force program (ADR 0034) | A | ● | `generator/src/statement.cpp` (prompt, answer parse, sinks), `generator/tests/statement_test.cpp` (order, refusal by name, oracle bytes, identical runs) |
 | F-018 | Two leak checks refuse a title or statement that repeats the teacher's request (eight English words, thirty-two Thai characters) or names the intended approach by id, label or acronym, reading a temporary copy the caller removes (ADR 0035, 0037) | A | ● | `tools/check-brief-leak.sh`, `tools/check-algo-leak.sh`, `generator/src/statement_leak.cpp`, `tools/falsify/cases/brief_leak.ts`, `tools/falsify/cases/algo_leak.ts` |
-
-| F-013 | A task's fields are data: a task type and its fields are rows, so a new field or type needs no rebuild | A | ● | `deploy/schema/fields.sql`, `content/task_types.json`, `bank/src/seed.cpp`; `docs/decisions/0024-task-fields-are-data.md` |
-| F-014 | The authoring form is generated from those rows: adding a row adds a question, deleting one removes it, and nothing outside the type's fields can be written | A | ● | `api/src/task_plan.cpp`, `api/src/admin_routes.cpp`, `design/pages/admin_task_form.tsx`, `api/tests/task_form_e2e.sh` |
-| F-015 | A task's bytes live in object storage, the row holds the key, and a missing object is a refusal naming it at both doors, never empty content | C | ● | `core/src/object_store.cpp`, `api/src/admin_routes.cpp` (502 naming the key), `bank/src/seed.cpp` (`verify_objects` before any write), `tools/check-objects.sh`; the store requires a credential (`docs/decisions/0026`) |
 
 ## Judge
 
@@ -72,6 +68,14 @@ Counts at last update: **50 shipped · 6 partial · 8 planned** (64 features).
 | F-038 | Submission result: verdict, per-test cost, diff of first failure | A | ◐ | verdict and 2 s polling: `api/src/verdict_routes.cpp` + `design/pages/task.tsx` (`hx-get`); per-test cost and the first-failure diff do not exist |
 | F-039 | Progress at `/progress`: per topic, attempts and solves from stored rows, with untried shown as untried and no invented threshold | C | ● | `api/src/progress_view.cpp`, `api/src/progress_routes.cpp`, `design/pages/progress.tsx`; the rows are written by the submit route and the judge (`docs/decisions/0022-progress-is-written-by-the-submit-path.md`) |
 | F-040 | Dictionary wiring for TH/EN across every surface | A | ● | `api/src/web.cpp` (`choose_locale`, `label`, one-word fallback), reused by `api/src/auth_view.cpp` and `api/src/settings_page.cpp`; fallback case in `api/tests/web_test.cpp` |
+
+### Authoring surfaces
+
+| ID | Feature | Class | State | Evidence |
+|---|---|---|---|---|
+| F-032 | A task's fields are data: a task type and its fields are rows, so a new field or type needs no rebuild | A | ● | `deploy/schema/fields.sql`, `content/task_types.json`, `bank/src/seed.cpp`; `docs/decisions/0024-task-fields-are-data.md` |
+| F-033 | The authoring form is generated from those rows: adding a row adds a question, deleting one removes it, and nothing outside the type's fields can be written | A | ● | `api/src/task_plan.cpp`, `api/src/admin_routes.cpp`, `design/pages/admin_task_form.tsx`, `api/tests/task_form_e2e.sh` |
+| F-042 | A task's bytes live in object storage, the row holds the key, and a missing object is a refusal naming it at both doors, never empty content | C | ● | `core/src/object_store.cpp`, `api/src/admin_routes.cpp` (502 naming the key), `bank/src/seed.cpp` (`verify_objects` before any write), `tools/check-objects.sh`; the store requires a credential (`docs/decisions/0026`) |
 
 ## Accounts and security
 
