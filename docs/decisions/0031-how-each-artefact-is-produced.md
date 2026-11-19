@@ -49,3 +49,18 @@ own group and fail the next, is what makes a subtask's weight a measurement rath
   hunts for the bounds and a gate cannot check a section exists.
 - **Only the full-score reference.** Cheap, and the subtask weights would rest on an untested claim.
 - **A model writing the manifest or the examples.** A digest a model wrote is a digest nobody computed.
+
+## Interpretation added 2026-11-19 — two of the six sections are rendered, not written
+
+§2 gives the statement six fixed sections and says "the model writes the prose inside each". Two of them are
+now **rendered from rows**, not written:
+
+- **constraints** — from the task's bounds and each subtask's typed narrowing (`0041`);
+- **scoring** — from the subtask rows' points and constraints, which `0033` §4 already required: "the
+  statement's scoring section is generated from these rows".
+
+This is the shape of §4's own amendment: a value no gate can compute is a defect. A generator that still
+asks the model for those two sections would end up with two texts for one field.
+
+Whether a model answer that still supplies them is **refused** or **ignored** is the operator's open item;
+it is not settled here. The sections themselves are rendered either way.

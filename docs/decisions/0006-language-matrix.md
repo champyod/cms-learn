@@ -117,3 +117,15 @@ section is the reason it would be changed rather than guessed at.
 | Content and runtime agree | gate calls the domain core validator; api calls the same | not built |
 | Schema has no hand edits | `atlas migrate validate` in CI | not built |
 | htmx 4.0.0 is safe to adopt (released 2026-08-28, a recent major) | a swap-and-render smoke test on the four screens before the pilot; 2.x remains the fallback and the templates are plain attributes | not built |
+
+## Interpretation added 2026-11-19 — the exact version supersedes the floor
+
+The section above records a **minimum major** (`CMS_MIN_GCC_MAJOR 16`) and names two compilers in use:
+g++ 16.2.1 on the development host and 16.2.0 in the api image. `0043` (accepted 2026-11-18, later and by
+the same operator) replaces that rule with **one exact version**, enforced at configure, with every build
+running inside the image that carries it.
+
+- The floor rule is read as history. `0043` §2 decides which compiler may build this project.
+- The lint-only clang++ exemption stands, because a lint configure ships no artefact; `0043` governs builds
+  that produce one.
+- The two compilers named above are no longer both valid: 16.2.1 is refused once `0043` is implemented.
