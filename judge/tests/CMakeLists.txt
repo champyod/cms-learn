@@ -45,6 +45,26 @@ if(Catch2_FOUND)
   cms_apply_sanitizers(cms_judge_supervisor_tests)
   catch_discover_tests(cms_judge_supervisor_tests)
 
+  # The publisher's decision is proven without a database: the certificate source is the seam, and the case
+  # supplies the row it would have read.
+  add_executable(cms_judge_promote_tests promote_test.cpp)
+  target_link_libraries(cms_judge_promote_tests PRIVATE cms::judge_verdict Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_judge_promote_tests PRIVATE)
+  cms_apply_hardening(cms_judge_promote_tests)
+  cms_apply_sanitizers(cms_judge_promote_tests)
+  catch_discover_tests(cms_judge_promote_tests)
+
+  # Reading the row is a database operation, so its test exists only where the connector does.
+  if(TARGET cms::judge_promote_sql AND TARGET cms::db_drogon)
+    add_executable(cms_judge_promote_sql_tests promote_sql_test.cpp)
+    target_link_libraries(cms_judge_promote_sql_tests PRIVATE cms::judge_promote_sql cms::db_drogon
+                                                               Catch2::Catch2WithMain)
+    cms_apply_warnings(cms_judge_promote_sql_tests PRIVATE)
+    cms_apply_hardening(cms_judge_promote_sql_tests)
+    cms_apply_sanitizers(cms_judge_promote_sql_tests)
+    catch_discover_tests(cms_judge_promote_sql_tests)
+  endif()
+
   # A claim is a database operation, so its test exists only where the connector does.
   if(TARGET cms::judge_worker AND TARGET cms::db_drogon)
     add_executable(cms_judge_worker_tests worker_test.cpp)

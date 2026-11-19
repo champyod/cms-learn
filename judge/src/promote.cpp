@@ -4,6 +4,7 @@
 #include <array>
 #include <cstddef>
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -64,6 +65,91 @@ auto field_value(std::string_view manifest, std::string_view field) -> std::stri
   return std::string{manifest.substr(open + 1, close - open - 1)};
 }
 
+auto field_integer(std::string_view manifest, std::string_view field) -> std::optional<std::int64_t> {
+  const auto key = "\"" + std::string{field} + "\"";
+  const auto position = manifest.find(key);
+  if (position == std::string_view::npos) {
+    return std::nullopt;
+  }
+  const auto colon = manifest.find(':', position);
+  if (colon == std::string_view::npos) {
+    return std::nullopt;
+  }
+  auto first = colon + 1;
+  while (first < manifest.size() && (manifest[first] == ' ' || manifest[first] == '\t')) {
+    ++first;
+  }
+  auto last = first;
+  while (last < manifest.size() && manifest[last] >= '0' && manifest[last] <= '9') {
+    ++last;
+  }
+  if (last == first) {
+    return std::nullopt;
+  }
+  return std::stoll(std::string{manifest.substr(first, last - first)});
+}
+
+/// @return The claim the task file carries about its own verification, which a refusal names and nothing believes.
+auto verification_claim(std::string_view manifest) -> std::string {
+  const auto position = manifest.find("\"verification\"");
+  if (position == std::string_view::npos) {
+    return "none";
+  }
+  const auto nested = manifest.substr(position);
+  const auto status = field_value(nested, "status");
+  return status.empty() ? std::string{"none"} : status;
+}
+
+/// The identity a certificate must name, plus the claim the refusal reports.
+struct ManifestIdentity {
+  std::string task_id;
+  std::int64_t task_version{0};
+  std::string verification_claim;
+};
+
+auto manifest_identity(std::string_view manifest, const std::filesystem::path& task_dir)
+    -> Result<ManifestIdentity> {
+  const auto task_id = field_value(manifest, "id");
+  const auto task_version = field_integer(manifest, "version");
+  if (task_id.empty() || !task_version) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument,
+        task_dir.string() + ": the manifest names no id or version, so no certificate can be read for it"));
+  }
+  return ManifestIdentity{.task_id = task_id,
+                          .task_version = *task_version,
+                          .verification_claim = verification_claim(manifest)};
+}
+
+auto refused(const std::filesystem::path& task_dir, const ManifestIdentity& identity, std::string_view reason)
+    -> Error {
+  return Error::make(ErrorCode::invalid_argument,
+                     task_dir.string() + ": the task file says verification \"" + identity.verification_claim +
+                         "\" and " + std::string{reason} + "; a task is published only on a certificate the "
+                         "certifier wrote that says verified");
+}
+
+/// @brief Refuses unless the newest certificate for the manifest's task version says `verified`.
+auto refuse_unless_certified(const std::filesystem::path& task_dir, const ManifestIdentity& identity,
+                             const CertificateSource& certificates) -> Result<void> {
+  const auto certificate = certificates.latest(identity.task_id, identity.task_version);
+  if (!certificate) {
+    return std::unexpected(certificate.error());
+  }
+  if (!certificate->has_value()) {
+    return std::unexpected(refused(task_dir, identity,
+                                   "no certificate row exists for " + identity.task_id + " version " +
+                                       std::to_string(identity.task_version)));
+  }
+  const auto& row = **certificate;
+  if (row.outcome != "verified") {
+    return std::unexpected(refused(task_dir, identity,
+                                   "the certificate row records \"" + row.outcome + "\" (commit " + row.commit_id +
+                                       ")"));
+  }
+  return {};
+}
+
 /// Replaces one occurrence and refuses when the text is not there, so a promotion cannot quietly write a
 /// manifest it did not understand.
 auto replace_once(std::string& text, std::string_view from, std::string_view to) -> bool {
@@ -78,7 +164,8 @@ auto replace_once(std::string& text, std::string_view from, std::string_view to)
 }  // namespace
 
 auto promote_task(const std::filesystem::path& task_dir, const std::filesystem::path& artifact_dir,
-                  const std::filesystem::path& reference) -> Result<Promotion> {
+                  const std::filesystem::path& reference, const CertificateSource& certificates)
+    -> Result<Promotion> {
   const auto manifest_path = task_dir / "task.json";
   const auto original = read_text(manifest_path);
   if (!original) {
@@ -91,11 +178,12 @@ auto promote_task(const std::filesystem::path& task_dir, const std::filesystem::
     return std::unexpected(
         Error::make(ErrorCode::conflict, task_dir.string() + " is already published"));
   }
-  const auto verified_at = original->find("\"status\": \"verified\"");
-  if (verified_at == std::string::npos) {
-    return std::unexpected(Error::make(
-        ErrorCode::invalid_argument,
-        task_dir.string() + ": verification is pending, and a task is published only on machine evidence"));
+  const auto identity = manifest_identity(*original, task_dir);
+  if (!identity) {
+    return std::unexpected(identity.error());
+  }
+  if (const auto certified = refuse_unless_certified(task_dir, *identity, certificates); !certified) {
+    return std::unexpected(certified.error());
   }
 
   const auto verified = verify_task(task_dir, reference);

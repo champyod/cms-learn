@@ -47,11 +47,24 @@ cms_apply_warnings(cms_generate_task PRIVATE)
 cms_apply_hardening(cms_generate_task)
 cms_apply_sanitizers(cms_generate_task)
 
-add_executable(cms_promote_task src/promote_main.cpp)
-target_link_libraries(cms_promote_task PRIVATE cms::judge_verdict)
-cms_apply_warnings(cms_promote_task PRIVATE)
-cms_apply_hardening(cms_promote_task)
-cms_apply_sanitizers(cms_promote_task)
+# The publisher decides a publish on a certificate row, so it is a database path like the claim: the one read is
+# its own library, and the target exists only where the connector does, or a build without sqlpp23 could not link.
+if(TARGET cms::db)
+  add_library(cms_judge_promote_sql STATIC src/promote_sql.cpp)
+  add_library(cms::judge_promote_sql ALIAS cms_judge_promote_sql)
+  target_link_libraries(cms_judge_promote_sql PUBLIC cms::judge_verdict cms::db)
+  cms_apply_warnings(cms_judge_promote_sql PRIVATE)
+  cms_apply_hardening(cms_judge_promote_sql)
+  cms_apply_sanitizers(cms_judge_promote_sql)
+
+  if(TARGET cms::db_drogon)
+    add_executable(cms_promote_task src/promote_main.cpp)
+    target_link_libraries(cms_promote_task PRIVATE cms::judge_promote_sql cms::db_drogon)
+    cms_apply_warnings(cms_promote_task PRIVATE)
+    cms_apply_hardening(cms_promote_task)
+    cms_apply_sanitizers(cms_promote_task)
+  endif()
+endif()
 
 # The checkers are separate executables because that is how they run: one process per case, arguments
 # (input, output, answer), verdict on standard error.
