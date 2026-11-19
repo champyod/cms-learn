@@ -363,6 +363,18 @@
           "path": "public.generation_candidates"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS generation_cases (\n    job_id bigint,\n    subtask_position integer,\n    artefact_id bigint NOT NULL,\n    case_count integer NOT NULL,\n    proof text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_cases_pkey PRIMARY KEY (job_id, subtask_position),\n    CONSTRAINT generation_cases_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_cases_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_cases_case_count_check CHECK (case_count > 0),\n    CONSTRAINT generation_cases_proof_check CHECK (length(btrim(proof)) > 0),\n    CONSTRAINT generation_cases_subtask_position_check CHECK (subtask_position > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.generation_cases"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS generation_programs (\n    job_id bigint,\n    role text,\n    artefact_id bigint NOT NULL,\n    proof text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_programs_pkey PRIMARY KEY (job_id, role),\n    CONSTRAINT generation_programs_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_programs_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_programs_proof_check CHECK (length(btrim(proof)) > 0),\n    CONSTRAINT generation_programs_role_check CHECK (role IN ('generator'::text, 'checker'::text))\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.generation_programs"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS generation_solutions (\n    job_id bigint,\n    position integer,\n    artefact_id bigint NOT NULL,\n    proof text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_solutions_pkey PRIMARY KEY (job_id, position),\n    CONSTRAINT generation_solutions_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_solutions_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_solutions_position_check CHECK (\"position\" >= 0),\n    CONSTRAINT generation_solutions_proof_check CHECK (length(btrim(proof)) > 0)\n);",
           "type": "table",
           "operation": "create",
@@ -819,10 +831,22 @@
           "path": "privileges.TABLE.generation_candidates.cmslearn_generator"
         },
         {
+          "sql": "GRANT INSERT, SELECT ON TABLE generation_cases TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.generation_cases.cmslearn_generator"
+        },
+        {
           "sql": "GRANT INSERT, SELECT, UPDATE ON TABLE generation_jobs TO cmslearn_generator;",
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.generation_jobs.cmslearn_generator"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT ON TABLE generation_programs TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.generation_programs.cmslearn_generator"
         },
         {
           "sql": "GRANT INSERT, SELECT ON TABLE generation_solutions TO cmslearn_generator;",

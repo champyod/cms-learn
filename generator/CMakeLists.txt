@@ -9,7 +9,8 @@ add_library(cms_generate_model STATIC src/artefact.cpp src/brief.cpp src/candida
                                    src/claim.cpp src/config.cpp src/data_frame.cpp src/judge.cpp src/limits.cpp
                                    src/oracle.cpp src/planner.cpp src/recorded.cpp src/solution.cpp src/solution_proof.cpp src/solution_sink.cpp
                                    src/specification.cpp
-                                   src/specification_sink.cpp src/statement.cpp src/statement_leak.cpp)
+                                   src/specification_sink.cpp
+                                   src/test_plan.cpp src/test_plan_score.cpp src/test_plan_sink.cpp src/statement.cpp src/statement_leak.cpp)
 add_library(cms::generate_model ALIAS cms_generate_model)
 target_include_directories(cms_generate_model PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"

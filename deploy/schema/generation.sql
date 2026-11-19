@@ -224,6 +224,27 @@ CREATE TABLE generation_solutions (
   PRIMARY KEY (job_id, position)
 );
 
+-- Step 6's record: the two programs it wrote and the cases each subtask needs (ADR 0015, step 6). A row cites the
+-- artefact that holds the bytes, so a proof cannot point at a program that was never stored.
+CREATE TABLE generation_programs (
+  job_id bigint NOT NULL REFERENCES generation_jobs (id) ON DELETE CASCADE,
+  role text NOT NULL CHECK (role IN ('generator', 'checker')),
+  artefact_id bigint NOT NULL REFERENCES generation_artefacts (id) ON DELETE NO ACTION,
+  proof text NOT NULL CHECK (length(btrim(proof)) > 0),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (job_id, role)
+);
+
+CREATE TABLE generation_cases (
+  job_id bigint NOT NULL REFERENCES generation_jobs (id) ON DELETE CASCADE,
+  subtask_position integer NOT NULL CHECK (subtask_position > 0),
+  artefact_id bigint NOT NULL REFERENCES generation_artefacts (id) ON DELETE NO ACTION,
+  case_count integer NOT NULL CHECK (case_count > 0),
+  proof text NOT NULL CHECK (length(btrim(proof)) > 0),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (job_id, subtask_position)
+);
+
 -- The worker's role holds the record and reads the brief; it holds no privilege that could publish or verify.
 -- Written as its own grants so a reader sees what the role can do and, by omission, what it cannot.
 GRANT SELECT, INSERT, UPDATE ON generation_jobs TO cmslearn_generator;
@@ -231,6 +252,8 @@ GRANT SELECT, INSERT ON generation_candidates TO cmslearn_generator;
 GRANT SELECT, INSERT ON generation_artefacts TO cmslearn_generator;
 GRANT SELECT, INSERT ON generation_specifications TO cmslearn_generator;
 GRANT SELECT, INSERT ON generation_solutions TO cmslearn_generator;
+GRANT SELECT, INSERT ON generation_programs TO cmslearn_generator;
+GRANT SELECT, INSERT ON generation_cases TO cmslearn_generator;
 GRANT SELECT (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms,
               memory_limit_mb, checker, checker_path, origin, verification, content_hash, seeded)
   ON tasks TO cmslearn_generator;

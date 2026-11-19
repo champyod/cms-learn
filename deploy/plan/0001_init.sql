@@ -555,6 +555,34 @@ CREATE TABLE IF NOT EXISTS generation_candidates (
     CONSTRAINT generation_candidates_reason_check CHECK (length(btrim(reason)) > 0)
 );
 
+CREATE TABLE IF NOT EXISTS generation_cases (
+    job_id bigint,
+    subtask_position integer,
+    artefact_id bigint NOT NULL,
+    case_count integer NOT NULL,
+    proof text NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT generation_cases_pkey PRIMARY KEY (job_id, subtask_position),
+    CONSTRAINT generation_cases_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),
+    CONSTRAINT generation_cases_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
+    CONSTRAINT generation_cases_case_count_check CHECK (case_count > 0),
+    CONSTRAINT generation_cases_proof_check CHECK (length(btrim(proof)) > 0),
+    CONSTRAINT generation_cases_subtask_position_check CHECK (subtask_position > 0)
+);
+
+CREATE TABLE IF NOT EXISTS generation_programs (
+    job_id bigint,
+    role text,
+    artefact_id bigint NOT NULL,
+    proof text NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT generation_programs_pkey PRIMARY KEY (job_id, role),
+    CONSTRAINT generation_programs_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),
+    CONSTRAINT generation_programs_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
+    CONSTRAINT generation_programs_proof_check CHECK (length(btrim(proof)) > 0),
+    CONSTRAINT generation_programs_role_check CHECK (role IN ('generator'::text, 'checker'::text))
+);
+
 CREATE TABLE IF NOT EXISTS generation_solutions (
     job_id bigint,
     position integer,
@@ -1416,7 +1444,11 @@ GRANT INSERT, SELECT ON TABLE generation_artefacts TO cmslearn_generator;
 
 GRANT INSERT, SELECT ON TABLE generation_candidates TO cmslearn_generator;
 
+GRANT INSERT, SELECT ON TABLE generation_cases TO cmslearn_generator;
+
 GRANT INSERT, SELECT, UPDATE ON TABLE generation_jobs TO cmslearn_generator;
+
+GRANT INSERT, SELECT ON TABLE generation_programs TO cmslearn_generator;
 
 GRANT INSERT, SELECT ON TABLE generation_solutions TO cmslearn_generator;
 

@@ -414,6 +414,44 @@ struct GenerationCandidates_ {
   using _required_insert_columns = sqlpp::detail::type_set<JobId, Position, Approach, IntendedComplexity, FitsBounds, Plan, Reason, CallArtefactId>;
 };
 
+struct GenerationCases_ {
+  struct JobId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct SubtaskPosition {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(subtask_position, subtaskPosition);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct ArtefactId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(artefact_id, artefactId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct CaseCount {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(case_count, caseCount);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Proof {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(proof, proof);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_cases, generationCases);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, JobId, SubtaskPosition, ArtefactId, CaseCount, Proof, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, SubtaskPosition, ArtefactId, CaseCount, Proof>;
+};
+
 struct GenerationJobs_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -480,6 +518,39 @@ struct GenerationJobs_ {
   using _table_columns =
       sqlpp::table_columns<T, Id, TaskId, TaskVersion, Brief, Description, State, Attempts, ClaimedBy, ClaimedAt, LeaseExpiresAt, CreatedAt, UpdatedAt>;
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion>;
+};
+
+struct GenerationPrograms_ {
+  struct JobId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Role {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(role, role);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct ArtefactId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(artefact_id, artefactId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Proof {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(proof, proof);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_programs, generationPrograms);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, JobId, Role, ArtefactId, Proof, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Role, ArtefactId, Proof>;
 };
 
 struct GenerationSolutions_ {
@@ -1634,7 +1705,9 @@ using ContentSeed = ::sqlpp::table_t<ContentSeed_>;
 using Elevations = ::sqlpp::table_t<Elevations_>;
 using GenerationArtefacts = ::sqlpp::table_t<GenerationArtefacts_>;
 using GenerationCandidates = ::sqlpp::table_t<GenerationCandidates_>;
+using GenerationCases = ::sqlpp::table_t<GenerationCases_>;
 using GenerationJobs = ::sqlpp::table_t<GenerationJobs_>;
+using GenerationPrograms = ::sqlpp::table_t<GenerationPrograms_>;
 using GenerationSolutions = ::sqlpp::table_t<GenerationSolutions_>;
 using GenerationSpecifications = ::sqlpp::table_t<GenerationSpecifications_>;
 using LearnerAccounts = ::sqlpp::table_t<LearnerAccounts_>;
@@ -1672,7 +1745,9 @@ inline const ContentSeed contentSeed{};
 inline const Elevations elevations{};
 inline const GenerationArtefacts generationArtefacts{};
 inline const GenerationCandidates generationCandidates{};
+inline const GenerationCases generationCases{};
 inline const GenerationJobs generationJobs{};
+inline const GenerationPrograms generationPrograms{};
 inline const GenerationSolutions generationSolutions{};
 inline const GenerationSpecifications generationSpecifications{};
 inline const LearnerAccounts learnerAccounts{};
