@@ -49,3 +49,18 @@ chances to do so the more passes it takes; one pass over a complete list is the 
 - **The first failure only.** The loop runs once per problem, and each run costs model calls and compiles.
 - **A stored file the repair may skip.** A repair that does not read it repeats the same failure, and nobody
   sees that it did.
+
+## 6. Amendment, 2026-11-19 — one sentence of §3 was wrong
+
+§3 says "the checks themselves are cheap once the artefacts exist, so running all of them costs almost
+nothing". Measurement contradicts it: `run_program` (`generator/src/oracle.cpp:99-131`) writes the program
+into a fresh scratch directory, **compiles it**, runs one case, and deletes the directory — on every call. A
+step-6 scoring pass over four solutions and six cases is dozens of compiler invocations, not an almost-free
+scan.
+
+What survives is the argument that matters: one pass over a **complete** list still saves a whole repair
+iteration per finding, and an iteration costs a model call plus a full recompile of everything. What does not
+survive is the claim that collecting every check is nearly free — it is not, and a reader planning the
+certifier should budget for it accordingly.
+
+The rest of this record stands unchanged.
