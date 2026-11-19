@@ -10,39 +10,6 @@
 
 namespace cms::db {
 
-struct TaskSubtasks_ {
-  struct TaskId {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
-    using data_type = ::sqlpp::text;
-    using has_default = std::false_type;
-  };
-  struct TaskVersion {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_version, taskVersion);
-    using data_type = ::sqlpp::integral;
-    using has_default = std::false_type;
-  };
-  struct Position {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
-    using data_type = ::sqlpp::integral;
-    using has_default = std::false_type;
-  };
-  struct Points {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(points, points);
-    using data_type = ::sqlpp::integral;
-    using has_default = std::false_type;
-  };
-  struct ConstraintText {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(constraint_text, constraintText);
-    using data_type = ::sqlpp::text;
-    using has_default = std::false_type;
-  };
-  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_subtasks, taskSubtasks);
-  template <typename T>
-  using _table_columns =
-      sqlpp::table_columns<T, TaskId, TaskVersion, Position, Points, ConstraintText>;
-  using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Position, Points, ConstraintText>;
-};
-
 struct AdminAccounts_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -450,6 +417,59 @@ struct GenerationCases_ {
   using _table_columns =
       sqlpp::table_columns<T, JobId, SubtaskPosition, ArtefactId, CaseCount, Proof, CreatedAt>;
   using _required_insert_columns = sqlpp::detail::type_set<JobId, SubtaskPosition, ArtefactId, CaseCount, Proof>;
+};
+
+struct GenerationCertificates_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
+  struct JobId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct TaskId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskVersion {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_version, taskVersion);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Outcome {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(outcome, outcome);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Checks {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(checks, checks);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct CommitId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(commit_id, commitId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Evidence {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(evidence, evidence);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_certificates, generationCertificates);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, JobId, TaskId, TaskVersion, Outcome, Checks, CommitId, Evidence, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, TaskId, TaskVersion, Outcome, Checks, CommitId, Evidence>;
 };
 
 struct GenerationJobs_ {
@@ -1411,6 +1431,39 @@ struct TaskStatements_ {
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Locale, Body>;
 };
 
+struct TaskSubtasks_ {
+  struct TaskId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct TaskVersion {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_version, taskVersion);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Points {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(points, points);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct ConstraintText {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(constraint_text, constraintText);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_subtasks, taskSubtasks);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, TaskId, TaskVersion, Position, Points, ConstraintText>;
+  using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Position, Points, ConstraintText>;
+};
+
 struct TaskTopics_ {
   struct TaskId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
@@ -1697,7 +1750,6 @@ struct Tracks_ {
   using _required_insert_columns = sqlpp::detail::type_set<Id, Position, TitleEn, TitleTh, DescriptionEn, DescriptionTh, ContentHash>;
 };
 
-using TaskSubtasks = ::sqlpp::table_t<TaskSubtasks_>;
 using AdminAccounts = ::sqlpp::table_t<AdminAccounts_>;
 using AdminRoles = ::sqlpp::table_t<AdminRoles_>;
 using AuditEvents = ::sqlpp::table_t<AuditEvents_>;
@@ -1706,6 +1758,7 @@ using Elevations = ::sqlpp::table_t<Elevations_>;
 using GenerationArtefacts = ::sqlpp::table_t<GenerationArtefacts_>;
 using GenerationCandidates = ::sqlpp::table_t<GenerationCandidates_>;
 using GenerationCases = ::sqlpp::table_t<GenerationCases_>;
+using GenerationCertificates = ::sqlpp::table_t<GenerationCertificates_>;
 using GenerationJobs = ::sqlpp::table_t<GenerationJobs_>;
 using GenerationPrograms = ::sqlpp::table_t<GenerationPrograms_>;
 using GenerationSolutions = ::sqlpp::table_t<GenerationSolutions_>;
@@ -1729,6 +1782,7 @@ using TaskExamples = ::sqlpp::table_t<TaskExamples_>;
 using TaskFieldDefs = ::sqlpp::table_t<TaskFieldDefs_>;
 using TaskFieldValues = ::sqlpp::table_t<TaskFieldValues_>;
 using TaskStatements = ::sqlpp::table_t<TaskStatements_>;
+using TaskSubtasks = ::sqlpp::table_t<TaskSubtasks_>;
 using TaskTopics = ::sqlpp::table_t<TaskTopics_>;
 using TaskTypes = ::sqlpp::table_t<TaskTypes_>;
 using TaskVisibility = ::sqlpp::table_t<TaskVisibility_>;
@@ -1737,7 +1791,6 @@ using Topics = ::sqlpp::table_t<Topics_>;
 using TrackStages = ::sqlpp::table_t<TrackStages_>;
 using Tracks = ::sqlpp::table_t<Tracks_>;
 
-inline const TaskSubtasks taskSubtasks{};
 inline const AdminAccounts adminAccounts{};
 inline const AdminRoles adminRoles{};
 inline const AuditEvents auditEvents{};
@@ -1746,6 +1799,7 @@ inline const Elevations elevations{};
 inline const GenerationArtefacts generationArtefacts{};
 inline const GenerationCandidates generationCandidates{};
 inline const GenerationCases generationCases{};
+inline const GenerationCertificates generationCertificates{};
 inline const GenerationJobs generationJobs{};
 inline const GenerationPrograms generationPrograms{};
 inline const GenerationSolutions generationSolutions{};
@@ -1769,6 +1823,7 @@ inline const TaskExamples taskExamples{};
 inline const TaskFieldDefs taskFieldDefs{};
 inline const TaskFieldValues taskFieldValues{};
 inline const TaskStatements taskStatements{};
+inline const TaskSubtasks taskSubtasks{};
 inline const TaskTopics taskTopics{};
 inline const TaskTypes taskTypes{};
 inline const TaskVisibility taskVisibility{};

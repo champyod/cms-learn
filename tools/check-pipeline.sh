@@ -107,4 +107,48 @@ rows="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq -c "SELE
 [ "$rows" = "1" ] || fail "the generator role reported success and wrote no job row"
 note "the generator role writes its own record"
 
+# ── 5. the certifier is a role of its own, and a verification needs its certificate ───────────────
+# The generator holds no UPDATE on tasks, and the certifier holds the one column a verification is: the two grants
+# are read out of the reviewed schema, not assumed.
+grep -q "GRANT UPDATE (verification) ON tasks TO cmslearn_certifier" "$repo/deploy/schema/generation.sql" \
+  || fail "the schema does not grant cmslearn_certifier UPDATE (verification) on tasks"
+if grep -q "GRANT .*UPDATE.* ON tasks TO cmslearn_generator" "$repo/deploy/schema/generation.sql"; then
+  fail "the generator role is granted an UPDATE on tasks; the barrier is gone"
+fi
+note "the certifier holds UPDATE (verification) on tasks; the generator holds no UPDATE on it"
+
+roles_present="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq -c \
+  "SELECT count(*) || '|' || count(DISTINCT rolname) FROM pg_roles WHERE rolname IN ('cmslearn_generator', 'cmslearn_certifier')")"
+[ "$roles_present" = "2|2" ] || fail "the generator and the certifier are not two distinct roles: $roles_present"
+note "the generator and the certifier are two distinct roles"
+
+as_certifier() {
+  psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
+    -c "SET ROLE cmslearn_certifier" -c "$1" 2>&1
+}
+
+# A verification with no certificate is refused whoever asks, because the certificate is what a later reader reads.
+refusal="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
+  -c "UPDATE tasks SET verification = 'verified'" 2>&1 || true)"
+printf '%s' "$refusal" | grep -q "has no certificate for verified" \
+  || fail "a verification without a certificate was not refused: $refusal"
+note "a verification without its certificate is refused, naming the certificate"
+
+refusal="$(as_certifier "UPDATE tasks SET title_en = 'rewritten'" || true)"
+printf '%s' "$refusal" | grep -q "permission denied for table tasks" \
+  || fail "the certifier rewrote a task's content: $refusal"
+note "the certifier cannot write a task's content: permission denied for table tasks"
+
+as_certifier "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) SELECT id, 'probe-task', 1, 'verified', '[\"step 3, 5 and 6 read back\"]'::jsonb, 'deadbeef', '{}'::jsonb FROM generation_jobs WHERE task_id = 'probe-task'" >/dev/null 2>&1 \
+  || fail "the certifier cannot write a certificate"
+wrote="$(as_certifier "UPDATE tasks SET verification = 'verified' WHERE id = 'probe-task'" || true)"
+[ -z "$wrote" ] || fail "the certifier could not move the verification: $wrote"
+row="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq -c \
+  "SELECT verification FROM tasks WHERE id = 'probe-task'")"
+certificates="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq -c \
+  "SELECT count(*) FROM generation_certificates")"
+[ "$row" = "verified" ] && [ "$certificates" = "1" ] \
+  || fail "the certificate and the verification disagree: $row / $certificates certificate(s)"
+note "the certifier writes the certificate and the verification together"
+
 printf 'pipeline gate: OK\n'

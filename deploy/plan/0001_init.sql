@@ -570,6 +570,26 @@ CREATE TABLE IF NOT EXISTS generation_cases (
     CONSTRAINT generation_cases_subtask_position_check CHECK (subtask_position > 0)
 );
 
+CREATE TABLE IF NOT EXISTS generation_certificates (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    job_id bigint NOT NULL,
+    task_id text NOT NULL,
+    task_version integer NOT NULL,
+    outcome task_verification_status NOT NULL,
+    checks jsonb NOT NULL,
+    commit_id text NOT NULL,
+    evidence jsonb NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT generation_certificates_pkey PRIMARY KEY (id),
+    CONSTRAINT generation_certificates_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
+    CONSTRAINT generation_certificates_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
+    CONSTRAINT generation_certificates_checks_check CHECK (jsonb_typeof(checks) = 'array'::text AND jsonb_array_length(checks) > 0),
+    CONSTRAINT generation_certificates_commit_id_check CHECK (length(btrim(commit_id)) > 0),
+    CONSTRAINT generation_certificates_evidence_check CHECK (jsonb_typeof(evidence) = 'object'::text)
+);
+
+CREATE INDEX IF NOT EXISTS generation_certificates_task_idx ON generation_certificates (task_id, task_version, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS generation_programs (
     job_id bigint,
     role text,
@@ -1309,6 +1329,27 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION task_verification_needs_its_certificate()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NEW.verification IS NOT DISTINCT FROM OLD.verification THEN
+    RETURN NEW;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM generation_certificates c
+                  WHERE c.task_id = NEW.id AND c.task_version = NEW.version
+                    AND c.outcome = NEW.verification) THEN
+    RAISE EXCEPTION 'task % version % has no certificate for %, so its verification cannot change: it is written by cmslearn_certifier, which holds INSERT on generation_certificates and UPDATE (verification) on tasks',
+      NEW.id, NEW.version, NEW.verification
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE TRIGGER audit_events_append_only
     BEFORE UPDATE OR DELETE ON audit_events
     FOR EACH ROW
@@ -1408,6 +1449,11 @@ CREATE OR REPLACE TRIGGER tasks_published_needs_subtasks
     FOR EACH ROW
     EXECUTE FUNCTION task_published_needs_its_subtasks();
 
+CREATE OR REPLACE TRIGGER tasks_verification_needs_certificate
+    BEFORE UPDATE OF verification ON tasks
+    FOR EACH ROW
+    EXECUTE FUNCTION task_verification_needs_its_certificate();
+
 REVOKE EXECUTE ON FUNCTION current_actor() FROM PUBLIC;
 
 REVOKE EXECUTE ON FUNCTION settings_bump_version() FROM PUBLIC;
@@ -1421,6 +1467,8 @@ GRANT SELECT, USAGE ON SEQUENCE audit_events_id_seq TO cmslearn_app;
 GRANT SELECT, USAGE ON SEQUENCE generation_artefacts_id_seq TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE generation_candidates_id_seq TO cmslearn_app;
+
+GRANT SELECT, USAGE ON SEQUENCE generation_certificates_id_seq TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE generation_jobs_id_seq TO cmslearn_app;
 
@@ -1440,17 +1488,31 @@ GRANT INSERT, SELECT, UPDATE ON TABLE content_seed TO cmslearn_app;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE elevations TO cmslearn_app;
 
+GRANT SELECT ON TABLE generation_artefacts TO cmslearn_certifier;
+
 GRANT INSERT, SELECT ON TABLE generation_artefacts TO cmslearn_generator;
 
 GRANT INSERT, SELECT ON TABLE generation_candidates TO cmslearn_generator;
 
+GRANT SELECT ON TABLE generation_cases TO cmslearn_certifier;
+
 GRANT INSERT, SELECT ON TABLE generation_cases TO cmslearn_generator;
+
+GRANT INSERT, SELECT ON TABLE generation_certificates TO cmslearn_certifier;
+
+GRANT SELECT ON TABLE generation_jobs TO cmslearn_certifier;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE generation_jobs TO cmslearn_generator;
 
+GRANT SELECT ON TABLE generation_programs TO cmslearn_certifier;
+
 GRANT INSERT, SELECT ON TABLE generation_programs TO cmslearn_generator;
 
+GRANT SELECT ON TABLE generation_solutions TO cmslearn_certifier;
+
 GRANT INSERT, SELECT ON TABLE generation_solutions TO cmslearn_generator;
+
+GRANT SELECT ON TABLE generation_specifications TO cmslearn_certifier;
 
 GRANT INSERT, SELECT ON TABLE generation_specifications TO cmslearn_generator;
 
@@ -1506,6 +1568,8 @@ GRANT SELECT ON TABLE task_field_values TO cmslearn_generator;
 
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_statements TO cmslearn_app;
 
+GRANT SELECT ON TABLE task_subtasks TO cmslearn_certifier;
+
 GRANT DELETE, INSERT, SELECT, UPDATE ON TABLE task_topics TO cmslearn_app;
 
 GRANT SELECT ON TABLE task_topics TO cmslearn_generator;
@@ -1535,3 +1599,7 @@ GRANT USAGE ON TYPE task_field_kind TO cmslearn_app;
 GRANT SELECT (digest, id, object_key) ON TABLE generation_artefacts TO cmslearn_app;
 
 GRANT SELECT (checker, checker_path, content_hash, difficulty, id, memory_limit_mb, origin, seeded, status, task_type, time_limit_ms, title_en, title_th, verification, version) ON TABLE tasks TO cmslearn_generator;
+
+GRANT SELECT (content_hash, id, memory_limit_mb, points, status, time_limit_ms, version) ON TABLE tasks TO cmslearn_certifier;
+
+GRANT SELECT (verification), UPDATE (verification) ON TABLE tasks TO cmslearn_certifier;

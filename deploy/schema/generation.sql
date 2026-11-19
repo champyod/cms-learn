@@ -258,3 +258,56 @@ GRANT SELECT (id, version, task_type, status, title_en, title_th, difficulty, ti
               memory_limit_mb, checker, checker_path, origin, verification, content_hash, seeded)
   ON tasks TO cmslearn_generator;
 GRANT SELECT ON task_types, task_field_defs, task_field_values, task_topics, topics TO cmslearn_generator;
+
+-- A certificate is what a later reader reads to know what a past verification meant: what the certifier checked, the
+-- commit it checked, and the content addresses it saw. Only the certifier role writes one, and a verification change
+-- without one is refused by the trigger below, so "verified" is reachable only through step 7.
+CREATE TABLE generation_certificates (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  job_id bigint NOT NULL REFERENCES generation_jobs (id) ON DELETE CASCADE,
+  task_id text NOT NULL,
+  task_version integer NOT NULL,
+  outcome task_verification_status NOT NULL,
+  checks jsonb NOT NULL CHECK (jsonb_typeof(checks) = 'array' AND jsonb_array_length(checks) > 0),
+  commit_id text NOT NULL CHECK (length(btrim(commit_id)) > 0),
+  evidence jsonb NOT NULL CHECK (jsonb_typeof(evidence) = 'object'),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT generation_certificates_task_fkey FOREIGN KEY (task_id, task_version)
+    REFERENCES tasks (id, version) ON DELETE CASCADE
+);
+
+CREATE INDEX generation_certificates_task_idx
+  ON generation_certificates (task_id, task_version, created_at DESC);
+
+CREATE FUNCTION task_verification_needs_its_certificate() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NEW.verification IS NOT DISTINCT FROM OLD.verification THEN
+    RETURN NEW;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM generation_certificates c
+                  WHERE c.task_id = NEW.id AND c.task_version = NEW.version
+                    AND c.outcome = NEW.verification) THEN
+    RAISE EXCEPTION 'task % version % has no certificate for %, so its verification cannot change: it is written by cmslearn_certifier, which holds INSERT on generation_certificates and UPDATE (verification) on tasks',
+      NEW.id, NEW.version, NEW.verification
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tasks_verification_needs_certificate
+  BEFORE UPDATE OF verification ON tasks
+  FOR EACH ROW EXECUTE FUNCTION task_verification_needs_its_certificate();
+
+-- The certifier is not the generator: it writes the certificate and moves the one column a verification is. It holds
+-- no privilege on a task's content, status or anything the generator writes, and the generator holds none of these.
+GRANT SELECT, INSERT ON generation_certificates TO cmslearn_certifier;
+GRANT UPDATE (verification) ON tasks TO cmslearn_certifier;
+GRANT SELECT (id, version, status, verification, content_hash, time_limit_ms, memory_limit_mb, points)
+  ON tasks TO cmslearn_certifier;
+GRANT SELECT ON generation_jobs, generation_artefacts, generation_specifications, generation_solutions,
+                generation_programs, generation_cases, task_subtasks
+  TO cmslearn_certifier;

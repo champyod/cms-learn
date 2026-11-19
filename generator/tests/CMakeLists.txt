@@ -10,7 +10,7 @@ if(Catch2_FOUND)
   add_executable(cms_generate_steps_tests planner_test.cpp judge_test.cpp candidates_test.cpp
                                      artefact_test.cpp claim_test.cpp framing_test.cpp
                                      specification_test.cpp solution_test.cpp statement_test.cpp
-                                     test_plan_test.cpp)
+                                     test_plan_test.cpp certify_test.cpp)
   target_link_libraries(cms_generate_steps_tests PRIVATE cms::generate_model cms::object_store
                                                    Catch2::Catch2WithMain)
   cms_apply_warnings(cms_generate_steps_tests PRIVATE)
