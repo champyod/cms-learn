@@ -133,7 +133,7 @@ Application images (`web`, `api`, `judge`, `schema`, `backup`) are built here an
 
 | Tool | Version | Licence | Used for |
 |---|---|---|---|
-| gcc / g++ | **16.2.0**, from the `gcc:16.2.0-trixie` image | GPL-3.0-or-later WITH GCC-exception-3.1 | every C++ translation unit: the workspace build, the gate and the api image |
+| gcc / g++ | **16.2.0**, from `gcc:16.2.0-trixie`, digest `gcc@sha256:07280eb2e744f1b7a2d8d4a3894c089ea07266c109758afc388a634bd098e4eb` | GPL-3.0-or-later WITH GCC-exception-3.1 | every C++ translation unit: the workspace build, the gate and the api image |
 | pgschema | 1.13.4 | Apache-2.0 | schema plan and apply |
 | ccache | 4.11.3 | GPL-3.0 | compiler cache for the falsification harness |
 | isolate | v2.7 | GPL-2.0 | sandbox |
@@ -146,6 +146,11 @@ The compiler is pinned by image tag rather than by a distribution package: the a
 `gcc:16.2.0-trixie`, CI runs that same tag, and `cmake/ProjectSettings.cmake` refuses to configure under a
 compiler that is not GNU or is older than `CMS_MIN_GCC_MAJOR` (16). A development host therefore needs
 g++ 16 or newer; the gate's own run reports `g++ (GCC) 16.2.1`.
+
+ADR `0043` requires one exact compiler version, enforced at configure, with every build running inside the
+image above. That enforcement is not built yet, so the floor rule described here is the one in force; the
+digest is recorded now because it is the fact the enforcement will pin, and because every deployment image
+in `deploy/docker-compose.yml` is already pinned by digest while the toolchain that produces them was not.
 
 ### Compiler cache
 
