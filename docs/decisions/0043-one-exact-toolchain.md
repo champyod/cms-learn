@@ -53,3 +53,19 @@ seed and the same compiler, anywhere, produce the same bytes.
 
 - **A minimum major with the version recorded per run.** Honest, and still two artefacts under one name.
 - **Following whatever the machine provides.** No guarantee about the language, the compiler, or the bytes.
+
+## 6. Amendment, 2026-11-20 — the pin covered the compiler, not the lint tool
+
+Measured on the runner (`m5`, image `cms-runner:gcc16`) at commit `3c29295`: the image's clang-tidy is
+**19.1.7**, and it reports **14 pre-existing findings** on a tree the dev host's clang-tidy **23.1.6** passes with
+zero. None of the 14 is in the files that step delivered, so the tree is not worse than it was — but a CI image
+built the way this one is built is **red today**, for a tool §2 never pinned.
+
+§2 says "one exact compiler version, enforced, with every build running in the image that carries it". The
+measurement shows the rule was read as *compiler* when it has to mean *every tool the gate runs*: a lint result
+that changes with the lint tool's version is not evidence, it is the tool's opinion of the day.
+
+So §2 is read as covering the whole gate toolchain — compiler, clang-tidy, cmake, ninja, and whatever the
+falsifiers invoke — each at one recorded version, and the image carrying those versions is the one that runs them.
+Until clang-tidy is pinned, `check:cpp` is green only on a machine whose clang-tidy happens to match the version
+the findings were triaged against, which is the accident this record exists to remove.
