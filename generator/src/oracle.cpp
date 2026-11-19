@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <fcntl.h>
+#include <sys/resource.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -27,6 +28,9 @@ constexpr std::string_view CASE_IN = "case.in";
 constexpr std::string_view CASE_OUT = "case.out";
 constexpr std::string_view COMPILE_ERROR = "compile.err";
 constexpr int COMPILE_WALL_SECONDS = 120;
+constexpr std::int64_t FLOOR_WALL_SECONDS = 10;
+constexpr std::int64_t GRACE_SECONDS = 2;
+constexpr std::int64_t MILLISECONDS_PER_SECOND = 1000;
 
 auto read_text(const std::filesystem::path& path) -> std::string {
   auto stream = std::ifstream{path, std::ios::binary};
@@ -48,9 +52,12 @@ auto first_line(std::string_view text) -> std::string {
 }
 
 /// @return The exit status, or -1 when the child could not be started or did not return in time.
+///
+/// Whenever @p usage is named the child is reaped with `wait4`, so its peak memory is read from the kernel rather
+/// than sampled from `/proc`, which a fast program has already left by the time a reader looks.
 auto run_child(const std::vector<std::string>& arguments, const std::filesystem::path& directory,
                const std::filesystem::path& input, const std::filesystem::path& output,
-               int wall_seconds) -> int {
+               int wall_seconds, rusage* usage) -> int {
   const auto child = fork();
   if (child < 0) {
     return -1;
@@ -77,7 +84,7 @@ auto run_child(const std::vector<std::string>& arguments, const std::filesystem:
     _exit(127);
   }
   auto status = 0;
-  while (waitpid(child, &status, 0) < 0) {
+  while ((usage == nullptr ? waitpid(child, &status, 0) : wait4(child, &status, 0, usage)) < 0) {
     if (errno != EINTR) {
       return -1;
     }
@@ -94,10 +101,9 @@ auto scratch_directory() -> std::filesystem::path {
          ("cms-oracle-" + std::to_string(static_cast<long>(getpid())) + "-" + std::to_string(now));
 }
 
-}  // namespace
-
-auto run_program(std::string_view source, std::string_view input, std::int64_t time_limit_ms)
-    -> Result<std::string> {
+/// @return What @p source answered for @p input, and in @p measurement what the run itself cost when it is named.
+auto run_program_measured(std::string_view source, std::string_view input, std::int64_t time_limit_ms,
+                          ProgramMeasurement* measurement) -> Result<std::string> {
   if (source.find("int main") == std::string_view::npos) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                        "the program is not a complete program: it has no int main"));
@@ -121,25 +127,51 @@ auto run_program(std::string_view source, std::string_view input, std::int64_t t
   }
   const auto compile = run_child({std::string{COMPILER}, "-std=c++17", "-O2", "-pipe", "-o",
                                   std::string{PROGRAM}, std::string{SOURCE}},
-                                 directory, "/dev/null", directory / COMPILE_ERROR, COMPILE_WALL_SECONDS);
+                                 directory, "/dev/null", directory / COMPILE_ERROR, COMPILE_WALL_SECONDS, nullptr);
   if (compile != 0) {
     return std::unexpected(Error::make(
         ErrorCode::invalid_argument,
         "does not compile: " + first_line(read_text(directory / COMPILE_ERROR))));
   }
-  const auto wall = std::max<std::int64_t>(10, time_limit_ms / 1000 + 2);
+  const auto wall = std::max<std::int64_t>(FLOOR_WALL_SECONDS,
+                                           time_limit_ms / MILLISECONDS_PER_SECOND + GRACE_SECONDS);
+  auto usage = rusage{};
+  const auto started = std::chrono::steady_clock::now();
   const auto ran = run_child({"./" + std::string{PROGRAM}}, directory, directory / CASE_IN,
-                             directory / CASE_OUT, static_cast<int>(wall));
+                             directory / CASE_OUT, static_cast<int>(wall), measurement == nullptr ? nullptr : &usage);
+  const auto finished = std::chrono::steady_clock::now();
   if (ran != 0) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                        "did not finish the case within " + std::to_string(wall) + " s (exit " +
                                            std::to_string(ran) + ")"));
+  }
+  if (measurement != nullptr) {
+    measurement->time_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(finished - started).count();
+    measurement->peak_memory_kb = usage.ru_maxrss;
   }
   auto answer = read_text(directory / CASE_OUT);
   if (answer.find_first_not_of(" \t\r\n") == std::string::npos) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument, "answered the case with nothing"));
   }
   return answer;
+}
+
+}  // namespace
+
+auto run_program(std::string_view source, std::string_view input, std::int64_t time_limit_ms)
+    -> Result<std::string> {
+  return run_program_measured(source, input, time_limit_ms, nullptr);
+}
+
+auto measure_program(std::string_view source, std::string_view input, std::int64_t time_limit_ms)
+    -> Result<ProgramMeasurement> {
+  auto measurement = ProgramMeasurement{};
+  const auto answer = run_program_measured(source, input, time_limit_ms, &measurement);
+  if (!answer) {
+    return std::unexpected(answer.error());
+  }
+  return measurement;
 }
 
 auto check_oracle(std::string_view source, std::string_view smallest_input, std::int64_t time_limit_ms)

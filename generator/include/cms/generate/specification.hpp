@@ -91,6 +91,17 @@ inline constexpr std::int64_t OPERATIONS_PER_MILLISECOND = 100'000;
 /// refused by name rather than guessed.
 [[nodiscard]] auto sample_smallest(const Specification& specification) -> Result<std::string>;
 
+/// @brief The specification as step 3's row stores it, written and read by one definition in `specification_sink.cpp`.
+///
+/// The writer and @ref read_specification share one translation unit and one set of key names, so the shape a row
+/// carries cannot drift from the shape the certifier reads: a change to it is a build error in both, never a reader
+/// that quietly ignores a fact its writer added (ADR 0046).
+[[nodiscard]] auto specification_json(const Specification& specification) -> std::string;
+
+/// @brief Reads the JSON @ref specification_json wrote, refusing a specification that lost a fact or names a shape
+/// this pipeline cannot build.
+[[nodiscard]] auto read_specification(std::string_view json) -> Result<Specification>;
+
 /// @brief Reads one specification answer: the four facts, the bounds, the subtasks and the oracle's source.
 [[nodiscard]] auto parse_specification_answer(std::string_view answer, const ModelCall& call)
     -> Result<Step3Answer>;
@@ -117,6 +128,20 @@ struct OracleCheck {
 /// @brief Compiles @p source and runs it on @p smallest_input, refusing a program that does not build or answer.
 [[nodiscard]] auto check_oracle(std::string_view source, std::string_view smallest_input,
                                 std::int64_t time_limit_ms) -> Result<OracleCheck>;
+
+/// @brief What one run of a program cost, which the half-limit margin of ADR 0048 is measured against.
+struct ProgramMeasurement {
+  std::int64_t time_ms{0};
+  /// Peak resident memory the run reached, in kilobytes: the unit `wait4` reports on the judge's platform.
+  std::int64_t peak_memory_kb{0};
+};
+
+/// @brief Runs @p source on @p input and measures the run itself, refusing a program that does not build or answer.
+///
+/// The measurement covers the program's own run, never the compile: a reference that needs a long build is not a
+/// reference that is slow for a student, and the limit is the student's.
+[[nodiscard]] auto measure_program(std::string_view source, std::string_view input, std::int64_t time_limit_ms)
+    -> Result<ProgramMeasurement>;
 
 /// @brief Where step 3's record goes: two artefact rows, the store's bytes, and one specification row.
 class SpecificationSink {

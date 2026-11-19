@@ -1,16 +1,20 @@
-// Step 7 is the only path to a verified task: it re-reads every artefact steps 3, 5 and 6 cited, re-runs the one proof
-// that can be run cheaply (the oracle against the reference), and writes what it checked, the commit it checked and the
-// digests it saw. Incomplete or stale evidence is refused and nothing is written.
+// Step 7 is the only path to a verified task: it re-reads every artefact steps 3, 5 and 6 cited, re-runs the three
+// methods ADR 0046 §4 requires (the reference pass, the brute-force differential and the half-limit margin of 0048),
+// and writes what it checked, the commit it checked and the digests it saw. Incomplete or stale evidence is refused
+// and nothing is written.
 
 #include <cms/generate/certify.hpp>
 #include <cms/generate/specification.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <cstdint>
+#include <exception>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <sqlpp23/sqlpp23.h>
 
@@ -26,9 +30,11 @@ namespace {
 
 constexpr std::string_view COMMIT = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
 constexpr std::string_view TYPE_ID = "certify_type";
+constexpr std::int64_t TASK_TIME_MS = 1000;
+constexpr std::int64_t TASK_MEMORY_MB = 256;
 
-auto oracle_source() -> std::string {
-  return R"(#include <cstdio>
+/// The brute force: read n and n values, print their sum.
+constexpr std::string_view ORACLE_SOURCE = R"(#include <cstdio>
 int main() {
   int n = 0;
   if (std::scanf("%d", &n) != 1) return 1;
@@ -42,10 +48,9 @@ int main() {
   return 0;
 }
 )";
-}
 
-auto reference_source() -> std::string {
-  return R"(#include <cstdio>
+/// The intended solution: the same answer, so every method accepts it.
+constexpr std::string_view REFERENCE_SOURCE = R"(#include <cstdio>
 int main() {
   int count = 0;
   if (std::scanf("%d", &count) != 1) return 1;
@@ -59,16 +64,114 @@ int main() {
   return 0;
 }
 )";
-}
 
-auto wrong_reference_source() -> std::string {
-  return R"(#include <cstdio>
+/// A reference that is right only at n = 1: the differential finds it on the case at the subtask's bound.
+constexpr std::string_view SMALLEST_ONLY_REFERENCE = R"(#include <cstdio>
 int main() {
-  std::printf("42\n");
+  int count = 0;
+  if (std::scanf("%d", &count) != 1) return 1;
+  long long total = 0;
+  for (int index = 0; index < count; ++index) {
+    long long value = 0;
+    if (std::scanf("%lld", &value) != 1) return 1;
+    total = total + value;
+  }
+  std::printf("%lld\n", count == 1 ? total : 42LL);
   return 0;
 }
 )";
+
+/// A correct reference that spends 800 ms busy-waiting on the task's largest case, so that case leaves less than
+/// the half-limit margin of its 1000 ms declared limit.
+constexpr std::string_view SLOW_REFERENCE = R"(#include <chrono>
+#include <cstdio>
+int main() {
+  int count = 0;
+  if (std::scanf("%d", &count) != 1) return 1;
+  long long total = 0;
+  for (int index = 0; index < count; ++index) {
+    long long value = 0;
+    if (std::scanf("%lld", &value) != 1) return 1;
+    total = total + value;
+  }
+  if (count >= 20) {
+    const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(800);
+    while (std::chrono::steady_clock::now() < until) {
+    }
+  }
+  std::printf("%lld\n", total);
+  return 0;
 }
+)";
+
+/// A generator implementing the contract: stdin "<seed> <n>", stdout "n" then n values in the declared bounds.
+constexpr std::string_view GENERATOR_SOURCE = R"(#include <cstdio>
+int main() {
+  long long seed = 0;
+  long long n = 0;
+  if (std::scanf("%lld %lld", &seed, &n) != 2) return 1;
+  std::printf("%lld\n", n);
+  for (long long index = 0; index < n; ++index) {
+    std::printf("0%c", index + 1 == n ? '\n' : ' ');
+  }
+  return 0;
+}
+)";
+
+/// A checker implementing the contract: argv expected, answer; exit 0 when the tokens agree.
+constexpr std::string_view CHECKER_SOURCE = R"(#include <fstream>
+#include <string>
+int main(int argc, char** argv) {
+  if (argc < 3) return 2;
+  std::ifstream expected_file(argv[1]);
+  std::ifstream answer_file(argv[2]);
+  std::string expected;
+  std::string answer;
+  while (expected_file >> expected && answer_file >> answer) {
+    if (expected != answer) return 1;
+  }
+  if (expected_file >> expected) return 1;
+  if (answer_file >> answer) return 1;
+  return 0;
+}
+)";
+
+/// The most dangerous artefact in the pipeline: a checker that says yes to everything.
+constexpr std::string_view ALWAYS_OK_CHECKER = R"(int main() { return 0; }
+)";
+
+/// The partial for subtask 1: right up to the subtask's bound, wrong above it.
+constexpr std::string_view FIRST_PARTIAL = R"(#include <cstdio>
+int main() {
+  int count = 0;
+  if (std::scanf("%d", &count) != 1) return 1;
+  long long total = 0;
+  for (int index = 0; index < count; ++index) {
+    long long value = 0;
+    if (std::scanf("%lld", &value) != 1) return 1;
+    total = total + value;
+  }
+  std::printf("%lld\n", count <= 10 ? total : 42LL);
+  return 0;
+}
+)";
+
+/// The partial for subtask 2: it earns that group on its own cases, loses subtask 1's case, and is wrong above the
+/// task's full bound.
+constexpr std::string_view SECOND_PARTIAL = R"(#include <cstdio>
+int main() {
+  int count = 0;
+  if (std::scanf("%d", &count) != 1) return 1;
+  long long total = 0;
+  for (int index = 0; index < count; ++index) {
+    long long value = 0;
+    if (std::scanf("%lld", &value) != 1) return 1;
+    total = total + value;
+  }
+  std::printf("%lld\n", count == 10 || count > 20 ? 42LL : total);
+  return 0;
+}
+)";
 
 auto actor(cms::db::connection& database) -> void {
   database.execute_text("INSERT INTO admin_accounts (id, handle, status) "
@@ -82,12 +185,13 @@ auto actor(cms::db::connection& database) -> void {
 }
 
 auto insert_artefact(cms::db::connection& database, std::int64_t job, std::int16_t step,
-                     std::string_view kind, std::string_view key, std::string_view digest) -> std::int64_t {
+                     std::string_view kind, std::string_view key, std::string_view digest,
+                     std::int64_t call_index = 0) -> std::int64_t {
   auto id = std::int64_t{0};
   database.execute_text(
       "INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, seed, "
-      "call_index) VALUES ($1, $2, $3, $4, $5, 'm', 'v', 1, 0)",
-      {job, static_cast<std::int64_t>(step), std::string{kind}, std::string{key}, std::string{digest}});
+      "call_index) VALUES ($1, $2, $3, $4, $5, 'm', 'v', 1, $6)",
+      {job, static_cast<std::int64_t>(step), std::string{kind}, std::string{key}, std::string{digest}, call_index});
   for (const auto& row : database(sqlpp::select(cms::db::generationArtefacts.id)
                                       .from(cms::db::generationArtefacts)
                                       .order_by(cms::db::generationArtefacts.id.desc())
@@ -97,17 +201,28 @@ auto insert_artefact(cms::db::connection& database, std::int64_t job, std::int16
   return id;
 }
 
+/// The specification row's shape, as specification_json writes it: two subtasks so a partial can be earned inside
+/// one group and refused outside it.
 auto specification_json() -> std::string {
   return R"({"input":"n then n values","output":"their sum","input_shape":"n_then_values",)"
-         R"("bounds":{"min_n":1,"max_n":10,"value_min":0,"value_max":9},)"
-         R"("subtasks":[{"position":1,"constraint":"n <= 10"}]})";
+         R"("bounds":{"min_n":1,"max_n":30,"value_min":0,"value_max":9},)"
+         R"("subtasks":[{"position":1,"constraint":"n <= 10"},{"position":2,"constraint":"n <= 20"}]})";
 }
 
-/// One job whose evidence is complete: a task with one subtask, the specification row, the oracle, the reference, the
-/// subtask's solution, both programs and the case set — every artefact written to a store that can be faulted later.
+/// What a case substitutes into the complete fixture: the reference's source, the checker's source, and the limits
+/// step 3 derived (which must equal the task's own unless the case is about stale evidence).
+struct JobSources {
+  std::string_view reference{REFERENCE_SOURCE};
+  std::string_view checker{CHECKER_SOURCE};
+  std::int64_t spec_time_ms{TASK_TIME_MS};
+  std::int64_t spec_memory_mb{TASK_MEMORY_MB};
+};
+
+/// One job whose evidence is complete: a task with two subtasks, the specification row, the oracle, the reference,
+/// one solution per subtask, both programs and one case set per subtask — every artefact written to a store a case
+/// can fault later.
 auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& store, std::string_view task_id,
-               std::string_view reference, bool with_specification, std::int64_t spec_time_ms,
-               std::int64_t spec_memory_mb) -> std::int64_t {
+               const JobSources& sources, bool with_specification) -> std::int64_t {
   actor(database);
   database.execute_text("INSERT INTO task_types (id, title_en, position) VALUES ($1, 'Probe', 903) "
                         "ON CONFLICT (id) DO NOTHING",
@@ -120,15 +235,15 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
   database.execute_text(
       "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, "
       "memory_limit_mb, points, checker, origin, verification, solution, content_hash) "
-      "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 100, 'token', 'original', 'pending', '', $3)",
-      {std::string{task_id}, std::string{TYPE_ID}, std::string(64, 'c')});
+      "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, $3, $4, 100, 'token', 'original', 'pending', '', $5)",
+      {std::string{task_id}, std::string{TYPE_ID}, TASK_TIME_MS, TASK_MEMORY_MB, std::string(64, 'c')});
   database.execute_text(
       "INSERT INTO task_field_values (task_id, task_version, field_key, value) "
       "VALUES ($1, 1, 'score_mode', to_jsonb('subtasks'::text))",
       {std::string{task_id}});
   database.execute_text(
       "INSERT INTO task_subtasks (task_id, task_version, position, points, constraint_text) "
-      "VALUES ($1, 1, 1, 100, 'n <= 10')",
+      "VALUES ($1, 1, 1, 40, 'n <= 10'), ($1, 1, 2, 60, 'n <= 20')",
       {std::string{task_id}});
   database.execute_text("INSERT INTO generation_jobs (task_id, task_version, state) VALUES ($1, 1, $2)",
                         {std::string{task_id}, std::string{"awaiting-evidence"}});
@@ -145,43 +260,50 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
     store.overwrite(key, bytes);
     return cms::store::digest_of(bytes);
   };
-  const auto oracle_key = std::string{"certify/"} + std::string{task_id} + "/oracle.cpp";
-  const auto reference_key = std::string{"certify/"} + std::string{task_id} + "/reference.cpp";
-  const auto partial_key = std::string{"certify/"} + std::string{task_id} + "/partial.cpp";
-  const auto generator_key = std::string{"certify/"} + std::string{task_id} + "/generator.cpp";
-  const auto checker_key = std::string{"certify/"} + std::string{task_id} + "/checker.cpp";
-  const auto cases_key = std::string{"certify/"} + std::string{task_id} + "/cases.json";
+  const auto key_for = [task_id](std::string_view name) {
+    return std::string{"certify/"} + std::string{task_id} + "/" + std::string{name};
+  };
 
-  const auto oracle = insert_artefact(database, job, 3, "oracle", oracle_key,
-                                      write(oracle_key, oracle_source()));
-  const auto reference_artefact = insert_artefact(database, job, 5, "reference", reference_key,
-                                                  write(reference_key, reference));
-  const auto partial = insert_artefact(database, job, 5, "subtask-solution", partial_key,
-                                       write(partial_key, reference_source()));
-  const auto generator = insert_artefact(database, job, 6, "generator", generator_key,
-                                         write(generator_key, "int main() { return 0; }\n"));
-  const auto checker = insert_artefact(database, job, 6, "checker", checker_key,
-                                       write(checker_key, "int main() { return 0; }\n"));
-  const auto cases = insert_artefact(database, job, 6, "cases", cases_key, write(cases_key, "[]"));
+  const auto oracle_key = key_for("oracle.cpp");
+  const auto reference_key = key_for("reference.cpp");
+  const auto first_key = key_for("subtask-1.cpp");
+  const auto second_key = key_for("subtask-2.cpp");
+  const auto generator_key = key_for("generator.cpp");
+  const auto checker_key = key_for("checker.cpp");
+  const auto cases_key = key_for("cases.json");
+
+  const auto oracle = insert_artefact(database, job, 3, "oracle", oracle_key, write(oracle_key, ORACLE_SOURCE));
+  const auto reference_artefact =
+      insert_artefact(database, job, 5, "reference", reference_key, write(reference_key, sources.reference));
+  const auto first = insert_artefact(database, job, 5, "subtask-solution", first_key, write(first_key, FIRST_PARTIAL),
+                                     1);
+  const auto second =
+      insert_artefact(database, job, 5, "subtask-solution", second_key, write(second_key, SECOND_PARTIAL), 2);
+  const auto generator =
+      insert_artefact(database, job, 6, "generator", generator_key, write(generator_key, GENERATOR_SOURCE));
+  const auto checker = insert_artefact(database, job, 6, "checker", checker_key, write(checker_key, sources.checker));
+  const auto cases = insert_artefact(
+      database, job, 6, "cases", cases_key, write(cases_key, R"([{"seed":1,"n":1},{"seed":2,"n":10}])"));
 
   database.execute_text(
       "INSERT INTO generation_solutions (job_id, position, artefact_id, proof) VALUES "
-      "($1, 0, $2, 'the reference was checked'), ($1, 1, $3, 'the partial was checked')",
-      {job, reference_artefact, partial});
+      "($1, 0, $2, 'the reference was checked'), ($1, 1, $3, 'the partial was checked'), "
+      "($1, 2, $4, 'the partial was checked')",
+      {job, reference_artefact, first, second});
   database.execute_text(
       "INSERT INTO generation_programs (job_id, role, artefact_id, proof) VALUES "
       "($1, 'generator', $2, 'deterministic'), ($1, 'checker', $3, 'planted wrong answer refused')",
       {job, generator, checker});
   database.execute_text(
       "INSERT INTO generation_cases (job_id, subtask_position, artefact_id, case_count, proof) "
-      "VALUES ($1, 1, $2, 2, 'two cases')",
+      "VALUES ($1, 1, $2, 2, 'two cases'), ($1, 2, $2, 2, 'two cases')",
       {job, cases});
 
   if (with_specification) {
     database.execute_text(
         "INSERT INTO generation_specifications (job_id, specification, time_limit_ms, memory_limit_mb, derivation, "
         "answer_artefact_id, oracle_artefact_id) VALUES ($1, $2::jsonb, $3, $4, 'derived', $5, $6)",
-        {job, specification_json(), spec_time_ms, spec_memory_mb, reference_artefact, oracle});
+        {job, specification_json(), sources.spec_time_ms, sources.spec_memory_mb, reference_artefact, oracle});
   }
   return job;
 }
@@ -215,7 +337,7 @@ auto verification_of(cms::db::connection& database, std::string_view task_id) ->
 SQLPP_CREATE_NAME_TAG(certificate_rows);
 
 using certificate_row = ::sqlpp::result_row_t<::sqlpp::field_spec_t<certificate_rows_t::_sqlpp_name_tag,
-                                                                    ::sqlpp::integral>>;
+                                                                   ::sqlpp::integral>>;
 
 auto certificate_count(cms::db::connection& database, std::string_view task_id) -> std::int64_t {
   auto rows = ::sqlpp::result_t<cms::db::result, certificate_row>{database.query_text(
@@ -224,9 +346,49 @@ auto certificate_count(cms::db::connection& database, std::string_view task_id) 
   return rows.empty() ? 0 : rows.front().certificate_rows;
 }
 
+/// @return Whether one check the certificate recorded mentions @p needle.
+auto mentions(const std::vector<std::string>& checks, std::string_view needle) -> bool {
+  return std::any_of(checks.begin(), checks.end(), [needle](const std::string& check) {
+    return check.find(needle) != std::string::npos;
+  });
+}
+
 }  // namespace
 
-TEST_CASE("a complete job is certified and the certificate says what it checked", "[certify][live]") {
+TEST_CASE("the specification row is written and read by one definition", "[certify]") {
+  const auto written = cms::generate::specification_json(cms::generate::Specification{
+      .input = "n then n values",
+      .output = "their sum",
+      .bounds = {.min_n = 1, .max_n = 30, .value_min = 0, .value_max = 9},
+      .subtasks = {{1, "n <= 10"}, {2, "n <= 20"}}});
+
+  const auto read = cms::generate::read_specification(written);
+
+  REQUIRE(read.has_value());
+  CHECK(read->input == "n then n values");
+  CHECK(read->output == "their sum");
+  CHECK(read->bounds.min_n == 1);
+  CHECK(read->bounds.max_n == 30);
+  CHECK(read->bounds.value_min == 0);
+  CHECK(read->bounds.value_max == 9);
+  REQUIRE(read->subtasks.size() == 2);
+  CHECK(read->subtasks[0].position == 1);
+  CHECK(read->subtasks[0].constraint == "n <= 10");
+  CHECK(read->subtasks[1].position == 2);
+  CHECK(read->subtasks[1].constraint == "n <= 20");
+}
+
+TEST_CASE("a stored specification that lost a fact is refused by name", "[certify]") {
+  const auto read = cms::generate::read_specification(
+      R"({"input":"n then n values","input_shape":"n_then_values","bounds":{"min_n":1,"max_n":30,"value_min":0,)"
+      R"("value_max":9},"subtasks":[{"position":1,"constraint":"n <= 10"}]})");
+
+  REQUIRE(!read.has_value());
+  CHECK(read.error().message.find("missing") != std::string::npos);
+  CHECK(read.error().message.find("output") != std::string::npos);
+}
+
+TEST_CASE("a complete job is certified and the certificate names every method it re-ran", "[certify][live]") {
   if (!cms::generate::test::has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
@@ -234,7 +396,7 @@ TEST_CASE("a complete job is certified and the certificate says what it checked"
   auto database = cms::generate::test::live_database();
   {
     auto fixture = transaction();
-    (void)build_job(fixture->connection(), store, "certify-ok", reference_source(), true, 1000, 256);
+    (void)build_job(fixture->connection(), store, "certify-ok", JobSources{}, true);
     fixture->commit();
   }
   auto holder = transaction();
@@ -245,11 +407,42 @@ TEST_CASE("a complete job is certified and the certificate says what it checked"
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::verified);
   CHECK(certificate->commit_id == std::string{COMMIT});
-  CHECK(!certificate->checks.empty());
-  CHECK(certificate->digests.size() >= 6);
+  CHECK(certificate->digests.size() >= 8);
+  CHECK(mentions(certificate->checks, "the test cases the generator prints"));
+  CHECK(mentions(certificate->checks, "the reference and the subtask solutions through the checker"));
+  CHECK(mentions(certificate->checks, "the brute-force differential"));
+  CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
+  CHECK(mentions(certificate->checks, "inside the 500 ms and 128 MB halves of the declared 1000 ms and 256 MB limits"));
   holder->commit();
   CHECK(verification_of(database, "certify-ok") == "verified");
   CHECK(certificate_count(database, "certify-ok") == 1);
+}
+
+TEST_CASE("a case count the generator's seeds do not reproduce is failed", "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto store = cms::generate::test::MemoryStore{};
+  auto database = cms::generate::test::live_database();
+  {
+    auto fixture = transaction();
+    const auto job = build_job(fixture->connection(), store, "certify-count", JobSources{}, true);
+    fixture->connection().execute_text(
+        "UPDATE generation_cases SET case_count = 3 WHERE job_id = $1 AND subtask_position = 1", {job});
+    fixture->commit();
+  }
+  auto holder = transaction();
+  auto& connection = holder->connection();
+
+  const auto certificate =
+      cms::generate::certify_job(connection, store, job_of(connection, "certify-count"), COMMIT);
+
+  REQUIRE(certificate.has_value());
+  CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
+  CHECK(mentions(certificate->checks, "step 6 recorded 3 case(s) for subtask 1"));
+  CHECK(mentions(certificate->checks, "the generator's seeds produce 2"));
+  holder->commit();
+  CHECK(verification_of(database, "certify-count") == "failed");
 }
 
 TEST_CASE("evidence that is missing refuses and writes nothing", "[certify][live]") {
@@ -260,7 +453,7 @@ TEST_CASE("evidence that is missing refuses and writes nothing", "[certify][live
   auto database = cms::generate::test::live_database();
   {
     auto fixture = transaction();
-    (void)build_job(fixture->connection(), store, "certify-missing", reference_source(), false, 0, 0);
+    (void)build_job(fixture->connection(), store, "certify-missing", JobSources{}, false);
     fixture->commit();
   }
   auto holder = transaction();
@@ -284,7 +477,8 @@ TEST_CASE("stale limits refuse rather than certify", "[certify][live]") {
   auto database = cms::generate::test::live_database();
   {
     auto fixture = transaction();
-    (void)build_job(fixture->connection(), store, "certify-stale", reference_source(), true, 500, 128);
+    (void)build_job(fixture->connection(), store, "certify-stale",
+                    JobSources{.spec_time_ms = 500, .spec_memory_mb = 128}, true);
     fixture->commit();
   }
   auto holder = transaction();
@@ -308,7 +502,7 @@ TEST_CASE("an artefact that no longer matches its digest is refused by name", "[
   auto database = cms::generate::test::live_database();
   {
     auto fixture = transaction();
-    (void)build_job(fixture->connection(), store, "certify-digest", reference_source(), true, 1000, 256);
+    (void)build_job(fixture->connection(), store, "certify-digest", JobSources{}, true);
     fixture->commit();
   }
   auto holder = transaction();
@@ -325,7 +519,7 @@ TEST_CASE("an artefact that no longer matches its digest is refused by name", "[
   CHECK(certificate_count(database, "certify-digest") == 0);
 }
 
-TEST_CASE("a reference that disagrees with the oracle is failed, not verified", "[certify][live]") {
+TEST_CASE("a reference right only on the smallest case is failed, naming the case", "[certify][live]") {
   if (!cms::generate::test::has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
@@ -333,20 +527,80 @@ TEST_CASE("a reference that disagrees with the oracle is failed, not verified", 
   auto database = cms::generate::test::live_database();
   {
     auto fixture = transaction();
-    (void)build_job(fixture->connection(), store, "certify-failed", wrong_reference_source(), true, 1000, 256);
+    (void)build_job(fixture->connection(), store, "certify-disagree",
+                    JobSources{.reference = SMALLEST_ONLY_REFERENCE}, true);
     fixture->commit();
   }
   auto holder = transaction();
   auto& connection = holder->connection();
 
   const auto certificate =
-      cms::generate::certify_job(connection, store, job_of(connection, "certify-failed"), COMMIT);
+      cms::generate::certify_job(connection, store, job_of(connection, "certify-disagree"), COMMIT);
 
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
+  CHECK(mentions(certificate->checks, "the brute-force differential"));
+  CHECK(mentions(certificate->checks, "n = 10"));
+  CHECK(mentions(certificate->checks, "the reference answered \"42\""));
   holder->commit();
-  CHECK(verification_of(database, "certify-failed") == "failed");
-  CHECK(certificate_count(database, "certify-failed") == 1);
+  CHECK(verification_of(database, "certify-disagree") == "failed");
+  CHECK(certificate_count(database, "certify-disagree") == 1);
+}
+
+TEST_CASE("a checker that accepts a planted wrong answer is failed by name", "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto store = cms::generate::test::MemoryStore{};
+  auto database = cms::generate::test::live_database();
+  {
+    auto fixture = transaction();
+    (void)build_job(fixture->connection(), store, "certify-checker",
+                    JobSources{.checker = ALWAYS_OK_CHECKER}, true);
+    fixture->commit();
+  }
+  auto holder = transaction();
+  auto& connection = holder->connection();
+
+  const auto certificate =
+      cms::generate::certify_job(connection, store, job_of(connection, "certify-checker"), COMMIT);
+
+  REQUIRE(certificate.has_value());
+  CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
+  CHECK(mentions(certificate->checks, "the reference and the subtask solutions through the checker"));
+  CHECK(mentions(certificate->checks, "accepts a planted wrong answer"));
+  CHECK(mentions(certificate->checks, "not a checker"));
+  CHECK(mentions(certificate->checks, "the brute-force differential"));
+  CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
+  holder->commit();
+  CHECK(verification_of(database, "certify-checker") == "failed");
+}
+
+TEST_CASE("a reference above half the limit on its slowest case is failed", "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto store = cms::generate::test::MemoryStore{};
+  auto database = cms::generate::test::live_database();
+  {
+    auto fixture = transaction();
+    (void)build_job(fixture->connection(), store, "certify-slow",
+                    JobSources{.reference = SLOW_REFERENCE}, true);
+    fixture->commit();
+  }
+  auto holder = transaction();
+  auto& connection = holder->connection();
+
+  const auto certificate =
+      cms::generate::certify_job(connection, store, job_of(connection, "certify-slow"), COMMIT);
+
+  REQUIRE(certificate.has_value());
+  CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
+  CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
+  CHECK(mentions(certificate->checks, "above the 500 ms half of the declared 1000 ms time limit"));
+  CHECK(mentions(certificate->checks, "at n = 20"));
+  holder->commit();
+  CHECK(verification_of(database, "certify-slow") == "failed");
 }
 
 TEST_CASE("the generator role cannot write a verification", "[certify][live]") {

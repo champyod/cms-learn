@@ -14,14 +14,8 @@
 #include <cms/db/tables.hpp>
 #include <cms/generate/specification.hpp>
 
-#include "json.hpp"
-
 namespace cms::generate {
 namespace {
-
-using detail::field_integer;
-using detail::field_text;
-using detail::with_object;
 
 auto refused(std::string_view message) -> Error {
   return Error::make(ErrorCode::invalid_argument, message);
@@ -56,6 +50,13 @@ struct Cited {
   std::string digest;
 };
 
+/// One case set step 6 recorded for a subtask, and how many cases it said the set holds.
+struct CaseSet {
+  std::int32_t position{0};
+  std::int64_t artefact{0};
+  std::int64_t count{0};
+};
+
 struct Evidence {
   std::string task_id;
   std::int32_t task_version{0};
@@ -69,7 +70,7 @@ struct Evidence {
   std::int64_t oracle_artefact{0};
   std::vector<std::pair<std::int32_t, std::int64_t>> solutions;
   std::vector<std::pair<std::string, std::int64_t>> programs;
-  std::vector<std::pair<std::int32_t, std::int64_t>> cases;
+  std::vector<CaseSet> cases;
   std::vector<std::int32_t> subtasks;
 };
 
@@ -162,11 +163,14 @@ auto load_children(cms::db::connection& database, std::int64_t job_id, Evidence&
     evidence.programs.emplace_back(std::string{row.role}, row.artefactId);
   }
   for (const auto& row : database(sqlpp::select(cms::db::generationCases.subtaskPosition,
-                                                cms::db::generationCases.artefactId)
+                                                cms::db::generationCases.artefactId,
+                                                cms::db::generationCases.caseCount)
                                       .from(cms::db::generationCases)
                                       .where(cms::db::generationCases.jobId == job_id)
                                       .order_by(cms::db::generationCases.subtaskPosition.asc()))) {
-    evidence.cases.emplace_back(static_cast<std::int32_t>(row.subtaskPosition), row.artefactId);
+    evidence.cases.push_back(CaseSet{.position = static_cast<std::int32_t>(row.subtaskPosition),
+                                     .artefact = row.artefactId,
+                                     .count = row.caseCount});
   }
 }
 
@@ -218,64 +222,6 @@ auto verified_bytes(const cms::store::ObjectStore& store, const Cited& cited, st
   }
   return std::unexpected(refused("step " + std::to_string(cited.step) + " " + cited.kind +
                                  " names neither an object nor inline text"));
-}
-
-auto parse_specification(std::string_view json) -> Result<Specification> {
-  auto specification = Specification{};
-  auto problem = std::string{};
-  const auto parsed = with_object(json, "the specification", [&](const simdjson::dom::object& object) -> Result<void> {
-    const auto input = field_text(object, "input");
-    const auto output = field_text(object, "output");
-    auto bounds = simdjson::dom::object{};
-    if (!input || !output) {
-      problem = "the specification names no input or output";
-      return {};
-    }
-    if (object.at_key("bounds").get_object().get(bounds) != simdjson::SUCCESS) {
-      problem = "the specification carries no bounds";
-      return {};
-    }
-    const auto min_n = field_integer(bounds, "min_n");
-    const auto max_n = field_integer(bounds, "max_n");
-    const auto value_min = field_integer(bounds, "value_min");
-    const auto value_max = field_integer(bounds, "value_max");
-    if (!min_n || !max_n || !value_min || !value_max) {
-      problem = "the specification's bounds are incomplete";
-      return {};
-    }
-    specification.input = *input;
-    specification.output = *output;
-    specification.bounds = Bounds{.min_n = *min_n,
-                                  .max_n = *max_n,
-                                  .value_min = *value_min,
-                                  .value_max = *value_max};
-    auto subtasks = simdjson::dom::array{};
-    if (object.at_key("subtasks").get_array().get(subtasks) == simdjson::SUCCESS) {
-      for (const auto element : subtasks) {
-        auto entry = simdjson::dom::object{};
-        if (element.get_object().get(entry) != simdjson::SUCCESS) {
-          problem = "a stored subtask is not an object";
-          return {};
-        }
-        const auto position = field_integer(entry, "position");
-        const auto constraint = field_text(entry, "constraint");
-        if (!position || !constraint) {
-          problem = "a stored subtask names no position or constraint";
-          return {};
-        }
-        specification.subtasks.push_back(
-            SubtaskConstraint{.position = static_cast<std::int32_t>(*position), .constraint = *constraint});
-      }
-    }
-    return {};
-  });
-  if (!parsed) {
-    return std::unexpected(parsed.error());
-  }
-  if (!problem.empty()) {
-    return std::unexpected(refused(problem));
-  }
-  return specification;
 }
 
 }  // namespace
@@ -366,7 +312,7 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
   }
   for (const auto position : evidence.subtasks) {
     const auto found = std::any_of(evidence.cases.begin(), evidence.cases.end(),
-                                   [position](const auto& entry) { return entry.first == position; });
+                                   [position](const CaseSet& entry) { return entry.position == position; });
     if (!found) {
       return std::unexpected(refused("generation job " + std::to_string(job_id) + " has no cases for subtask " +
                                      std::to_string(position) + " (step 6)"));
@@ -374,18 +320,7 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
   }
 
   // Every cited artefact is read back at the address its row records.
-  auto ids = std::vector<std::int64_t>{evidence.oracle_artefact};
-  for (const auto& entry : evidence.solutions) {
-    ids.push_back(entry.second);
-  }
-  for (const auto& entry : evidence.programs) {
-    ids.push_back(entry.second);
-  }
-  for (const auto& entry : evidence.cases) {
-    ids.push_back(entry.second);
-  }
-  auto sources = std::vector<std::pair<std::int64_t, std::string>>{};
-  for (const auto id : ids) {
+  auto read_back = [&database, &store, &certificate](std::int64_t id) -> Result<std::string> {
     const auto cited = cited_artefact(database, id);
     if (!cited) {
       return std::unexpected(cited.error());
@@ -395,51 +330,84 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
       return std::unexpected(read.error());
     }
     certificate.digests.push_back(cited->digest);
-    sources.emplace_back(id, std::move(bytes));
-  }
-  certificate.checks.push_back("step 3, 5 and 6 evidence read back at the digest its row records (" +
-                               std::to_string(certificate.digests.size()) + " artefact(s))");
-
-  // The one check that proves something by running it: the oracle and the reference agree on the smallest case.
-  const auto specification = parse_specification(evidence.specification_json);
-  if (!specification) {
-    return std::unexpected(specification.error());
-  }
-  const auto smallest = sample_smallest(*specification);
-  if (!smallest) {
-    return std::unexpected(smallest.error());
-  }
-  auto bytes_of = [&sources](std::int64_t id) {
-    for (const auto& entry : sources) {
-      if (entry.first == id) {
-        return entry.second;
-      }
-    }
-    return std::string{};
+    return bytes;
   };
+  const auto oracle_source = read_back(evidence.oracle_artefact);
+  if (!oracle_source) {
+    return std::unexpected(oracle_source.error());
+  }
   auto reference_artefact = std::int64_t{0};
   for (const auto& [position, artefact] : evidence.solutions) {
     if (position == 0) {
       reference_artefact = artefact;
     }
   }
-  const auto oracle_answer =
-      run_program(bytes_of(evidence.oracle_artefact), *smallest, evidence.spec_time_limit_ms);
-  const auto reference_answer =
-      run_program(bytes_of(reference_artefact), *smallest, evidence.spec_time_limit_ms);
-  if (!oracle_answer || !reference_answer) {
-    certificate.outcome = VerificationOutcome::failed;
-    certificate.checks.push_back(
-        "the oracle and the reference run on the smallest case: failed (" +
-        std::string{(!oracle_answer ? oracle_answer.error().message : reference_answer.error().message)} + ")");
-  } else if (*oracle_answer != *reference_answer) {
-    certificate.outcome = VerificationOutcome::failed;
-    certificate.checks.push_back("the oracle and the reference agree on the smallest case: no (the oracle says " +
-                                 as_json_string(*oracle_answer) + ", the reference says " + as_json_string(*reference_answer) + ")");
-  } else {
-    certificate.outcome = VerificationOutcome::verified;
-    certificate.checks.push_back("the oracle and the reference agree on the smallest case (" +
-                                 as_json_string(*oracle_answer) + ")");
+  const auto reference_source = read_back(reference_artefact);
+  if (!reference_source) {
+    return std::unexpected(reference_source.error());
+  }
+  auto partial_sources = std::vector<std::pair<std::int32_t, std::string>>{};
+  for (const auto& [position, artefact] : evidence.solutions) {
+    if (position == 0) {
+      continue;
+    }
+    const auto source = read_back(artefact);
+    if (!source) {
+      return std::unexpected(source.error());
+    }
+    partial_sources.emplace_back(position, *source);
+  }
+  auto artefact_of = [](const std::vector<std::pair<std::string, std::int64_t>>& rows,
+                        std::string_view role) {
+    for (const auto& entry : rows) {
+      if (entry.first == role) {
+        return entry.second;
+      }
+    }
+    return std::int64_t{0};
+  };
+  const auto generator_source = read_back(artefact_of(evidence.programs, "generator"));
+  if (!generator_source) {
+    return std::unexpected(generator_source.error());
+  }
+  const auto checker_source = read_back(artefact_of(evidence.programs, "checker"));
+  if (!checker_source) {
+    return std::unexpected(checker_source.error());
+  }
+  for (const auto& entry : evidence.cases) {
+    const auto cited = read_back(entry.artefact);
+    if (!cited) {
+      return std::unexpected(cited.error());
+    }
+  }
+  certificate.checks.push_back("step 3, 5 and 6 evidence read back at the digest its row records (" +
+                               std::to_string(certificate.digests.size()) + " artefact(s))");
+
+  // Step 3's row is read by the one reader its writer uses, so the stored shape cannot drift from this program.
+  const auto specification = read_specification(evidence.specification_json);
+  if (!specification) {
+    return std::unexpected(specification.error());
+  }
+
+  auto re_run = ReRunEvidence{.specification = *specification,
+                              .generator_source = *generator_source,
+                              .checker_source = *checker_source,
+                              .oracle_source = *oracle_source,
+                              .reference_source = *reference_source,
+                              .partial_sources = std::move(partial_sources),
+                              .recorded_case_counts = {},
+                              .time_limit_ms = evidence.spec_time_limit_ms,
+                              .memory_limit_mb = evidence.spec_memory_limit_mb};
+  for (const auto& entry : evidence.cases) {
+    re_run.recorded_case_counts.emplace_back(entry.position, entry.count);
+  }
+
+  certificate.outcome = VerificationOutcome::verified;
+  for (const auto& result : re_run_methods(re_run)) {
+    if (!result.is_passed) {
+      certificate.outcome = VerificationOutcome::failed;
+    }
+    certificate.checks.push_back(result.sentence);
   }
 
   // The certificate and the verification move together: the caller commits both or neither.
