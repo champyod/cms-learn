@@ -482,6 +482,39 @@ struct GenerationJobs_ {
   using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion>;
 };
 
+struct GenerationSolutions_ {
+  struct JobId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Position {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(position, position);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct ArtefactId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(artefact_id, artefactId);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct Proof {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(proof, proof);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_solutions, generationSolutions);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, JobId, Position, ArtefactId, Proof, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Position, ArtefactId, Proof>;
+};
+
 struct GenerationSpecifications_ {
   struct JobId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
@@ -1602,6 +1635,7 @@ using Elevations = ::sqlpp::table_t<Elevations_>;
 using GenerationArtefacts = ::sqlpp::table_t<GenerationArtefacts_>;
 using GenerationCandidates = ::sqlpp::table_t<GenerationCandidates_>;
 using GenerationJobs = ::sqlpp::table_t<GenerationJobs_>;
+using GenerationSolutions = ::sqlpp::table_t<GenerationSolutions_>;
 using GenerationSpecifications = ::sqlpp::table_t<GenerationSpecifications_>;
 using LearnerAccounts = ::sqlpp::table_t<LearnerAccounts_>;
 using LearnerTokens = ::sqlpp::table_t<LearnerTokens_>;
@@ -1639,6 +1673,7 @@ inline const Elevations elevations{};
 inline const GenerationArtefacts generationArtefacts{};
 inline const GenerationCandidates generationCandidates{};
 inline const GenerationJobs generationJobs{};
+inline const GenerationSolutions generationSolutions{};
 inline const GenerationSpecifications generationSpecifications{};
 inline const LearnerAccounts learnerAccounts{};
 inline const LearnerTokens learnerTokens{};

@@ -117,7 +117,7 @@ auto answer_json(std::string_view locale, std::string_view omit = {}, std::strin
                                                                           : section_prose(locale, key);
     json += ", " + json_string(key) + ": " + json_string(prose);
   }
-  json += "}";
+  json += '}';
   return json;
 }
 

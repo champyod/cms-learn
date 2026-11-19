@@ -177,7 +177,7 @@ TEST_CASE("an oracle that does not build, or answers nothing, is refused by name
 
   const auto silent = cms::generate::check_oracle("int main() { return 0; }", "1\n0\n", 1000);
   REQUIRE(!silent.has_value());
-  CHECK(silent.error().message.find("answered the smallest case with nothing") != std::string::npos);
+  CHECK(silent.error().message.find("answered the case with nothing") != std::string::npos);
 }
 
 TEST_CASE("step 3's record is one specification row and two call rows in one transaction", "[generate][live]") {

@@ -363,6 +363,12 @@
           "path": "public.generation_candidates"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS generation_solutions (\n    job_id bigint,\n    position integer,\n    artefact_id bigint NOT NULL,\n    proof text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_solutions_pkey PRIMARY KEY (job_id, position),\n    CONSTRAINT generation_solutions_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_solutions_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_solutions_position_check CHECK (\"position\" >= 0),\n    CONSTRAINT generation_solutions_proof_check CHECK (length(btrim(proof)) > 0)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.generation_solutions"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS generation_specifications (\n    job_id bigint,\n    specification jsonb NOT NULL,\n    time_limit_ms integer NOT NULL,\n    memory_limit_mb integer NOT NULL,\n    derivation text NOT NULL,\n    answer_artefact_id bigint NOT NULL,\n    oracle_artefact_id bigint NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_specifications_pkey PRIMARY KEY (job_id),\n    CONSTRAINT generation_specifications_answer_artefact_id_fkey FOREIGN KEY (answer_artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_specifications_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_specifications_oracle_artefact_id_fkey FOREIGN KEY (oracle_artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_specifications_calls_distinct CHECK (answer_artefact_id <> oracle_artefact_id),\n    CONSTRAINT generation_specifications_derivation_check CHECK (length(btrim(derivation)) > 0),\n    CONSTRAINT generation_specifications_memory_limit_mb_check CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),\n    CONSTRAINT generation_specifications_time_limit_ms_check CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000)\n);",
           "type": "table",
           "operation": "create",
@@ -817,6 +823,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.TABLE.generation_jobs.cmslearn_generator"
+        },
+        {
+          "sql": "GRANT INSERT, SELECT ON TABLE generation_solutions TO cmslearn_generator;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.TABLE.generation_solutions.cmslearn_generator"
         },
         {
           "sql": "GRANT INSERT, SELECT ON TABLE generation_specifications TO cmslearn_generator;",

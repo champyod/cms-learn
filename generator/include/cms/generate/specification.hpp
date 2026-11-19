@@ -107,6 +107,13 @@ struct OracleCheck {
   std::string answer;
 };
 
+/// @brief Compiles @p source and runs it on @p input, refusing a program that does not build or answer.
+///
+/// The refusal carries only the reason, so a caller can name which program failed: a step that runs a reference, a
+/// subtask's solution and an oracle would otherwise produce three sentences that cannot be told apart.
+[[nodiscard]] auto run_program(std::string_view source, std::string_view input, std::int64_t time_limit_ms)
+    -> Result<std::string>;
+
 /// @brief Compiles @p source and runs it on @p smallest_input, refusing a program that does not build or answer.
 [[nodiscard]] auto check_oracle(std::string_view source, std::string_view smallest_input,
                                 std::int64_t time_limit_ms) -> Result<OracleCheck>;

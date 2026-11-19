@@ -555,6 +555,19 @@ CREATE TABLE IF NOT EXISTS generation_candidates (
     CONSTRAINT generation_candidates_reason_check CHECK (length(btrim(reason)) > 0)
 );
 
+CREATE TABLE IF NOT EXISTS generation_solutions (
+    job_id bigint,
+    position integer,
+    artefact_id bigint NOT NULL,
+    proof text NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT generation_solutions_pkey PRIMARY KEY (job_id, position),
+    CONSTRAINT generation_solutions_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),
+    CONSTRAINT generation_solutions_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
+    CONSTRAINT generation_solutions_position_check CHECK ("position" >= 0),
+    CONSTRAINT generation_solutions_proof_check CHECK (length(btrim(proof)) > 0)
+);
+
 CREATE TABLE IF NOT EXISTS generation_specifications (
     job_id bigint,
     specification jsonb NOT NULL,
@@ -1404,6 +1417,8 @@ GRANT INSERT, SELECT ON TABLE generation_artefacts TO cmslearn_generator;
 GRANT INSERT, SELECT ON TABLE generation_candidates TO cmslearn_generator;
 
 GRANT INSERT, SELECT, UPDATE ON TABLE generation_jobs TO cmslearn_generator;
+
+GRANT INSERT, SELECT ON TABLE generation_solutions TO cmslearn_generator;
 
 GRANT INSERT, SELECT ON TABLE generation_specifications TO cmslearn_generator;
 
