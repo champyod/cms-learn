@@ -88,6 +88,31 @@ Nothing is cached inside the repository except the installed tree:
 All three are disposable; the next configure rebuilds whatever it needs. The baseline in
 `api/vcpkg-configuration.json`, not the cache, is what decides versions.
 
+### Build tools the manifest needs
+
+The compiler is not the only build tool the packages need. When vcpkg's binary archive cache is empty,
+every port builds from source, and those builds run tools the base image does not carry. Beyond `cmake`
+and the compiler, a manifest build needs:
+
+| Tool | What needs it |
+|---|---|
+| `ninja` or `make` | the ports' CMake, Makefile and other build systems |
+| `pkg-config` | dependency discovery in the ports that use it |
+| `bison`, `flex` | libpq (PostgreSQL): its parser and lexer are generated, and the build stops at the first missing one |
+| `perl` | OpenSSL's `Configure`, which the whole TLS tree under libpq and the S3 client builds with |
+| `autoconf`, `automake`, `libtool`, `autoconf-archive` | the autotools-based ports that regenerate or run `configure` |
+| `git`, `curl`, `ca-certificates`, `zip`, `unzip`, `tar` | fetching and unpacking the port sources |
+
+These are OS packages, not the libraries the project links. A host with the compiler and a warm
+`build/vcpkg_installed` can go a long time without noticing them and then fail on the first cold build;
+that is the gap CI hit, where the image carried the compiler but not `bison`. The list is kept in one
+place in CI: the workflow's `BUILD_TOOLS` environment variable, installed by both C++ lanes (`cpp-fast`
+and `cpp-full`), so the tool a port fails on is added once. Measured 2026-11-19: in the
+`gcc:16.2.0-trixie` container with `VCPKG_BINARY_SOURCES=clear` and an empty downloads root, `libpq`
+builds from source once the list is installed, and the same build stops at
+`ports/libpq/portfile.cmake` with `Could not find bison` when it is not. On a development host, install
+the same list from the distribution before the first configure.
+
 ## Rust — `cmsctl` only
 
 | Crate | Version | Licence | Used for |

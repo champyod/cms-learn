@@ -26,6 +26,15 @@ concurrency:
 permissions:
   contents: read
 
+# Every build tool the vcpkg manifest's ports need when they build from source — the state a cold cache
+# starts in. One list, installed by both C++ lanes, so the tool a port fails on is added once: libpq
+# runs bison and flex, openssl runs perl, the autoconf-based ports run the autotools and
+# autoconf-archive, and the ports' own build systems run cmake, ninja, make and pkg-config.
+env:
+  BUILD_TOOLS: >-
+    cmake ninja-build make clang clang-tidy git curl ca-certificates zip unzip tar pkg-config
+    bison flex autoconf autoconf-archive automake libtool python3 perl
+
 jobs:
   content:
     name: content gate
@@ -199,11 +208,11 @@ jobs:
 
       # The image carries the compiler; these are the parts of the toolchain it does not. No sudo:
       # container steps already run as root. cmake_minimum_required in CMakeLists.txt is the real floor.
+      # The package list is the workflow's BUILD_TOOLS, shared with the full lane.
       - name: toolchain
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends \
-            cmake ninja-build make clang clang-tidy git curl ca-certificates zip unzip tar pkg-config
+          apt-get install -y --no-install-recommends ${BUILD_TOOLS}
 
       # vcpkg is not optional in this lane: the bank needs its packages whether or not the api is built,
       # so the fast lane skips the api build rather than skipping the package tree.
@@ -251,8 +260,7 @@ jobs:
       - name: toolchain
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends \
-            cmake ninja-build make clang clang-tidy git curl ca-certificates zip unzip tar pkg-config
+          apt-get install -y --no-install-recommends ${BUILD_TOOLS}
 
       - name: vcpkg checkout
         run: |
