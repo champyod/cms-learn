@@ -710,10 +710,14 @@ CREATE TABLE IF NOT EXISTS task_subtasks (
     task_version integer,
     position integer,
     points integer NOT NULL,
-    constraint_text text NOT NULL,
+    min_n bigint,
+    max_n bigint,
+    value_min bigint,
+    value_max bigint,
     CONSTRAINT task_subtasks_pkey PRIMARY KEY (task_id, task_version, position),
     CONSTRAINT task_subtasks_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,
-    CONSTRAINT task_subtasks_constraint_text_check CHECK (length(btrim(constraint_text)) > 0),
+    CONSTRAINT task_subtasks_admits_a_case CHECK ((min_n IS NULL OR max_n IS NULL OR min_n <= max_n) AND (value_min IS NULL OR value_max IS NULL OR value_min <= value_max)),
+    CONSTRAINT task_subtasks_narrows_something CHECK (num_nonnulls(min_n, max_n, value_min, value_max) > 0),
     CONSTRAINT task_subtasks_points_check CHECK (points > 0 AND points <= 1000),
     CONSTRAINT task_subtasks_position_check CHECK ("position" > 0)
 );

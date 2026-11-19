@@ -54,25 +54,23 @@ struct PartialProof {
   std::string sentence;
 };
 
-/// @brief The cases the bounds admit: the smallest n, and one n above each subtask's bound.
+/// @brief The cases a subtask's typed narrowing admits, drawn by the sampler (ADR 0040, 0041).
 ///
-/// A case is only ever built from what the specification declares — the bounds and the subtask constraints — never
-/// from a value the model chose, because a proof that rests on an invented case proves nothing about the task.
-/// @return The cases, or a refusal naming the subtask whose constraint names no bound.
-[[nodiscard]] auto admissible_cases(const Specification& specification, std::int64_t outside_n)
+/// A case is only ever built from what the specification declares — the task's bounds and the subtask's narrowing —
+/// never from a value the model chose, because a proof that rests on an invented case proves nothing about the task.
+/// @return The cases, or a refusal naming the shape or narrowing the sampler cannot draw.
+[[nodiscard]] auto admissible_cases(const Specification& specification, const SubtaskConstraint& subtask)
     -> Result<std::vector<SmallCase>>;
 
-/// @brief The subtask's own cases (n at or below its bound) and one case above it.
-[[nodiscard]] auto subtask_cases(const Specification& specification, std::int64_t bound) -> SubtaskCases;
-
-/// @brief Reads the bound a subtask's constraint names, e.g. "n <= 100000" -> 100000.
-/// @return The bound, or nothing when the constraint names none this step can use.
-[[nodiscard]] auto subtask_bound(std::string_view constraint) -> Result<std::int64_t>;
+/// @brief The subtask's own cases (inside its narrowing) and one case outside it but inside the task's bounds.
+/// @return The cases, or a refusal naming why the narrowing leaves no case outside it.
+[[nodiscard]] auto subtask_cases(const Specification& specification, const SubtaskConstraint& subtask)
+    -> Result<SubtaskCases>;
 
 /// @brief Runs the reference and every partial, and returns the proof each partial earned.
 ///
-/// The reference must agree with @p oracle_output on every admissible case; a disagreement is refused by name.
-/// A partial must pass every case inside its subtask and fail at least one outside it.
+/// The reference must agree with the oracle on every admissible case, token for token (ADR 0042); a disagreement is
+/// refused by name. A partial must pass every case inside its subtask and fail at least one outside it.
 [[nodiscard]] auto check_solutions(const Step5Answer& answer, const Specification& specification,
                                    std::string_view oracle_source, const std::vector<SmallCase>& cases,
                                    std::int64_t time_limit_ms) -> Result<std::vector<PartialProof>>;

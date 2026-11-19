@@ -26,7 +26,7 @@ namespace {
 constexpr std::string_view ACTOR = "a0000001-1111-4111-8111-0000000000b1";
 constexpr std::string_view TYPE_ID = "subtask_probe";
 constexpr std::string_view SUBTASK_COLUMNS =
-    "task_id, task_version, position, points, constraint_text";
+    "task_id, task_version, position, points, min_n, max_n, value_min, value_max";
 
 using cms::bank::Subtask;
 using cms::bank::Task;
@@ -89,6 +89,7 @@ auto task_with(std::string_view id, std::string_view hash, std::int32_t points,
   task.time_limit_ms = 1000;
   task.memory_limit_mb = 256;
   task.points = points;
+  task.bounds = cms::TaskBounds{.min_n = 1, .max_n = 200000, .value_min = 1, .value_max = 1000000000};
   task.subtasks = std::move(subtasks);
   task.checker_kind = "token";
   task.origin_kind = "original";
@@ -176,16 +177,16 @@ auto write_text(const std::filesystem::path& path, std::string_view text) -> voi
 
 TEST_CASE("a subtask section is rendered from the rows, and the rows are a partition", "[subtasks]") {
   const auto section = cms::bank::scoring_section(
-      "en", {Subtask{.position = 1, .points = 30, .constraint_text = "n <= 2000"},
-             Subtask{.position = 2, .points = 70, .constraint_text = "n <= 200000"}},
+      "en", {Subtask{.position = 1, .points = 30, .bounds = cms::SubtaskBounds{.max_n = 2000}},
+             Subtask{.position = 2, .points = 70, .bounds = cms::SubtaskBounds{.max_n = 200000}}},
       100);
   CHECK(section.find("## Scoring") != std::string::npos);
   CHECK(section.find("worth 100 points in 2 subtasks") != std::string::npos);
-  CHECK(section.find("| 1 | n <= 2000 | 30 |") != std::string::npos);
-  CHECK(section.find("| 2 | n <= 200000 | 70 |") != std::string::npos);
+  CHECK(section.find("| 1 | n \u2264 2000 | 30 |") != std::string::npos);
+  CHECK(section.find("| 2 | n \u2264 200000 | 70 |") != std::string::npos);
 
   const auto thai = cms::bank::scoring_section(
-      "th", {Subtask{.position = 1, .points = 100, .constraint_text = "n <= 10"}}, 100);
+      "th", {Subtask{.position = 1, .points = 100, .bounds = cms::SubtaskBounds{.max_n = 10}}}, 100);
   CHECK(thai.find("\u0e01\u0e32\u0e23\u0e43\u0e2b\u0e49\u0e04\u0e30\u0e41\u0e19\u0e19") != std::string::npos);
 
   CHECK(cms::bank::scoring_section("en", {}, 100).empty());
@@ -204,9 +205,10 @@ TEST_CASE("a task's task.json can name its points and its subtasks", "[subtasks]
     "topics": [], "difficulty": 900,
     "limits": {"time_ms": 1000, "memory_mb": 256},
     "points": 100,
+    "bounds": {"min_n": 1, "max_n": 200000, "value_min": 1, "value_max": 1000000000},
     "subtasks": [
-      {"position": 1, "points": 30, "constraint": "n <= 2000"},
-      {"position": 2, "points": 70, "constraint": "n <= 200000"}
+      {"position": 1, "points": 30, "max_n": 2000},
+      {"position": 2, "points": 70, "max_n": 200000}
     ],
     "checker": {"kind": "token"}, "origin": {"kind": "original"},
     "verification": {"status": "pending"}
@@ -217,16 +219,19 @@ TEST_CASE("a task's task.json can name its points and its subtasks", "[subtasks]
   CHECK(task->points == 100);
   REQUIRE(task->subtasks.size() == 2);
   CHECK(task->subtasks[1].points == 70);
-  CHECK(task->subtasks[1].constraint_text == "n <= 200000");
+  CHECK(task->bounds->max_n == 200000);
+  CHECK(task->subtasks[0].bounds.max_n == 2000);
+  CHECK(task->subtasks[1].bounds.max_n == 200000);
 
   write_text(task_dir / "task.json", R"({
     "id": "probe-subtask", "version": 1, "status": "draft",
     "title": {"en": "Probe", "th": "\u0e17\u0e14\u0e2a\u0e2d\u0e1a"},
     "topics": [], "difficulty": 900,
     "limits": {"time_ms": 1000, "memory_mb": 256},
+    "bounds": {"min_n": 1, "max_n": 200000, "value_min": 1, "value_max": 1000000000},
     "subtasks": [
-      {"position": 1, "points": 30, "constraint": "n <= 2000"},
-      {"position": 1, "points": 70, "constraint": "n <= 200000"}
+      {"position": 1, "points": 30, "max_n": 2000},
+      {"position": 1, "points": 70, "max_n": 200000}
     ],
     "checker": {"kind": "token"}, "origin": {"kind": "original"},
     "verification": {"status": "pending"}
@@ -239,14 +244,54 @@ TEST_CASE("a task's task.json can name its points and its subtasks", "[subtasks]
   std::filesystem::remove_all(root, ignored);
 }
 
+TEST_CASE("a subtask's narrowing is refused when it names nothing or leaves the task's bounds", "[subtasks]") {
+  const auto root = cms::testing::scratch_directory("cms-subtasks-narrowing");
+  const auto task_dir = root / "content" / "tasks" / "probe-narrowing";
+  write_text(task_dir / "statement.en.md", "# Probe\n\nBody.");
+  write_text(task_dir / "examples" / "1.in", "42\n");
+  write_text(task_dir / "examples" / "1.out", "42\n");
+  write_text(task_dir / "solutions" / "main.cpp", "int main() { return 0; }\n");
+  const auto manifest = [](std::string_view bounds, std::string_view subtask) {
+    return std::string{R"({
+    "id": "probe-narrowing", "version": 1, "status": "draft",
+    "title": {"en": "Probe", "th": "\u0e17\u0e14\u0e2a\u0e2d\u0e1a"},
+    "topics": [], "difficulty": 900,
+    "limits": {"time_ms": 1000, "memory_mb": 256},)"} +
+           std::string{bounds} + R"("subtasks": [)" + std::string{subtask} + R"(],
+    "checker": {"kind": "token"}, "origin": {"kind": "original"},
+    "verification": {"status": "pending"}
+  })";
+  };
+  constexpr std::string_view BOUNDS = R"("bounds": {"min_n": 1, "max_n": 2000, "value_min": 1, "value_max": 100},)";
+
+  write_text(task_dir / "task.json", manifest(BOUNDS, R"({"position": 1, "points": 100})"));
+  const auto empty = cms::bank::load_task(task_dir);
+  REQUIRE(!empty.has_value());
+  CHECK(empty.error().message.find("narrows nothing") != std::string::npos);
+
+  write_text(task_dir / "task.json", manifest(BOUNDS, R"({"position": 1, "points": 100, "max_n": 3000})"));
+  const auto wider = cms::bank::load_task(task_dir);
+  REQUIRE(!wider.has_value());
+  CHECK(wider.error().message.find("above the task's 2000") != std::string::npos);
+
+  write_text(task_dir / "task.json", manifest("", R"({"position": 1, "points": 100, "max_n": 20})"));
+  const auto unbounded = cms::bank::load_task(task_dir);
+  REQUIRE(!unbounded.has_value());
+  CHECK(unbounded.error().message.find("declares none") != std::string::npos);
+
+  std::error_code ignored;
+  std::filesystem::remove_all(root, ignored);
+}
+
 TEST_CASE("the seeder records a partition and the statement carries the section", "[subtasks][live]") {
   if (!cms::test::has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   auto database = cms::test::live_database();
   const auto task = task_with("probe-seeded", std::string(64, 'd'), 100,
-                              {Subtask{.position = 1, .points = 30, .constraint_text = "n <= 2000"},
-                               Subtask{.position = 2, .points = 70, .constraint_text = "n <= 200000"}});
+                              {Subtask{.position = 1, .points = 30, .bounds = cms::SubtaskBounds{.max_n = 2000}},
+                               Subtask{.position = 2, .points = 70,
+                                       .bounds = cms::SubtaskBounds{.max_n = 200000}}});
 
   const auto report = seed_bank(task, std::string(64, 'e'));
 
@@ -254,18 +299,18 @@ TEST_CASE("the seeder records a partition and the statement carries the section"
   CHECK(subtask_rows(database, "probe-seeded") == 2);
   const auto body = statement_body(database, "probe-seeded");
   CHECK(body.find("## Scoring") != std::string::npos);
-  CHECK(body.find("| 1 | n <= 2000 | 30 |") != std::string::npos);
-  CHECK(body.find("| 2 | n <= 200000 | 70 |") != std::string::npos);
+  CHECK(body.find("| 1 | n \u2264 2000 | 30 |") != std::string::npos);
+  CHECK(body.find("| 2 | n \u2264 200000 | 70 |") != std::string::npos);
 
   const auto refusal_text = refusal(
-      "INSERT INTO task_subtasks (task_id, task_version, position, points, constraint_text) "
-      "VALUES ($1, 1, 3, 60, 'every n')",
+      "INSERT INTO task_subtasks (task_id, task_version, position, points, min_n, max_n) "
+      "VALUES ($1, 1, 3, 60, 1, 20)",
       {std::string{"probe-seeded"}});
   CHECK(refusal_text.find("add up to 100") != std::string::npos);
 
   const auto repeated = refusal(
-      "INSERT INTO task_subtasks (task_id, task_version, position, points, constraint_text) "
-      "VALUES ($1, 1, 1, 10, 'repeated')",
+      "INSERT INTO task_subtasks (task_id, task_version, position, points, min_n, max_n) "
+      "VALUES ($1, 1, 1, 10, 1, 10)",
       {std::string{"probe-seeded"}});
   CHECK(repeated.find("task_subtasks_pkey") != std::string::npos);
 }
@@ -280,8 +325,8 @@ TEST_CASE("a task that does not score by subtask cannot carry them", "[subtasks]
   });
 
   const auto refused = refusal(
-      "INSERT INTO task_subtasks (task_id, task_version, position, points, constraint_text) "
-      "VALUES ($1, 1, 1, 100, 'every n')",
+      "INSERT INTO task_subtasks (task_id, task_version, position, points, min_n, max_n) "
+      "VALUES ($1, 1, 1, 100, 1, 10)",
       {std::string{"probe-per-case"}});
 
   CHECK(refused.find("scores by per_case") != std::string::npos);
@@ -309,8 +354,8 @@ TEST_CASE("a subtask row carries no limits of its own", "[subtasks][live]") {
   // A limit on a subtask would be a second home for a fact the task states once (ADR 0033 §2): the column must not
   // exist, so a writer that tries to add one is refused for the schema's shape rather than by a rule nobody reads.
   const auto with_limit = refusal(
-      "INSERT INTO task_subtasks (task_id, task_version, position, points, constraint_text, time_limit_ms) "
-      "VALUES ($1, 1, 9, 10, 'x', 1000)",
+      "INSERT INTO task_subtasks (task_id, task_version, position, points, min_n, max_n, time_limit_ms) "
+      "VALUES ($1, 1, 9, 10, 1, 10, 1000)",
       {std::string{"probe-peered"}});
   CHECK(with_limit.find("time_limit_ms") != std::string::npos);
   CHECK(with_limit.find("column") != std::string::npos);
@@ -324,8 +369,8 @@ TEST_CASE("moving a task's total while its subtasks exist is refused", "[subtask
   in_transaction([&](cms::db::connection& connection) {
     prepare_task(connection, "probe-total", "subtasks", std::string(64, 'b'));
     connection.execute_text(
-        "INSERT INTO task_subtasks (task_id, task_version, position, points, constraint_text) "
-        "VALUES ($1, 1, 1, 30, 'n <= 2000'), ($1, 1, 2, 70, 'n <= 200000')",
+        "INSERT INTO task_subtasks (task_id, task_version, position, points, min_n, max_n) "
+        "VALUES ($1, 1, 1, 30, 1, 2000), ($1, 1, 2, 70, 1, 200000)",
         {std::string{"probe-total"}});
   });
 

@@ -218,6 +218,15 @@ if (prereqsFile) {
 }
 
 // ── tasks ────────────────────────────────────────────────────────────────────────────────────
+interface Subtask {
+  position: number;
+  points: number;
+  min_n?: number;
+  max_n?: number;
+  value_min?: number;
+  value_max?: number;
+}
+
 interface Task {
   id: string;
   version: number;
@@ -227,9 +236,50 @@ interface Task {
   difficulty: number;
   locales: string[];
   checker: { kind: string; path?: string };
+  bounds?: { min_n: number; max_n: number; value_min: number; value_max: number };
+  subtasks?: Subtask[];
   testdata?: { manifest: string };
   verification: { status: string; reference_solution: string; methods: string[] };
 }
+
+/** A subtask's constraint is a typed narrowing of the task's own bounds (ADR 0041), never a sentence. */
+const subtaskFaults = (task: Task): string[] => {
+  const faults: string[] = [];
+  const subtasks = task.subtasks ?? [];
+  if (subtasks.length === 0) return faults;
+  const bounds = task.bounds;
+  if (!bounds) {
+    return ["a subtask narrows the task's bounds, and the task declares none"];
+  }
+  const seen = new Set<number>();
+  for (const subtask of subtasks) {
+    const at = `subtask ${subtask.position}`;
+    if (seen.has(subtask.position)) faults.push(`${at}: position is named twice`);
+    seen.add(subtask.position);
+    const fields = ["min_n", "max_n", "value_min", "value_max"] as const;
+    const named = fields.filter((field) => subtask[field] !== undefined);
+    if (named.length === 0) {
+      faults.push(`${at}: narrows nothing, so it is the whole task and earns no points of its own`);
+      continue;
+    }
+    for (const field of named) {
+      const value = subtask[field] as number;
+      const isLower = field === "min_n" || field === "value_min";
+      if (isLower ? value < bounds[field] : value > bounds[field]) {
+        faults.push(`${at}: ${field} ${value} is ${isLower ? "below" : "above"} the task's ${bounds[field]}`);
+      }
+    }
+    const minN = subtask.min_n ?? bounds.min_n;
+    const maxN = subtask.max_n ?? bounds.max_n;
+    if (minN > maxN) faults.push(`${at}: admits no n, since min_n ${minN} is above max_n ${maxN}`);
+    const valueMin = subtask.value_min ?? bounds.value_min;
+    const valueMax = subtask.value_max ?? bounds.value_max;
+    if (valueMin > valueMax) {
+      faults.push(`${at}: admits no value, since value_min ${valueMin} is above value_max ${valueMax}`);
+    }
+  }
+  return faults;
+};
 
 const tasksDir = join(contentDir, "tasks");
 const taskCounts: Record<string, number> = { draft: 0, verified: 0, published: 0, rejected: 0 };
@@ -263,6 +313,7 @@ if (existsSync(tasksDir)) {
     taskCount += 1;
 
     if (!validateTask(task)) schemaErrors(taskPath, validateTask.errors);
+    for (const fault of subtaskFaults(task)) violations.push(`${rel(taskPath)}: ${fault}`);
 
     for (const topic of task.topics ?? []) {
       if (!vocabulary.has(topic)) violations.push(`${rel(taskPath)}: unknown topic "${topic}"`);

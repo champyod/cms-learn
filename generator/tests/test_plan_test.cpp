@@ -113,7 +113,10 @@ auto specification() -> Specification {
   return Specification{.input = "n, then n integers",
                        .output = "their sum",
                        .bounds = {.min_n = 1, .max_n = 200000, .value_min = 3, .value_max = 3},
-                       .subtasks = {{1, "n <= 100"}, {2, "n <= 200000"}}};
+                       .subtasks = {cms::generate::SubtaskConstraint{
+                                        .position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}},
+                                    cms::generate::SubtaskConstraint{
+                                        .position = 2, .bounds = cms::SubtaskBounds{.max_n = 200000}}}};
 }
 
 auto call(std::int32_t index) -> ModelCall {
@@ -274,13 +277,14 @@ TEST_CASE("a partial accepted everywhere is refused: its points are not measured
   CHECK(scores.error().message.find("not a partial") != std::string::npos);
 }
 
-TEST_CASE("a case above every subtask's bound is claimed by no subtask, and is refused", "[generate]") {
+TEST_CASE("a subtask whose narrowing leaves the task's bounds is refused by name", "[generate]") {
   auto spec = specification();
-  spec.subtasks = {{1, "n <= 300000"}};
+  spec.subtasks = {cms::generate::SubtaskConstraint{.position = 1,
+                                                     .bounds = cms::SubtaskBounds{.max_n = 300000}}};
   const auto cases = cms::generate::build_cases(spec, CONSTANT_GENERATOR, SUM_REFERENCE, 1000);
 
   REQUIRE(!cases.has_value());
-  CHECK(cases.error().message.find("claimed by no subtask") != std::string::npos);
+  CHECK(cases.error().message.find("subtask 1") != std::string::npos);
   CHECK(cases.error().message.find("300000") != std::string::npos);
 }
 

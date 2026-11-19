@@ -137,7 +137,9 @@ auto write_subtasks(db::connection& database, const Task& task) -> void {
     database(sqlpp::insert_into(db::taskSubtasks).set(
         db::taskSubtasks.taskId = task.id, db::taskSubtasks.taskVersion = task.version,
         db::taskSubtasks.position = subtask.position, db::taskSubtasks.points = subtask.points,
-        db::taskSubtasks.constraintText = subtask.constraint_text));
+        db::taskSubtasks.minN = subtask.bounds.min_n, db::taskSubtasks.maxN = subtask.bounds.max_n,
+        db::taskSubtasks.valueMin = subtask.bounds.value_min,
+        db::taskSubtasks.valueMax = subtask.bounds.value_max));
   }
 }
 
@@ -145,14 +147,18 @@ auto write_subtasks(db::connection& database, const Task& task) -> void {
 auto read_subtasks(db::connection& database, const Task& task) -> std::vector<Subtask> {
   auto subtasks = std::vector<Subtask>{};
   for (const auto& row : database(sqlpp::select(db::taskSubtasks.position, db::taskSubtasks.points,
-                                                db::taskSubtasks.constraintText)
+                                                db::taskSubtasks.minN, db::taskSubtasks.maxN,
+                                                db::taskSubtasks.valueMin, db::taskSubtasks.valueMax)
                                       .from(db::taskSubtasks)
                                       .where(db::taskSubtasks.taskId == task.id &&
                                              db::taskSubtasks.taskVersion == task.version)
                                       .order_by(db::taskSubtasks.position.asc()))) {
     subtasks.push_back(Subtask{.position = static_cast<std::int32_t>(row.position),
                                .points = static_cast<std::int32_t>(row.points),
-                               .constraint_text = std::string{row.constraintText}});
+                               .bounds = cms::SubtaskBounds{.min_n = row.minN,
+                                                            .max_n = row.maxN,
+                                                            .value_min = row.valueMin,
+                                                            .value_max = row.valueMax}});
   }
   return subtasks;
 }

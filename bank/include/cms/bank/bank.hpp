@@ -3,10 +3,12 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
 #include <cms/error.hpp>
+#include <cms/subtask.hpp>
 
 namespace cms::bank {
 
@@ -24,13 +26,14 @@ struct Example {
   std::string expected_output;
 };
 
-/// @brief One scoring group of a task: points, and the constraint that makes the simpler idea sufficient.
+/// @brief One scoring group of a task: points, and the typed narrowing that makes the simpler idea sufficient.
 ///
-/// A subtask carries no limits (ADR 0033 §2): time and memory are the task's, stated once.
+/// A subtask carries no limits (ADR 0033 §2): time and memory are the task's, stated once. Its constraint is a
+/// narrowing of the task's own bounds (ADR 0041), not a sentence a reader has to parse.
 struct Subtask {
   std::int32_t position{0};
   std::int32_t points{0};
-  std::string constraint_text;
+  cms::SubtaskBounds bounds;
 };
 
 /// @brief One task, as the files under `content/tasks/<id>/` describe it.
@@ -50,6 +53,8 @@ struct Task {
   std::int32_t memory_limit_mb{0};
   /// What the task is scored out of, stated once on the task (ADR 0033 §2).
   std::int32_t points{100};
+  /// The task's own bounds, which every subtask narrows; absent for a task that carries no subtask.
+  std::optional<cms::TaskBounds> bounds;
   /// The scoring groups, in position order; empty when the task is not scored by subtask.
   std::vector<Subtask> subtasks;
   std::string checker_kind;

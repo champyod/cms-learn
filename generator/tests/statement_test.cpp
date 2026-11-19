@@ -6,6 +6,7 @@
 #include <cms/generate/claim.hpp>
 #include <cms/generate/model.hpp>
 #include <cms/generate/specification.hpp>
+#include <cms/generate/sampler.hpp>
 #include <cms/generate/statement.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -43,6 +44,7 @@ using cms::generate::ModelCall;
 using cms::generate::OracleCheck;
 using cms::generate::PlanTexts;
 using cms::generate::Specification;
+using cms::generate::SubtaskConstraint;
 using cms::generate::StatementInput;
 using cms::generate::StatementRequest;
 using cms::generate::StatementSections;
@@ -63,8 +65,6 @@ int main() {
   return 0;
 }
 )";
-
-constexpr std::string_view SMALLEST = "2\n-3 -3\n";
 
 SQLPP_CREATE_NAME_TAG(row_count);
 constexpr std::string_view THAI_BRIEF =
@@ -126,13 +126,15 @@ auto specification() -> Specification {
   spec.input = "n, then n integers";
   spec.output = "their sum";
   spec.bounds = cms::generate::Bounds{.min_n = 2, .max_n = 5, .value_min = -3, .value_max = 7};
-  spec.subtasks = {{.position = 1, .constraint = "n <= 3"}};
+  spec.subtasks = {SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 3}}};
   return spec;
 }
 
 auto oracle_check() -> const OracleCheck& {
   static const auto checked = [] {
-    const auto result = cms::generate::check_oracle(SUM_ORACLE, SMALLEST, 1000);
+    const auto smallest = cms::generate::smallest_case(specification().bounds);
+    REQUIRE(smallest.has_value());
+    const auto result = cms::generate::check_oracle(SUM_ORACLE, smallest->input, 1000);
     REQUIRE(result.has_value());
     return *result;
   }();
@@ -507,7 +509,7 @@ TEST_CASE("the prompt is the specification's own fields, and the request cannot 
   CHECK(prompt->find(specification().input) != std::string::npos);
   CHECK(prompt->find(specification().output) != std::string::npos);
   CHECK(prompt->find("n <= 5") != std::string::npos);
-  CHECK(prompt->find("n <= 3") != std::string::npos);
+  CHECK(prompt->find("n \u2264 3") != std::string::npos);
   CHECK(prompt->find("the answer looks cheap") != std::string::npos);
   CHECK(prompt->find("Prefix sums") == std::string::npos);
   CHECK(prompt->find(prefix_sums().thai) == std::string::npos);

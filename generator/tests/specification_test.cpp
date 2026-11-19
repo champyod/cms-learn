@@ -4,11 +4,13 @@
 
 #include <cms/generate/candidate.hpp>
 #include <cms/generate/model.hpp>
+#include <cms/generate/sampler.hpp>
 #include <cms/generate/specification.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdint>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,6 +29,31 @@
 namespace {
 
 using cms::generate::Bounds;
+using cms::generate::Placement;
+using cms::generate::SampleRequest;
+using cms::generate::sample_cases;
+
+constexpr cms::TaskBounds WIDE{.min_n = 3, .max_n = 200000, .value_min = -7, .value_max = 9};
+
+auto values_of(const std::string& input) -> std::vector<std::int64_t> {
+  auto stream = std::istringstream{input};
+  auto declared = std::int64_t{0};
+  stream >> declared;
+  auto values = std::vector<std::int64_t>{};
+  for (std::int64_t index = 0; index < declared; ++index) {
+    auto value = std::int64_t{0};
+    stream >> value;
+    values.push_back(value);
+  }
+  return values;
+}
+
+auto declared_n(const std::string& input) -> std::int64_t {
+  auto stream = std::istringstream{input};
+  auto declared = std::int64_t{0};
+  stream >> declared;
+  return declared;
+}
 using cms::generate::ModelCall;
 using cms::generate::Specification;
 
@@ -67,7 +94,7 @@ auto answer_json(std::string_view input_shape = "n_then_values", std::int64_t mi
   return "{\"input\": \"n, then n integers\", \"output\": \"their sum\", \"input_shape\": \"" +
          std::string{input_shape} + "\", \"bounds\": {\"min_n\": " + std::to_string(min_n) +
          ", \"max_n\": " + std::to_string(max_n) + ", \"value_min\": -1000000000, \"value_max\": 1000000000}, "
-         "\"subtasks\": [{\"position\": 1, \"constraint\": \"n <= 100\"}], \"oracle\": " +
+         "\"subtasks\": [{\"position\": 1, \"max_n\": 100}], \"oracle\": " +
          json_string(oracle) + "}";
 }
 
@@ -120,17 +147,28 @@ TEST_CASE("a plan with no bound, or a complexity this step cannot read, is refus
   CHECK(unknown.error().message.find("reads O(1), O(log n), O(n), O(n log n)") != std::string::npos);
 }
 
-TEST_CASE("the smallest case comes from the bounds, and a shape this step cannot sample is refused", "[generate]") {
-  auto specification = Specification{};
-  specification.bounds = Bounds{.min_n = 3, .max_n = 200000, .value_min = -7, .value_max = 9};
-  const auto small = cms::generate::sample_smallest(specification);
-  REQUIRE(small.has_value());
-  CHECK(*small == "3\n-7 -7 -7\n");
+TEST_CASE("a subtask bound that is not an integer is refused by name, never read as absent", "[generate]") {
+  const auto answer = cms::generate::parse_specification_answer(
+      R"({"input": "n, then n integers", "output": "their sum", "input_shape": "n_then_values",)"
+      R"("bounds": {"min_n": 1, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000},)"
+      R"("subtasks": [{"position": 1, "max_n": "200000"}], "oracle": "int main() { return 0; }"})",
+      call());
 
-  specification.bounds.min_n = 0;
-  const auto refused = cms::generate::sample_smallest(specification);
+  REQUIRE(!answer.has_value());
+  CHECK(answer.error().message.find("max_n") != std::string::npos);
+  CHECK(answer.error().message.find("not an integer") != std::string::npos);
+}
+
+TEST_CASE("the smallest case comes from the bounds, and a shape this step cannot sample is refused", "[generate]") {
+  const auto bounds = Bounds{.min_n = 3, .max_n = 200000, .value_min = -7, .value_max = 9};
+  const auto small = cms::generate::smallest_case(bounds);
+  REQUIRE(small.has_value());
+  CHECK(small->n == 3);
+
+  const auto refused = cms::generate::smallest_case(Bounds{.min_n = 0, .max_n = 200000, .value_min = -7,
+                                                          .value_max = 9});
   REQUIRE(!refused.has_value());
-  CHECK(refused.error().message.find("no smallest n") != std::string::npos);
+  CHECK(refused.error().message.find("at least one value") != std::string::npos);
 }
 
 TEST_CASE("one model call produces the specification, the derived limit and the oracle", "[generate]") {
@@ -141,7 +179,7 @@ TEST_CASE("one model call produces the specification, the derived limit and the 
   REQUIRE(answer.has_value());
   CHECK(answer->specification.input == "n, then n integers");
   CHECK(answer->specification.subtasks.size() == 1);
-  CHECK(answer->specification.subtasks[0].constraint == "n <= 100");
+  CHECK(answer->specification.subtasks[0].bounds.max_n == 100);
   CHECK(answer->limit.time_limit_ms == 100);
   CHECK(answer->oracle_source.find("int main") != std::string::npos);
   CHECK(answer->call.prompt_version == "spec-v1");
@@ -192,9 +230,10 @@ TEST_CASE("step 3's record is one specification row and two call rows in one tra
 
   const auto answer = cms::generate::specify_step3(client, chosen());
   REQUIRE(answer.has_value());
-  const auto smallest = cms::generate::sample_smallest(answer->specification);
+  const auto smallest = cms::generate::smallest_case(answer->specification.bounds);
   REQUIRE(smallest.has_value());
-  const auto checked = cms::generate::check_oracle(answer->oracle_source, *smallest, answer->limit.time_limit_ms);
+  const auto checked =
+      cms::generate::check_oracle(answer->oracle_source, smallest->input, answer->limit.time_limit_ms);
   REQUIRE(checked.has_value());
 
   const auto digest = sink.record(job, *answer, *checked);
@@ -226,4 +265,102 @@ TEST_CASE("step 3's record is one specification row and two call rows in one tra
   }
   REQUIRE(recorded.size() == 1);
   CHECK(recorded[0].find("O(n log n) at n = 200000") != std::string::npos);
+}
+
+TEST_CASE("the same request draws the same bytes, and another seed draws others", "[sampler]") {
+  const auto request = SampleRequest{.shape = cms::generate::N_THEN_VALUES,
+                                     .bounds = WIDE,
+                                     .seed = 11,
+                                     .count = 1,
+                                     .placement = Placement::smallest};
+  const auto first = sample_cases(request);
+  const auto again = sample_cases(request);
+  REQUIRE(first.has_value());
+  REQUIRE(again.has_value());
+  CHECK(first->front().input == again->front().input);
+
+  auto other = request;
+  other.seed = 12;
+  const auto second = sample_cases(other);
+  REQUIRE(second.has_value());
+  CHECK(second->front().input != first->front().input);
+}
+
+TEST_CASE("the smallest case holds the smallest n, and every value stays inside the bounds", "[sampler]") {
+  const auto samples = sample_cases(SampleRequest{.bounds = WIDE, .seed = 0, .count = 1, .placement = Placement::smallest});
+  REQUIRE(samples.has_value());
+  REQUIRE(samples->size() == 1);
+  CHECK(samples->front().n == 3);
+  CHECK(declared_n(samples->front().input) == 3);
+  const auto values = values_of(samples->front().input);
+  REQUIRE(values.size() == 3);
+  for (const auto value : values) {
+    CHECK(value >= WIDE.value_min);
+    CHECK(value <= WIDE.value_max);
+  }
+}
+
+TEST_CASE("a narrowing is honoured on both sides of the interval it names", "[sampler]") {
+  const auto group = cms::SubtaskBounds{.min_n = 100, .max_n = 1000, .value_min = 0, .value_max = 4};
+  const auto samples = sample_cases(SampleRequest{.bounds = WIDE,
+                                                  .narrowing = group,
+                                                  .seed = 3,
+                                                  .count = 2,
+                                                  .placement = Placement::spread});
+  REQUIRE(samples.has_value());
+  REQUIRE(samples->size() == 2);
+  CHECK(samples->front().n == 100);
+  CHECK(samples->back().n == 1000);
+  for (const auto& sample : *samples) {
+    for (const auto value : values_of(sample.input)) {
+      CHECK(value >= 0);
+      CHECK(value <= 4);
+    }
+  }
+}
+
+TEST_CASE("a spread of three cases sits at both ends and once between them", "[sampler]") {
+  const auto samples = sample_cases(SampleRequest{.bounds = WIDE,
+                                                  .narrowing = cms::SubtaskBounds{.max_n = 10},
+                                                  .seed = 0,
+                                                  .count = 3,
+                                                  .placement = Placement::spread});
+  REQUIRE(samples.has_value());
+  REQUIRE(samples->size() == 3);
+  CHECK(samples->front().n == 3);
+  CHECK(samples->at(1).n > samples->front().n);
+  CHECK(samples->at(1).n < samples->back().n);
+  CHECK(samples->back().n == 10);
+}
+
+TEST_CASE("the largest placement asks for the group's largest n", "[sampler]") {
+  const auto samples = sample_cases(SampleRequest{.bounds = WIDE,
+                                                  .narrowing = cms::SubtaskBounds{.min_n = 100},
+                                                  .seed = 0,
+                                                  .count = 1,
+                                                  .placement = Placement::largest});
+  REQUIRE(samples.has_value());
+  CHECK(samples->front().n == 200000);
+}
+
+TEST_CASE("a request the sampler cannot serve is refused by name", "[sampler]") {
+  const auto shape = sample_cases(SampleRequest{.shape = "a_grid", .bounds = WIDE});
+  REQUIRE(!shape.has_value());
+  CHECK(shape.error().message.find("a_grid") != std::string::npos);
+
+  const auto count = sample_cases(SampleRequest{.bounds = WIDE, .count = 0});
+  REQUIRE(!count.has_value());
+  CHECK(count.error().message.find("at least one case") != std::string::npos);
+
+  const auto wider = sample_cases(
+      SampleRequest{.bounds = WIDE, .narrowing = cms::SubtaskBounds{.max_n = 200001}});
+  REQUIRE(!wider.has_value());
+  CHECK(wider.error().message.find("above the task's 200000") != std::string::npos);
+}
+
+TEST_CASE("a task whose bounds admit no value is refused, not sampled", "[sampler]") {
+  const auto samples = sample_cases(SampleRequest{.bounds = cms::TaskBounds{.min_n = 0, .max_n = 10,
+                                                                           .value_min = 0, .value_max = 9}});
+  REQUIRE(!samples.has_value());
+  CHECK(samples.error().message.find("at least one value") != std::string::npos);
 }

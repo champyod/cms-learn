@@ -52,6 +52,34 @@
         "memory_mb": { "type": "integer", "minimum": 16, "maximum": 1024 }
       }
     },
+    "bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min_n", "max_n", "value_min", "value_max"],
+      "properties": {
+        "min_n": { "type": "integer", "minimum": 1 },
+        "max_n": { "type": "integer", "minimum": 1 },
+        "value_min": { "type": "integer" },
+        "value_max": { "type": "integer" }
+      }
+    },
+    "subtasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["position", "points"],
+        "properties": {
+          "position": { "type": "integer", "minimum": 1 },
+          "points": { "type": "integer", "minimum": 1 },
+          "min_n": { "type": "integer", "minimum": 1 },
+          "max_n": { "type": "integer", "minimum": 1 },
+          "value_min": { "type": "integer" },
+          "value_max": { "type": "integer" }
+        }
+      }
+    },
     "checker": {
       "type": "object",
       "additionalProperties": false,

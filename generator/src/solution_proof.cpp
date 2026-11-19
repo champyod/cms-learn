@@ -2,11 +2,13 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <regex>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#include <cms/generate/sampler.hpp>
+#include <cms/tokens.hpp>
 
 namespace cms::generate {
 namespace {
@@ -15,66 +17,88 @@ auto refuse(std::string_view message) -> Error {
   return Error::make(ErrorCode::invalid_argument, message);
 }
 
-auto input_for(const Bounds& bounds, std::int64_t count) -> std::string {
-  auto input = std::to_string(count) + "\n";
-  for (std::int64_t index = 0; index < count; ++index) {
-    input += std::to_string(bounds.value_min);
-    input += index + 1 == count ? '\n' : ' ';
+/// @return @p text with its whitespace runs collapsed, so a refusal quotes an answer on one line, never compares it.
+auto quoted(std::string_view text) -> std::string {
+  auto out = std::string{};
+  auto pending_space = false;
+  for (const auto character : text) {
+    if (character == ' ' || character == '\t' || character == '\n' || character == '\r') {
+      pending_space = !out.empty();
+      continue;
+    }
+    if (pending_space) {
+      out += ' ';
+      pending_space = false;
+    }
+    out += character;
   }
-  return input;
+  return out;
 }
 
-auto trimmed(std::string_view text) -> std::string_view {
-  const auto first = text.find_first_not_of(" \t\r\n");
-  if (first == std::string_view::npos) {
-    return {};
+auto sampled(const Specification& specification, const cms::SubtaskBounds& narrowing, std::int64_t count,
+             Placement placement) -> Result<std::vector<SmallCase>> {
+  const auto samples = sample_cases(SampleRequest{.shape = N_THEN_VALUES,
+                                                  .bounds = specification.bounds,
+                                                  .narrowing = narrowing,
+                                                  .seed = CASE_SEED,
+                                                  .count = count,
+                                                  .placement = placement});
+  if (!samples) {
+    return std::unexpected(samples.error());
   }
-  const auto last = text.find_last_not_of(" \t\r\n");
-  return text.substr(first, last - first + 1);
-}
-
-}  // namespace
-
-auto subtask_bound(std::string_view constraint) -> Result<std::int64_t> {
-  const auto pattern = std::regex{R"((?:<|≤|<=)\s*=?\s*([0-9]{1,18}))"};
-  auto match = std::smatch{};
-  const auto text = std::string{constraint};
-  if (!std::regex_search(text, match, pattern)) {
-    return std::unexpected(Error::make(
-        ErrorCode::invalid_argument,
-        "the constraint \"" + text + "\" names no bound, so no case can be shown to lie outside the subtask"));
-  }
-  return std::stoll(match[1].str());
-}
-
-auto admissible_cases(const Specification& specification, std::int64_t outside_n) -> Result<std::vector<SmallCase>> {
   auto cases = std::vector<SmallCase>{};
-  cases.push_back(SmallCase{.input = input_for(specification.bounds, specification.bounds.min_n),
-                            .n = specification.bounds.min_n});
-  if (outside_n > specification.bounds.max_n) {
-    return std::unexpected(Error::make(
-        ErrorCode::invalid_argument,
-        "the subtask's bound " + std::to_string(outside_n) + " is above the task's own bound " +
-            std::to_string(specification.bounds.max_n) +
-            ", so there is no case where the subtask stops and the task continues"));
-  }
-  if (outside_n > specification.bounds.min_n) {
-    cases.push_back(SmallCase{.input = input_for(specification.bounds, outside_n), .n = outside_n});
+  cases.reserve(samples->size());
+  for (const auto& sample : *samples) {
+    cases.push_back(SmallCase{.input = sample.input, .n = sample.n});
   }
   return cases;
 }
 
-auto subtask_cases(const Specification& specification, std::int64_t bound) -> SubtaskCases {
-  const auto inside = std::min(bound, specification.bounds.max_n);
+/// @return A narrowing admitting one case outside @p group but inside @p task, or a refusal when the group admits
+/// every case the task does.
+auto outside_narrowing(const cms::SubtaskBounds& group, const cms::TaskBounds& task)
+    -> Result<cms::SubtaskBounds> {
+  const auto admitted = cms::narrowed(group, task);
+  if (admitted.min_n > task.min_n) {
+    return cms::SubtaskBounds{.max_n = task.min_n};
+  }
+  if (admitted.max_n < task.max_n) {
+    return cms::SubtaskBounds{.min_n = admitted.max_n + 1};
+  }
+  if (admitted.value_max < task.value_max) {
+    return cms::SubtaskBounds{.value_min = admitted.value_max + 1};
+  }
+  if (admitted.value_min > task.value_min) {
+    return cms::SubtaskBounds{.value_max = admitted.value_min - 1};
+  }
+  return std::unexpected(
+      refuse("the subtask admits every case the task admits, so no case can be shown to lie outside it"));
+}
+
+}  // namespace
+
+auto admissible_cases(const Specification& specification, const SubtaskConstraint& subtask)
+    -> Result<std::vector<SmallCase>> {
+  return sampled(specification, subtask.bounds, GROUP_CASES, Placement::spread);
+}
+
+auto subtask_cases(const Specification& specification, const SubtaskConstraint& subtask)
+    -> Result<SubtaskCases> {
   auto cases = SubtaskCases{};
-  cases.inside.push_back(SmallCase{.input = input_for(specification.bounds, specification.bounds.min_n),
-                                   .n = specification.bounds.min_n});
-  if (inside > specification.bounds.min_n) {
-    cases.inside.push_back(SmallCase{.input = input_for(specification.bounds, inside), .n = inside});
+  const auto inside = sampled(specification, subtask.bounds, GROUP_CASES, Placement::spread);
+  if (!inside) {
+    return std::unexpected(inside.error());
   }
-  if (inside < specification.bounds.max_n) {
-    cases.outside.push_back(SmallCase{.input = input_for(specification.bounds, inside + 1), .n = inside + 1});
+  cases.inside = *inside;
+  const auto outside = outside_narrowing(subtask.bounds, specification.bounds);
+  if (!outside) {
+    return std::unexpected(outside.error());
   }
+  const auto beyond = sampled(specification, *outside, 1, Placement::smallest);
+  if (!beyond) {
+    return std::unexpected(beyond.error());
+  }
+  cases.outside = *beyond;
   return cases;
 }
 
@@ -96,12 +120,12 @@ auto check_solutions(const Step5Answer& answer, const Specification& specificati
                                          "the reference solution " + reference.error().message + " (n = " +
                                              std::to_string(sample.n) + ")"));
     }
-    if (trimmed(*reference) != trimmed(*oracle)) {
+    if (!cms::tokens_equal(*oracle, *reference)) {
       return std::unexpected(Error::make(
           ErrorCode::invalid_argument,
-          "the reference solution disagrees with the oracle on the smallest case (n = " +
-              std::to_string(sample.n) + "): the oracle answered \"" + std::string{trimmed(*oracle)} +
-              "\", the reference answered \"" + std::string{trimmed(*reference)} + "\""));
+          "the reference solution disagrees with the oracle at n = " + std::to_string(sample.n) +
+              ": the oracle answered \"" + quoted(*oracle) + "\", the reference answered \"" +
+              quoted(*reference) + "\""));
     }
   }
   auto proofs = std::vector<PartialProof>{};
@@ -113,29 +137,39 @@ auto check_solutions(const Step5Answer& answer, const Specification& specificati
       return std::unexpected(refuse("the answer carries a solution for subtask " +
                                     std::to_string(partial.position) + ", which the specification does not name"));
     }
-    const auto bound = subtask_bound(constraint->constraint);
-    if (!bound) {
+    const auto owned = subtask_cases(specification, *constraint);
+    if (!owned) {
       return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                          "the solution for subtask " + std::to_string(partial.position) + ": " +
-                                             bound.error().message));
+                                             owned.error().message));
     }
-    const auto owned = subtask_cases(specification, *bound);
     auto proof = PartialProof{.position = partial.position, .inside_cases = 0, .failed_outside = false, .sentence = {}};
-    for (const auto& sample : owned.inside) {
+    for (const auto& sample : owned->inside) {
       const auto oracle = run_program(oracle_source, sample.input, time_limit_ms);
+      if (!oracle) {
+        return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                           "the oracle " + oracle.error().message + " (n = " +
+                                               std::to_string(sample.n) + ")"));
+      }
       const auto ran = run_program(partial.source, sample.input, time_limit_ms);
-      if (!ran || !oracle || trimmed(*ran) != trimmed(*oracle)) {
+      if (!ran || !cms::tokens_equal(*oracle, *ran)) {
         return std::unexpected(Error::make(
             ErrorCode::invalid_argument,
-            "the solution for subtask " + std::to_string(partial.position) + " does not pass its own subtask " +
-                (ran ? "(n = " + std::to_string(sample.n) + ")" : std::string{ran.error().message})));
+            "the solution for subtask " + std::to_string(partial.position) +
+                (ran ? " does not pass its own group (n = " + std::to_string(sample.n) + ")"
+                     : " " + ran.error().message + " (n = " + std::to_string(sample.n) + ")")));
       }
       ++proof.inside_cases;
     }
-    for (const auto& sample : owned.outside) {
+    for (const auto& sample : owned->outside) {
       const auto oracle = run_program(oracle_source, sample.input, time_limit_ms);
+      if (!oracle) {
+        return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                           "the oracle " + oracle.error().message + " (n = " +
+                                               std::to_string(sample.n) + ")"));
+      }
       const auto ran = run_program(partial.source, sample.input, time_limit_ms);
-      if (!ran || !oracle || trimmed(*ran) != trimmed(*oracle)) {
+      if (!ran || !cms::tokens_equal(*oracle, *ran)) {
         proof.failed_outside = true;
         break;
       }
@@ -148,7 +182,7 @@ auto check_solutions(const Step5Answer& answer, const Specification& specificati
               "points it does not earn"));
     }
     proof.sentence = "subtask " + std::to_string(partial.position) + ": passed " +
-                     std::to_string(proof.inside_cases) + " case(s) inside its bound and failed a case outside it";
+                     std::to_string(proof.inside_cases) + " case(s) inside its group and failed a case outside it";
     proofs.push_back(std::move(proof));
   }
   for (const auto& subtask : specification.subtasks) {

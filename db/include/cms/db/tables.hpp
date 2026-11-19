@@ -1452,16 +1452,31 @@ struct TaskSubtasks_ {
     using data_type = ::sqlpp::integral;
     using has_default = std::false_type;
   };
-  struct ConstraintText {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(constraint_text, constraintText);
-    using data_type = ::sqlpp::text;
-    using has_default = std::false_type;
+  struct MinN {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(min_n, minN);
+    using data_type = std::optional<::sqlpp::integral>;
+    using has_default = std::true_type;
+  };
+  struct MaxN {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(max_n, maxN);
+    using data_type = std::optional<::sqlpp::integral>;
+    using has_default = std::true_type;
+  };
+  struct ValueMin {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(value_min, valueMin);
+    using data_type = std::optional<::sqlpp::integral>;
+    using has_default = std::true_type;
+  };
+  struct ValueMax {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(value_max, valueMax);
+    using data_type = std::optional<::sqlpp::integral>;
+    using has_default = std::true_type;
   };
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_subtasks, taskSubtasks);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, TaskId, TaskVersion, Position, Points, ConstraintText>;
-  using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Position, Points, ConstraintText>;
+      sqlpp::table_columns<T, TaskId, TaskVersion, Position, Points, MinN, MaxN, ValueMin, ValueMax>;
+  using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Position, Points>;
 };
 
 struct TaskTopics_ {

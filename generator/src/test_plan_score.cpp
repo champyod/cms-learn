@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include <cms/generate/sampler.hpp>
 #include <cms/generate/solution.hpp>
 
 namespace cms::generate {
@@ -39,24 +40,23 @@ auto answers_agree(std::string_view checker, std::string_view expected, std::str
   return *verdict == "ok";
 }
 
-/// @return The n values one subtask's cases are generated at: the smallest n, and the subtask's own bound.
-auto bounds_for(const Specification& specification, std::int64_t bound) -> std::vector<std::int64_t> {
-  auto values = std::vector<std::int64_t>{specification.bounds.min_n};
-  const auto inside = std::min(bound, specification.bounds.max_n);
-  if (inside > specification.bounds.min_n) {
-    values.push_back(inside);
-  }
-  return values;
-}
-
 }  // namespace
 
-auto subtask_seeds(const Specification& specification, std::int64_t bound)
-    -> std::vector<std::pair<std::int64_t, std::int64_t>> {
+auto subtask_seeds(const Specification& specification, const SubtaskConstraint& subtask)
+    -> Result<std::vector<std::pair<std::int64_t, std::int64_t>>> {
+  const auto samples = sample_cases(SampleRequest{.shape = N_THEN_VALUES,
+                                                  .bounds = specification.bounds,
+                                                  .narrowing = subtask.bounds,
+                                                  .seed = CASE_SEED,
+                                                  .count = GROUP_CASES,
+                                                  .placement = Placement::spread});
+  if (!samples) {
+    return std::unexpected(samples.error());
+  }
   auto seeds = std::vector<std::pair<std::int64_t, std::int64_t>>{};
   auto next = std::int64_t{1};
-  for (const auto n : bounds_for(specification, bound)) {
-    seeds.emplace_back(next++, n);
+  for (const auto& sample : *samples) {
+    seeds.emplace_back(next++, sample.n);
   }
   return seeds;
 }
@@ -68,19 +68,13 @@ auto build_cases(const Specification& specification, std::string_view generator,
   }
   auto cases = std::vector<GeneratedCase>{};
   for (const auto& subtask : specification.subtasks) {
-    const auto bound = subtask_bound(subtask.constraint);
-    if (!bound) {
+    const auto seeds = subtask_seeds(specification, subtask);
+    if (!seeds) {
       return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                          "subtask " + std::to_string(subtask.position) + ": " +
-                                             bound.error().message));
+                                             seeds.error().message));
     }
-    if (*bound > specification.bounds.max_n) {
-      return std::unexpected(refuse("subtask " + std::to_string(subtask.position) + " claims n up to " +
-                                    std::to_string(*bound) + ", and the task admits " +
-                                    std::to_string(specification.bounds.max_n) +
-                                    ", so a case above the task's bound is claimed by no subtask"));
-    }
-    for (const auto& [seed, n] : subtask_seeds(specification, *bound)) {
+    for (const auto& [seed, n] : *seeds) {
       const auto request = std::to_string(seed) + " " + std::to_string(n) + "\n";
       const auto input = check_deterministic(generator, request, time_limit_ms);
       if (!input) {

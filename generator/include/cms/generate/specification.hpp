@@ -8,6 +8,7 @@
 #include <cms/error.hpp>
 #include <cms/generate/candidate.hpp>
 #include <cms/generate/model.hpp>
+#include <cms/subtask.hpp>
 
 namespace drogon::orm {
 class DbClient;
@@ -19,28 +20,21 @@ class ObjectStore;
 
 namespace cms::generate {
 
-/// @brief The bounds the plan's derivation runs at: the smallest and largest n the task admits, and the values.
-///
-/// The plan names a complexity; a complexity becomes a *number of operations* only at a bound, so the bound is
-/// the fact the limit is derived from and a plan without one cannot produce a limit (ADR 0015, step 3).
-struct Bounds {
-  std::int64_t min_n{0};
-  std::int64_t max_n{0};
-  std::int64_t value_min{0};
-  std::int64_t value_max{0};
-};
+/// @brief The task's bounds as this step names them: one shared shape, so the sampler, the bank and this step cannot
+/// describe a different interval (ADR 0040, 0041).
+using Bounds = cms::TaskBounds;
 
-/// @brief One subtask's constraint: what makes its group smaller than the whole task (ADR 0033).
+/// @brief One subtask's typed constraint: what makes its group smaller than the whole task (ADR 0033, 0041).
 struct SubtaskConstraint {
   std::int32_t position{0};
-  std::string constraint;
+  cms::SubtaskBounds bounds;
 };
 
-/// @brief Step 3's specification: what goes in, what comes out, the full bounds, and the subtask constraints.
+/// @brief Step 3's specification: what goes in, what comes out, the task's bounds, and the subtask narrowings.
 struct Specification {
   std::string input;
   std::string output;
-  Bounds bounds;
+  cms::TaskBounds bounds;
   std::vector<SubtaskConstraint> subtasks;
 };
 
@@ -82,14 +76,7 @@ inline constexpr std::int64_t OPERATIONS_PER_MILLISECOND = 100'000;
 ///
 /// @return The pair and its sentence, or a refusal naming the reason: no bound to derive from, a complexity this
 /// step cannot read, or a derivation that lands outside the band.
-[[nodiscard]] auto derive_limit(std::string_view complexity, const Bounds& bounds) -> Result<DerivedLimit>;
-
-/// @brief The smallest input the bounds admit, for the oracle's correctness check.
-///
-/// The shape is the one the specification declares — an array of `n` integers — because that is the shape the
-/// smallest case can be sampled from without inventing a test the specification did not name. Any other shape is
-/// refused by name rather than guessed.
-[[nodiscard]] auto sample_smallest(const Specification& specification) -> Result<std::string>;
+[[nodiscard]] auto derive_limit(std::string_view complexity, const cms::TaskBounds& bounds) -> Result<DerivedLimit>;
 
 /// @brief The specification as step 3's row stores it, written and read by one definition in `specification_sink.cpp`.
 ///

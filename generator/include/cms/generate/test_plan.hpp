@@ -74,8 +74,12 @@ struct Score {
 [[nodiscard]] auto check_answer(std::string_view checker, std::string_view expected, std::string_view answer,
                                 std::int64_t time_limit_ms) -> Result<std::string>;
 
-/// @brief The seeds one subtask's cases are generated with, at the bounds that subtask names.
-[[nodiscard]] auto subtask_seeds(const Specification& specification, std::int64_t bound) -> std::vector<std::pair<std::int64_t, std::int64_t>>;
+/// @brief The seeds and sizes one subtask's cases are generated at, drawn by the sampler from its narrowing.
+///
+/// The generator that writes a case's bytes is step 6's own program (ADR 0047); which sizes a group needs is the
+/// sampler's decision (ADR 0040), so the two steps cannot disagree about a group's shape.
+[[nodiscard]] auto subtask_seeds(const Specification& specification, const SubtaskConstraint& subtask)
+    -> Result<std::vector<std::pair<std::int64_t, std::int64_t>>>;
 
 /// @brief Builds the cases per subtask, running the generator with each seed and the oracle for the answer.
 [[nodiscard]] auto build_cases(const Specification& specification, std::string_view generator,

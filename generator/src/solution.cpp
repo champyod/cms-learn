@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <regex>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -42,7 +41,8 @@ auto reference_prompt(const Specification& specification, std::string_view oracl
 auto partial_prompt(const Specification& specification, const SubtaskConstraint& subtask,
                     std::string_view oracle_source) -> Result<std::string> {
   const auto oracle = frame_data(ModelData{.label = "the brute-force oracle", .text = std::string{oracle_source}});
-  const auto constraint = frame_data(ModelData{.label = "the subtask's constraint", .text = subtask.constraint});
+  const auto constraint =
+      frame_data(ModelData{.label = "the subtask's constraint", .text = cms::bounds_text(subtask.bounds)});
   const auto bounds = frame_data(ModelData{.label = "the task's bounds",
                                            .text = "n from " + std::to_string(specification.bounds.min_n) + " to " +
                                                    std::to_string(specification.bounds.max_n) + ", values " +

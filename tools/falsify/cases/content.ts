@@ -155,6 +155,51 @@ export const CONTENT_GATE: Gate = {
       expect: { status: "non-zero" },
     },
     {
+      name: "a task carrying two real subtasks",
+      plant: [
+        {
+          kind: "patch",
+          path: RANGE_TASK,
+          find: `"limits": { "time_ms": 1000, "memory_mb": 256 },`,
+          replace: `"limits": { "time_ms": 1000, "memory_mb": 256 },
+  "bounds": { "min_n": 1, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000 },
+  "subtasks": [
+    { "position": 1, "points": 40, "max_n": 2000 },
+    { "position": 2, "points": 60, "max_n": 200000 }
+  ],`,
+        },
+      ],
+      expect: { status: "zero" },
+    },
+    {
+      name: "a subtask that narrows nothing",
+      plant: [
+        {
+          kind: "patch",
+          path: RANGE_TASK,
+          find: `"limits": { "time_ms": 1000, "memory_mb": 256 },`,
+          replace: `"limits": { "time_ms": 1000, "memory_mb": 256 },
+  "bounds": { "min_n": 1, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000 },
+  "subtasks": [{ "position": 1, "points": 100 }],`,
+        },
+      ],
+      expect: { status: "non-zero", message: "narrows nothing" },
+    },
+    {
+      name: "a subtask wider than the task's bounds",
+      plant: [
+        {
+          kind: "patch",
+          path: RANGE_TASK,
+          find: `"limits": { "time_ms": 1000, "memory_mb": 256 },`,
+          replace: `"limits": { "time_ms": 1000, "memory_mb": 256 },
+  "bounds": { "min_n": 1, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000 },
+  "subtasks": [{ "position": 1, "points": 100, "max_n": 200001 }],`,
+        },
+      ],
+      expect: { status: "non-zero", message: "above the task's 200000" },
+    },
+    {
       name: "prerequisite cycle",
       plant: [
         {

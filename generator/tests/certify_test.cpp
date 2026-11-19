@@ -28,6 +28,9 @@
 
 namespace {
 
+using cms::generate::Specification;
+using cms::generate::SubtaskConstraint;
+
 constexpr std::string_view COMMIT = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
 constexpr std::string_view TYPE_ID = "certify_type";
 constexpr std::int64_t TASK_TIME_MS = 1000;
@@ -206,7 +209,7 @@ auto insert_artefact(cms::db::connection& database, std::int64_t job, std::int16
 auto specification_json() -> std::string {
   return R"({"input":"n then n values","output":"their sum","input_shape":"n_then_values",)"
          R"("bounds":{"min_n":1,"max_n":30,"value_min":0,"value_max":9},)"
-         R"("subtasks":[{"position":1,"constraint":"n <= 10"},{"position":2,"constraint":"n <= 20"}]})";
+         R"("subtasks":[{"position":1,"max_n":10},{"position":2,"max_n":20}]})";
 }
 
 /// What a case substitutes into the complete fixture: the reference's source, the checker's source, and the limits
@@ -242,8 +245,8 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
       "VALUES ($1, 1, 'score_mode', to_jsonb('subtasks'::text))",
       {std::string{task_id}});
   database.execute_text(
-      "INSERT INTO task_subtasks (task_id, task_version, position, points, constraint_text) "
-      "VALUES ($1, 1, 1, 40, 'n <= 10'), ($1, 1, 2, 60, 'n <= 20')",
+      "INSERT INTO task_subtasks (task_id, task_version, position, points, min_n, max_n) "
+      "VALUES ($1, 1, 1, 40, 1, 10), ($1, 1, 2, 60, 1, 20)",
       {std::string{task_id}});
   database.execute_text("INSERT INTO generation_jobs (task_id, task_version, state) VALUES ($1, 1, $2)",
                         {std::string{task_id}, std::string{"awaiting-evidence"}});
@@ -360,7 +363,8 @@ TEST_CASE("the specification row is written and read by one definition", "[certi
       .input = "n then n values",
       .output = "their sum",
       .bounds = {.min_n = 1, .max_n = 30, .value_min = 0, .value_max = 9},
-      .subtasks = {{1, "n <= 10"}, {2, "n <= 20"}}});
+      .subtasks = {SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 10}},
+                   SubtaskConstraint{.position = 2, .bounds = cms::SubtaskBounds{.max_n = 20}}}});
 
   const auto read = cms::generate::read_specification(written);
 
@@ -373,19 +377,30 @@ TEST_CASE("the specification row is written and read by one definition", "[certi
   CHECK(read->bounds.value_max == 9);
   REQUIRE(read->subtasks.size() == 2);
   CHECK(read->subtasks[0].position == 1);
-  CHECK(read->subtasks[0].constraint == "n <= 10");
+  CHECK(read->subtasks[0].bounds.max_n == 10);
   CHECK(read->subtasks[1].position == 2);
-  CHECK(read->subtasks[1].constraint == "n <= 20");
+  CHECK(read->subtasks[1].bounds.max_n == 20);
 }
 
 TEST_CASE("a stored specification that lost a fact is refused by name", "[certify]") {
   const auto read = cms::generate::read_specification(
       R"({"input":"n then n values","input_shape":"n_then_values","bounds":{"min_n":1,"max_n":30,"value_min":0,)"
-      R"("value_max":9},"subtasks":[{"position":1,"constraint":"n <= 10"}]})");
+      R"("value_max":9},"subtasks":[{"position":1,"max_n":10}]})");
 
   REQUIRE(!read.has_value());
   CHECK(read.error().message.find("missing") != std::string::npos);
   CHECK(read.error().message.find("output") != std::string::npos);
+}
+
+TEST_CASE("a stored subtask bound that is not an integer is refused by name", "[certify]") {
+  const auto read = cms::generate::read_specification(
+      R"({"input":"n then n values","output":"their sum","input_shape":"n_then_values",)"
+      R"("bounds":{"min_n":1,"max_n":30,"value_min":0,"value_max":9},)"
+      R"("subtasks":[{"position":1,"max_n":"10"}]})");
+
+  REQUIRE(!read.has_value());
+  CHECK(read.error().message.find("max_n") != std::string::npos);
+  CHECK(read.error().message.find("not an integer") != std::string::npos);
 }
 
 TEST_CASE("a complete job is certified and the certificate names every method it re-ran", "[certify][live]") {

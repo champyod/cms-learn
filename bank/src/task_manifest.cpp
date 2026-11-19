@@ -174,8 +174,35 @@ auto parse_points(const simdjson::dom::object& object, std::string_view where, T
   return {};
 }
 
+/// The task's own bounds, which every subtask narrows (ADR 0041). Absent for a task that carries no subtask.
+auto parse_bounds(const simdjson::dom::object& object, std::string_view where, Task& task) -> Result<void> {
+  const auto bounds = nested(object, "bounds");
+  if (!bounds) {
+    return {};
+  }
+  const auto min_n = required_integer(*bounds, "min_n", where);
+  if (!min_n) {
+    return std::unexpected(min_n.error());
+  }
+  const auto max_n = required_integer(*bounds, "max_n", where);
+  if (!max_n) {
+    return std::unexpected(max_n.error());
+  }
+  const auto value_min = required_integer(*bounds, "value_min", where);
+  if (!value_min) {
+    return std::unexpected(value_min.error());
+  }
+  const auto value_max = required_integer(*bounds, "value_max", where);
+  if (!value_max) {
+    return std::unexpected(value_max.error());
+  }
+  task.bounds = cms::TaskBounds{
+      .min_n = *min_n, .max_n = *max_n, .value_min = *value_min, .value_max = *value_max};
+  return {};
+}
+
 /// The scoring groups. An absent array is a task with none, which is the only shape the content had before ADR 0033;
-/// a subtask names its position, its points and the constraint that defines its group.
+/// a subtask names its position, its points and its typed narrowing of the task's bounds.
 auto parse_subtasks(const simdjson::dom::object& object, std::string_view where, Task& task)
     -> Result<void> {
   auto array = simdjson::dom::array{};
@@ -195,10 +222,6 @@ auto parse_subtasks(const simdjson::dom::object& object, std::string_view where,
     if (!points) {
       return std::unexpected(points.error());
     }
-    const auto constraint_text = required_text(entry, "constraint", where);
-    if (!constraint_text) {
-      return std::unexpected(constraint_text.error());
-    }
     if (*position < 1) {
       return std::unexpected(detail::fail(where, "a subtask position counts from one"));
     }
@@ -213,9 +236,21 @@ auto parse_subtasks(const simdjson::dom::object& object, std::string_view where,
             where, "subtask position " + std::to_string(*position) + " is named twice"));
       }
     }
+    if (!task.bounds.has_value()) {
+      return std::unexpected(detail::fail(
+          where, "a subtask narrows the task's bounds, and the task declares none"));
+    }
+    const auto bounds = cms::SubtaskBounds{.min_n = detail::field_integer(entry, "min_n"),
+                                           .max_n = detail::field_integer(entry, "max_n"),
+                                           .value_min = detail::field_integer(entry, "value_min"),
+                                           .value_max = detail::field_integer(entry, "value_max")};
+    if (const auto refused = cms::narrowing_refusal(bounds, *task.bounds); refused.has_value()) {
+      return std::unexpected(detail::fail(
+          where, "subtask " + std::to_string(*position) + ": " + *refused));
+    }
     task.subtasks.push_back(Subtask{.position = static_cast<std::int32_t>(*position),
                                     .points = static_cast<std::int32_t>(*points),
-                                    .constraint_text = *constraint_text});
+                                    .bounds = bounds});
   }
   return {};
 }
@@ -306,6 +341,9 @@ auto parse_manifest(const std::filesystem::path& directory, Task& task) -> Resul
       return step;
     }
     if (const auto step = parse_points(object, where, task); !step) {
+      return step;
+    }
+    if (const auto step = parse_bounds(object, where, task); !step) {
       return step;
     }
     if (const auto step = parse_subtasks(object, where, task); !step) {

@@ -43,7 +43,7 @@ auto scoring_section(std::string_view locale, const std::vector<Subtask>& subtas
   auto text = heading(locale);
   text += lead(locale, total, subtasks.size());
   for (const auto& subtask : subtasks) {
-    text += "| " + std::to_string(subtask.position) + " | " + subtask.constraint_text + " | " +
+    text += "| " + std::to_string(subtask.position) + " | " + cms::bounds_text(subtask.bounds) + " | " +
             std::to_string(subtask.points) + " |\n";
   }
   return text;

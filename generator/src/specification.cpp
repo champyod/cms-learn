@@ -53,20 +53,7 @@ auto refuse(std::string_view message) -> Error {
 
 }  // namespace
 
-auto sample_smallest(const Specification& specification) -> Result<std::string> {
-  if (specification.bounds.min_n <= 0) {
-    return std::unexpected(refuse("the bounds declare no smallest n to sample the oracle with"));
-  }
-  const auto count = specification.bounds.min_n;
-  auto input = std::to_string(count) + "\n";
-  for (std::int64_t index = 0; index < count; ++index) {
-    input += std::to_string(specification.bounds.value_min);
-    input += index + 1 == count ? '\n' : ' ';
-  }
-  return input;
-}
-
-auto read_bounds(const simdjson::dom::object& object, Bounds& bounds) -> Result<void> {
+auto read_bounds(const simdjson::dom::object& object, cms::TaskBounds& bounds) -> Result<void> {
   auto values = simdjson::dom::object{};
   if (object.at_key("bounds").get_object().get(values) != simdjson::SUCCESS) {
     return std::unexpected(refuse("the specification answer has no bounds object"));
@@ -91,8 +78,23 @@ auto read_bounds(const simdjson::dom::object& object, Bounds& bounds) -> Result<
   if (!missing.empty()) {
     return std::unexpected(refuse("the specification's bounds are missing " + joined(missing)));
   }
-  bounds = Bounds{.min_n = *min_n, .max_n = *max_n, .value_min = *value_min, .value_max = *value_max};
+  bounds = cms::TaskBounds{.min_n = *min_n, .max_n = *max_n, .value_min = *value_min, .value_max = *value_max};
   return {};
+}
+
+/// @return The bound @p name holds, nothing when it is absent, or a refusal when it holds another type: a bound a
+/// reader cannot read is never silently the task's value.
+auto bound_member(const simdjson::dom::object& subtask, std::string_view name)
+    -> Result<std::optional<std::int64_t>> {
+  auto element = simdjson::dom::element{};
+  if (subtask.at_key(name).get(element) != simdjson::SUCCESS) {
+    return std::optional<std::int64_t>{};
+  }
+  auto value = std::int64_t{0};
+  if (element.get_int64().get(value) != simdjson::SUCCESS) {
+    return std::unexpected(refuse("a subtask's " + std::string{name} + " is not an integer"));
+  }
+  return std::optional<std::int64_t>{value};
 }
 
 auto read_subtasks(const simdjson::dom::object& object, std::vector<SubtaskConstraint>& into)
@@ -107,12 +109,20 @@ auto read_subtasks(const simdjson::dom::object& object, std::vector<SubtaskConst
       return std::unexpected(refuse("a subtask is not a JSON object"));
     }
     const auto position = detail::field_integer(subtask, "position");
-    const auto constraint = detail::field_text(subtask, "constraint");
-    if (!position || !constraint) {
-      return std::unexpected(refuse("a subtask is missing position or constraint"));
+    if (!position) {
+      return std::unexpected(refuse("a subtask names no position"));
     }
-    into.push_back(
-        SubtaskConstraint{.position = static_cast<std::int32_t>(*position), .constraint = *constraint});
+    auto bounds = cms::SubtaskBounds{};
+    for (const auto& [name, target] : {std::pair{"min_n", &bounds.min_n}, std::pair{"max_n", &bounds.max_n},
+                                       std::pair{"value_min", &bounds.value_min},
+                                       std::pair{"value_max", &bounds.value_max}}) {
+      const auto value = bound_member(subtask, name);
+      if (!value) {
+        return std::unexpected(value.error());
+      }
+      *target = *value;
+    }
+    into.push_back(SubtaskConstraint{.position = static_cast<std::int32_t>(*position), .bounds = bounds});
   }
   return {};
 }
@@ -153,6 +163,12 @@ auto parse_specification_answer(std::string_view answer, const ModelCall& call) 
         if (!subtasks) {
           return std::unexpected(subtasks.error());
         }
+        for (const auto& subtask : parsed.specification.subtasks) {
+          if (const auto refused = cms::narrowing_refusal(subtask.bounds, parsed.specification.bounds);
+              refused.has_value()) {
+            return std::unexpected(refuse("subtask " + std::to_string(subtask.position) + ": " + *refused));
+          }
+        }
         const auto oracle = detail::field_text(object, "oracle");
         if (!oracle || oracle->empty()) {
           return std::unexpected(refuse("the specification answer carries no oracle program to check"));
@@ -179,8 +195,11 @@ auto specification_prompt(const CandidatePlan& chosen) -> Result<std::string> {
          " \"output\": \"<what it writes, in words>\",\n"
          " \"input_shape\": \"n_then_values\",\n"
          " \"bounds\": {\"min_n\": <int>, \"max_n\": <int>, \"value_min\": <int>, \"value_max\": <int>},\n"
-         " \"subtasks\": [{\"position\": <int>, \"constraint\": \"<the constraint that defines this group>\"}],\n"
-         " \"oracle\": \"<a complete C++17 program: reads the input shape, prints the answer>\"}\n";
+         " \"subtasks\": [{\"position\": <int>, \"min_n\": <int?>, \"max_n\": <int?>, \"value_min\": <int?>,\n"
+         "               \"value_max\": <int?>}],\n"
+         " \"oracle\": \"<a complete C++17 program: reads the input shape, prints the answer>\"}\n"
+         "A subtask's bounds narrow the task's own: every field is optional, an absent field is the task's value, at\n"
+         "least one field must be present, and no field may leave the task's bound.\n";
 }
 
 auto specify_step3(ModelClient& client, const CandidatePlan& chosen) -> Result<Step3Answer> {

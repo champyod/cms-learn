@@ -86,9 +86,17 @@ CREATE TABLE task_subtasks (
   task_version integer NOT NULL,
   position integer NOT NULL CHECK (position > 0),
   points integer NOT NULL CHECK (points > 0 AND points <= 1000),
-  -- The constraint that defines the group, e.g. 'n <= 2000'. Free text, because the values it names belong to the
-  -- task's statement and not to a second vocabulary here.
-  constraint_text text NOT NULL CHECK (length(btrim(constraint_text)) > 0),
+  -- The constraint that defines the group, as a typed narrowing of the task's own bounds (ADR 0041): an absent column
+  -- is the task's value. The sorted order is the group's interval, so a narrowing that admits no case is refused here
+  -- rather than by a reader.
+  min_n bigint,
+  max_n bigint,
+  value_min bigint,
+  value_max bigint,
+  CONSTRAINT task_subtasks_narrows_something CHECK (num_nonnulls(min_n, max_n, value_min, value_max) > 0),
+  CONSTRAINT task_subtasks_admits_a_case CHECK (
+    (min_n IS NULL OR max_n IS NULL OR min_n <= max_n) AND
+    (value_min IS NULL OR value_max IS NULL OR value_min <= value_max)),
   CONSTRAINT task_subtasks_pkey PRIMARY KEY (task_id, task_version, position),
   CONSTRAINT task_subtasks_task_fkey FOREIGN KEY (task_id, task_version)
     REFERENCES tasks (id, version) ON DELETE CASCADE

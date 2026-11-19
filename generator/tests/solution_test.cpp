@@ -29,6 +29,10 @@ using cms::generate::ModelCall;
 using cms::generate::Specification;
 using cms::generate::SubtaskConstraint;
 
+/// A program that refuses to answer: ADR 0042 makes that a refusal, never an answer that differs.
+constexpr std::string_view EXIT_PROGRAM = R"(int main() { return 1; }
+)";
+
 constexpr std::string_view SUM_PROGRAM = R"(#include <iostream>
 int main() {
   long long n = 0;
@@ -87,7 +91,9 @@ int main() {
 }
 )";
 
-auto specification(std::vector<SubtaskConstraint> subtasks = {{1, "n <= 100"}, {2, "n <= 100000"}})
+auto specification(std::vector<SubtaskConstraint> subtasks = {
+                       SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}},
+                       SubtaskConstraint{.position = 2, .bounds = cms::SubtaskBounds{.max_n = 100000}}})
     -> Specification {
   return Specification{.input = "n, then n integers",
                        .output = "their sum",
@@ -114,37 +120,32 @@ auto answer_with(std::vector<std::string> partials, std::string_view reference =
 
 }  // namespace
 
-TEST_CASE("a subtask's bound is read from its constraint, and a constraint with no bound is refused", "[generate]") {
-  const auto bound = cms::generate::subtask_bound("n <= 100000");
-  REQUIRE(bound.has_value());
-  CHECK(*bound == 100000);
+TEST_CASE("cases come from the typed bounds: inside the subtask, and one step beyond it", "[generate]") {
+  const auto cases = cms::generate::subtask_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}});
 
-  const auto without = cms::generate::subtask_bound("the values are positive");
-  REQUIRE(!without.has_value());
-  CHECK(without.error().message.find("the values are positive") != std::string::npos);
-  CHECK(without.error().message.find("no case can be shown to lie outside") != std::string::npos);
+  REQUIRE(cases.has_value());
+  REQUIRE(cases->inside.size() == 2);
+  CHECK(cases->inside[0].input == "1\n3\n");
+  CHECK(cases->inside[1].n == 100);
+  CHECK(std::count(cases->inside[1].input.begin(), cases->inside[1].input.end(), '3') == 100);
+  REQUIRE(cases->outside.size() == 1);
+  CHECK(cases->outside[0].n == 101);
 }
 
-TEST_CASE("cases come from the bounds: inside the subtask, and one step beyond it", "[generate]") {
-  const auto cases = cms::generate::subtask_cases(specification(), 100);
-
-  REQUIRE(cases.inside.size() == 2);
-  CHECK(cases.inside[0].input == "1\n3\n");
-  CHECK(cases.inside[1].n == 100);
-  CHECK(std::count(cases.inside[1].input.begin(), cases.inside[1].input.end(), '3') == 100);
-  REQUIRE(cases.outside.size() == 1);
-  CHECK(cases.outside[0].n == 101);
-}
-
-TEST_CASE("a subtask whose bound is the task's bound names no case outside it, and is refused", "[generate]") {
-  const auto cases = cms::generate::admissible_cases(specification(), 200001);
+TEST_CASE("a subtask that admits every case the task admits names no case outside it, and is refused", "[generate]") {
+  const auto cases = cms::generate::subtask_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{
+                                                          .min_n = 1, .max_n = 200000, .value_min = 3,
+                                                          .value_max = 3}});
 
   REQUIRE(!cases.has_value());
-  CHECK(cases.error().message.find("above the task's own bound") != std::string::npos);
+  CHECK(cases.error().message.find("admits every case the task admits") != std::string::npos);
 }
 
 TEST_CASE("the reference is refused when it disagrees with the oracle, and the sentence names the case", "[generate]") {
-  const auto cases = cms::generate::admissible_cases(specification(), 101);
+  const auto cases = cms::generate::admissible_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}});
   REQUIRE(cases.has_value());
   const auto answer = answer_with({std::string{SUM_PROGRAM}, std::string{SUM_PROGRAM}}, WRONG_PROGRAM);
 
@@ -152,12 +153,27 @@ TEST_CASE("the reference is refused when it disagrees with the oracle, and the s
 
   REQUIRE(!proofs.has_value());
   CHECK(proofs.error().message.find("disagrees with the oracle") != std::string::npos);
-  CHECK(proofs.error().message.find("(n = 1)") != std::string::npos);
+  CHECK(proofs.error().message.find("at n = 1") != std::string::npos);
   CHECK(proofs.error().message.find("999") != std::string::npos);
 }
 
+TEST_CASE("a reference that exits non-zero is a refusal, not a different answer", "[generate]") {
+  const auto cases = cms::generate::admissible_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}});
+  REQUIRE(cases.has_value());
+  const auto answer = answer_with({std::string{SUM_PROGRAM}, std::string{SUM_PROGRAM}}, EXIT_PROGRAM);
+
+  const auto proofs = cms::generate::check_solutions(answer, specification(), SUM_PROGRAM, *cases, 1000);
+
+  REQUIRE(!proofs.has_value());
+  CHECK(proofs.error().message.find("the reference solution") != std::string::npos);
+  CHECK(proofs.error().message.find("exit 1") != std::string::npos);
+  CHECK(proofs.error().message.find("disagrees") == std::string::npos);
+}
+
 TEST_CASE("a partial that passes everything is refused, because it is not a partial", "[generate]") {
-  const auto cases = cms::generate::admissible_cases(specification(), 101);
+  const auto cases = cms::generate::admissible_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}});
   REQUIRE(cases.has_value());
   const auto answer = answer_with({std::string{SUM_PROGRAM}, std::string{SUM_PROGRAM}});
 
@@ -169,7 +185,8 @@ TEST_CASE("a partial that passes everything is refused, because it is not a part
 }
 
 TEST_CASE("a partial that loses the case beyond its bound earns its proof", "[generate]") {
-  const auto cases = cms::generate::admissible_cases(specification(), 101);
+  const auto cases = cms::generate::admissible_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}});
   REQUIRE(cases.has_value());
   const auto answer = answer_with({std::string{HUNDRED_PROGRAM}, std::string{HUNDRED_THOUSAND_PROGRAM}});
 
@@ -184,7 +201,8 @@ TEST_CASE("a partial that loses the case beyond its bound earns its proof", "[ge
 }
 
 TEST_CASE("a subtask with no solution is refused by name, with its position", "[generate]") {
-  const auto cases = cms::generate::admissible_cases(specification(), 101);
+  const auto cases = cms::generate::admissible_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}});
   REQUIRE(cases.has_value());
   const auto answer = answer_with({std::string{HUNDRED_PROGRAM}});
 
@@ -195,7 +213,8 @@ TEST_CASE("a subtask with no solution is refused by name, with its position", "[
 }
 
 TEST_CASE("a solution that does not compile is refused by name, with its position", "[generate]") {
-  const auto cases = cms::generate::admissible_cases(specification(), 101);
+  const auto cases = cms::generate::admissible_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}});
   REQUIRE(cases.has_value());
   const auto answer = answer_with({std::string{"int main() { this is not C++ }"}, std::string{HUNDRED_PROGRAM}});
 
@@ -240,7 +259,8 @@ TEST_CASE("step 5 records one row per program in one transaction",
   const auto job = cms::generate::test::prepare_job(database, "pipeline-solution-probe");
   auto store = cms::generate::test::MemoryStore{};
   auto sink = cms::generate::SqlSolutionSink{*cms::generate::test::live_client(), store};
-  const auto cases = cms::generate::admissible_cases(specification(), 101);
+  const auto cases = cms::generate::admissible_cases(
+      specification(), SubtaskConstraint{.position = 1, .bounds = cms::SubtaskBounds{.max_n = 100}});
   REQUIRE(cases.has_value());
   const auto answer = answer_with({std::string{HUNDRED_PROGRAM}, std::string{HUNDRED_THOUSAND_PROGRAM}});
   const auto proofs = cms::generate::check_solutions(answer, specification(), SUM_PROGRAM, *cases, 1000);

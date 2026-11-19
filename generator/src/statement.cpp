@@ -1,3 +1,4 @@
+#include <cms/generate/sampler.hpp>
 #include <cms/generate/statement.hpp>
 
 #include <array>
@@ -87,7 +88,7 @@ auto constraints_text(const Specification& specification) -> std::string {
           std::to_string(specification.bounds.value_max) + "\n";
   text += "the smallest case reads n = " + std::to_string(specification.bounds.min_n) + "\n";
   for (const auto& subtask : specification.subtasks) {
-    text += "subtask " + std::to_string(subtask.position) + ": " + subtask.constraint + "\n";
+    text += "subtask " + std::to_string(subtask.position) + ": " + cms::bounds_text(subtask.bounds) + "\n";
   }
   return text;
 }
@@ -442,13 +443,13 @@ auto write_statement(ModelClient& client, const StatementInput& input, const Ora
   if (trimmed(oracle_check.smallest_input).empty() || trimmed(oracle_check.answer).empty()) {
     return std::unexpected(refuse("the oracle check carries no smallest case or no answer to show as the example"));
   }
-  const auto smallest = sample_smallest(input.specification);
+  const auto smallest = smallest_case(input.specification.bounds);
   if (!smallest) {
     return std::unexpected(smallest.error());
   }
-  if (*smallest != oracle_check.smallest_input) {
+  if (smallest->input != oracle_check.smallest_input) {
     return std::unexpected(refuse("the oracle was checked on a case the bounds do not name: the bounds sample \"" +
-                                  *smallest + "\", the check ran on \"" + oracle_check.smallest_input + "\""));
+                                  smallest->input + "\", the check ran on \"" + oracle_check.smallest_input + "\""));
   }
   if (const auto named = named_technique(input.trap, input.technique)) {
     return std::unexpected(refuse("the trap sentence names the technique \"" + *named +

@@ -16,6 +16,7 @@
 #include <cms/db/tables.hpp>
 #include <cms/db/transaction.hpp>
 #include <cms/generate/artefact.hpp>
+#include <cms/generate/sampler.hpp>
 #include <cms/object_store.hpp>
 
 #include "json.hpp"
@@ -41,8 +42,6 @@ constexpr std::string_view KEY_VALUE_MIN = "value_min";
 constexpr std::string_view KEY_VALUE_MAX = "value_max";
 constexpr std::string_view KEY_SUBTASKS = "subtasks";
 constexpr std::string_view KEY_POSITION = "position";
-constexpr std::string_view KEY_CONSTRAINT = "constraint";
-constexpr std::string_view N_THEN_VALUES = "n_then_values";
 
 /// One row per model call (ADR 0030), with the step's own step and kind.
 constexpr std::string_view RECORD_ARTEFACT = R"(
@@ -103,12 +102,31 @@ auto bounds_json(const Bounds& bounds) -> std::string {
          integer_member(KEY_VALUE_MIN, bounds.value_min) + "," + integer_member(KEY_VALUE_MAX, bounds.value_max) + "}";
 }
 
+/// @return One subtask's typed narrowing; an absent bound is the task's value, so it is not written.
+auto bounds_members(const cms::SubtaskBounds& bounds) -> std::string {
+  auto json = std::string{};
+  const auto member = [&json](std::string_view key, const std::optional<std::int64_t>& value) {
+    if (!value.has_value()) {
+      return;
+    }
+    if (!json.empty()) {
+      json += ',';
+    }
+    json += integer_member(key, *value);
+  };
+  member(KEY_MIN_N, bounds.min_n);
+  member(KEY_MAX_N, bounds.max_n);
+  member(KEY_VALUE_MIN, bounds.value_min);
+  member(KEY_VALUE_MAX, bounds.value_max);
+  return json;
+}
+
 auto subtasks_json(const std::vector<SubtaskConstraint>& subtasks) -> std::string {
   auto json = std::string{"["};
   for (std::size_t index = 0; index < subtasks.size(); ++index) {
     json += index == 0 ? "" : ",";
     json += "{" + integer_member(KEY_POSITION, subtasks[index].position) + "," +
-            text_member(KEY_CONSTRAINT, subtasks[index].constraint) + "}";
+            bounds_members(subtasks[index].bounds) + "}";
   }
   json += ']';
   return json;
@@ -151,6 +169,22 @@ auto read_bounds_json(const simdjson::dom::object& object, Bounds& bounds, std::
   }
 }
 
+/// @return @p into set to the bound @p name holds, unchanged when it is absent, or a refusal when it holds another
+/// type: a stored row whose bound is unreadable is never silently the task's value.
+auto read_bound(const simdjson::dom::object& subtask, std::string_view name,
+                std::optional<std::int64_t>& into) -> Result<void> {
+  auto element = simdjson::dom::element{};
+  if (subtask.at_key(name).get(element) != simdjson::SUCCESS) {
+    return {};
+  }
+  auto value = std::int64_t{0};
+  if (element.get_int64().get(value) != simdjson::SUCCESS) {
+    return std::unexpected(refuse("a stored subtask's " + std::string{name} + " is not an integer"));
+  }
+  into = value;
+  return {};
+}
+
 auto read_subtasks_json(const simdjson::dom::object& object, std::vector<SubtaskConstraint>& subtasks)
     -> Result<void> {
   auto entries = simdjson::dom::array{};
@@ -163,13 +197,18 @@ auto read_subtasks_json(const simdjson::dom::object& object, std::vector<Subtask
       return std::unexpected(refuse("a stored subtask is not a JSON object"));
     }
     const auto position = field_integer(subtask, KEY_POSITION);
-    const auto constraint = field_text(subtask, KEY_CONSTRAINT);
-    if (!position || !constraint) {
-      return std::unexpected(refuse("a stored subtask names no " + std::string{KEY_POSITION} + " or " +
-                                    std::string{KEY_CONSTRAINT}));
+    if (!position) {
+      return std::unexpected(refuse("a stored subtask names no " + std::string{KEY_POSITION}));
     }
-    subtasks.push_back(
-        SubtaskConstraint{.position = static_cast<std::int32_t>(*position), .constraint = *constraint});
+    auto bounds = cms::SubtaskBounds{};
+    for (const auto& [name, target] : {std::pair{KEY_MIN_N, &bounds.min_n}, std::pair{KEY_MAX_N, &bounds.max_n},
+                                       std::pair{KEY_VALUE_MIN, &bounds.value_min},
+                                       std::pair{KEY_VALUE_MAX, &bounds.value_max}}) {
+      if (const auto read = read_bound(subtask, name, *target); !read) {
+        return read;
+      }
+    }
+    subtasks.push_back(SubtaskConstraint{.position = static_cast<std::int32_t>(*position), .bounds = bounds});
   }
   return {};
 }
@@ -230,7 +269,16 @@ auto read_specification(std::string_view json) -> Result<Specification> {
                                         std::string{N_THEN_VALUES}));
         }
         read_bounds_json(object, specification.bounds, missing);
-        return read_subtasks_json(object, specification.subtasks);
+        if (const auto read = read_subtasks_json(object, specification.subtasks); !read) {
+          return read;
+        }
+        for (const auto& subtask : specification.subtasks) {
+          if (const auto refused = cms::narrowing_refusal(subtask.bounds, specification.bounds);
+              refused.has_value()) {
+            return std::unexpected(refuse("stored subtask " + std::to_string(subtask.position) + ": " + *refused));
+          }
+        }
+        return {};
       });
   if (!used) {
     return std::unexpected(used.error());
@@ -260,8 +308,8 @@ auto SqlSpecificationSink::record(std::int64_t job_id, const Step3Answer& answer
   if (answer.answer_json.empty()) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument, NO_ANSWER));
   }
-  const auto smallest = sample_smallest(answer.specification);
-  if (!smallest || *smallest != oracle.smallest_input) {
+  const auto smallest = smallest_case(answer.specification.bounds);
+  if (!smallest || smallest->input != oracle.smallest_input) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                        "the oracle was checked on a case the bounds do not name"));
   }

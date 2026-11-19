@@ -447,7 +447,7 @@
           "path": "public.task_statements"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS task_subtasks (\n    task_id text,\n    task_version integer,\n    position integer,\n    points integer NOT NULL,\n    constraint_text text NOT NULL,\n    CONSTRAINT task_subtasks_pkey PRIMARY KEY (task_id, task_version, position),\n    CONSTRAINT task_subtasks_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_subtasks_constraint_text_check CHECK (length(btrim(constraint_text)) > 0),\n    CONSTRAINT task_subtasks_points_check CHECK (points > 0 AND points <= 1000),\n    CONSTRAINT task_subtasks_position_check CHECK (\"position\" > 0)\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS task_subtasks (\n    task_id text,\n    task_version integer,\n    position integer,\n    points integer NOT NULL,\n    min_n bigint,\n    max_n bigint,\n    value_min bigint,\n    value_max bigint,\n    CONSTRAINT task_subtasks_pkey PRIMARY KEY (task_id, task_version, position),\n    CONSTRAINT task_subtasks_task_fkey FOREIGN KEY (task_id, task_version) REFERENCES tasks (id, version) ON DELETE CASCADE,\n    CONSTRAINT task_subtasks_admits_a_case CHECK ((min_n IS NULL OR max_n IS NULL OR min_n <= max_n) AND (value_min IS NULL OR value_max IS NULL OR value_min <= value_max)),\n    CONSTRAINT task_subtasks_narrows_something CHECK (num_nonnulls(min_n, max_n, value_min, value_max) > 0),\n    CONSTRAINT task_subtasks_points_check CHECK (points > 0 AND points <= 1000),\n    CONSTRAINT task_subtasks_position_check CHECK (\"position\" > 0)\n);",
           "type": "table",
           "operation": "create",
           "path": "public.task_subtasks"
