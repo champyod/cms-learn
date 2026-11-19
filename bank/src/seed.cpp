@@ -26,6 +26,10 @@ namespace {
 /// A task row key, so a lookup cannot pair an id with the wrong version.
 using TaskKey = std::pair<std::string, std::int32_t>;
 
+/// A seeded task starts unverified, and a re-seed leaves the column alone: the certificate row is what changes a
+/// task's verification (ADR 0046), so a content edit cannot reset or raise it.
+constexpr std::string_view VERIFICATION_PENDING = "pending";
+
 struct SeedState {
   std::int64_t version{0};
   std::string content_hash;
@@ -95,7 +99,6 @@ auto write_task_row(db::connection& database, const Task& task, bool is_update) 
                       db::tasks.checker = task.checker_kind,
                       db::tasks.checkerPath = task.checker_path,
                       db::tasks.origin = task.origin_kind,
-                      db::tasks.verification = task.verification_status,
                       db::tasks.solution = task.solution,
                       db::tasks.points = task.points,
                       db::tasks.contentHash = task.content_hash,
@@ -110,7 +113,7 @@ auto write_task_row(db::connection& database, const Task& task, bool is_update) 
       db::tasks.difficulty = task.difficulty, db::tasks.timeLimitMs = task.time_limit_ms,
       db::tasks.memoryLimitMb = task.memory_limit_mb, db::tasks.checker = task.checker_kind,
       db::tasks.checkerPath = task.checker_path, db::tasks.origin = task.origin_kind,
-      db::tasks.verification = task.verification_status, db::tasks.solution = task.solution,
+      db::tasks.verification = std::string{VERIFICATION_PENDING}, db::tasks.solution = task.solution,
       db::tasks.points = task.points, db::tasks.contentHash = task.content_hash,
       db::tasks.seeded = true));
 }

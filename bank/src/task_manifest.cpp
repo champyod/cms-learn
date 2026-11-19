@@ -23,7 +23,6 @@ constexpr std::string_view TASK_FILE = "task.json";
 
 constexpr std::array<std::string_view, 4> TASK_STATUSES{"draft", "verified", "published",
                                                         "rejected"};
-constexpr std::array<std::string_view, 3> VERIFICATION_STATUSES{"pending", "verified", "failed"};
 constexpr std::array<std::string_view, 4> CHECKER_KINDS{"standard", "token", "testlib",
                                                         "interactive"};
 constexpr std::array<std::string_view, 3> ORIGIN_KINDS{"original", "imported", "ai"};
@@ -284,8 +283,28 @@ auto parse_checker(const simdjson::dom::object& object, std::string_view where, 
   return {};
 }
 
-auto parse_origin_and_verification(const simdjson::dom::object& object, std::string_view where,
-                                   Task& task) -> Result<void> {
+/// ADR 0046 §2 retired the file's verification claim: what ran is the certificate row's evidence. A file that still
+/// names one is refused here rather than read as a task with no claim, so an old draft cannot reach the database as
+/// verified by saying so.
+auto refuse_retired_verification(const simdjson::dom::object& object, std::string_view where) -> Result<void> {
+  const auto verification = nested(object, "verification");
+  if (!verification) {
+    return {};
+  }
+  for (const auto retired : {"status", "methods", "verified_at"}) {
+    auto element = simdjson::dom::element{};
+    if (verification->at_key(retired).get(element) == simdjson::SUCCESS) {
+      return std::unexpected(detail::fail(
+          where, "verification names \"" + std::string{retired} +
+                     "\", which ADR 0046 §2 retired: a task's verified state is the certificate row's, so the file "
+                     "cannot say it"));
+    }
+  }
+  return {};
+}
+
+auto parse_origin(const simdjson::dom::object& object, std::string_view where, Task& task)
+    -> Result<void> {
   const auto origin = nested(object, "origin");
   if (!origin) {
     return std::unexpected(
@@ -296,23 +315,7 @@ auto parse_origin_and_verification(const simdjson::dom::object& object, std::str
     return std::unexpected(origin_kind.error());
   }
   task.origin_kind = *origin_kind;
-
-  const auto verification = nested(object, "verification");
-  if (!verification) {
-    return std::unexpected(Error::make(ErrorCode::invalid_argument,
-                                       std::string{where} + ": verification is missing"));
-  }
-  const auto verification_status = required_text(*verification, "status", where);
-  if (!verification_status) {
-    return std::unexpected(verification_status.error());
-  }
-  task.verification_status = *verification_status;
-
-  const auto origin_ok = known(task.origin_kind, ORIGIN_KINDS, "origin.kind", where);
-  if (!origin_ok) {
-    return origin_ok;
-  }
-  return known(task.verification_status, VERIFICATION_STATUSES, "verification.status", where);
+  return known(task.origin_kind, ORIGIN_KINDS, "origin.kind", where);
 }
 
 
@@ -352,7 +355,10 @@ auto parse_manifest(const std::filesystem::path& directory, Task& task) -> Resul
     if (const auto step = parse_checker(object, where, task); !step) {
       return step;
     }
-    return parse_origin_and_verification(object, where, task);
+    if (const auto step = refuse_retired_verification(object, where); !step) {
+      return step;
+    }
+    return parse_origin(object, where, task);
   });
   if (!parsed) {
     return std::unexpected(parsed.error());

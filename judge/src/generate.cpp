@@ -80,8 +80,7 @@ auto manifest_text(const TaskSpec& spec) -> std::string {
           std::to_string(spec.memory_mb) + " },\n";
   text += "  \"checker\": { \"kind\": \"" + spec.checker + "\" },\n";
   text += "  \"origin\": { \"kind\": \"ai\", \"pipeline\": \"cms_generate_task\" },\n";
-  text += "  \"verification\": { \"status\": \"pending\", \"reference_solution\": "
-          "\"solutions/main.cpp\", \"methods\": [] }\n";
+  text += "  \"verification\": { \"reference_solution\": \"solutions/main.cpp\" }\n";
   text += "}\n";
   return text;
 }

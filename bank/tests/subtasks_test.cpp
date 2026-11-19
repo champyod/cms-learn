@@ -93,7 +93,6 @@ auto task_with(std::string_view id, std::string_view hash, std::int32_t points,
   task.subtasks = std::move(subtasks);
   task.checker_kind = "token";
   task.origin_kind = "original";
-  task.verification_status = "pending";
   task.statements = {{"en", "# Probe\n\nBody."}};
   task.content_hash = std::string{hash};
   return task;
@@ -211,7 +210,7 @@ TEST_CASE("a task's task.json can name its points and its subtasks", "[subtasks]
       {"position": 2, "points": 70, "max_n": 200000}
     ],
     "checker": {"kind": "token"}, "origin": {"kind": "original"},
-    "verification": {"status": "pending"}
+    "verification": {"reference_solution": "solutions/main.cpp"}
   })");
 
   const auto task = cms::bank::load_task(task_dir);
@@ -234,7 +233,7 @@ TEST_CASE("a task's task.json can name its points and its subtasks", "[subtasks]
       {"position": 1, "points": 70, "max_n": 200000}
     ],
     "checker": {"kind": "token"}, "origin": {"kind": "original"},
-    "verification": {"status": "pending"}
+    "verification": {"reference_solution": "solutions/main.cpp"}
   })");
 
   const auto refused = cms::bank::load_task(task_dir);
@@ -259,7 +258,7 @@ TEST_CASE("a subtask's narrowing is refused when it names nothing or leaves the 
     "limits": {"time_ms": 1000, "memory_mb": 256},)"} +
            std::string{bounds} + R"("subtasks": [)" + std::string{subtask} + R"(],
     "checker": {"kind": "token"}, "origin": {"kind": "original"},
-    "verification": {"status": "pending"}
+    "verification": {"reference_solution": "solutions/main.cpp"}
   })";
   };
   constexpr std::string_view BOUNDS = R"("bounds": {"min_n": 1, "max_n": 2000, "value_min": 1, "value_max": 100},)";

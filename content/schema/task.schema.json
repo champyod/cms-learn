@@ -21,7 +21,7 @@
   "properties": {
     "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
     "version": { "type": "integer", "minimum": 1 },
-    "status": { "enum": ["draft", "verified", "published", "rejected"] },
+    "status": { "enum": ["draft", "published", "rejected"] },
     "title": {
       "type": "object",
       "additionalProperties": false,
@@ -112,15 +112,9 @@
     "verification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "reference_solution", "methods"],
+      "required": ["reference_solution"],
       "properties": {
-        "status": { "enum": ["pending", "verified", "failed"] },
-        "reference_solution": { "type": "string", "minLength": 1 },
-        "methods": {
-          "type": "array",
-          "items": { "enum": ["reference-pass", "bruteforce-differential", "limits-measured"] }
-        },
-        "verified_at": { "type": "string", "minLength": 10 }
+        "reference_solution": { "type": "string", "minLength": 1 }
       }
     }
   }

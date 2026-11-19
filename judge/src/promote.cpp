@@ -89,22 +89,11 @@ auto field_integer(std::string_view manifest, std::string_view field) -> std::op
   return std::stoll(std::string{manifest.substr(first, last - first)});
 }
 
-/// @return The claim the task file carries about its own verification, which a refusal names and nothing believes.
-auto verification_claim(std::string_view manifest) -> std::string {
-  const auto position = manifest.find("\"verification\"");
-  if (position == std::string_view::npos) {
-    return "none";
-  }
-  const auto nested = manifest.substr(position);
-  const auto status = field_value(nested, "status");
-  return status.empty() ? std::string{"none"} : status;
-}
-
-/// The identity a certificate must name, plus the claim the refusal reports.
+/// The identity a certificate must name. The file carries no verification claim to compare against (ADR 0046 §2): the
+/// certificate row is the only thing that says a task is verified, and a refusal names that row.
 struct ManifestIdentity {
   std::string task_id;
   std::int64_t task_version{0};
-  std::string verification_claim;
 };
 
 auto manifest_identity(std::string_view manifest, const std::filesystem::path& task_dir)
@@ -116,17 +105,13 @@ auto manifest_identity(std::string_view manifest, const std::filesystem::path& t
         ErrorCode::invalid_argument,
         task_dir.string() + ": the manifest names no id or version, so no certificate can be read for it"));
   }
-  return ManifestIdentity{.task_id = task_id,
-                          .task_version = *task_version,
-                          .verification_claim = verification_claim(manifest)};
+  return ManifestIdentity{.task_id = task_id, .task_version = *task_version};
 }
 
-auto refused(const std::filesystem::path& task_dir, const ManifestIdentity& identity, std::string_view reason)
-    -> Error {
+auto refused(const std::filesystem::path& task_dir, std::string_view reason) -> Error {
   return Error::make(ErrorCode::invalid_argument,
-                     task_dir.string() + ": the task file says verification \"" + identity.verification_claim +
-                         "\" and " + std::string{reason} + "; a task is published only on a certificate the "
-                         "certifier wrote that says verified");
+                     task_dir.string() + ": " + std::string{reason} +
+                         "; a task is published only on a certificate the certifier wrote that says verified");
 }
 
 /// @brief Refuses unless the newest certificate for the manifest's task version says `verified`.
@@ -137,15 +122,13 @@ auto refuse_unless_certified(const std::filesystem::path& task_dir, const Manife
     return std::unexpected(certificate.error());
   }
   if (!certificate->has_value()) {
-    return std::unexpected(refused(task_dir, identity,
-                                   "no certificate row exists for " + identity.task_id + " version " +
-                                       std::to_string(identity.task_version)));
+    return std::unexpected(refused(task_dir, "no certificate row exists for " + identity.task_id + " version " +
+                                               std::to_string(identity.task_version)));
   }
   const auto& row = **certificate;
   if (row.outcome != "verified") {
-    return std::unexpected(refused(task_dir, identity,
-                                   "the certificate row records \"" + row.outcome + "\" (commit " + row.commit_id +
-                                       ")"));
+    return std::unexpected(refused(task_dir, "the certificate row records \"" + row.outcome + "\" (commit " +
+                                               row.commit_id + ")"));
   }
   return {};
 }

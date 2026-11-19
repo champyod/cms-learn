@@ -92,7 +92,13 @@ CMSLEARN_DATABASE_URL="host=$work port=$port dbname=objectprobe user=postgres" \
   || bad "the seeder imports with a real store configured" "$(tail -2 "$work/seed1.log")"
 
 psql_db "SELECT set_config('cms.actor_id', 'a0000001-1111-4111-8111-0000000000f9', false), set_config('cms.actor_kind', 'admin', false), set_config('cms.invoked_by', 'object_readers_e2e', false); INSERT INTO admin_accounts (id, handle, status) VALUES ('a0000001-1111-4111-8111-0000000000f9', 'objects_author', 'active') ON CONFLICT DO NOTHING;" >/dev/null
-psql_db "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash, seeded) VALUES ('probe-object', 1, 'batch', 'published', 'Object probe', 'ทดสอบวัตถุ', 900, 1000, 256, 'token', 'original', 'verified', '', '', false) ON CONFLICT DO NOTHING;" >/dev/null
+# A published task is served only after a certification, so the fixture builds the row that makes it so: the task
+# starts unverified, a job and its certificate row are written, and then the one UPDATE the trigger guards moves the
+# task to verified. Writing the claim straight into the INSERT would be the shortcut ADR 0046 §2 removed.
+psql_db "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash, seeded) VALUES ('probe-object', 1, 'batch', 'published', 'Object probe', 'ทดสอบวัตถุ', 900, 1000, 256, 'token', 'original', 'pending', '', '', false) ON CONFLICT DO NOTHING;" >/dev/null
+psql_db "INSERT INTO generation_jobs (task_id, task_version) VALUES ('probe-object', 1) ON CONFLICT (task_id, task_version) DO NOTHING;" >/dev/null
+psql_db "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) SELECT id, 'probe-object', 1, 'verified', '[\"the object readers case\"]'::jsonb, 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', '{}'::jsonb FROM generation_jobs WHERE task_id = 'probe-object' AND task_version = 1;" >/dev/null
+psql_db "UPDATE tasks SET verification = 'verified' WHERE id = 'probe-object' AND version = 1;" >/dev/null
 # A row written under the old reading: the table refuses a key today, so the fixture is written the only way a
 # pre-existing row can be — as the schema owner with the rule switched off for that one statement.
 psql_db "ALTER TABLE task_field_values DISABLE TRIGGER task_field_values_artefact_id; INSERT INTO task_field_values (task_id, task_version, field_key, value) VALUES ('probe-object', 1, 'solution', '\"tasks/probe/absent.cpp\"'); ALTER TABLE task_field_values ENABLE TRIGGER task_field_values_artefact_id;" >/dev/null
@@ -122,7 +128,7 @@ status=$?
 
 # The same bytes recorded as an artefact, and the field naming its id: the seeder resolves and checks it.
 digest="$(sha256sum "$work/solution.cpp" | cut -d' ' -f1)"
-psql_db "INSERT INTO generation_jobs (task_id, task_version) VALUES ('probe-object', 1); INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, seed, call_index) SELECT max(id), 5, 'solution', 'tasks/probe/absent.cpp', '$digest', 'probe-model', 'probe-v1', 1, 0 FROM generation_jobs WHERE task_id = 'probe-object';" >/dev/null
+psql_db "INSERT INTO generation_jobs (task_id, task_version) VALUES ('probe-object', 1) ON CONFLICT (task_id, task_version) DO NOTHING; INSERT INTO generation_artefacts (job_id, step, kind, object_key, digest, model_id, prompt_version, seed, call_index) SELECT id, 5, 'solution', 'tasks/probe/absent.cpp', '$digest', 'probe-model', 'probe-v1', 1, 0 FROM generation_jobs WHERE task_id = 'probe-object' AND task_version = 1;" >/dev/null
 artefact="$(psql_db "SELECT max(id) FROM generation_artefacts")"
 psql_db "UPDATE task_field_values SET value = to_jsonb($artefact::bigint) WHERE task_id = 'probe-object' AND field_key = 'solution'" >/dev/null
 [ "$(psql_db "SELECT jsonb_typeof(value) FROM task_field_values WHERE task_id = 'probe-object' AND field_key = 'solution'")" = "number" ] \

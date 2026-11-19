@@ -230,7 +230,7 @@ interface Subtask {
 interface Task {
   id: string;
   version: number;
-  status: "draft" | "verified" | "published" | "rejected";
+  status: "draft" | "published" | "rejected";
   topics: string[];
   technique: string;
   difficulty: number;
@@ -239,7 +239,7 @@ interface Task {
   bounds?: { min_n: number; max_n: number; value_min: number; value_max: number };
   subtasks?: Subtask[];
   testdata?: { manifest: string };
-  verification: { status: string; reference_solution: string; methods: string[] };
+  verification: { reference_solution: string };
 }
 
 /** A subtask's constraint is a typed narrowing of the task's own bounds (ADR 0041), never a sentence. */
@@ -281,8 +281,20 @@ const subtaskFaults = (task: Task): string[] => {
   return faults;
 };
 
+/** ADR 0046 §2 retired the file's verification claim: what ran is the certificate row's evidence, so a file that
+ * still names a status, the methods, or a verification time is refused rather than read as verified. */
+const RETIRED_VERIFICATION_KEYS = new Set(["status", "methods", "verified_at"]);
+
+const retiredClaimFaults = (task: Task): string[] => {
+  const named = Object.keys(task.verification ?? {}).filter((key) => RETIRED_VERIFICATION_KEYS.has(key));
+  if (named.length === 0) return [];
+  return [
+    `verification names ${named.join(", ")}, which ADR 0046 §2 retired: a task's verified state is the certificate row's, so the file cannot say it`,
+  ];
+};
+
 const tasksDir = join(contentDir, "tasks");
-const taskCounts: Record<string, number> = { draft: 0, verified: 0, published: 0, rejected: 0 };
+const taskCounts: Record<string, number> = { draft: 0, published: 0, rejected: 0 };
 let taskCount = 0;
 
 /** A task is reachable when some stage's band contains its difficulty and its topics overlap that stage. */
@@ -313,6 +325,7 @@ if (existsSync(tasksDir)) {
     taskCount += 1;
 
     if (!validateTask(task)) schemaErrors(taskPath, validateTask.errors);
+    for (const fault of retiredClaimFaults(task)) violations.push(`${rel(taskPath)}: ${fault}`);
     for (const fault of subtaskFaults(task)) violations.push(`${rel(taskPath)}: ${fault}`);
 
     for (const topic of task.topics ?? []) {
@@ -342,17 +355,10 @@ if (existsSync(tasksDir)) {
       violations.push(`${rel(taskPath)}: checker ${task.checker.path} missing`);
     }
 
-    // A published task is what a student can be served. That is the one status that must carry
-    // machine evidence, because a task with a wrong expected answer looks exactly like a good one.
-    if (task.status === "published" || task.status === "verified") {
-      if (task.verification?.status !== "verified") {
-        violations.push(`${rel(taskPath)}: status "${task.status}" with verification "${task.verification?.status}"`);
-      }
-      for (const method of ["reference-pass", "bruteforce-differential", "limits-measured"]) {
-        if (!(task.verification?.methods ?? []).includes(method)) {
-          violations.push(`${rel(taskPath)}: verification method "${method}" not recorded`);
-        }
-      }
+    // A published task is what a student can be served. The file cannot say a task is verified (ADR 0046 §2): the
+    // certificate row and the publisher decide that, so the gate proves only that the content the row will certify
+    // is here.
+    if (task.status === "published") {
       if (!task.testdata?.manifest) violations.push(`${rel(taskPath)}: no test data manifest`);
       else if (!existsSync(join(dir, task.testdata.manifest))) {
         violations.push(`${rel(taskPath)}: test data manifest ${task.testdata.manifest} missing`);
@@ -366,7 +372,7 @@ if (existsSync(tasksDir)) {
 // ── verdict ───────────────────────────────────────────────────────────────────────────────────
 const scanned =
   `topics ${vocabulary.size} · tracks ${trackCount} · ` +
-  `stages ${stageCount} · levels ${levelCount} · tasks ${taskCount} (draft ${taskCounts.draft}, verified ${taskCounts.verified}, ` +
+  `stages ${stageCount} · levels ${levelCount} · tasks ${taskCount} (draft ${taskCounts.draft}, ` +
   `published ${taskCounts.published}, rejected ${taskCounts.rejected}) · ` +
   `prereqs ${prereqTagCount} tag(s), ${prereqTagsWithEdges} with edges ` +
   `(${prereqUsacoEdges} usaco-guide, ${prereqAuthoredEdges} authored)`;

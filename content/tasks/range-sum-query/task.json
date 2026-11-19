@@ -14,8 +14,6 @@
   "checker": { "kind": "token" },
   "origin": { "kind": "original" },
   "verification": {
-    "status": "pending",
-    "reference_solution": "solutions/main.cpp",
-    "methods": []
+    "reference_solution": "solutions/main.cpp"
   }
 }

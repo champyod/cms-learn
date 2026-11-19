@@ -3,9 +3,10 @@
 #
 # The order of checks is the point: a task whose certificate row is missing or does not say verified is refused
 # before its cases are read, and a reference that does not reproduce its expected output stops the publish
-# afterwards. The task file's own verification claim is never what decides — the case that says verified while
-# the certificate says failed proves it, because the publish is refused and both sources are named. The artifact
-# is named by the digest of the published bytes, so publishing twice yields one path, not two.
+# afterwards. The task file carries no verification claim any more (ADR 0046 §2): the certificate row is the only
+# source, so the last fixture is deliberately illegal — its manifest still names a claim — and the point is that it
+# publishes anyway on a verified row, because the promoter never reads the file. The artifact is named by the digest
+# of the published bytes, so publishing twice yields one path, not two.
 set -uo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -104,18 +105,13 @@ else
   ok "a refused publish writes no artifact"
 fi
 
-# The file's claim is retired: it says verified here, the row says failed, and the row is what decides. Both
-# sources are named, because a refusal that named one of them would leave the operator guessing which to trust.
-sed -i 's/"status": "pending"/"status": "verified"/' "$work/draft/task.json"
+# The file carries no claim to compare against, so this case is simply a failed certificate over a draft file.
 given_certificate probe-task failed deadbeef
 if "$promoter" "$work/draft" "$work/artifacts" "$reference" >"$work/disagree.out" 2>&1; then
   bad "a file that says verified over a failed certificate is refused" "the promoter published it"
 else
   ok "a file that says verified over a failed certificate is refused"
 fi
-grep -q 'the task file says verification "verified"' "$work/disagree.out" \
-  && ok "the refusal names the file's claim" \
-  || bad "the refusal names the file's claim" "$(cat "$work/disagree.out")"
 grep -q 'the certificate row records "failed"' "$work/disagree.out" \
   && ok "the refusal names the certificate row's outcome" \
   || bad "the refusal names the certificate row's outcome" "$(cat "$work/disagree.out")"
@@ -148,6 +144,26 @@ if "$promoter" "$work/draft" "$work/artifacts" "$reference" >/dev/null 2>&1; the
 else
   ok "an already published task is refused"
 fi
+
+# ADR 0046 §2 retired the file's verification claim, so this fixture is deliberately illegal: its manifest still
+# names one. It publishes anyway on a verified certificate row, because the promoter reads the row and never the file.
+"$generator" --out "$work/claim" --id probe-claim --title-en "Probe" --title-th "ทดสอบ" \
+  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-mb 256 --checker token \
+  --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
+  --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp" \
+  >/dev/null 2>&1 \
+  || { echo "publish gate FAILED: the generator refused the claiming draft" >&2; exit 1; }
+sed -i 's|"verification": { "reference_solution": "solutions/main.cpp" }|"verification": { "status": "verified", "reference_solution": "solutions/main.cpp", "methods": [] }|' "$work/claim/task.json"
+given_task probe-claim
+given_certificate probe-claim verified c0ffee00
+if "$promoter" "$work/claim" "$work/artifacts-claim" "$reference" >"$work/claim.out" 2>&1; then
+  ok "a draft file that still names a claim publishes on a verified row"
+else
+  bad "a draft file that still names a claim publishes on a verified row" "$(cat "$work/claim.out")"
+fi
+grep -q '"status": "published"' "$work/claim/task.json" \
+  && ok "the claiming file is published, and the file's claim decided nothing" \
+  || bad "the claiming file is published, and the file's claim decided nothing" "the status did not change"
 
 # A reference that does not reproduce its expected output stops the publish, even with a verified certificate.
 "$generator" --out "$work/wrong" --id probe-wrong --title-en "Probe" --title-th "ทดสอบ" \

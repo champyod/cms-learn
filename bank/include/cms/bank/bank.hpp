@@ -60,7 +60,6 @@ struct Task {
   std::string checker_kind;
   std::string checker_path;
   std::string origin_kind;
-  std::string verification_status;
   /// The reference solution's text, so the bank is a complete record of what the judge runs.
   std::string solution;
   std::vector<std::string> topics;

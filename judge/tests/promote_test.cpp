@@ -37,18 +37,16 @@ auto read_text(const std::filesystem::path& path) -> std::string {
   return std::string{std::istreambuf_iterator<char>{stream}, std::istreambuf_iterator<char>{}};
 }
 
-/// The manifest the generator writes, with the two fields this case varies: the task's own status, and the claim
-/// its file carries about verification.
-auto manifest_text(std::string_view status, std::string_view verification) -> std::string {
+/// The manifest the generator writes. The file carries no verification claim (ADR 0046 §2): the case varies only the
+/// task's own status, and what a task is verified by is the certificate row.
+auto manifest_text(std::string_view status) -> std::string {
   return std::string{"{\n  \"id\": \""} + std::string{TASK_ID} + "\",\n  \"version\": 1,\n  \"status\": \"" +
          std::string{status} + "\",\n  \"title\": { \"en\": \"Probe\", \"th\": \"ทดสอบ\" },\n" +
-         "  \"verification\": { \"status\": \"" + std::string{verification} +
-         "\", \"reference_solution\": \"solutions/main.cpp\", \"methods\": [] }\n}\n";
+         "  \"verification\": { \"reference_solution\": \"solutions/main.cpp\" }\n}\n";
 }
 
-auto make_task(const std::filesystem::path& task_dir, std::string_view status,
-               std::string_view verification) -> void {
-  write_text(task_dir / "task.json", manifest_text(status, verification));
+auto make_task(const std::filesystem::path& task_dir, std::string_view status) -> void {
+  write_text(task_dir / "task.json", manifest_text(status));
   write_text(task_dir / "examples" / "1.in", CASE_TEXT);
   write_text(task_dir / "examples" / "1.out", CASE_TEXT);
 }
@@ -96,7 +94,7 @@ TEST_CASE("a certificate that says verified publishes the draft", "[promote]") {
   REQUIRE(std::filesystem::exists(COPYING_PROGRAM));
   const auto root = cms::testing::scratch_directory("cms-promote-verified");
   const auto task = root / "tasks" / std::string{TASK_ID};
-  make_task(task, "draft", "pending");
+  make_task(task, "draft");
   const auto artifacts = root / "artifacts";
   const auto reference = root / "bin" / "probe";
   copy_program(COPYING_PROGRAM, reference);
@@ -116,11 +114,11 @@ TEST_CASE("a certificate that says verified publishes the draft", "[promote]") {
   remove_tree(root);
 }
 
-TEST_CASE("a file that says verified and a certificate that says failed is refused, naming both", "[promote]") {
+TEST_CASE("a certificate that records failed is refused, naming the row and the commit", "[promote]") {
   REQUIRE(std::filesystem::exists(COPYING_PROGRAM));
   const auto root = cms::testing::scratch_directory("cms-promote-disagree");
   const auto task = root / "tasks" / std::string{TASK_ID};
-  make_task(task, "draft", "verified");
+  make_task(task, "draft");
   const auto artifacts = root / "artifacts";
   const auto reference = root / "bin" / "probe";
   copy_program(COPYING_PROGRAM, reference);
@@ -131,19 +129,19 @@ TEST_CASE("a file that says verified and a certificate that says failed is refus
 
   REQUIRE(!promoted.has_value());
   const auto& message = promoted.error().message;
-  CHECK(message.find("the task file says verification \"verified\"") != std::string::npos);
   CHECK(message.find("the certificate row records \"failed\"") != std::string::npos);
+  CHECK(message.find("the task file says verification") == std::string::npos);
   CHECK(message.find("deadbeef") != std::string::npos);
   CHECK(!std::filesystem::exists(artifacts));
   CHECK(read_text(task / "task.json").find("\"status\": \"draft\"") != std::string::npos);
   remove_tree(root);
 }
 
-TEST_CASE("the certificate row decides, so a file that still says pending publishes", "[promote]") {
+TEST_CASE("the certificate row decides, so a draft file publishes", "[promote]") {
   REQUIRE(std::filesystem::exists(COPYING_PROGRAM));
   const auto root = cms::testing::scratch_directory("cms-promote-row-wins");
   const auto task = root / "tasks" / std::string{TASK_ID};
-  make_task(task, "draft", "pending");
+  make_task(task, "draft");
   const auto artifacts = root / "artifacts";
   const auto reference = root / "bin" / "probe";
   copy_program(COPYING_PROGRAM, reference);
@@ -161,7 +159,7 @@ TEST_CASE("a task whose certificate row is missing is refused, naming the versio
   REQUIRE(std::filesystem::exists(COPYING_PROGRAM));
   const auto root = cms::testing::scratch_directory("cms-promote-missing-row");
   const auto task = root / "tasks" / std::string{TASK_ID};
-  make_task(task, "draft", "verified");
+  make_task(task, "draft");
   const auto artifacts = root / "artifacts";
   const auto reference = root / "bin" / "probe";
   copy_program(COPYING_PROGRAM, reference);
@@ -179,7 +177,7 @@ TEST_CASE("an already published task is refused before a certificate is read", "
   REQUIRE(std::filesystem::exists(COPYING_PROGRAM));
   const auto root = cms::testing::scratch_directory("cms-promote-published");
   const auto task = root / "tasks" / std::string{TASK_ID};
-  make_task(task, "published", "verified");
+  make_task(task, "published");
   const auto artifacts = root / "artifacts";
   const auto reference = root / "bin" / "probe";
   copy_program(COPYING_PROGRAM, reference);
@@ -198,7 +196,7 @@ TEST_CASE("a certified task whose reference does not reproduce its case is still
   REQUIRE(std::filesystem::exists(COPYING_PROGRAM));
   const auto root = cms::testing::scratch_directory("cms-promote-reference");
   const auto task = root / "tasks" / std::string{TASK_ID};
-  make_task(task, "draft", "verified");
+  make_task(task, "draft");
   write_text(task / "examples" / "1.out", "not what the reference prints\n");
   const auto artifacts = root / "artifacts";
   const auto reference = root / "bin" / "probe";

@@ -155,6 +155,23 @@ export const CONTENT_GATE: Gate = {
       expect: { status: "non-zero" },
     },
     {
+      name: "an old draft that still claims verification",
+      plant: [
+        {
+          kind: "patch",
+          path: RANGE_TASK,
+          find: `"verification": {`,
+          replace: `"verification": { "status": "verified",`,
+        },
+      ],
+      expect: { status: "non-zero", message: "ADR 0046 \u00a72 retired" },
+    },
+    {
+      name: "a task file that still says verified",
+      plant: [{ kind: "json", path: RANGE_TASK, edits: [{ kind: "set", pointer: ["status"], value: "verified" }] }],
+      expect: { status: "non-zero", message: "status" },
+    },
+    {
       name: "a task carrying two real subtasks",
       plant: [
         {
