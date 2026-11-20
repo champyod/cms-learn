@@ -7,6 +7,16 @@
 # that already holds one. A run that selects nothing is a failure, and a case that skips is named in the
 # output rather than counted as a pass.
 #
+# The names are read from Catch2's quiet listing, one name per line, and never from its default text
+# listing, which wraps at a fixed width: a case name longer than that width arrived in two pieces, the ctest
+# regex built from a piece matched nothing, and the gate reported a false red. Two builders answered that
+# false red by shortening the test's name — the builder of task t1 after "ctest matched 42 of 50", and the
+# builder of task t13 after "ctest matched 49 of 51" — which is the wrong repair twice: the harness was
+# wrong, not the name. A case named "a deliberately long case name that a wrapped listing truncates when the
+# reader trusts it" (88 characters) makes the old reading report "ctest matched 1 of 3" for a binary holding
+# two cases; the quiet reading selects both and runs both. The count is still read from the default listing,
+# and a listing that reports a different number of cases than it names is refused rather than trusted.
+#
 # Skips (exit 77) when the PostgreSQL server binaries are not installed.
 set -uo pipefail
 
@@ -68,13 +78,20 @@ while IFS= read -r binary; do
     continue
   fi
   [ "$count" -gt 0 ] || continue
+  # One name per line, unwrapped: the default listing breaks a long name at the terminal width, and a piece of a
+  # name is a regex that matches nothing.
+  names="$("$binary" "[$live_tag]" --list-tests --verbosity quiet 2>&1)"
+  named="$(printf '%s\n' "$names" | sed -n '/./p' | wc -l)"
+  named="${named//[[:space:]]/}"
+  if [ "$named" -ne "$count" ]; then
+    bad "the test binaries list their [$live_tag] cases" \
+      "$(basename "$binary"): the listing reports $count case(s) and names $named"
+    continue
+  fi
   binaries=$((binaries + 1))
-  : >"$work/cases.$binaries"
-  printf '%s\n' "$listing" | sed -n 's/^  \([^ ].*\)$/\1/p' >"$work/cases.$binaries"
+  printf '%s\n' "$names" | sed -n '/./p' >"$work/cases.$binaries"
   printf '%s\n' "$binary" >"$work/binary.$binaries"
-  while IFS= read -r name; do
-    [ -n "$name" ] && selected=$((selected + 1))
-  done <"$work/cases.$binaries"
+  selected=$((selected + named))
 done < <(find "$build" -maxdepth 4 -type f -name 'cms_*_tests' -perm -u+x | sort)
 
 if [ "$selected" -eq 0 ]; then
