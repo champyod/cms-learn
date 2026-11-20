@@ -314,6 +314,31 @@ CREATE TRIGGER tasks_verification_needs_certificate_on_insert
   BEFORE INSERT ON tasks
   FOR EACH ROW EXECUTE FUNCTION task_verification_needs_its_certificate();
 
+CREATE FUNCTION job_done_needs_its_certificate() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NEW.state IS NOT DISTINCT FROM OLD.state OR NEW.state <> 'done' THEN
+    RETURN NEW;
+  END IF;
+  -- The same rule the task side has, on the job's own move: a job is done only when a verified certificate for its task
+  -- and version exists. The pipeline calls it in that order, but the table is where every future caller must pass.
+  IF NOT EXISTS (SELECT 1 FROM generation_certificates c
+                  WHERE c.job_id = NEW.id AND c.task_id = NEW.task_id AND c.task_version = NEW.task_version
+                    AND c.outcome = 'verified') THEN
+    RAISE EXCEPTION 'job % for task % version % has no verified certificate, so it cannot move to done: the certificate is written by cmslearn_certifier, which holds INSERT on generation_certificates',
+      NEW.id, NEW.task_id, NEW.task_version
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER generation_jobs_done_needs_certificate
+  BEFORE UPDATE OF state ON generation_jobs
+  FOR EACH ROW EXECUTE FUNCTION job_done_needs_its_certificate();
+
 -- The certifier is not the generator: it writes the certificate and moves the one column a verification is. It holds
 -- no privilege on a task's content, status or anything the generator writes, and the generator holds none of these.
 GRANT SELECT, INSERT ON generation_certificates TO cmslearn_certifier;

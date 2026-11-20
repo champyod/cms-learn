@@ -10,6 +10,152 @@
 
 namespace cms::db {
 
+struct ModelsAudit_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::true_type;
+  };
+  struct ModelId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(model_id, modelId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Name {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(name, name);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct OldEnabled {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(old_enabled, oldEnabled);
+    using data_type = std::optional<::sqlpp::boolean>;
+    using has_default = std::true_type;
+  };
+  struct NewEnabled {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(new_enabled, newEnabled);
+    using data_type = std::optional<::sqlpp::boolean>;
+    using has_default = std::true_type;
+  };
+  struct OldIsDefault {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(old_is_default, oldIsDefault);
+    using data_type = std::optional<::sqlpp::boolean>;
+    using has_default = std::true_type;
+  };
+  struct NewIsDefault {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(new_is_default, newIsDefault);
+    using data_type = std::optional<::sqlpp::boolean>;
+    using has_default = std::true_type;
+  };
+  struct OldSealedKey {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(old_sealed_key, oldSealedKey);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct NewSealedKey {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(new_sealed_key, newSealedKey);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct ActorKind {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(actor_kind, actorKind);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct ActorId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(actor_id, actorId);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct At {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(at, at);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(models_audit, modelsAudit);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, ModelId, Name, OldEnabled, NewEnabled, OldIsDefault, NewIsDefault, OldSealedKey, NewSealedKey, ActorKind, ActorId, At>;
+  using _required_insert_columns = sqlpp::detail::type_set<ModelId, Name, ActorKind>;
+};
+
+struct Models_ {
+  struct Id {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
+    using data_type = ::sqlpp::text;
+    using has_default = std::true_type;
+  };
+  struct Name {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(name, name);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct BaseUrl {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(base_url, baseUrl);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Protocol {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(protocol, protocol);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct ModelId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(model_id, modelId);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct SealedKey {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(sealed_key, sealedKey);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct Enabled {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(enabled, enabled);
+    using data_type = ::sqlpp::boolean;
+    using has_default = std::true_type;
+  };
+  struct IsDefault {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(is_default, isDefault);
+    using data_type = ::sqlpp::boolean;
+    using has_default = std::true_type;
+  };
+  struct CreatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(created_at, createdAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  struct UpdatedAt {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(updated_at, updatedAt);
+    using data_type = ::sqlpp::timestamp;
+    using has_default = std::true_type;
+  };
+  struct ActorKind {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(actor_kind, actorKind);
+    using data_type = ::sqlpp::text;
+    using has_default = std::false_type;
+  };
+  struct LearnerActorId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(learner_actor_id, learnerActorId);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct AdminActorId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(admin_actor_id, adminActorId);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  struct SystemActorId {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(system_actor_id, systemActorId);
+    using data_type = std::optional<::sqlpp::text>;
+    using has_default = std::true_type;
+  };
+  SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(models, models);
+  template <typename T>
+  using _table_columns =
+      sqlpp::table_columns<T, Id, Name, BaseUrl, Protocol, ModelId, SealedKey, Enabled, IsDefault, CreatedAt, UpdatedAt, ActorKind, LearnerActorId, AdminActorId, SystemActorId>;
+  using _required_insert_columns = sqlpp::detail::type_set<Name, BaseUrl, Protocol, ModelId, SealedKey, ActorKind>;
+};
+
 struct AdminAccounts_ {
   struct Id {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(id, id);
@@ -1765,6 +1911,8 @@ struct Tracks_ {
   using _required_insert_columns = sqlpp::detail::type_set<Id, Position, TitleEn, TitleTh, DescriptionEn, DescriptionTh, ContentHash>;
 };
 
+using ModelsAudit = ::sqlpp::table_t<ModelsAudit_>;
+using Models = ::sqlpp::table_t<Models_>;
 using AdminAccounts = ::sqlpp::table_t<AdminAccounts_>;
 using AdminRoles = ::sqlpp::table_t<AdminRoles_>;
 using AuditEvents = ::sqlpp::table_t<AuditEvents_>;
@@ -1806,6 +1954,8 @@ using Topics = ::sqlpp::table_t<Topics_>;
 using TrackStages = ::sqlpp::table_t<TrackStages_>;
 using Tracks = ::sqlpp::table_t<Tracks_>;
 
+inline const ModelsAudit modelsAudit{};
+inline const Models models{};
 inline const AdminAccounts adminAccounts{};
 inline const AdminRoles adminRoles{};
 inline const AuditEvents auditEvents{};

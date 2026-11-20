@@ -2,11 +2,13 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
+#include <cms/db/connection.hpp>
 #include <cms/error.hpp>
 
 namespace cms::generate {
@@ -40,6 +42,16 @@ class ModelClient {
   [[nodiscard]] virtual Result<Completion> complete(std::string_view prompt) = 0;
 };
 
+/// @brief The model record an operator added and picked (ADR 0055): the endpoint, the protocol shape, the model id and the
+/// sealed key, read from the database rather than from the process environment.
+struct ModelRecord {
+  std::string name;
+  std::string base_url;
+  std::string protocol;
+  std::string model_id;
+  std::string sealed_key;
+};
+
 /// @brief A client that answers from a recorded table, keyed by call order.
 ///
 /// Every step's test runs through this: no network, no credential, and the same recording rules as the live
@@ -66,5 +78,38 @@ class RecordedClient final : public ModelClient {
   std::vector<std::string> prompts_;
   std::int32_t call_index_{0};
 };
+
+/// @brief Reads the effective model record: the enabled default.
+///
+/// @param database The connection the worker already holds.
+/// @return The record, or a refusal that names what an operator has to do — no enabled model record, or a record whose
+/// key this deployment cannot open.
+[[nodiscard]] auto read_effective_model(cms::db::connection& database) -> Result<ModelRecord>;
+
+/// @brief Builds the client the record's protocol names.
+///
+/// The adapter is chosen from the record's own `protocol` value, so a second protocol is a new implementation and a row,
+/// never a pipeline change. A protocol this build has no adapter for is refused by name, before any call is attempted.
+///
+/// @param record The effective record.
+/// @param prompt_version The prompt version the deployment is running (ADR 0015 records it beside every artefact).
+/// @param seed The seed every call of this job uses.
+/// @return The client, or the reason no adapter could be built.
+[[nodiscard]] auto make_model_client(const ModelRecord& record, std::string_view prompt_version, std::int64_t seed)
+    -> Result<std::unique_ptr<ModelClient>>;
+
+/// @brief Builds the OpenAI-compatible chat adapter (generator/src/model_http.cpp).
+///
+/// @param record The effective record; its base address and model id become the request's URL and body fields.
+/// @param key The unsealed key, handed over only by make_model_client.
+/// @param prompt_version The prompt version, recorded beside every call.
+/// @param seed The seed every call of this job uses.
+/// @return The client, or the reason it could not be built.
+[[nodiscard]] auto make_openai_chat_client(const ModelRecord& record, std::string_view key,
+                                           std::string_view prompt_version, std::int64_t seed)
+    -> Result<std::unique_ptr<ModelClient>>;
+
+/// @brief The protocol value this build speaks: an OpenAI-compatible chat completions endpoint.
+inline constexpr std::string_view OPENAI_CHAT_PROTOCOL = "openai_chat";
 
 }  // namespace cms::generate

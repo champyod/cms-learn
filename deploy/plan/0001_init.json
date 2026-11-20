@@ -51,6 +51,12 @@
           "path": "public.locale"
         },
         {
+          "sql": "CREATE TYPE model_protocol AS ENUM (\n    'openai_chat'\n);",
+          "type": "type",
+          "operation": "create",
+          "path": "public.model_protocol"
+        },
+        {
           "sql": "CREATE TYPE principal_status AS ENUM (\n    'pending',\n    'active',\n    'suspended',\n    'closed'\n);",
           "type": "type",
           "operation": "create",
@@ -177,6 +183,12 @@
           "path": "public.level_titles"
         },
         {
+          "sql": "CREATE TABLE IF NOT EXISTS models_audit (\n    id bigint GENERATED ALWAYS AS IDENTITY,\n    model_id uuid NOT NULL,\n    name text NOT NULL,\n    old_enabled boolean,\n    new_enabled boolean,\n    old_is_default boolean,\n    new_is_default boolean,\n    old_sealed_key text,\n    new_sealed_key text,\n    actor_kind account_kind NOT NULL,\n    actor_id uuid,\n    at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT models_audit_pkey PRIMARY KEY (id),\n    CONSTRAINT models_audit_key_sealed CHECK ((old_sealed_key IS NULL OR old_sealed_key LIKE 'sealed:v1:%') AND (new_sealed_key IS NULL OR new_sealed_key LIKE 'sealed:v1:%'))\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.models_audit"
+        },
+        {
           "sql": "CREATE TABLE IF NOT EXISTS roles (\n    id uuid DEFAULT gen_random_uuid(),\n    name text NOT NULL,\n    description text DEFAULT '' NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT roles_pkey PRIMARY KEY (id),\n    CONSTRAINT roles_name_key UNIQUE (name),\n    CONSTRAINT roles_name_check CHECK (name ~ '^[a-z][a-z0-9_]{1,62}$'::text)\n);",
           "type": "table",
           "operation": "create",
@@ -247,6 +259,18 @@
           "type": "table.index",
           "operation": "create",
           "path": "public.elevations.elevations_live_idx"
+        },
+        {
+          "sql": "CREATE TABLE IF NOT EXISTS models (\n    id uuid DEFAULT gen_random_uuid(),\n    name text NOT NULL,\n    base_url text NOT NULL,\n    protocol model_protocol NOT NULL,\n    model_id text NOT NULL,\n    sealed_key text NOT NULL,\n    enabled boolean DEFAULT true NOT NULL,\n    is_default boolean DEFAULT false NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    updated_at timestamptz DEFAULT now() NOT NULL,\n    actor_kind account_kind NOT NULL,\n    learner_actor_id uuid,\n    admin_actor_id uuid,\n    system_actor_id uuid,\n    CONSTRAINT models_pkey PRIMARY KEY (id),\n    CONSTRAINT models_name_key UNIQUE (name),\n    CONSTRAINT models_admin_actor_id_fkey FOREIGN KEY (admin_actor_id) REFERENCES admin_accounts (id),\n    CONSTRAINT models_learner_actor_id_fkey FOREIGN KEY (learner_actor_id) REFERENCES learner_accounts (id),\n    CONSTRAINT models_system_actor_id_fkey FOREIGN KEY (system_actor_id) REFERENCES system_accounts (id),\n    CONSTRAINT models_base_url_shape CHECK (base_url ~ '^https?://[^[:space:]]+$'::text),\n    CONSTRAINT models_key_sealed CHECK (sealed_key LIKE 'sealed:v1:%'),\n    CONSTRAINT models_model_id_shape CHECK (model_id <> ''::text),\n    CONSTRAINT models_name_shape CHECK (name ~ '^[a-z][a-z0-9_-]{0,63}$'::text),\n    CONSTRAINT models_one_actor CHECK (actor_kind = 'learner'::account_kind AND learner_actor_id IS NOT NULL AND admin_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'admin'::account_kind AND admin_actor_id IS NOT NULL AND learner_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'system'::account_kind AND system_actor_id IS NOT NULL AND learner_actor_id IS NULL AND admin_actor_id IS NULL)\n);",
+          "type": "table",
+          "operation": "create",
+          "path": "public.models"
+        },
+        {
+          "sql": "CREATE UNIQUE INDEX IF NOT EXISTS models_one_default ON models (is_default) WHERE (is_default);",
+          "type": "table.index",
+          "operation": "create",
+          "path": "public.models.models_one_default"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS sessions (\n    id uuid DEFAULT gen_random_uuid(),\n    account_kind account_kind NOT NULL,\n    learner_id uuid,\n    admin_id uuid,\n    system_id uuid,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    last_seen_at timestamptz DEFAULT now() NOT NULL,\n    expires_at timestamptz NOT NULL,\n    revoked_at timestamptz,\n    user_agent text,\n    client_address inet,\n    CONSTRAINT sessions_pkey PRIMARY KEY (id),\n    CONSTRAINT sessions_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES admin_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_learner_id_fkey FOREIGN KEY (learner_id) REFERENCES learner_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_system_id_fkey FOREIGN KEY (system_id) REFERENCES system_accounts (id) ON DELETE CASCADE,\n    CONSTRAINT sessions_expiry_after_creation CHECK (expires_at > created_at),\n    CONSTRAINT sessions_one_account CHECK (account_kind = 'learner'::account_kind AND learner_id IS NOT NULL AND admin_id IS NULL AND system_id IS NULL OR account_kind = 'admin'::account_kind AND admin_id IS NOT NULL AND learner_id IS NULL AND system_id IS NULL OR account_kind = 'system'::account_kind AND system_id IS NOT NULL AND learner_id IS NULL AND admin_id IS NULL)\n);",
@@ -531,10 +555,28 @@
           "path": "public.generation_job_moves_forward"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION job_done_needs_its_certificate()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  IF NEW.state IS NOT DISTINCT FROM OLD.state OR NEW.state <> 'done' THEN\n    RETURN NEW;\n  END IF;\n  -- The same rule the task side has, on the job's own move: a job is done only when a verified certificate for its task\n  -- and version exists. The pipeline calls it in that order, but the table is where every future caller must pass.\n  IF NOT EXISTS (SELECT 1 FROM generation_certificates c\n                  WHERE c.job_id = NEW.id AND c.task_id = NEW.task_id AND c.task_version = NEW.task_version\n                    AND c.outcome = 'verified') THEN\n    RAISE EXCEPTION 'job % for task % version % has no verified certificate, so it cannot move to done: the certificate is written by cmslearn_certifier, which holds INSERT on generation_certificates',\n      NEW.id, NEW.task_id, NEW.task_version\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.job_done_needs_its_certificate"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION levels_partition_the_scale()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nAS $$\nDECLARE\n  expected integer := 800;\n  current_min integer;\nBEGIN\n  FOR current_min IN SELECT difficulty_min FROM levels ORDER BY difficulty_min LOOP\n    IF current_min <> expected THEN\n      RAISE EXCEPTION 'level list is not a partition of 800..3500: a band starts at %, expected %',\n        current_min, expected;\n    END IF;\n    expected := (SELECT difficulty_max + 100 FROM levels WHERE difficulty_min = current_min);\n  END LOOP;\n  IF expected - 100 <> 3500 THEN\n    RAISE EXCEPTION 'level list is not a partition of 800..3500: the last band ends at %, expected 3500',\n      expected - 100;\n  END IF;\n  RETURN NULL;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
           "path": "public.levels_partition_the_scale"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION models_record_audit()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nAS $$\nBEGIN\n  IF TG_OP = 'DELETE' THEN\n    INSERT INTO models_audit (model_id, name, old_enabled, new_enabled, old_is_default, new_is_default,\n                              old_sealed_key, new_sealed_key, actor_kind, actor_id)\n    VALUES (OLD.id, OLD.name, OLD.enabled, NULL, OLD.is_default, NULL, OLD.sealed_key, NULL,\n            OLD.actor_kind, COALESCE(OLD.admin_actor_id, OLD.system_actor_id, OLD.learner_actor_id));\n    RETURN OLD;\n  END IF;\n  INSERT INTO models_audit (model_id, name, old_enabled, new_enabled, old_is_default, new_is_default,\n                            old_sealed_key, new_sealed_key, actor_kind, actor_id)\n  VALUES (NEW.id, NEW.name,\n          CASE WHEN TG_OP = 'UPDATE' THEN OLD.enabled END, NEW.enabled,\n          CASE WHEN TG_OP = 'UPDATE' THEN OLD.is_default END, NEW.is_default,\n          CASE WHEN TG_OP = 'UPDATE' THEN OLD.sealed_key END, NEW.sealed_key,\n          NEW.actor_kind, COALESCE(NEW.admin_actor_id, NEW.system_actor_id, NEW.learner_actor_id));\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.models_record_audit"
+        },
+        {
+          "sql": "CREATE OR REPLACE FUNCTION models_stamp()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  actor actor_identity := current_actor();\nBEGIN\n  NEW.updated_at := now();\n  NEW.actor_kind := actor.kind;\n  NEW.learner_actor_id := CASE WHEN actor.kind = 'learner' THEN actor.id END;\n  NEW.admin_actor_id := CASE WHEN actor.kind = 'admin' THEN actor.id END;\n  NEW.system_actor_id := CASE WHEN actor.kind = 'system' THEN actor.id END;\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.models_stamp"
         },
         {
           "sql": "CREATE OR REPLACE FUNCTION reject_mutation()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  RAISE EXCEPTION '% is append-only; % is not permitted', TG_TABLE_NAME, TG_OP\n    USING ERRCODE = 'restrict_violation';\nEND;\n$$;",
@@ -645,6 +687,12 @@
           "path": "public.generation_candidates.generation_candidates_one_decision"
         },
         {
+          "sql": "CREATE OR REPLACE TRIGGER generation_jobs_done_needs_certificate\n    BEFORE UPDATE OF state ON generation_jobs\n    FOR EACH ROW\n    EXECUTE FUNCTION job_done_needs_its_certificate();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.generation_jobs.generation_jobs_done_needs_certificate"
+        },
+        {
           "sql": "CREATE OR REPLACE TRIGGER generation_jobs_move_forward\n    BEFORE UPDATE ON generation_jobs\n    FOR EACH ROW\n    EXECUTE FUNCTION generation_job_moves_forward();",
           "type": "table.trigger",
           "operation": "create",
@@ -655,6 +703,18 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.levels.levels_partition_check"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER models_audit_after_write\n    AFTER INSERT OR UPDATE OR DELETE ON models\n    FOR EACH ROW\n    EXECUTE FUNCTION models_record_audit();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.models.models_audit_after_write"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER models_stamp_before_write\n    BEFORE INSERT OR UPDATE ON models\n    FOR EACH ROW\n    EXECUTE FUNCTION models_stamp();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.models.models_stamp_before_write"
         },
         {
           "sql": "CREATE OR REPLACE TRIGGER settings_audit_append_only\n    BEFORE UPDATE OR DELETE ON settings_audit\n    FOR EACH ROW\n    EXECUTE FUNCTION reject_mutation();",
@@ -811,6 +871,12 @@
           "type": "privilege",
           "operation": "create",
           "path": "privileges.SEQUENCE.learner_accounts_serial_id_seq.cmslearn_app"
+        },
+        {
+          "sql": "GRANT SELECT, USAGE ON SEQUENCE models_audit_id_seq TO cmslearn_app;",
+          "type": "privilege",
+          "operation": "create",
+          "path": "privileges.SEQUENCE.models_audit_id_seq.cmslearn_app"
         },
         {
           "sql": "GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;",

@@ -28,18 +28,9 @@ constexpr int CONFIG_REFUSED = 2;
 /// The worker's model, database and store are the deployment's, so a value that never answers is reported rather than
 /// waited on while a claim sits running.
 constexpr double DATABASE_TIMEOUT_SECONDS = 10.0;
-
-/// The deployment's endpoint cannot be called yet: nothing in this tree turns the configured model id, endpoint and key
-/// into a request, and inventing a vendor's shape would be a decision this binary does not own. The call is refused by
-/// name, so a job the worker claimed ends failed with that reason attached instead of being left running.
-class UnavailableModelClient final : public cms::generate::ModelClient {
- public:
-  auto complete(std::string_view /*prompt*/) -> cms::Result<cms::generate::Completion> override {
-    return std::unexpected(cms::Error::make(
-        cms::ErrorCode::unavailable,
-        "no model client is built, so the deployer's model endpoint cannot be called yet"));
-  }
-};
+/// Every model call of a job shares this seed, and ADR 0015 records it beside each artefact so a completion can be
+/// reproduced. The deployer's seed is not yet a record of its own; when it becomes one, this constant is what it replaces.
+constexpr std::int64_t MODEL_CALL_SEED = 0;
 
 auto fail(std::string_view message) -> int {
   std::fprintf(stderr, "cms-generate: %.*s\n", static_cast<int>(message.size()), message.data());
@@ -111,7 +102,18 @@ auto run(const cms::generate::ModelConfig& config) -> int {
   // The vocabulary and the locale names are content (ADR 0056), read from the root the deployment names, so no
   // language is decided in this binary.
   const auto facts = cms::generate::RunnerFacts{.content_root = std::filesystem::path{config.content_root}};
-  auto model = UnavailableModelClient{};
+  // The model is the operator's record, not the environment: the enabled default is read here, its key opened with the
+  // deployment's key, and the adapter chosen from the record's own protocol. A deployment that edits only the page is
+  // never overridden by a stale environment value, and an empty table is an operator's fix, not a redeploy.
+  const auto record = cms::generate::read_effective_model(connection);
+  if (!record) {
+    return fail(record.error().message);
+  }
+  auto built = cms::generate::make_model_client(*record, config.prompt_version, MODEL_CALL_SEED);
+  if (!built) {
+    return fail(built.error().message);
+  }
+  auto& model = **built;
 
   const auto report = cms::generate::run_pipeline(model, connection, worker_name(), ports, facts);
   if (!report) {

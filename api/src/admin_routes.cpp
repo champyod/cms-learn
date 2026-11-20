@@ -23,6 +23,8 @@
 #include <cms/db/connection.hpp>
 #include <cms/db/field_advice.hpp>
 #include <cms/db/tables.hpp>
+#include <cms/db/transaction.hpp>
+#include <cms/seal.hpp>
 #include <cms/settings_snapshot.hpp>
 
 namespace cms::api {
@@ -403,6 +405,203 @@ auto handle_post(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestP
 
 }  // namespace
 
+// ---- models: a record an operator adds and picks (ADR 0055) ----
+
+constexpr std::string_view MODELS_PATH = "/admin/models";
+constexpr std::string_view MODEL_ADD = "add";
+constexpr std::string_view MODEL_ENABLE = "enable";
+constexpr std::string_view MODEL_DISABLE = "disable";
+constexpr std::string_view MODEL_DEFAULT = "default";
+constexpr std::string_view MODEL_PROTOCOL_OPENAI = "openai_chat";
+
+struct ModelRow {
+  std::string name;
+  std::string base_url;
+  std::string protocol;
+  std::string model_id;
+  bool enabled{false};
+  bool is_default{false};
+};
+
+/// @return Every record, the default first, so the page shows what the worker would read at the top.
+auto read_models(db::connection& database) -> std::vector<ModelRow> {
+  auto rows = std::vector<ModelRow>{};
+  for (const auto& row : database(sqlpp::select(db::models.name, db::models.baseUrl, db::models.protocol,
+                                                db::models.modelId, db::models.enabled, db::models.isDefault)
+                                      .from(db::models)
+                                      .order_by(db::models.isDefault.desc(), db::models.name.asc()))) {
+    rows.push_back(ModelRow{.name = std::string{row.name},
+                            .base_url = std::string{row.baseUrl},
+                            .protocol = std::string{row.protocol},
+                            .model_id = std::string{row.modelId},
+                            .enabled = row.enabled,
+                            .is_default = row.isDefault});
+  }
+  return rows;
+}
+
+/// @brief Writes one operator action, sealing a key the moment a record is added and naming the actor in the session.
+///
+/// The key never leaves this function as plain text: it is sealed by the deployment's key before the row exists, and the
+/// table's own CHECK refuses anything that is not a seal (ADR 0054 §4, ADR 0055).
+auto write_model(const std::shared_ptr<const db::connection_config>& config, std::string_view verb,
+                 const drogon::HttpRequestPtr& request, const Account& account) -> Result<void> {
+  try {
+    auto transaction = cms::db::Transaction{*config->client};
+    auto& database = transaction.connection();
+    database.execute_text("SET LOCAL cms.actor_kind = 'admin'", {});
+    database.execute_text("SET LOCAL cms.actor_id = '" + account.id + "'", {});
+    const auto name = request->getParameter("model");
+    if (verb == MODEL_ADD) {
+      const auto key = request->getParameter("key");
+      const auto sealer = cms::seal::sealer();
+      if (!sealer) {
+        return std::unexpected(sealer.error());
+      }
+      const auto sealed = sealer->seal(key);
+      if (!sealed) {
+        return std::unexpected(sealed.error());
+      }
+      const auto make_default = request->getParameter("is_default") == "true";
+      if (make_default) {
+        database.execute_text("UPDATE models SET is_default = false WHERE is_default", {});
+      }
+      database.execute_text(
+          "INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, actor_kind) "
+          "VALUES ($1, $2, $3, $4, $5, true, $6, 'admin')",
+          {request->getParameter("name"), request->getParameter("base_url"),
+           request->getParameter("protocol"), request->getParameter("model_id"), *sealed, make_default});
+    } else if (verb == MODEL_ENABLE || verb == MODEL_DISABLE) {
+      database.execute_text("UPDATE models SET enabled = $1 WHERE name = $2",
+                            {verb == MODEL_ENABLE, name});
+    } else if (verb == MODEL_DEFAULT) {
+      database.execute_text("UPDATE models SET is_default = false WHERE is_default", {});
+      database.execute_text("UPDATE models SET is_default = true, enabled = true WHERE name = $1", {name});
+    } else {
+      return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                         "the form asked for \"" + std::string{verb} + "\", which is not an action"));
+    }
+    transaction.commit();
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument, error.what()));
+  }
+  return {};
+}
+
+auto models_model(const Locale& locale, std::string_view site_name, const std::vector<ModelRow>& rows,
+                  std::string_view csrf_token, std::string_view notice) -> nlohmann::json {
+  auto data = shell_model(locale, site_name, LevelView{});
+  data["title"] = "Models";
+  data["lede"] = "The model the worker calls: one record is the enabled default.";
+  data["list_title"] = "Records";
+  data["add_title"] = "Add a model";
+  data["name_label"] = "Name";
+  data["address_label"] = "Base address";
+  data["protocol_label"] = "Protocol";
+  data["model_label"] = "Model id";
+  data["key_label"] = "Key";
+  data["key_hint"] = "Stored sealed; it is never shown again.";
+  data["state_label"] = "State";
+  data["enabled_label"] = "enabled";
+  data["disabled_label"] = "disabled";
+  data["default_label"] = "default";
+  data["enable_label"] = "Enable";
+  data["disable_label"] = "Disable";
+  data["pick_label"] = "Make default";
+  data["make_default_label"] = "Make it the default";
+  data["add_label"] = "Add record";
+  data["empty_label"] = "No model record yet: the worker refuses until one exists.";
+  data["action"] = std::string{MODELS_PATH};
+  data["csrf_token"] = std::string{csrf_token};
+  data["has_notice"] = !notice.empty();
+  data["notice"] = std::string{notice};
+  data["has_no_models"] = rows.empty();
+  data["protocols"] = nlohmann::json::array({std::string{MODEL_PROTOCOL_OPENAI}});
+  data["models"] = nlohmann::json::array();
+  for (const auto& row : rows) {
+    data["models"].push_back({{"name", row.name},
+                              {"base_url", row.base_url},
+                              {"protocol", row.protocol},
+                              {"model_id", row.model_id},
+                              {"enabled", row.enabled},
+                              {"is_default", row.is_default}});
+  }
+  return data;
+}
+
+auto handle_models(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
+                   Callback&& callback) -> void {
+  if (!is_panel_listener(request, panel->panel_port)) {
+    callback(text_response(std::string{NO_PAGE_BODY}, drogon::k404NotFound));
+    return;
+  }
+  auto database = db::connection{panel->database_config};
+  const auto session_id = request->getCookie(std::string{SESSION_COOKIE});
+  const auto account = account_of_session(database, session_id);
+  if (!account) {
+    callback(text_response(account.error().message, drogon::k500InternalServerError));
+    return;
+  }
+  if (account->empty()) {
+    callback(redirect(SIGN_IN_PATH));
+    return;
+  }
+  if (account->kind != ADMIN_KIND) {
+    callback(text_response(std::string{ADMIN_ONLY_BODY}, drogon::k403Forbidden));
+    return;
+  }
+  const auto permitted = authorize(database, account->kind, account->id, Capability::settings_read);
+  if (!permitted) {
+    callback(text_response(permitted.error().message, status_of(permitted.error().code)));
+    return;
+  }
+  const auto locale = choose_locale(request->getParameter("lang"), request->getHeader("accept-language"));
+  const auto page = render_page(panel->template_root, "admin_models.html",
+                                models_model(locale, site_name_of(*panel->store), read_models(database),
+                                             panel->tokens->token_for(session_id),
+                                             request->getParameter(std::string{DONE_PARAMETER})));
+  if (!page) {
+    callback(text_response(std::string{INTERNAL_ERROR_BODY}, drogon::k500InternalServerError));
+    return;
+  }
+  callback(html_response(*page));
+}
+
+auto handle_models_post(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
+                        Callback&& callback) -> void {
+  if (!is_panel_listener(request, panel->panel_port)) {
+    callback(text_response(std::string{NO_PAGE_BODY}, drogon::k404NotFound));
+    return;
+  }
+  auto database = db::connection{panel->database_config};
+  const auto session_id = request->getCookie(std::string{SESSION_COOKIE});
+  const auto account = account_of_session(database, session_id);
+  if (!account) {
+    callback(text_response(account.error().message, drogon::k500InternalServerError));
+    return;
+  }
+  if (account->empty()) {
+    callback(redirect(SIGN_IN_PATH));
+    return;
+  }
+  if (!panel->tokens->is_token_for(session_id, request->getParameter(std::string{CSRF_FIELD}))) {
+    callback(text_response(std::string{CSRF_REFUSED_BODY}, drogon::k403Forbidden));
+    return;
+  }
+  const auto permitted = authorize(database, account->kind, account->id, Capability::settings_write);
+  if (!permitted) {
+    callback(text_response(permitted.error().message, status_of(permitted.error().code)));
+    return;
+  }
+  const auto written = write_model(panel->database_config, request->getParameter("verb"), request, *account);
+  if (!written) {
+    callback(text_response(written.error().message, status_of(written.error().code)));
+    return;
+  }
+  callback(redirect(MODELS_PATH));
+}
+
+
 auto register_admin_routes(const std::shared_ptr<const db::connection_config>& database_config,
                            const std::shared_ptr<SettingsStore>& store,
                            std::string_view template_root, std::uint16_t panel_port,
@@ -443,6 +642,18 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
   post("/admin/grant-role", PanelAction::grant_role);
   post("/admin/tasks/new", PanelAction::save_task_draft);
   app.registerHandler(
+      std::string{MODELS_PATH},
+      [panel](const drogon::HttpRequestPtr& request, Callback&& callback) {
+        handle_models(panel, request, std::move(callback));
+      },
+      {drogon::Get});
+  app.registerHandler(
+      std::string{MODELS_PATH},
+      [panel](const drogon::HttpRequestPtr& request, Callback&& callback) {
+        handle_models_post(panel, request, std::move(callback));
+      },
+      {drogon::Post});
+  app.registerHandler(
       "/admin/tasks/{}/field/{}",
       [panel](const drogon::HttpRequestPtr& request, Callback&& callback,
               const std::string& task_id, const std::string& field_key) {
@@ -452,3 +663,4 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
 }
 
 }  // namespace cms::api
+

@@ -34,6 +34,24 @@ CREATE TABLE models (
   )
 );
 
+-- The actor columns and the timestamp come from the session the write runs in, the way every other audited table gets
+-- them: a writer names who it is, and the trigger is what puts that into the row (settings_stamp is the same shape).
+CREATE FUNCTION models_stamp() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  actor actor_identity := current_actor();
+BEGIN
+  NEW.updated_at := now();
+  NEW.actor_kind := actor.kind;
+  NEW.learner_actor_id := CASE WHEN actor.kind = 'learner' THEN actor.id END;
+  NEW.admin_actor_id := CASE WHEN actor.kind = 'admin' THEN actor.id END;
+  NEW.system_actor_id := CASE WHEN actor.kind = 'system' THEN actor.id END;
+  RETURN NEW;
+END;
+$$;
+
 -- At most one model is the default. A partial unique index is the record's own rule rather than a convention the page
 -- keeps: two defaults would make "the effective model" answer differently to two readers of the same database.
 CREATE UNIQUE INDEX models_one_default ON models (is_default) WHERE is_default;
@@ -82,6 +100,6 @@ CREATE TRIGGER models_audit_after_write
   AFTER INSERT OR UPDATE OR DELETE ON models
   FOR EACH ROW EXECUTE FUNCTION models_record_audit();
 
-CREATE TRIGGER models_touch_updated_at
-  BEFORE UPDATE ON models
-  FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
+CREATE TRIGGER models_stamp_before_write
+  BEFORE INSERT OR UPDATE ON models
+  FOR EACH ROW EXECUTE FUNCTION models_stamp();

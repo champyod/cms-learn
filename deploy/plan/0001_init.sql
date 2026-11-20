@@ -48,6 +48,10 @@ CREATE TYPE locale AS ENUM (
     'th'
 );
 
+CREATE TYPE model_protocol AS ENUM (
+    'openai_chat'
+);
+
 CREATE TYPE principal_status AS ENUM (
     'pending',
     'active',
@@ -208,6 +212,23 @@ CREATE TABLE IF NOT EXISTS level_titles (
     CONSTRAINT level_titles_title_check CHECK (length(btrim(title)) > 0)
 );
 
+CREATE TABLE IF NOT EXISTS models_audit (
+    id bigint GENERATED ALWAYS AS IDENTITY,
+    model_id uuid NOT NULL,
+    name text NOT NULL,
+    old_enabled boolean,
+    new_enabled boolean,
+    old_is_default boolean,
+    new_is_default boolean,
+    old_sealed_key text,
+    new_sealed_key text,
+    actor_kind account_kind NOT NULL,
+    actor_id uuid,
+    at timestamptz DEFAULT now() NOT NULL,
+    CONSTRAINT models_audit_pkey PRIMARY KEY (id),
+    CONSTRAINT models_audit_key_sealed CHECK ((old_sealed_key IS NULL OR old_sealed_key LIKE 'sealed:v1:%') AND (new_sealed_key IS NULL OR new_sealed_key LIKE 'sealed:v1:%'))
+);
+
 CREATE TABLE IF NOT EXISTS roles (
     id uuid DEFAULT gen_random_uuid(),
     name text NOT NULL,
@@ -332,6 +353,35 @@ CREATE TABLE IF NOT EXISTS elevations (
 );
 
 CREATE INDEX IF NOT EXISTS elevations_live_idx ON elevations (admin_id, capability, expires_at) WHERE (consumed_at IS NULL);
+
+CREATE TABLE IF NOT EXISTS models (
+    id uuid DEFAULT gen_random_uuid(),
+    name text NOT NULL,
+    base_url text NOT NULL,
+    protocol model_protocol NOT NULL,
+    model_id text NOT NULL,
+    sealed_key text NOT NULL,
+    enabled boolean DEFAULT true NOT NULL,
+    is_default boolean DEFAULT false NOT NULL,
+    created_at timestamptz DEFAULT now() NOT NULL,
+    updated_at timestamptz DEFAULT now() NOT NULL,
+    actor_kind account_kind NOT NULL,
+    learner_actor_id uuid,
+    admin_actor_id uuid,
+    system_actor_id uuid,
+    CONSTRAINT models_pkey PRIMARY KEY (id),
+    CONSTRAINT models_name_key UNIQUE (name),
+    CONSTRAINT models_admin_actor_id_fkey FOREIGN KEY (admin_actor_id) REFERENCES admin_accounts (id),
+    CONSTRAINT models_learner_actor_id_fkey FOREIGN KEY (learner_actor_id) REFERENCES learner_accounts (id),
+    CONSTRAINT models_system_actor_id_fkey FOREIGN KEY (system_actor_id) REFERENCES system_accounts (id),
+    CONSTRAINT models_base_url_shape CHECK (base_url ~ '^https?://[^[:space:]]+$'::text),
+    CONSTRAINT models_key_sealed CHECK (sealed_key LIKE 'sealed:v1:%'),
+    CONSTRAINT models_model_id_shape CHECK (model_id <> ''::text),
+    CONSTRAINT models_name_shape CHECK (name ~ '^[a-z][a-z0-9_-]{0,63}$'::text),
+    CONSTRAINT models_one_actor CHECK (actor_kind = 'learner'::account_kind AND learner_actor_id IS NOT NULL AND admin_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'admin'::account_kind AND admin_actor_id IS NOT NULL AND learner_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'system'::account_kind AND system_actor_id IS NOT NULL AND learner_actor_id IS NULL AND admin_actor_id IS NULL)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS models_one_default ON models (is_default) WHERE (is_default);
 
 CREATE TABLE IF NOT EXISTS sessions (
     id uuid DEFAULT gen_random_uuid(),
@@ -924,6 +974,29 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION job_done_needs_its_certificate()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NEW.state IS NOT DISTINCT FROM OLD.state OR NEW.state <> 'done' THEN
+    RETURN NEW;
+  END IF;
+  -- The same rule the task side has, on the job's own move: a job is done only when a verified certificate for its task
+  -- and version exists. The pipeline calls it in that order, but the table is where every future caller must pass.
+  IF NOT EXISTS (SELECT 1 FROM generation_certificates c
+                  WHERE c.job_id = NEW.id AND c.task_id = NEW.task_id AND c.task_version = NEW.task_version
+                    AND c.outcome = 'verified') THEN
+    RAISE EXCEPTION 'job % for task % version % has no verified certificate, so it cannot move to done: the certificate is written by cmslearn_certifier, which holds INSERT on generation_certificates',
+      NEW.id, NEW.task_id, NEW.task_version
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION levels_partition_the_scale()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -945,6 +1018,48 @@ BEGIN
       expected - 100;
   END IF;
   RETURN NULL;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION models_record_audit()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    INSERT INTO models_audit (model_id, name, old_enabled, new_enabled, old_is_default, new_is_default,
+                              old_sealed_key, new_sealed_key, actor_kind, actor_id)
+    VALUES (OLD.id, OLD.name, OLD.enabled, NULL, OLD.is_default, NULL, OLD.sealed_key, NULL,
+            OLD.actor_kind, COALESCE(OLD.admin_actor_id, OLD.system_actor_id, OLD.learner_actor_id));
+    RETURN OLD;
+  END IF;
+  INSERT INTO models_audit (model_id, name, old_enabled, new_enabled, old_is_default, new_is_default,
+                            old_sealed_key, new_sealed_key, actor_kind, actor_id)
+  VALUES (NEW.id, NEW.name,
+          CASE WHEN TG_OP = 'UPDATE' THEN OLD.enabled END, NEW.enabled,
+          CASE WHEN TG_OP = 'UPDATE' THEN OLD.is_default END, NEW.is_default,
+          CASE WHEN TG_OP = 'UPDATE' THEN OLD.sealed_key END, NEW.sealed_key,
+          NEW.actor_kind, COALESCE(NEW.admin_actor_id, NEW.system_actor_id, NEW.learner_actor_id));
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION models_stamp()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+DECLARE
+  actor actor_identity := current_actor();
+BEGIN
+  NEW.updated_at := now();
+  NEW.actor_kind := actor.kind;
+  NEW.learner_actor_id := CASE WHEN actor.kind = 'learner' THEN actor.id END;
+  NEW.admin_actor_id := CASE WHEN actor.kind = 'admin' THEN actor.id END;
+  NEW.system_actor_id := CASE WHEN actor.kind = 'system' THEN actor.id END;
+  RETURN NEW;
 END;
 $$;
 
@@ -1377,6 +1492,11 @@ CREATE CONSTRAINT TRIGGER generation_candidates_one_decision
     FOR EACH ROW
     EXECUTE FUNCTION generation_candidates_are_one_decision();
 
+CREATE OR REPLACE TRIGGER generation_jobs_done_needs_certificate
+    BEFORE UPDATE OF state ON generation_jobs
+    FOR EACH ROW
+    EXECUTE FUNCTION job_done_needs_its_certificate();
+
 CREATE OR REPLACE TRIGGER generation_jobs_move_forward
     BEFORE UPDATE ON generation_jobs
     FOR EACH ROW
@@ -1387,6 +1507,16 @@ CREATE CONSTRAINT TRIGGER levels_partition_check
     DEFERRABLE INITIALLY DEFERRED
     FOR EACH ROW
     EXECUTE FUNCTION levels_partition_the_scale();
+
+CREATE OR REPLACE TRIGGER models_audit_after_write
+    AFTER INSERT OR UPDATE OR DELETE ON models
+    FOR EACH ROW
+    EXECUTE FUNCTION models_record_audit();
+
+CREATE OR REPLACE TRIGGER models_stamp_before_write
+    BEFORE INSERT OR UPDATE ON models
+    FOR EACH ROW
+    EXECUTE FUNCTION models_stamp();
 
 CREATE OR REPLACE TRIGGER settings_audit_append_only
     BEFORE UPDATE OR DELETE ON settings_audit
@@ -1489,6 +1619,8 @@ GRANT SELECT, USAGE ON SEQUENCE generation_certificates_id_seq TO cmslearn_app;
 GRANT SELECT, USAGE ON SEQUENCE generation_jobs_id_seq TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE learner_accounts_serial_id_seq TO cmslearn_app;
+
+GRANT SELECT, USAGE ON SEQUENCE models_audit_id_seq TO cmslearn_app;
 
 GRANT SELECT, USAGE ON SEQUENCE progress_id_seq TO cmslearn_app;
 

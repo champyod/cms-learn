@@ -1,13 +1,17 @@
 // The model interface and its recorded stub: every step's test runs through these, with no network and no
 // credential, and every artefact must carry the call it came from (model id, prompt version, seed, call index).
 
+#include "live_database.hpp"
+
 #include <cms/generate/config.hpp>
 #include <cms/generate/model.hpp>
+#include <cms/seal.hpp>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace {
@@ -86,4 +90,146 @@ TEST_CASE("the worker's configuration names every missing key and no value", "[g
   CHECK(complete->content_root == "/content");
   CHECK(complete->certifier_database_url == "postgres://certifier");
   CHECK(complete->commit_id == "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678");
+}
+
+namespace {
+
+constexpr auto TEST_SEAL_KEY = std::string_view{"0123456789abcdef0123456789abcdef"};
+constexpr auto OTHER_SEAL_KEY = std::string_view{"fedcba9876543210fedcba9876543210"};
+
+/// @return @p plaintext sealed with @p key, the way the page writes it.
+auto sealed(std::string_view key, std::string_view plaintext) -> std::string {
+  const auto sealer = cms::seal::Sealer::from_key(key);
+  REQUIRE(sealer.has_value());
+  const auto value = sealer->seal(plaintext);
+  REQUIRE(value.has_value());
+  return *value;
+}
+
+/// The stamp trigger reads the actor from the session, the same way every settings write does. One system account and one
+/// session-scoped pair, set once per connection this test opens.
+void given_system_actor(cms::db::connection& database) {
+  database.execute_text("INSERT INTO system_accounts (id, handle) VALUES ('00000000-0000-4000-8000-000000000022', "
+                        "'system:model-test') ON CONFLICT DO NOTHING", {});
+  database.execute_text("SET cms.actor_kind = 'system'", {});
+  database.execute_text("SET cms.actor_id = '00000000-0000-4000-8000-000000000022'", {});
+}
+
+void clear_models(cms::db::connection& database) {
+  database.execute_text("DELETE FROM models", {});
+}
+
+}  // namespace
+
+TEST_CASE("the effective model record is the enabled default, and a second record replaces it when picked", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
+  auto database = cms::generate::test::live_database();
+  given_system_actor(database);
+  clear_models(database);
+  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
+                        "actor_kind) VALUES ('first', 'https://model.invalid/v1', 'openai_chat', 'm-1', $1, true, true, "
+                        "'system')",
+                        {sealed(TEST_SEAL_KEY, "first-key")});
+
+  const auto first = cms::generate::read_effective_model(database);
+  REQUIRE(first.has_value());
+  CHECK(first->name == "first");
+  CHECK(first->model_id == "m-1");
+
+  // A second record, and the operator picks it: the worker now reads it without a code change.
+  database.execute_text("UPDATE models SET is_default = false WHERE name = 'first'", {});
+  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
+                        "actor_kind) VALUES ('second', 'https://other.invalid/v1', 'openai_chat', 'm-2', $1, true, true, "
+                        "'system')",
+                        {sealed(TEST_SEAL_KEY, "second-key")});
+
+  const auto second = cms::generate::read_effective_model(database);
+  REQUIRE(second.has_value());
+  CHECK(second->name == "second");
+  CHECK(second->model_id == "m-2");
+  CHECK(second->base_url == "https://other.invalid/v1");
+
+  // The client the second record builds is the one its protocol names, and it carries the record's model id.
+  const auto client = cms::generate::make_model_client(*second, "prompt-v1", 7);
+  REQUIRE(client.has_value());
+  clear_models(database);
+}
+
+TEST_CASE("a second default is refused by the record itself", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
+  auto database = cms::generate::test::live_database();
+  given_system_actor(database);
+  clear_models(database);
+  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
+                        "actor_kind) VALUES ('only', 'https://model.invalid/v1', 'openai_chat', 'm', $1, true, true, "
+                        "'system')",
+                        {sealed(TEST_SEAL_KEY, "key")});
+  auto refused = std::string{};
+  try {
+    database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
+                          "actor_kind) VALUES ('clash', 'https://model.invalid/v1', 'openai_chat', 'm', $1, true, "
+                          "true, 'system')",
+                          {sealed(TEST_SEAL_KEY, "key")});
+  } catch (const std::exception& error) {
+    refused = error.what();
+  }
+  CHECK(refused.find("models_one_default") != std::string::npos);
+  clear_models(database);
+}
+
+TEST_CASE("an empty table is refused by name, and so is a protocol this build has no adapter for", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
+  auto database = cms::generate::test::live_database();
+  given_system_actor(database);
+  clear_models(database);
+
+  const auto none = cms::generate::read_effective_model(database);
+  REQUIRE(!none.has_value());
+  CHECK(none.error().message.find("no enabled model record") != std::string::npos);
+  CHECK(none.error().code == cms::ErrorCode::not_found);
+
+  // A record whose protocol has no adapter is refused before a call is attempted, and the refusal names the protocol
+  // and the record, never the key.
+  const auto stranger = cms::generate::ModelRecord{.name = "stranger",
+                                                   .base_url = "https://model.invalid/v1",
+                                                   .protocol = "anthropic_messages",
+                                                   .model_id = "m",
+                                                   .sealed_key = sealed(TEST_SEAL_KEY, "the-key")};
+  const auto client = cms::generate::make_model_client(stranger, "prompt-v1", 1);
+  REQUIRE(!client.has_value());
+  CHECK(client.error().message.find("anthropic_messages") != std::string::npos);
+  CHECK(client.error().message.find("no adapter") != std::string::npos);
+  CHECK(client.error().message.find("the-key") == std::string::npos);
+}
+
+TEST_CASE("a record sealed with another deployment's key is refused by name", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
+  auto database = cms::generate::test::live_database();
+  given_system_actor(database);
+  clear_models(database);
+  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
+                        "actor_kind) VALUES ('foreign', 'https://model.invalid/v1', 'openai_chat', 'm', $1, true, true, "
+                        "'system')",
+                        {sealed(OTHER_SEAL_KEY, "not-our-key")});
+
+  const auto record = cms::generate::read_effective_model(database);
+  REQUIRE(record.has_value());
+  const auto client = cms::generate::make_model_client(*record, "prompt-v1", 1);
+  REQUIRE(!client.has_value());
+  CHECK(client.error().message.find("foreign") != std::string::npos);
+  CHECK(client.error().message.find("cannot be opened") != std::string::npos);
+  CHECK(client.error().message.find("not-our-key") == std::string::npos);
+  clear_models(database);
 }

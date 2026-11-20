@@ -5,6 +5,7 @@
 \i authority.sql
 \i tokens.sql
 \i audit.sql
+\i model.sql
 \i settings.sql
 \i settings_functions.sql
 \i settings_triggers.sql
