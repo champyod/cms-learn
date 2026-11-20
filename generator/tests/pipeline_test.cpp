@@ -53,6 +53,7 @@ constexpr auto WORKER = "worker-probe";
 constexpr std::string_view COMMIT = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
 /// The task's own limits, equal to what step 3 derives from O(n log n) at the task's bound: the certifier refuses a
 /// specification whose derived limits are not the task's, so the fixture states them where the task row carries them.
+/// The task's declared limits, which step 3 derives and the certifier's half-limit margin is measured against (ADR 0048).
 constexpr std::int64_t TASK_TIME_MS = 100;
 constexpr std::int64_t TASK_MEMORY_MB = 16;
 
@@ -353,22 +354,41 @@ auto sealed(std::string_view plaintext) -> std::string {
 auto write_model_record(cms::db::connection& database, std::string_view name, std::string_view base_url,
                         std::string_view model_id, std::string_view sealed_key, bool enabled = true,
                         bool is_default = true) -> void {
+  // One transaction, so the actor the stamp trigger reads is set on the same connection the insert runs on: the pool
+  // hands a different connection per statement otherwise.
   database.execute_text("INSERT INTO system_accounts (id, handle) VALUES "
                         "('00000000-0000-4000-8000-000000000033', 'system:pipeline-model') ON CONFLICT DO NOTHING",
                         {});
-  database.execute_text("SET cms.actor_kind = 'system'", {});
-  database.execute_text("SET cms.actor_id = '00000000-0000-4000-8000-000000000033'", {});
-  database.execute_text("DELETE FROM models", {});
-  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
-                        "actor_kind) VALUES ($1, $2, 'openai_chat', $3, $4, $5, $6, 'system')",
-                        {std::string{name}, std::string{base_url}, std::string{model_id}, std::string{sealed_key},
-                         enabled, is_default});
+  auto transaction = cms::db::Transaction{*cms::generate::test::live_client()};
+  auto& connection = transaction.connection();
+  connection.execute_text("SET LOCAL cms.actor_kind = 'system'", {});
+  connection.execute_text("SET LOCAL cms.actor_id = '00000000-0000-4000-8000-000000000033'", {});
+  connection.execute_text("DELETE FROM models", {});
+  connection.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
+                          "actor_kind) VALUES ($1, $2, 'openai_chat', $3, $4, $5, $6, 'system')",
+                          {std::string{name}, std::string{base_url}, std::string{model_id}, std::string{sealed_key},
+                           enabled, is_default});
+  transaction.commit();
 }
 
 SQLPP_CREATE_NAME_TAG(certificate_rows);
+SQLPP_CREATE_NAME_TAG(certificate_checks);
 
 using certificate_row = ::sqlpp::result_row_t<::sqlpp::field_spec_t<certificate_rows_t::_sqlpp_name_tag,
                                                                    ::sqlpp::integral>>;
+
+/// @return The checks the job's newest certificate recorded, so a failed whole run can say which margin it broke.
+auto checks_of(cms::db::connection& database, std::int64_t job_id) -> std::vector<std::string> {
+  auto checks = std::vector<std::string>{};
+  using checks_row = ::sqlpp::result_row_t<::sqlpp::field_spec_t<certificate_checks_t::_sqlpp_name_tag, ::sqlpp::text>>;
+  auto rows = ::sqlpp::result_t<cms::db::result, checks_row>{database.query_text(
+      "SELECT checks::text AS certificate_checks FROM generation_certificates WHERE job_id = $1 "
+      "ORDER BY id DESC LIMIT 1", {job_id})};
+  for (const auto& row : rows) {
+    checks.emplace_back(row.certificate_checks);
+  }
+  return checks;
+}
 
 auto certificates_of(cms::db::connection& database, std::int64_t job_id) -> std::int64_t {
   auto rows = ::sqlpp::result_t<cms::db::result, certificate_row>{database.query_text(
@@ -843,6 +863,14 @@ TEST_CASE("the binary's path drives a queued job to done through a real certific
     UNSCOPED_INFO(report.error().message);
   }
   REQUIRE(report.has_value());
+  if (report->state != "done") {
+    // A failure here is a certificate that refused, and its checks say which margin it broke: print them, because a bare
+    // "not done" under a loaded machine says nothing about whether the product or the harness was tight.
+    for (const auto& check : checks_of(database, job)) {
+      UNSCOPED_INFO("the certificate said: " + check);
+    }
+    UNSCOPED_INFO("refusals: " + std::to_string(refusals_of(database, job).size()));
+  }
   CHECK(report->state == "done");
   CHECK(report->steps.size() == 7);
 

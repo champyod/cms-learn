@@ -5,6 +5,7 @@
 
 #include <cms/generate/config.hpp>
 #include <cms/generate/model.hpp>
+#include <cms/db/transaction.hpp>
 #include <cms/seal.hpp>
 
 #include <catch2/catch_test_macros.hpp>
@@ -57,25 +58,26 @@ TEST_CASE("the worker's configuration names every missing key and no value", "[g
   const auto nothing = cms::generate::read_model_config(lookup_from({}));
   REQUIRE(!nothing.has_value());
   const auto& message = nothing.error().message;
-  CHECK(message.find("CMSLEARN_MODEL_ENDPOINT") != std::string::npos);
-  CHECK(message.find("CMSLEARN_MODEL_ID") != std::string::npos);
-  CHECK(message.find("CMSLEARN_MODEL_KEY") != std::string::npos);
-  CHECK(message.find("CMSLEARN_MODEL_PROMPT_VERSION") != std::string::npos);
+  // The model is the operator's record, so no environment key names it: the refusal lists what this binary actually
+  // needs, and an operator's first instruction is the page, not an export.
+  CHECK(message.find("CMSLEARN_MODEL_ENDPOINT") == std::string::npos);
+  CHECK(message.find("CMSLEARN_MODEL_ID") == std::string::npos);
+  CHECK(message.find("CMSLEARN_MODEL_KEY") == std::string::npos);
+  CHECK(message.find("CMSLEARN_MODEL_PROMPT_VERSION") == std::string::npos);
   CHECK(message.find("CMSLEARN_DATABASE_URL") != std::string::npos);
+  CHECK(message.find("CMSLEARN_CERTIFIER_DATABASE_URL") != std::string::npos);
+  CHECK(message.find("CMSLEARN_CONTENT_ROOT") != std::string::npos);
+  CHECK(message.find("CMSLEARN_COMMIT") != std::string::npos);
 
   const auto partial = cms::generate::read_model_config(
-      lookup_from({{"CMSLEARN_MODEL_ENDPOINT", "https://model.example.invalid"},
-                   {"CMSLEARN_MODEL_KEY", "secret-that-must-not-appear"}}));
+      lookup_from({{"CMSLEARN_DATABASE_URL", "postgres://x"},
+                   {"CMSLEARN_S3_SECRET_ACCESS_KEY", "secret-that-must-not-appear"}}));
   REQUIRE(!partial.has_value());
-  CHECK(partial.error().message.find("CMSLEARN_MODEL_ID") != std::string::npos);
+  CHECK(partial.error().message.find("CMSLEARN_CERTIFIER_DATABASE_URL") != std::string::npos);
   CHECK(partial.error().message.find("secret-that-must-not-appear") == std::string::npos);
 
   const auto complete = cms::generate::read_model_config(
-      lookup_from({{"CMSLEARN_MODEL_ENDPOINT", "https://model.example.invalid"},
-                   {"CMSLEARN_MODEL_ID", "m"},
-                   {"CMSLEARN_MODEL_KEY", "k"},
-                   {"CMSLEARN_MODEL_PROMPT_VERSION", "v1"},
-                   {"CMSLEARN_DATABASE_URL", "postgres://x"},
+      lookup_from({{"CMSLEARN_DATABASE_URL", "postgres://x"},
                    {"CMSLEARN_CERTIFIER_DATABASE_URL", "postgres://certifier"},
                    {"CMSLEARN_S3_ENDPOINT", "https://store.example.invalid"},
                    {"CMSLEARN_S3_REGION", "us-east-1"},
@@ -85,7 +87,6 @@ TEST_CASE("the worker's configuration names every missing key and no value", "[g
                    {"CMSLEARN_CONTENT_ROOT", "/content"},
                    {"CMSLEARN_COMMIT", "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"}}));
   REQUIRE(complete.has_value());
-  CHECK(complete->model_id == "m");
   CHECK(complete->store_bucket == "b");
   CHECK(complete->content_root == "/content");
   CHECK(complete->certifier_database_url == "postgres://certifier");
@@ -106,17 +107,42 @@ auto sealed(std::string_view key, std::string_view plaintext) -> std::string {
   return *value;
 }
 
-/// The stamp trigger reads the actor from the session, the same way every settings write does. One system account and one
-/// session-scoped pair, set once per connection this test opens.
-void given_system_actor(cms::db::connection& database) {
-  database.execute_text("INSERT INTO system_accounts (id, handle) VALUES ('00000000-0000-4000-8000-000000000022', "
-                        "'system:model-test') ON CONFLICT DO NOTHING", {});
-  database.execute_text("SET cms.actor_kind = 'system'", {});
-  database.execute_text("SET cms.actor_id = '00000000-0000-4000-8000-000000000022'", {});
+/// @brief Writes one model record with the actor the stamp trigger reads set on the same connection that inserts.
+///
+/// The pool hands a different connection per statement, so a session-level SET here would land somewhere else and the
+/// trigger would refuse the insert; one transaction keeps both on one connection, which is also what makes a case that
+/// runs alone behave the way it does in company.
+/// @brief Runs one statement with the actor set on the connection that runs it, the way every audited table needs.
+void run_as_system(std::string_view statement, std::vector<cms::db::bound_value> parameters = {}) {
+  auto transaction = cms::db::Transaction{*cms::generate::test::live_client()};
+  auto& connection = transaction.connection();
+  connection.execute_text("INSERT INTO system_accounts (id, handle) VALUES "
+                          "('00000000-0000-4000-8000-000000000022', 'system:model-test') ON CONFLICT DO NOTHING",
+                          {});
+  connection.execute_text("SET LOCAL cms.actor_kind = 'system'", {});
+  connection.execute_text("SET LOCAL cms.actor_id = '00000000-0000-4000-8000-000000000022'", {});
+  connection.execute_text(std::string{statement}, std::move(parameters));
+  transaction.commit();
 }
 
-void clear_models(cms::db::connection& database) {
-  database.execute_text("DELETE FROM models", {});
+void write_model(std::string_view name, std::string_view protocol, std::string_view model_id,
+                 std::string_view sealed_key, bool enabled, bool is_default, bool clear = true,
+                 std::string_view base_url = "https://model.invalid/v1") {
+  auto transaction = cms::db::Transaction{*cms::generate::test::live_client()};
+  auto& connection = transaction.connection();
+  connection.execute_text("INSERT INTO system_accounts (id, handle) VALUES "
+                          "('00000000-0000-4000-8000-000000000022', 'system:model-test') ON CONFLICT DO NOTHING",
+                          {});
+  connection.execute_text("SET LOCAL cms.actor_kind = 'system'", {});
+  connection.execute_text("SET LOCAL cms.actor_id = '00000000-0000-4000-8000-000000000022'", {});
+  if (clear) {
+    connection.execute_text("DELETE FROM models", {});
+  }
+  connection.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
+                          "actor_kind) VALUES ($1, $2, $3, $4, $5, $6, $7, 'system')",
+                          {std::string{name}, std::string{base_url}, std::string{protocol}, std::string{model_id},
+                           std::string{sealed_key}, enabled, is_default});
+  transaction.commit();
 }
 
 }  // namespace
@@ -127,12 +153,7 @@ TEST_CASE("the effective model record is the enabled default, and a second recor
   }
   REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
   auto database = cms::generate::test::live_database();
-  given_system_actor(database);
-  clear_models(database);
-  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
-                        "actor_kind) VALUES ('first', 'https://model.invalid/v1', 'openai_chat', 'm-1', $1, true, true, "
-                        "'system')",
-                        {sealed(TEST_SEAL_KEY, "first-key")});
+  write_model("first", "openai_chat", "m-1", sealed(TEST_SEAL_KEY, "first-key"), true, true);
 
   const auto first = cms::generate::read_effective_model(database);
   REQUIRE(first.has_value());
@@ -140,11 +161,9 @@ TEST_CASE("the effective model record is the enabled default, and a second recor
   CHECK(first->model_id == "m-1");
 
   // A second record, and the operator picks it: the worker now reads it without a code change.
-  database.execute_text("UPDATE models SET is_default = false WHERE name = 'first'", {});
-  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
-                        "actor_kind) VALUES ('second', 'https://other.invalid/v1', 'openai_chat', 'm-2', $1, true, true, "
-                        "'system')",
-                        {sealed(TEST_SEAL_KEY, "second-key")});
+  run_as_system("UPDATE models SET is_default = false WHERE name = 'first'");
+  write_model("second", "openai_chat", "m-2", sealed(TEST_SEAL_KEY, "second-key"), true, true, false,
+              "https://other.invalid/v1");
 
   const auto second = cms::generate::read_effective_model(database);
   REQUIRE(second.has_value());
@@ -155,7 +174,7 @@ TEST_CASE("the effective model record is the enabled default, and a second recor
   // The client the second record builds is the one its protocol names, and it carries the record's model id.
   const auto client = cms::generate::make_model_client(*second, "prompt-v1", 7);
   REQUIRE(client.has_value());
-  clear_models(database);
+  database.execute_text("DELETE FROM models", {});
 }
 
 TEST_CASE("a second default is refused by the record itself", "[generate][live]") {
@@ -163,24 +182,15 @@ TEST_CASE("a second default is refused by the record itself", "[generate][live]"
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
   REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
-  auto database = cms::generate::test::live_database();
-  given_system_actor(database);
-  clear_models(database);
-  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
-                        "actor_kind) VALUES ('only', 'https://model.invalid/v1', 'openai_chat', 'm', $1, true, true, "
-                        "'system')",
-                        {sealed(TEST_SEAL_KEY, "key")});
+  write_model("only", "openai_chat", "m", sealed(TEST_SEAL_KEY, "key"), true, true);
   auto refused = std::string{};
   try {
-    database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
-                          "actor_kind) VALUES ('clash', 'https://model.invalid/v1', 'openai_chat', 'm', $1, true, "
-                          "true, 'system')",
-                          {sealed(TEST_SEAL_KEY, "key")});
+    write_model("clash", "openai_chat", "m", sealed(TEST_SEAL_KEY, "key"), true, true, false);
   } catch (const std::exception& error) {
     refused = error.what();
   }
   CHECK(refused.find("models_one_default") != std::string::npos);
-  clear_models(database);
+  cms::generate::test::live_database().execute_text("DELETE FROM models", {});
 }
 
 TEST_CASE("an empty table is refused by name, and so is a protocol this build has no adapter for", "[generate][live]") {
@@ -189,8 +199,7 @@ TEST_CASE("an empty table is refused by name, and so is a protocol this build ha
   }
   REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
   auto database = cms::generate::test::live_database();
-  given_system_actor(database);
-  clear_models(database);
+  database.execute_text("DELETE FROM models", {});
 
   const auto none = cms::generate::read_effective_model(database);
   REQUIRE(!none.has_value());
@@ -217,12 +226,7 @@ TEST_CASE("a record sealed with another deployment's key is refused by name", "[
   }
   REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
   auto database = cms::generate::test::live_database();
-  given_system_actor(database);
-  clear_models(database);
-  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
-                        "actor_kind) VALUES ('foreign', 'https://model.invalid/v1', 'openai_chat', 'm', $1, true, true, "
-                        "'system')",
-                        {sealed(OTHER_SEAL_KEY, "not-our-key")});
+  write_model("foreign", "openai_chat", "m", sealed(OTHER_SEAL_KEY, "not-our-key"), true, true);
 
   const auto record = cms::generate::read_effective_model(database);
   REQUIRE(record.has_value());
@@ -231,5 +235,5 @@ TEST_CASE("a record sealed with another deployment's key is refused by name", "[
   CHECK(client.error().message.find("foreign") != std::string::npos);
   CHECK(client.error().message.find("cannot be opened") != std::string::npos);
   CHECK(client.error().message.find("not-our-key") == std::string::npos);
-  clear_models(database);
+  database.execute_text("DELETE FROM models", {});
 }
