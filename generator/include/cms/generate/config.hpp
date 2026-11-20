@@ -8,15 +8,20 @@
 
 namespace cms::generate {
 
-/// @brief The deployer's model configuration (ADR 0028): the endpoint, the model id, the key and the prompt
-/// version. No member has a default, because a default chosen in our environment is a product that works where
-/// we work.
+/// @brief The deployer's configuration (ADR 0028): the model's endpoint, id, key and prompt version; the database the
+/// record is written to; and the object store every artefact's bytes go to. No member has a default, because a default
+/// chosen in our environment is a product that works where we work.
 struct ModelConfig {
   std::string endpoint;
   std::string model_id;
   std::string key;
   std::string prompt_version;
   std::string database_url;
+  std::string store_endpoint;
+  std::string store_region;
+  std::string store_bucket;
+  std::string store_access_key_id;
+  std::string store_secret_access_key;
 };
 
 /// @brief Reads the worker's configuration from the environment.

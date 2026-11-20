@@ -8,7 +8,7 @@ cms_learn_align_jsoncpp()
 add_library(cms_generate_model STATIC src/artefact.cpp src/brief.cpp src/candidate.cpp src/candidates.cpp
                                    src/certify.cpp src/certify_checks.cpp src/claim.cpp src/config.cpp src/data_frame.cpp
                                    src/judge.cpp src/limits.cpp
-                                   src/oracle.cpp src/planner.cpp src/recorded.cpp src/sampler.cpp src/solution.cpp
+                                   src/oracle.cpp src/pipeline.cpp src/planner.cpp src/recorded.cpp src/sampler.cpp src/solution.cpp
                                    src/solution_proof.cpp src/solution_sink.cpp
                                    src/specification.cpp
                                    src/specification_sink.cpp

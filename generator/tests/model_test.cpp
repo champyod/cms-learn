@@ -71,7 +71,13 @@ TEST_CASE("the worker's configuration names every missing key and no value", "[g
                    {"CMSLEARN_MODEL_ID", "m"},
                    {"CMSLEARN_MODEL_KEY", "k"},
                    {"CMSLEARN_MODEL_PROMPT_VERSION", "v1"},
-                   {"CMSLEARN_DATABASE_URL", "postgres://x"}}));
+                   {"CMSLEARN_DATABASE_URL", "postgres://x"},
+                   {"CMSLEARN_S3_ENDPOINT", "https://store.example.invalid"},
+                   {"CMSLEARN_S3_REGION", "us-east-1"},
+                   {"CMSLEARN_S3_BUCKET", "b"},
+                   {"CMSLEARN_S3_ACCESS_KEY_ID", "a"},
+                   {"CMSLEARN_S3_SECRET_ACCESS_KEY", "s"}}));
   REQUIRE(complete.has_value());
   CHECK(complete->model_id == "m");
+  CHECK(complete->store_bucket == "b");
 }

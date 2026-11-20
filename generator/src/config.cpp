@@ -20,6 +20,11 @@ constexpr auto REQUIRED_KEYS = std::array{
     RequiredKey{"CMSLEARN_MODEL_KEY", &ModelConfig::key},
     RequiredKey{"CMSLEARN_MODEL_PROMPT_VERSION", &ModelConfig::prompt_version},
     RequiredKey{"CMSLEARN_DATABASE_URL", &ModelConfig::database_url},
+    RequiredKey{"CMSLEARN_S3_ENDPOINT", &ModelConfig::store_endpoint},
+    RequiredKey{"CMSLEARN_S3_REGION", &ModelConfig::store_region},
+    RequiredKey{"CMSLEARN_S3_BUCKET", &ModelConfig::store_bucket},
+    RequiredKey{"CMSLEARN_S3_ACCESS_KEY_ID", &ModelConfig::store_access_key_id},
+    RequiredKey{"CMSLEARN_S3_SECRET_ACCESS_KEY", &ModelConfig::store_secret_access_key},
 };
 
 }  // namespace
@@ -52,8 +57,7 @@ auto read_model_config(const std::function<std::string(std::string_view)>& looku
       named += key;
     }
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
-                                       "the generator worker is missing its model configuration: " +
-                                           named));
+                                       "the generator worker is missing its configuration: " + named));
   }
   return config;
 }
