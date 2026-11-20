@@ -385,10 +385,14 @@ if (existsSync(tasksDir)) {
       violations.push(`${rel(taskPath)}: checker ${task.checker.path} missing`);
     }
 
-    // A published task is what a student can be served. The file cannot say a task is verified (ADR 0046 §2): the
-    // certificate row and the publisher decide that, so the gate proves only that the content the row will certify
-    // is here.
+    // A published task is what a student can be served, and the file cannot publish itself (ADR 0046 §2, ADR 0057): the
+    // certificate row and the publisher decide that. The author learns here, before a deploy, and the message says what
+    // the two steps are; the row's own trigger is what holds for a writer that never runs this gate.
     if (task.status === "published") {
+      violations.push(
+        `${rel(taskPath)}: a content file cannot be published: ship it as draft, certify it against its examples, ` +
+          `then publish the certified version (ADR 0057)`,
+      );
       if (!task.testdata?.manifest) violations.push(`${rel(taskPath)}: no test data manifest`);
       else if (!existsSync(join(dir, task.testdata.manifest))) {
         violations.push(`${rel(taskPath)}: test data manifest ${task.testdata.manifest} missing`);

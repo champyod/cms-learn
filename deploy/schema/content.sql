@@ -47,6 +47,35 @@ CREATE TABLE tasks (
 CREATE INDEX tasks_published_idx ON tasks (difficulty, id)
   WHERE status = 'published';
 
+-- Publishing is a boundary rule, not a writer's habit (ADR 0046 §2, ADR 0057). A task is created with any status but
+-- published, because a certificate names a task row and none can exist before the row does; and a move to published needs
+-- a verified certificate for that task and version, the shape the verification trigger already uses.
+CREATE FUNCTION task_publish_needs_its_certificate() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' AND NEW.status = 'published' THEN
+    RAISE EXCEPTION 'task % version % cannot be created published: ship it as draft, certify it, then publish the certified version',
+      NEW.id, NEW.version
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF TG_OP = 'UPDATE' AND NEW.status = 'published' AND NEW.status IS DISTINCT FROM OLD.status THEN
+    IF NOT EXISTS (SELECT 1 FROM generation_certificates c
+                    WHERE c.task_id = NEW.id AND c.task_version = NEW.version AND c.outcome = 'verified') THEN
+      RAISE EXCEPTION 'task % version % has no verified certificate, so it cannot move to published: the certificate is written by cmslearn_certifier',
+        NEW.id, NEW.version
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tasks_publish_needs_certificate
+  BEFORE INSERT OR UPDATE OF status ON tasks
+  FOR EACH ROW EXECUTE FUNCTION task_publish_needs_its_certificate();
+
 CREATE TABLE task_topics (
   task_id text NOT NULL,
   task_version integer NOT NULL,

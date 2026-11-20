@@ -106,7 +106,7 @@ insert_task() {
   psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty,
                                  time_limit_ms, memory_limit_mb, checker, origin, verification,
                                  solution, content_hash)
-              VALUES ('$1', 1, 'published', '$1', '$1', 800, 1000, 256, 'token', 'original',
+              VALUES ('$1', 1, 'draft', '$1', '$1', 800, 1000, 256, 'token', 'original',
                       'pending', 'int main() {}', repeat('a', 64))" >/dev/null 2>&1
   # A row cannot be created verified (ADR 0046 §2): write the certificate it needs, then move the verification with
   # the guarded UPDATE.
@@ -116,7 +116,31 @@ insert_task() {
               FROM generation_jobs WHERE task_id = '$1' AND task_version = 1" >/dev/null 2>&1
   psql_db -c "UPDATE tasks SET verification = 'verified' WHERE id = '$1' AND version = 1" >/dev/null 2>&1
   psql_db -c "INSERT INTO task_topics (task_id, task_version, topic) VALUES ('$1', 1, 'io')" >/dev/null 2>&1
+  # Publishing needs the certificate that came before it (ADR 0057): the row is created draft, certified, then published.
+  psql_db -c "UPDATE tasks SET status = 'published' WHERE id = '$1' AND version = 1" >/dev/null 2>&1
 }
+
+# Publishing is a boundary rule now (ADR 0057): a file cannot create a published row, and a row cannot move to published
+# without a verified certificate. Both refusals are printed here, beside the serving assertions they protect.
+refusal="$(psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
+                                          memory_limit_mb, checker, origin, verification, solution, content_hash)
+                       VALUES ('publish-probe', 1, 'published', 'P', 'P', 800, 1000, 256, 'token', 'original',
+                               'pending', 'int main() {}', repeat('a', 64))" 2>&1 || true)"
+if printf '%s' "$refusal" | grep -q "cannot be created published"; then
+  ok "a task row cannot be created published"
+else
+  bad "a task row cannot be created published" "${refusal:-the insert was accepted}"
+fi
+refusal="$(psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
+                                          memory_limit_mb, checker, origin, verification, solution, content_hash)
+                       VALUES ('publish-probe', 1, 'draft', 'P', 'P', 800, 1000, 256, 'token', 'original',
+                               'pending', 'int main() {}', repeat('a', 64))" 2>&1 || true)"
+refusal="$(psql_db -c "UPDATE tasks SET status = 'published' WHERE id = 'publish-probe' AND version = 1" 2>&1 || true)"
+if printf '%s' "$refusal" | grep -q "has no verified certificate, so it cannot move to published"; then
+  ok "a move to published without a certificate is refused, naming the certificate"
+else
+  bad "a move to published without a certificate is refused, naming the certificate" "${refusal:-the update was accepted}"
+fi
 
 insert_task check-task
 for value in "$everyone" "$user7" "$admin8" "$team9"; do

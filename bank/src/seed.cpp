@@ -87,7 +87,21 @@ auto optional_text(const std::string& value) -> std::optional<std::string> {
 
 /// The identity columns are the only ones a re-seed updates in place; everything derived from the files
 /// is replaced, so a removed example cannot survive an edit.
+/// @brief Refuses a file that asks to be published before a machine has checked it (ADR 0057).
+///
+/// The content gate refuses the same thing at authoring time; this refusal is for the paths that never run the gate, and
+/// the trigger is what holds when a future writer bypasses both. The job is to tell the author what to run, in order.
+auto refuse_published(const Task& task) -> void {
+  throw std::runtime_error(
+      "task " + task.id + " version " + std::to_string(task.version) +
+      " asks to be published, and a published task needs a verified certificate: seed it as draft, run "
+      "cms-generate --certify-content " + task.id + " to certify its reference against its examples, then publish it");
+}
+
 auto write_task_row(db::connection& database, const Task& task, bool is_update) {
+  if (task.status == "published") {
+    refuse_published(task);
+  }
   if (is_update) {
     database(sqlpp::update(db::tasks)
                  .set(db::tasks.status = task.status,

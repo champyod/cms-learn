@@ -18,7 +18,7 @@ export const CONTENT_GATE: Gate = {
       expect: { status: "zero" },
     },
     {
-      name: "published task without verification",
+      name: "a content file that publishes itself",
       plant: [{ kind: "json", path: RANGE_TASK, edits: [{ kind: "set", pointer: ["status"], value: "published" }] }],
       expect: { status: "non-zero" },
     },

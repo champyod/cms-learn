@@ -376,6 +376,17 @@ TEST_CASE("a subtask-scored task cannot be published with no subtasks", "[subtas
   auto database = cms::test::live_database();
   in_transaction([&](cms::db::connection& connection) {
     prepare_task(connection, "probe-unpublished", "subtasks", std::string(64, 'a'));
+    // Publishing needs a verified certificate (ADR 0057), so the fixture supplies one: the rule this case is about is the
+    // subtask rule, and it must be the one that answers.
+    connection.execute_text("INSERT INTO generation_jobs (task_id, task_version) VALUES ($1, 1)",
+                            {std::string{"probe-unpublished"}});
+    connection.execute_text(
+        "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) "
+        "SELECT id, $1, 1, 'verified', '[\"the subtask fixture\"]'::jsonb, repeat('c', 40), '{}'::jsonb "
+        "FROM generation_jobs WHERE task_id = $1 AND task_version = 1",
+        {std::string{"probe-unpublished"}});
+    connection.execute_text("UPDATE tasks SET verification = 'verified' WHERE id = $1 AND version = 1",
+                            {std::string{"probe-unpublished"}});
   });
 
   const auto refused = refusal("UPDATE tasks SET status = 'published' WHERE id = $1",

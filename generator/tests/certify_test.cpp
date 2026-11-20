@@ -829,3 +829,37 @@ TEST_CASE("the generator role cannot write a verification", "[certify][live]") {
   holder->rollback();
   CHECK(refusal.find("permission denied for table tasks") != std::string::npos);
 }
+
+TEST_CASE("a task cannot be published without a verified certificate", "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  // Reproduced before the fix and refused after (ADR 0057): the seeder used to write a published row with verification
+  // pending, and the serving queries let it through. Both halves are asserted here.
+  auto refused = std::string{};
+  try {
+    database.execute_text(
+        "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, "
+        "checker, origin, verification, solution, content_hash) VALUES ('publish-probe', 1, 'published', 'P', 'P', "
+        "800, 1000, 256, 'token', 'original', 'pending', 'int main() {}', repeat('a', 64))",
+        {});
+  } catch (const std::exception& error) {
+    refused = error.what();
+  }
+  CHECK(refused.find("cannot be created published") != std::string::npos);
+
+  // The move is refused too, and by the certificate, not by anything else: the row is draft and has none.
+  database.execute_text(
+      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, "
+      "checker, origin, verification, solution, content_hash) VALUES ('publish-probe', 1, 'draft', 'P', 'P', "
+      "800, 1000, 256, 'token', 'original', 'pending', 'int main() {}', repeat('a', 64))",
+      {});
+  refused.clear();
+  try {
+    database.execute_text("UPDATE tasks SET status = 'published' WHERE id = 'publish-probe' AND version = 1", {});
+  } catch (const std::exception& error) {
+    refused = error.what();
+  }
+  CHECK(refused.find("has no verified certificate, so it cannot move to published") != std::string::npos);
+}

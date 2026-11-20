@@ -1359,6 +1359,30 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION task_publish_needs_its_certificate()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' AND NEW.status = 'published' THEN
+    RAISE EXCEPTION 'task % version % cannot be created published: ship it as draft, certify it, then publish the certified version',
+      NEW.id, NEW.version
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF TG_OP = 'UPDATE' AND NEW.status = 'published' AND NEW.status IS DISTINCT FROM OLD.status THEN
+    IF NOT EXISTS (SELECT 1 FROM generation_certificates c
+                    WHERE c.task_id = NEW.id AND c.task_version = NEW.version AND c.outcome = 'verified') THEN
+      RAISE EXCEPTION 'task % version % has no verified certificate, so it cannot move to published: the certificate is written by cmslearn_certifier',
+        NEW.id, NEW.version
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION task_published_needs_its_subtasks()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1600,6 +1624,11 @@ CREATE OR REPLACE TRIGGER task_types_audit
     AFTER INSERT OR UPDATE OR DELETE ON task_types
     FOR EACH ROW
     EXECUTE FUNCTION task_type_audit();
+
+CREATE OR REPLACE TRIGGER tasks_publish_needs_certificate
+    BEFORE INSERT OR UPDATE OF status ON tasks
+    FOR EACH ROW
+    EXECUTE FUNCTION task_publish_needs_its_certificate();
 
 CREATE OR REPLACE TRIGGER tasks_published_immutable
     BEFORE UPDATE ON tasks

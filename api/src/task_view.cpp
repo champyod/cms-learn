@@ -21,6 +21,8 @@ namespace cms::api {
 namespace {
 
 constexpr std::string_view PUBLISHED = "published";
+/// A task reaches a learner only after a certificate says a machine checked it (ADR 0046 §2, ADR 0057).
+constexpr std::string_view VERIFIED = "verified";
 constexpr std::string_view ACTIVE_STATUS = "active";
 constexpr std::string_view LEARNER_KIND = "learner";
 constexpr std::string_view ADMIN_KIND = "admin";
@@ -134,7 +136,9 @@ auto visible_task_row(db::connection& database, std::string_view task_id, std::i
                     .from(db::tasks)
                     .where(db::tasks.id == std::string{task_id} &&
                            db::tasks.version == static_cast<std::int64_t>(version) &&
-                           db::tasks.status == std::string{PUBLISHED} && is_visible))) {
+                           db::tasks.status == std::string{PUBLISHED} &&
+                           // 0057: a published row that no machine verified is never served, whatever wrote it.
+                           db::tasks.verification == std::string{VERIFIED} && is_visible))) {
     return task_row_from(row);
   }
   return std::nullopt;

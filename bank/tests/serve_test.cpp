@@ -46,7 +46,8 @@ auto given_hidden_task(cms::db::connection& database, std::string_view id, std::
   const auto identifier = std::string{id};
   database(sqlpp::insert_into(cms::db::tasks).set(
       cms::db::tasks.id = identifier, cms::db::tasks.version = 1,
-      cms::db::tasks.status = std::string{"published"},
+      // Created draft and published only after its certificate exists (ADR 0057): a row cannot be born published.
+      cms::db::tasks.status = std::string{"draft"},
       cms::db::tasks.titleEn = identifier, cms::db::tasks.titleTh = identifier,
       cms::db::tasks.difficulty = difficulty, cms::db::tasks.timeLimitMs = 1000,
       cms::db::tasks.memoryLimitMb = 256, cms::db::tasks.checker = std::string{"token"},
@@ -64,6 +65,7 @@ auto given_hidden_task(cms::db::connection& database, std::string_view id, std::
       {identifier});
   database.execute_text("UPDATE tasks SET verification = 'verified' WHERE id = $1 AND version = 1",
                         {identifier});
+  database.execute_text("UPDATE tasks SET status = 'published' WHERE id = $1 AND version = 1", {identifier});
   database(sqlpp::insert_into(cms::db::taskTopics).set(
       cms::db::taskTopics.taskId = identifier, cms::db::taskTopics.taskVersion = 1,
       cms::db::taskTopics.topic = std::string{topic}));

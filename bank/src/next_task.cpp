@@ -60,7 +60,10 @@ auto find_in_band(db::connection& database, std::string_view account_id, const S
   for (const auto& row :
        database(sqlpp::select(db::tasks.id, db::tasks.version)
                     .from(db::tasks)
+                    // Both facts, not one: a row that is published but not verified is a row no machine has certified,
+                    // and 0057 makes that combination unservable even if a future writer creates it.
                     .where(db::tasks.status == std::string{"published"} &&
+                           db::tasks.verification == std::string{"verified"} &&
                            db::tasks.difficulty >= minimum && db::tasks.difficulty <= maximum &&
                            is_visible && carries_stage_topic && !is_attempted)
                     .order_by(db::tasks.difficulty.asc(), db::tasks.id.asc())
