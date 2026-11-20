@@ -30,3 +30,6 @@ CLAUDE.local.md
 
 # AgentTeams local state — machine-specific, never published
 .agent-teams/
+
+# Pentest run state: scope, board and evidence are machine-local
+.pentest/
