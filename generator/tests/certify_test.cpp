@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <exception>
+#include <vector>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -101,6 +102,45 @@ int main() {
     const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(800);
     while (std::chrono::steady_clock::now() < until) {
     }
+  }
+  std::printf("%lld\n", total);
+  return 0;
+}
+)";
+
+/// A correct reference that touches 200 MB, above the 128 MB half of the task's 256 MB limit, so 0048's memory margin
+/// has something real to refuse.
+constexpr std::string_view BLOATED_REFERENCE = R"(#include <cstdio>
+#include <vector>
+int main() {
+  int count = 0;
+  if (std::scanf("%d", &count) != 1) return 1;
+  long long total = 0;
+  for (int index = 0; index < count; ++index) {
+    long long value = 0;
+    if (std::scanf("%lld", &value) != 1) return 1;
+    total = total + value;
+  }
+  auto block = std::vector<long long>(25 * 1024 * 1024, 1);
+  long long touched = 0;
+  for (const auto value : block) {
+    touched += value;
+  }
+  std::printf("%lld\n", total + (touched == 0 ? 1 : 0));
+  return 0;
+}
+)";
+
+/// A correct reference that stays small, so its own footprint can be measured from a bloated process.
+constexpr std::string_view SMALL_REFERENCE = R"(#include <cstdio>
+int main() {
+  int count = 0;
+  if (std::scanf("%d", &count) != 1) return 1;
+  long long total = 0;
+  for (int index = 0; index < count; ++index) {
+    long long value = 0;
+    if (std::scanf("%lld", &value) != 1) return 1;
+    total = total + value;
   }
   std::printf("%lld\n", total);
   return 0;
@@ -693,6 +733,50 @@ TEST_CASE("a checker that accepts a planted wrong answer is failed by name", "[c
   CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
   holder->commit();
   CHECK(verification_of(database, "certify-checker") == "failed");
+}
+
+TEST_CASE("the measured peak is the program's own, even when its parent holds a hundred megabytes", "[certify][live]") {
+  // A parent that holds ~200 MB, the way a sanitizer-built test binary does: the program's own number must not move.
+  auto bloat = std::vector<char>(200 * 1024 * 1024, 1);
+  auto touched = std::int64_t{0};
+  for (std::size_t index = 0; index < bloat.size(); index += 4096) {
+    touched += bloat[index];
+  }
+  REQUIRE(touched > 0);
+
+  const auto measured = cms::generate::measure_program(SMALL_REFERENCE, "3\n1 2 3\n", 1000);
+
+  REQUIRE(measured.has_value());
+  // Its own footprint: a few megabytes. The parent's 200 MB would arrive as ~204800 kB under the old reading.
+  CHECK(measured->peak_memory_kb < 16 * 1024);
+  CHECK(measured->peak_memory_kb > 0);
+}
+
+TEST_CASE("a reference above half the memory limit is failed, naming the value, the limit and the case",
+          "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto store = cms::generate::test::MemoryStore{};
+  auto database = cms::generate::test::live_database();
+  {
+    auto fixture = transaction();
+    (void)build_job(fixture->connection(), store, "certify-bloated",
+                    JobSources{.reference = BLOATED_REFERENCE}, true);
+    fixture->commit();
+  }
+  auto holder = transaction();
+  auto& connection = holder->connection();
+
+  const auto certificate =
+      cms::generate::certify_job(connection, store, job_of(connection, "certify-bloated"), COMMIT);
+
+  REQUIRE(certificate.has_value());
+  CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
+  CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
+  CHECK(mentions(certificate->checks, "above the 128 MB half of the declared 256 MB memory limit"));
+  CHECK(mentions(certificate->checks, "the reference measured "));
+  CHECK(mentions(certificate->checks, "MB at n = "));
 }
 
 TEST_CASE("a reference above half the limit on its slowest case is failed", "[certify][live]") {

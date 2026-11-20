@@ -16,6 +16,7 @@
 #include <fcntl.h>
 #include <sys/resource.h>
 #include <sys/wait.h>
+#include <charconv>
 #include <unistd.h>
 
 namespace cms::generate {
@@ -31,6 +32,9 @@ constexpr int COMPILE_WALL_SECONDS = 120;
 constexpr std::int64_t FLOOR_WALL_SECONDS = 10;
 constexpr std::int64_t GRACE_SECONDS = 2;
 constexpr std::int64_t MILLISECONDS_PER_SECOND = 1000;
+/// How often the parent samples the child's own high-water mark while it runs. Small enough that a program of a few
+/// milliseconds is sampled many times, large enough that a ten-second one does not spend the parent's time on it.
+constexpr long POLL_NANOSECONDS = 100'000;
 
 auto read_text(const std::filesystem::path& path) -> std::string {
   auto stream = std::ifstream{path, std::ios::binary};
@@ -51,13 +55,55 @@ auto first_line(std::string_view text) -> std::string {
   return std::string{line};
 }
 
+/// @return The high-water mark of @p pid's current address space in kB, or 0 when it cannot be read.
+///
+/// `VmHWM` in `/proc/<pid>/status` is the peak of the address space that exists now, and `execve` replaces that
+/// address space — so a mark read after the program has replaced the fork's copy is the program's own footprint,
+/// never the pages it inherited. It only rises, so the largest sample taken while the program runs is its peak.
+auto peak_resident_kb(pid_t pid) -> std::int64_t {
+  auto stream = std::ifstream{"/proc/" + std::to_string(pid) + "/status"};
+  auto line = std::string{};
+  while (std::getline(stream, line)) {
+    if (line.rfind("VmHWM:", 0) != 0) {
+      continue;
+    }
+    auto value = std::int64_t{0};
+    const auto digits = std::string_view{line}.substr(6);
+    const auto first = digits.find_first_of("0123456789");
+    if (first == std::string_view::npos) {
+      return 0;
+    }
+    const auto end = digits.find_first_not_of("0123456789", first);
+    const auto parsed = std::from_chars(digits.data() + first, digits.data() + (end == std::string_view::npos ? digits.size() : end), value);
+    return parsed.ec == std::errc{} ? value : 0;
+  }
+  return 0;
+}
+
+/// @return Whether @p pid already runs @p program, so a sample taken before `execve` — when the child still holds the
+/// parent's pages — is never mistaken for the program's own footprint.
+auto is_running(pid_t pid, std::string_view program) -> bool {
+  const auto link = "/proc/" + std::to_string(pid) + "/exe";
+  auto target = std::array<char, 4096>{};
+  const auto length = readlink(link.c_str(), target.data(), target.size() - 1);
+  if (length <= 0) {
+    return false;
+  }
+  const auto path = std::string_view{target.data(), static_cast<std::size_t>(length)};
+  return path.size() > program.size() &&
+         path.compare(path.size() - program.size(), program.size(), program) == 0 &&
+         path[path.size() - program.size() - 1] == '/';
+}
+
 /// @return The exit status, or -1 when the child could not be started or did not return in time.
 ///
-/// Whenever @p usage is named the child is reaped with `wait4`, so its peak memory is read from the kernel rather
-/// than sampled from `/proc`, which a fast program has already left by the time a reader looks.
+/// When @p measurement is named the parent samples the child's own high-water mark while it runs. `wait4`'s
+/// `ru_maxrss` cannot answer: it is the peak of the whole process, including the pages the fork inherits from its
+/// parent — a sanitizer-built test binary is ~140 MB resident — so a three-megabyte program measured that way reports
+/// its parent's size, and ADR 0048's half-limit margin contradicts itself for any small task.
 auto run_child(const std::vector<std::string>& arguments, const std::filesystem::path& directory,
                const std::filesystem::path& input, const std::filesystem::path& output,
-               int wall_seconds, rusage* usage) -> int {
+               int wall_seconds, ProgramMeasurement* measurement, std::string_view program = {}) -> int {
   const auto child = fork();
   if (child < 0) {
     return -1;
@@ -84,9 +130,32 @@ auto run_child(const std::vector<std::string>& arguments, const std::filesystem:
     _exit(127);
   }
   auto status = 0;
-  while ((usage == nullptr ? waitpid(child, &status, 0) : wait4(child, &status, 0, usage)) < 0) {
-    if (errno != EINTR) {
-      return -1;
+  if (measurement == nullptr) {
+    while (waitpid(child, &status, 0) < 0) {
+      if (errno != EINTR) {
+        return -1;
+      }
+    }
+  } else {
+    const auto interval = timespec{.tv_sec = 0, .tv_nsec = POLL_NANOSECONDS};
+    while (true) {
+      const auto waited = waitpid(child, &status, WNOHANG);
+      if (waited == child) {
+        break;
+      }
+      if (waited < 0) {
+        if (errno == EINTR) {
+          continue;
+        }
+        return -1;
+      }
+      if (is_running(child, program)) {
+        const auto peak = peak_resident_kb(child);
+        if (peak > measurement->peak_memory_kb) {
+          measurement->peak_memory_kb = peak;
+        }
+      }
+      nanosleep(&interval, nullptr);
     }
   }
   if (WIFEXITED(status)) {
@@ -135,10 +204,11 @@ auto run_program_measured(std::string_view source, std::string_view input, std::
   }
   const auto wall = std::max<std::int64_t>(FLOOR_WALL_SECONDS,
                                            time_limit_ms / MILLISECONDS_PER_SECOND + GRACE_SECONDS);
-  auto usage = rusage{};
+  auto measurement_value = ProgramMeasurement{};
   const auto started = std::chrono::steady_clock::now();
   const auto ran = run_child({"./" + std::string{PROGRAM}}, directory, directory / CASE_IN,
-                             directory / CASE_OUT, static_cast<int>(wall), measurement == nullptr ? nullptr : &usage);
+                             directory / CASE_OUT, static_cast<int>(wall),
+                             measurement == nullptr ? nullptr : &measurement_value, PROGRAM);
   const auto finished = std::chrono::steady_clock::now();
   if (ran != 0) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
@@ -148,7 +218,13 @@ auto run_program_measured(std::string_view source, std::string_view input, std::
   if (measurement != nullptr) {
     measurement->time_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(finished - started).count();
-    measurement->peak_memory_kb = usage.ru_maxrss;
+    if (measurement_value.peak_memory_kb == 0) {
+      return std::unexpected(Error::make(
+          ErrorCode::unavailable,
+          "answered the case but its own peak memory could not be read from /proc/<pid>/status, so the limit it has to "
+          "fit cannot be measured"));
+    }
+    measurement->peak_memory_kb = measurement_value.peak_memory_kb;
   }
   auto answer = read_text(directory / CASE_OUT);
   if (answer.find_first_not_of(" \t\r\n") == std::string::npos) {
@@ -164,6 +240,14 @@ auto run_program(std::string_view source, std::string_view input, std::int64_t t
   return run_program_measured(source, input, time_limit_ms, nullptr);
 }
 
+/// @brief What a run cost: the wall time, and the peak resident memory of the program itself.
+///
+/// The memory number is the program's own footprint, read from `/proc/<pid>/status:VmHWM` while it runs. `VmHWM` is the
+/// high-water mark of the address space that exists at that moment, and `execve` replaces the address space, so the
+/// samples taken after the program has exec'd measure it alone. It is read this way and not from `wait4`'s `ru_maxrss`
+/// because that mark covers the whole life of the process: the pages the fork inherits from its parent count as its own
+/// until `execve` runs, and for a sanitizer-built test binary that is ~140 MB, so a three-megabyte program measured
+/// that way reported its parent's size and ADR 0048's half-limit margin could never pass for a small task.
 auto measure_program(std::string_view source, std::string_view input, std::int64_t time_limit_ms)
     -> Result<ProgramMeasurement> {
   auto measurement = ProgramMeasurement{};

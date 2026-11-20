@@ -426,7 +426,9 @@ TEST_CASE("a queued job runs every step and ends done on a verified certificate"
   drain_queue(database);
   const auto job = seed_job(RUN_TASK);
   auto store = cms::generate::test::MemoryStore{};
-  auto certifier = StubCertifier{RUN_TASK, cms::generate::VerificationOutcome::verified};
+  // The real certifier: its three methods run here, including the half-limit margin that 0048 makes a certificate's
+  // condition. It measures the reference's own peak, so the sanitizer-built test process cannot inflate the number.
+  auto certifier = cms::generate::SqlCertifier{*cms::generate::test::live_client(), store, COMMIT};
   auto wired = Wired{certifier, store};
   auto client = whole_job_recording();
 
