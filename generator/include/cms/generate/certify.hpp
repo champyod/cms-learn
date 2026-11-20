@@ -47,6 +47,13 @@ struct ReRunEvidence {
 /// stored count claims.
 [[nodiscard]] auto re_run_methods(const ReRunEvidence& evidence) -> std::vector<ReRunResult>;
 
+/// @brief One artefact a certificate recorded: what it was, the row it was read from, and the digest it hashed to.
+struct CertifiedArtefact {
+  std::string role;
+  std::int64_t artefact{0};
+  std::string digest;
+};
+
 /// @brief The certificate step 7 writes: what it checked, the commit it checked, and the addresses it saw.
 struct Certificate {
   std::int64_t job_id{0};
@@ -55,14 +62,42 @@ struct Certificate {
   VerificationOutcome outcome{VerificationOutcome::pending};
   std::string commit_id;
   std::vector<std::string> checks;
-  std::vector<std::string> digests;
+  std::vector<CertifiedArtefact> artefacts;
 };
+
+/// @brief What the newest certificate for a task version still says (ADR 0046 §4).
+struct CertificateState {
+  /// False when the task version has no certificate row, so there is nothing to revalidate.
+  bool is_certified{false};
+  /// The outcome a reader may rely on: the recorded one while the evidence still matches, and `failed` when it does
+  /// not, because a certificate whose artefacts moved certifies nothing.
+  VerificationOutcome outcome{VerificationOutcome::pending};
+  std::string commit_id;
+  /// The recorded artefacts that no longer match, each named by its role with both digests; empty when it holds.
+  std::vector<std::string> changed;
+};
+
+/// @brief Reads the newest certificate for a task version against the artefacts it certified (ADR 0046 §4).
+///
+/// The row records the digests it saw, so evidence cannot outlive the thing it proved. This is the reader for them:
+/// every recorded artefact is looked up again, its row's digest is compared with the recorded one, and an
+/// object-backed artefact's bytes are read back through that digest, so a row or a stored object that moved after the
+/// run is named. When anything moved, the recorded outcome is ignored by name: a `failed` certificate is written
+/// recording what changed and the task is moved off `verified`, so no reader can take the stale row for a
+/// certification. Nothing is written when the certificate still holds or the task version has none.
+///
+/// The caller owns the transaction and must commit it for the repair to stand.
+[[nodiscard]] auto revalidate_certificate(cms::db::connection& database, const cms::store::ObjectStore& store,
+                                          std::string_view task_id, std::int32_t task_version)
+    -> Result<CertificateState>;
 
 /// @brief Step 7: re-runs the evidence of steps 3, 5 and 6 for @p job and writes the outcome.
 ///
 /// Every artefact an earlier step cited is read back through its digest, the limits the specification derived are
 /// compared with the task's, each subtask must still own a solution and a case set, and the specification is read
-/// by the one reader its writer uses. The reference pass, the brute-force differential and the half-limit margin are
+/// by the one reader its writer uses. The certificate written before this run is re-read at the point this run decides
+/// an outcome (revalidate_certificate): one whose artefacts moved is recorded as failed and named in this
+/// certificate's checks. The reference pass, the brute-force differential and the half-limit margin are
 /// then re-run as ADR 0046 §4 requires. Incomplete or stale evidence is refused by name and nothing is written;
 /// evidence that reads back but whose re-run fails is written as `failed`, naming every check that failed.
 ///

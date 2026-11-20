@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 
+#include <simdjson.h>
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/db/connection.hpp>
@@ -39,6 +40,70 @@ auto escaped(std::string_view text) -> std::string {
 }
 
 auto as_json_string(std::string_view text) -> std::string { return "\"" + escaped(text) + "\""; }
+
+/// @return @p parts joined by @p separator.
+auto joined(const std::vector<std::string>& parts, std::string_view separator) -> std::string {
+  auto text = std::string{};
+  for (const auto& part : parts) {
+    text += text.empty() ? "" : std::string{separator};
+    text += part;
+  }
+  return text;
+}
+
+/// The evidence a certificate records: the task content it certified and every artefact it read, with the digest each
+/// hashed to. This is the only writer and the only reader of that shape, so the two cannot drift apart.
+auto evidence_json(std::string_view content_hash, const std::vector<CertifiedArtefact>& artefacts) -> std::string {
+  auto json = std::string{"{\"task_content_hash\":" + as_json_string(content_hash) + ",\"artefacts\":["};
+  auto first = true;
+  for (const auto& artefact : artefacts) {
+    json += first ? "" : ",";
+    first = false;
+    json += "{\"role\":" + as_json_string(artefact.role) + ",\"artefact\":" +
+            std::to_string(artefact.artefact) + ",\"digest\":" + as_json_string(artefact.digest) + "}";
+  }
+  json += "]}";
+  return json;
+}
+
+/// @return The evidence @p json records, or a refusal naming the part of the shape it cannot read.
+auto read_evidence(std::string_view json) -> Result<std::pair<std::string, std::vector<CertifiedArtefact>>> {
+  auto padded = simdjson::padded_string{json};
+  auto parser = simdjson::dom::parser{};
+  auto document = simdjson::dom::element{};
+  if (parser.parse(padded).get(document) != simdjson::SUCCESS) {
+    return std::unexpected(refused("the certificate's evidence is not valid JSON"));
+  }
+  auto object = simdjson::dom::object{};
+  if (document.get_object().get(object) != simdjson::SUCCESS) {
+    return std::unexpected(refused("the certificate's evidence is not a JSON object"));
+  }
+  auto content_hash = std::string_view{};
+  if (object.at_key("task_content_hash").get_string().get(content_hash) != simdjson::SUCCESS) {
+    return std::unexpected(refused("the certificate's evidence names no task content hash"));
+  }
+  auto entries = simdjson::dom::array{};
+  if (object.at_key("artefacts").get_array().get(entries) != simdjson::SUCCESS) {
+    return std::unexpected(refused("the certificate's evidence names no artefacts, so nothing it certified can be read"));
+  }
+  auto artefacts = std::vector<CertifiedArtefact>{};
+  for (const auto entry : entries) {
+    auto recorded = simdjson::dom::object{};
+    if (entry.get_object().get(recorded) != simdjson::SUCCESS) {
+      return std::unexpected(refused("a recorded artefact is not a JSON object"));
+    }
+    auto role = std::string_view{};
+    auto digest = std::string_view{};
+    auto id = std::int64_t{0};
+    if (recorded.at_key("role").get_string().get(role) != simdjson::SUCCESS ||
+        recorded.at_key("digest").get_string().get(digest) != simdjson::SUCCESS ||
+        recorded.at_key("artefact").get_int64().get(id) != simdjson::SUCCESS) {
+      return std::unexpected(refused("a recorded artefact names no role, id or digest"));
+    }
+    artefacts.push_back(CertifiedArtefact{.role = std::string{role}, .artefact = id, .digest = std::string{digest}});
+  }
+  return std::pair{std::string{content_hash}, std::move(artefacts)};
+}
 
 /// One artefact an earlier step cited, with the address its bytes must hash to.
 struct Cited {
@@ -224,6 +289,17 @@ auto verified_bytes(const cms::store::ObjectStore& store, const Cited& cited, st
                                  " names neither an object nor inline text"));
 }
 
+/// @return The outcome @p name records; `pending` for a name the enum does not hold.
+auto outcome_named(std::string_view name) -> VerificationOutcome {
+  if (name == "verified") {
+    return VerificationOutcome::verified;
+  }
+  if (name == "failed") {
+    return VerificationOutcome::failed;
+  }
+  return VerificationOutcome::pending;
+}
+
 }  // namespace
 
 auto outcome_name(VerificationOutcome outcome) -> std::string_view {
@@ -236,6 +312,91 @@ auto outcome_name(VerificationOutcome outcome) -> std::string_view {
       return "pending";
   }
   return "pending";
+}
+
+auto revalidate_certificate(cms::db::connection& database, const cms::store::ObjectStore& store,
+                            std::string_view task_id, std::int32_t task_version) -> Result<CertificateState> {
+  auto state = CertificateState{};
+  auto job_id = std::int64_t{0};
+  auto recorded_outcome = std::string{};
+  auto recorded_commit = std::string{};
+  auto recorded_evidence = std::string{};
+  for (const auto& row : database(sqlpp::select(cms::db::generationCertificates.jobId,
+                                                cms::db::generationCertificates.outcome,
+                                                cms::db::generationCertificates.commitId,
+                                                cms::db::generationCertificates.evidence)
+                                      .from(cms::db::generationCertificates)
+                                      .where(cms::db::generationCertificates.taskId == std::string{task_id} &&
+                                             cms::db::generationCertificates.taskVersion ==
+                                                 static_cast<std::int64_t>(task_version))
+                                      .order_by(cms::db::generationCertificates.createdAt.desc())
+                                      .limit(1))) {
+    job_id = row.jobId;
+    recorded_outcome = std::string{row.outcome};
+    recorded_commit = std::string{row.commitId};
+    recorded_evidence = std::string{row.evidence};
+  }
+  if (recorded_commit.empty() && recorded_outcome.empty()) {
+    return state;
+  }
+  const auto recorded = read_evidence(recorded_evidence);
+  if (!recorded) {
+    return std::unexpected(recorded.error());
+  }
+  auto current_hash = std::string{};
+  for (const auto& row : database(sqlpp::select(cms::db::tasks.contentHash)
+                                      .from(cms::db::tasks)
+                                      .where(cms::db::tasks.id == std::string{task_id} &&
+                                             cms::db::tasks.version == static_cast<std::int64_t>(task_version)))) {
+    current_hash = std::string{row.contentHash};
+  }
+  auto changed = std::vector<std::string>{};
+  if (current_hash != recorded->first) {
+    changed.push_back("the task's content recorded " + recorded->first + ", and the row now holds " + current_hash);
+  }
+  auto current = std::vector<CertifiedArtefact>{};
+  for (const auto& artefact : recorded->second) {
+    const auto cited = cited_artefact(database, artefact.artefact);
+    if (!cited) {
+      changed.push_back(artefact.role + ": " + cited.error().message);
+      continue;
+    }
+    if (cited->digest != artefact.digest) {
+      changed.push_back(artefact.role + " recorded digest " + artefact.digest + ", and its row now holds " +
+                        cited->digest);
+      current.push_back(CertifiedArtefact{.role = artefact.role, .artefact = artefact.artefact, .digest = cited->digest});
+      continue;
+    }
+    auto bytes = std::string{};
+    if (const auto read = verified_bytes(store, *cited, bytes); !read) {
+      changed.push_back(artefact.role + ": " + read.error().message);
+      continue;
+    }
+    current.push_back(CertifiedArtefact{.role = artefact.role, .artefact = artefact.artefact, .digest = cited->digest});
+  }
+  state.is_certified = true;
+  state.commit_id = recorded_commit;
+  if (changed.empty()) {
+    state.outcome = outcome_named(recorded_outcome);
+    return state;
+  }
+
+  // The recorded outcome is ignored: a certificate whose artefacts moved certifies nothing. The failed row records
+  // what changed and what the rows hold now, and the verification moves off `verified`, so the stale row cannot leave
+  // the task certified (ADR 0046 §4).
+  database.execute_text(
+      "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) "
+      "VALUES ($1, $2, $3, 'failed'::task_verification_status, $4::jsonb, $5, $6::jsonb)",
+      {job_id, std::string{task_id}, static_cast<std::int64_t>(task_version),
+       std::string{"[\"the certificate written by this task version no longer certifies its evidence: " +
+                   joined(changed, "; ") + "\"]"},
+       recorded_commit, evidence_json(current_hash, current)});
+  database.execute_text(
+      "UPDATE tasks SET verification = 'failed'::task_verification_status WHERE id = $1 AND version = $2",
+      {std::string{task_id}, static_cast<std::int64_t>(task_version)});
+  state.outcome = VerificationOutcome::failed;
+  state.changed = std::move(changed);
+  return state;
 }
 
 auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& store, std::int64_t job_id,
@@ -256,13 +417,21 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
   }
   load_children(database, job_id, evidence);
 
+  // ADR 0046 §4: the digests the previous certificate recorded are read here, at the point this run decides an
+  // outcome. A certificate whose evidence moved is recorded as failed and the task moves off verified before this
+  // run decides; the new certificate's checks say what changed.
+  const auto previous = revalidate_certificate(database, store, evidence.task_id, evidence.task_version);
+  if (!previous) {
+    return std::unexpected(previous.error());
+  }
+
   auto certificate = Certificate{.job_id = job_id,
                                  .task_id = evidence.task_id,
                                  .task_version = evidence.task_version,
                                  .outcome = VerificationOutcome::pending,
                                  .commit_id = std::string{commit_id},
                                  .checks = {},
-                                 .digests = {}};
+                                 .artefacts = {}};
 
   // Step 3 staged the limits the task now carries; a task row that moved since is evidence from another run.
   if (evidence.spec_time_limit_ms != evidence.task_time_limit_ms ||
@@ -320,7 +489,7 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
   }
 
   // Every cited artefact is read back at the address its row records.
-  auto read_back = [&database, &store, &certificate](std::int64_t id) -> Result<std::string> {
+  auto read_back = [&database, &store, &certificate](std::int64_t id, std::string role) -> Result<std::string> {
     const auto cited = cited_artefact(database, id);
     if (!cited) {
       return std::unexpected(cited.error());
@@ -329,10 +498,11 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
     if (const auto read = verified_bytes(store, *cited, bytes); !read) {
       return std::unexpected(read.error());
     }
-    certificate.digests.push_back(cited->digest);
+    certificate.artefacts.push_back(
+        CertifiedArtefact{.role = std::move(role), .artefact = id, .digest = cited->digest});
     return bytes;
   };
-  const auto oracle_source = read_back(evidence.oracle_artefact);
+  const auto oracle_source = read_back(evidence.oracle_artefact, "step 3's oracle");
   if (!oracle_source) {
     return std::unexpected(oracle_source.error());
   }
@@ -342,7 +512,7 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
       reference_artefact = artefact;
     }
   }
-  const auto reference_source = read_back(reference_artefact);
+  const auto reference_source = read_back(reference_artefact, "the reference (step 5, position 0)");
   if (!reference_source) {
     return std::unexpected(reference_source.error());
   }
@@ -351,7 +521,7 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
     if (position == 0) {
       continue;
     }
-    const auto source = read_back(artefact);
+    const auto source = read_back(artefact, "the solution for subtask " + std::to_string(position));
     if (!source) {
       return std::unexpected(source.error());
     }
@@ -366,22 +536,26 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
     }
     return std::int64_t{0};
   };
-  const auto generator_source = read_back(artefact_of(evidence.programs, "generator"));
+  const auto generator_source = read_back(artefact_of(evidence.programs, "generator"), "step 6's generator");
   if (!generator_source) {
     return std::unexpected(generator_source.error());
   }
-  const auto checker_source = read_back(artefact_of(evidence.programs, "checker"));
+  const auto checker_source = read_back(artefact_of(evidence.programs, "checker"), "step 6's checker");
   if (!checker_source) {
     return std::unexpected(checker_source.error());
   }
   for (const auto& entry : evidence.cases) {
-    const auto cited = read_back(entry.artefact);
+    const auto cited = read_back(entry.artefact, "the cases for subtask " + std::to_string(entry.position));
     if (!cited) {
       return std::unexpected(cited.error());
     }
   }
   certificate.checks.push_back("step 3, 5 and 6 evidence read back at the digest its row records (" +
-                               std::to_string(certificate.digests.size()) + " artefact(s))");
+                               std::to_string(certificate.artefacts.size()) + " artefact(s))");
+  if (!previous->changed.empty()) {
+    certificate.checks.push_back("the certificate written before this run no longer certified its evidence (" +
+                                 joined(previous->changed, "; ") + "), so this run re-ran what the rows hold now");
+  }
 
   // Step 3's row is read by the one reader its writer uses, so the stored shape cannot drift from this program.
   const auto specification = read_specification(evidence.specification_json);
@@ -421,22 +595,12 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
     checks += as_json_string(check);
   }
   checks += ']';
-  auto evidence_json = std::string{"{\"task_content_hash\":" + as_json_string(evidence.task_content_hash) +
-                                   ",\"artefact_digests\":["};
-  auto first_digest = true;
-  for (const auto& digest : certificate.digests) {
-    if (!first_digest) {
-      evidence_json += ',';
-    }
-    first_digest = false;
-    evidence_json += as_json_string(digest);
-  }
-  evidence_json += "]}";
   database.execute_text(
       "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) "
       "VALUES ($1, $2, $3, $4::task_verification_status, $5::jsonb, $6, $7::jsonb)",
       {job_id, evidence.task_id, static_cast<std::int64_t>(evidence.task_version),
-       std::string{outcome_name(certificate.outcome)}, checks, certificate.commit_id, evidence_json});
+       std::string{outcome_name(certificate.outcome)}, checks, certificate.commit_id,
+       evidence_json(evidence.task_content_hash, certificate.artefacts)});
   database.execute_text(
       "UPDATE tasks SET verification = $3::task_verification_status WHERE id = $1 AND version = $2",
       {evidence.task_id, static_cast<std::int64_t>(evidence.task_version),

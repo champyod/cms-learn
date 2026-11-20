@@ -349,6 +349,44 @@ auto certificate_count(cms::db::connection& database, std::string_view task_id) 
   return rows.empty() ? 0 : rows.front().certificate_rows;
 }
 
+/// @return The artefact step 5 recorded for @p position in @p job.
+auto solution_artefact(cms::db::connection& database, std::int64_t job, std::int32_t position) -> std::int64_t {
+  auto id = std::int64_t{0};
+  for (const auto& row : database(sqlpp::select(cms::db::generationSolutions.artefactId)
+                                      .from(cms::db::generationSolutions)
+                                      .where(cms::db::generationSolutions.jobId == job &&
+                                             cms::db::generationSolutions.position == position))) {
+    id = row.artefactId;
+  }
+  return id;
+}
+
+/// @return The outcome the newest certificate for @p task_id records.
+auto newest_outcome(cms::db::connection& database, std::string_view task_id) -> std::string {
+  auto value = std::string{};
+  for (const auto& row : database(sqlpp::select(cms::db::generationCertificates.outcome)
+                                      .from(cms::db::generationCertificates)
+                                      .where(cms::db::generationCertificates.taskId == std::string{task_id})
+                                      .order_by(cms::db::generationCertificates.createdAt.desc())
+                                      .limit(1))) {
+    value = std::string{row.outcome};
+  }
+  return value;
+}
+
+/// @return The checks the newest certificate for @p task_id records, as one text.
+auto newest_checks(cms::db::connection& database, std::string_view task_id) -> std::string {
+  auto value = std::string{};
+  for (const auto& row : database(sqlpp::select(cms::db::generationCertificates.checks)
+                                      .from(cms::db::generationCertificates)
+                                      .where(cms::db::generationCertificates.taskId == std::string{task_id})
+                                      .order_by(cms::db::generationCertificates.createdAt.desc())
+                                      .limit(1))) {
+    value = std::string{row.checks};
+  }
+  return value;
+}
+
 /// @return Whether one check the certificate recorded mentions @p needle.
 auto mentions(const std::vector<std::string>& checks, std::string_view needle) -> bool {
   return std::any_of(checks.begin(), checks.end(), [needle](const std::string& check) {
@@ -422,7 +460,7 @@ TEST_CASE("a complete job is certified and the certificate names every method it
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::verified);
   CHECK(certificate->commit_id == std::string{COMMIT});
-  CHECK(certificate->digests.size() >= 8);
+  CHECK(certificate->artefacts.size() >= 8);
   CHECK(mentions(certificate->checks, "the test cases the generator prints"));
   CHECK(mentions(certificate->checks, "the reference and the subtask solutions through the checker"));
   CHECK(mentions(certificate->checks, "the brute-force differential"));
@@ -431,6 +469,67 @@ TEST_CASE("a complete job is certified and the certificate names every method it
   holder->commit();
   CHECK(verification_of(database, "certify-ok") == "verified");
   CHECK(certificate_count(database, "certify-ok") == 1);
+}
+
+TEST_CASE("a certificate whose artefact moved after the run no longer certifies", "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto store = cms::generate::test::MemoryStore{};
+  auto database = cms::generate::test::live_database();
+  {
+    auto fixture = transaction();
+    (void)build_job(fixture->connection(), store, "certify-moved", JobSources{}, true);
+    fixture->commit();
+  }
+  auto job = std::int64_t{0};
+  {
+    auto holder = transaction();
+    auto& connection = holder->connection();
+    job = job_of(connection, "certify-moved");
+    const auto certificate = cms::generate::certify_job(connection, store, job, COMMIT);
+    REQUIRE(certificate.has_value());
+    CHECK(certificate->outcome == cms::generate::VerificationOutcome::verified);
+    holder->commit();
+  }
+  CHECK(verification_of(database, "certify-moved") == "verified");
+  REQUIRE(certificate_count(database, "certify-moved") == 1);
+
+  // The certificate still matches what it recorded, so it holds and nothing is written.
+  {
+    auto holder = transaction();
+    const auto held = cms::generate::revalidate_certificate(holder->connection(), store, "certify-moved", 1);
+    REQUIRE(held.has_value());
+    CHECK(held->is_certified);
+    CHECK(held->outcome == cms::generate::VerificationOutcome::verified);
+    CHECK(held->changed.empty());
+    holder->commit();
+  }
+  CHECK(certificate_count(database, "certify-moved") == 1);
+
+  // An artefact is rewritten after the run: its row now holds a digest the certificate never saw.
+  const auto reference = solution_artefact(database, job, 0);
+  REQUIRE(reference != 0);
+  const auto rewritten = std::string(64, 'e');
+  database.execute_text("UPDATE generation_artefacts SET digest = $1 WHERE id = $2", {rewritten, reference});
+
+  {
+    auto holder = transaction();
+    const auto moved = cms::generate::revalidate_certificate(holder->connection(), store, "certify-moved", 1);
+    REQUIRE(moved.has_value());
+    CHECK(moved->is_certified);
+    CHECK(moved->outcome == cms::generate::VerificationOutcome::failed);
+    REQUIRE(!moved->changed.empty());
+    CHECK(moved->changed.front().find("the reference (step 5, position 0)") != std::string::npos);
+    CHECK(moved->changed.front().find(rewritten) != std::string::npos);
+    holder->commit();
+  }
+
+  // The stale row does not certify the task: the newest certificate is the failed one that names the change.
+  CHECK(verification_of(database, "certify-moved") == "failed");
+  CHECK(newest_outcome(database, "certify-moved") == "failed");
+  CHECK(certificate_count(database, "certify-moved") == 2);
+  CHECK(newest_checks(database, "certify-moved").find("the reference (step 5, position 0)") != std::string::npos);
 }
 
 TEST_CASE("a case count the generator's seeds do not reproduce is failed", "[certify][live]") {
