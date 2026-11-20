@@ -621,7 +621,7 @@
           "path": "public.task_type_audit"
         },
         {
-          "sql": "CREATE OR REPLACE FUNCTION task_verification_needs_its_certificate()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  IF NEW.verification IS NOT DISTINCT FROM OLD.verification THEN\n    RETURN NEW;\n  END IF;\n  IF NOT EXISTS (SELECT 1 FROM generation_certificates c\n                  WHERE c.task_id = NEW.id AND c.task_version = NEW.version\n                    AND c.outcome = NEW.verification) THEN\n    RAISE EXCEPTION 'task % version % has no certificate for %, so its verification cannot change: it is written by cmslearn_certifier, which holds INSERT on generation_certificates and UPDATE (verification) on tasks',\n      NEW.id, NEW.version, NEW.verification\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "sql": "CREATE OR REPLACE FUNCTION task_verification_needs_its_certificate()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  IF TG_OP = 'UPDATE' AND NEW.verification IS NOT DISTINCT FROM OLD.verification THEN\n    RETURN NEW;\n  END IF;\n  -- A new row may start unverified, which is the state the seeder writes. Nothing else is created without the\n  -- certificate that says it, and the certificate's foreign key makes that impossible to fake: a certificate names a\n  -- task row, so none can exist for a row that does not exist yet.\n  IF TG_OP = 'INSERT' AND NEW.verification = 'pending' THEN\n    RETURN NEW;\n  END IF;\n  IF NOT EXISTS (SELECT 1 FROM generation_certificates c\n                  WHERE c.task_id = NEW.id AND c.task_version = NEW.version\n                    AND c.outcome = NEW.verification) THEN\n    RAISE EXCEPTION 'task % version % has no certificate for %, so its verification cannot be written: it is written by cmslearn_certifier, which holds INSERT on generation_certificates and UPDATE (verification) on tasks',\n      NEW.id, NEW.version, NEW.verification\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
           "path": "public.task_verification_needs_its_certificate"
@@ -745,6 +745,12 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.tasks.tasks_verification_needs_certificate"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER tasks_verification_needs_certificate_on_insert\n    BEFORE INSERT ON tasks\n    FOR EACH ROW\n    EXECUTE FUNCTION task_verification_needs_its_certificate();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.tasks.tasks_verification_needs_certificate_on_insert"
         },
         {
           "sql": "REVOKE EXECUTE ON FUNCTION current_actor() FROM PUBLIC;",

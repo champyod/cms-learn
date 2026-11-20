@@ -60,9 +60,19 @@ VALUES ('$session', 'learner', '$account', now() + interval '1 hour');
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
 VALUES ('probe-task', 1, 'published', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original',
-        'verified', 'int main() {}', repeat('a', 64)),
+        'pending', 'int main() {}', repeat('a', 64)),
        ('hidden-task', 1, 'published', 'Hidden', 'ซ่อน', 900, 1000, 256, 'token', 'original',
-        'verified', 'int main() {}', repeat('b', 64));
+        'pending', 'int main() {}', repeat('b', 64));
+-- ADR 0046 §2: a task row cannot be created verified, so the fixture builds the certificate it needs and moves the
+-- verification with the guarded UPDATE the trigger allows.
+INSERT INTO generation_jobs (task_id, task_version)
+SELECT id, version FROM tasks WHERE id IN ('probe-task', 'hidden-task')
+ON CONFLICT (task_id, task_version) DO NOTHING;
+INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence)
+SELECT j.id, t.id, t.version, 'verified', '["the submit route fixture certified this task"]'::jsonb, repeat('c', 40), '{}'::jsonb
+  FROM tasks t JOIN generation_jobs j ON j.task_id = t.id AND j.task_version = t.version
+ WHERE t.id IN ('probe-task', 'hidden-task');
+UPDATE tasks SET verification = 'verified' WHERE id IN ('probe-task', 'hidden-task') AND version = 1;
 INSERT INTO task_visibility (task_id, principal_id) VALUES ('probe-task', $everyone);
 SQL
 

@@ -64,9 +64,22 @@ VALUES ('$account', 'plan_probe', 'plan_probe@example.org', 'active');
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
 SELECT 'synthetic-' || value, 1, 'published', 'Synthetic ' || value, 'สังเคราะห์ ' || value,
-       800 + (value % 19) * 100, 1000, 256, 'token', 'original', 'verified', 'int main() {}',
+       800 + (value % 19) * 100, 1000, 256, 'token', 'original', 'pending', 'int main() {}',
        repeat('a', 64)
 FROM generate_series(1, 20000) AS value;
+
+-- A row cannot be created verified (ADR 0046 §2), so the fixture builds one job and one certificate per task and
+-- moves the verification with the guarded UPDATE, set-wise.
+INSERT INTO generation_jobs (task_id, task_version)
+SELECT id, version FROM tasks WHERE id LIKE 'synthetic-%'
+ON CONFLICT (task_id, task_version) DO NOTHING;
+
+INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence)
+SELECT j.id, t.id, t.version, 'verified', '["the unseen-task fixture"]'::jsonb, repeat('c', 40), '{}'::jsonb
+  FROM tasks t JOIN generation_jobs j ON j.task_id = t.id AND j.task_version = t.version
+ WHERE t.id LIKE 'synthetic-%';
+
+UPDATE tasks SET verification = 'verified' WHERE id LIKE 'synthetic-%' AND version = 1;
 
 INSERT INTO task_topics (task_id, task_version, topic)
 SELECT 'synthetic-' || value, 1, 'io' FROM generate_series(1, 20000) AS value;

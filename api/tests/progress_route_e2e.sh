@@ -74,7 +74,17 @@ INSERT INTO sessions (id, account_kind, admin_id, expires_at)
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
 VALUES ('probe-task', 1, 'published', 'Probe', 'ทดสอบ', 1200, 1000, 256, 'token', 'original',
-        'verified', 'int main() {}', repeat('a', 64));
+        'pending', 'int main() {}', repeat('a', 64));
+-- ADR 0046 §2: a task row cannot be created verified, so the fixture builds the certificate it needs and moves the
+-- verification with the guarded UPDATE the trigger allows.
+INSERT INTO generation_jobs (task_id, task_version)
+SELECT id, version FROM tasks WHERE id IN ('probe-task')
+ON CONFLICT (task_id, task_version) DO NOTHING;
+INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence)
+SELECT j.id, t.id, t.version, 'verified', '["the progress route fixture certified this task"]'::jsonb, repeat('c', 40), '{}'::jsonb
+  FROM tasks t JOIN generation_jobs j ON j.task_id = t.id AND j.task_version = t.version
+ WHERE t.id IN ('probe-task');
+UPDATE tasks SET verification = 'verified' WHERE id IN ('probe-task') AND version = 1;
 INSERT INTO task_topics (task_id, task_version, topic) VALUES ('probe-task', 1, 'io');
 INSERT INTO task_visibility (task_id, principal_id) VALUES ('probe-task', 0);
 SQL

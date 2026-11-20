@@ -107,7 +107,14 @@ insert_task() {
                                  time_limit_ms, memory_limit_mb, checker, origin, verification,
                                  solution, content_hash)
               VALUES ('$1', 1, 'published', '$1', '$1', 800, 1000, 256, 'token', 'original',
-                      'verified', 'int main() {}', repeat('a', 64))" >/dev/null 2>&1
+                      'pending', 'int main() {}', repeat('a', 64))" >/dev/null 2>&1
+  # A row cannot be created verified (ADR 0046 §2): write the certificate it needs, then move the verification with
+  # the guarded UPDATE.
+  psql_db -c "INSERT INTO generation_jobs (task_id, task_version) VALUES ('$1', 1)" >/dev/null 2>&1
+  psql_db -c "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence)
+              SELECT id, '$1', 1, 'verified', '[\"the visibility fixture\"]'::jsonb, repeat('c', 40), '{}'::jsonb
+              FROM generation_jobs WHERE task_id = '$1' AND task_version = 1" >/dev/null 2>&1
+  psql_db -c "UPDATE tasks SET verification = 'verified' WHERE id = '$1' AND version = 1" >/dev/null 2>&1
   psql_db -c "INSERT INTO task_topics (task_id, task_version, topic) VALUES ('$1', 1, 'io')" >/dev/null 2>&1
 }
 

@@ -134,6 +134,14 @@ printf '%s' "$refusal" | grep -q "has no certificate for verified" \
   || fail "a verification without a certificate was not refused: $refusal"
 note "a verification without its certificate is refused, naming the certificate"
 
+# The insert path is guarded too, so the rule is a property of the table and not of the statement a caller happens to
+# use. A row cannot be created verified: the certificate's foreign key names a task row, so none can exist yet.
+refusal="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
+  -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash) VALUES ('insert-probe', 1, 'draft', 'Insert probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original', 'verified', '', '')" 2>&1 || true)"
+printf '%s' "$refusal" | grep -q "has no certificate for verified" \
+  || fail "an INSERT of a verified row without a certificate was not refused: $refusal"
+note "an insert of a verified row without its certificate is refused, naming the certificate"
+
 refusal="$(as_certifier "UPDATE tasks SET title_en = 'rewritten'" || true)"
 printf '%s' "$refusal" | grep -q "permission denied for table tasks" \
   || fail "the certifier rewrote a task's content: $refusal"

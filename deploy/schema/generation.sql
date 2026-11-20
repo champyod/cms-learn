@@ -284,13 +284,19 @@ LANGUAGE plpgsql
 SET search_path = pg_catalog, public
 AS $$
 BEGIN
-  IF NEW.verification IS NOT DISTINCT FROM OLD.verification THEN
+  IF TG_OP = 'UPDATE' AND NEW.verification IS NOT DISTINCT FROM OLD.verification THEN
+    RETURN NEW;
+  END IF;
+  -- A new row may start unverified, which is the state the seeder writes. Nothing else is created without the
+  -- certificate that says it, and the certificate's foreign key makes that impossible to fake: a certificate names a
+  -- task row, so none can exist for a row that does not exist yet.
+  IF TG_OP = 'INSERT' AND NEW.verification = 'pending' THEN
     RETURN NEW;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM generation_certificates c
                   WHERE c.task_id = NEW.id AND c.task_version = NEW.version
                     AND c.outcome = NEW.verification) THEN
-    RAISE EXCEPTION 'task % version % has no certificate for %, so its verification cannot change: it is written by cmslearn_certifier, which holds INSERT on generation_certificates and UPDATE (verification) on tasks',
+    RAISE EXCEPTION 'task % version % has no certificate for %, so its verification cannot be written: it is written by cmslearn_certifier, which holds INSERT on generation_certificates and UPDATE (verification) on tasks',
       NEW.id, NEW.version, NEW.verification
       USING ERRCODE = 'check_violation';
   END IF;
@@ -300,6 +306,12 @@ $$;
 
 CREATE TRIGGER tasks_verification_needs_certificate
   BEFORE UPDATE OF verification ON tasks
+  FOR EACH ROW EXECUTE FUNCTION task_verification_needs_its_certificate();
+
+-- The same rule for the insert path, so the guarantee is a property of the table and not of the statement a caller
+-- happens to use (ADR 0046 §2).
+CREATE TRIGGER tasks_verification_needs_certificate_on_insert
+  BEFORE INSERT ON tasks
   FOR EACH ROW EXECUTE FUNCTION task_verification_needs_its_certificate();
 
 -- The certifier is not the generator: it writes the certificate and moves the one column a verification is. It holds

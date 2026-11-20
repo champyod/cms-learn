@@ -51,9 +51,19 @@ auto given_hidden_task(cms::db::connection& database, std::string_view id, std::
       cms::db::tasks.difficulty = difficulty, cms::db::tasks.timeLimitMs = 1000,
       cms::db::tasks.memoryLimitMb = 256, cms::db::tasks.checker = std::string{"token"},
       cms::db::tasks.origin = std::string{"original"},
-      cms::db::tasks.verification = std::string{"verified"},
+      cms::db::tasks.verification = std::string{"pending"},
       cms::db::tasks.solution = std::string{"int main() {}"},
       cms::db::tasks.contentHash = std::string(64, 'a')));
+  // A row cannot be created verified (ADR 0046 §2), so the fixture writes the certificate this task needs and moves the
+  // verification with the guarded UPDATE. Each task gets its own job and certificate: there is no shared job to reuse.
+  database.execute_text("INSERT INTO generation_jobs (task_id, task_version) VALUES ($1, 1)", {identifier});
+  database.execute_text(
+      "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) "
+      "SELECT id, $1, 1, 'verified', '[\"the serve fixture read the row back\"]'::jsonb, 'deadbeef', "
+      "'{}'::jsonb FROM generation_jobs WHERE task_id = $1 AND task_version = 1",
+      {identifier});
+  database.execute_text("UPDATE tasks SET verification = 'verified' WHERE id = $1 AND version = 1",
+                        {identifier});
   database(sqlpp::insert_into(cms::db::taskTopics).set(
       cms::db::taskTopics.taskId = identifier, cms::db::taskTopics.taskVersion = 1,
       cms::db::taskTopics.topic = std::string{topic}));
