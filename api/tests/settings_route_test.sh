@@ -58,7 +58,7 @@ INSERT INTO admin_accounts (id, handle, status)
   VALUES ('$writer', 'settings-writer', 'active'), ('$reader', 'settings-reader', 'active');
 INSERT INTO roles (id, name) VALUES ('$role', 'settings_operator');
 INSERT INTO role_capabilities (role_id, capability)
-  VALUES ('$role', 'settings:write'), ('$role', 'settings:secret_write');
+  VALUES ('$role', 'settings:write'), ('$role', 'settings:secret_write'), ('$role', 'settings:read');
 INSERT INTO admin_roles (admin_id, role_id) VALUES ('$writer', '$role');
 INSERT INTO sessions (id, account_kind, admin_id, expires_at)
   VALUES ('$writer_session', 'admin', '$writer', now() + interval '1 hour');
@@ -118,9 +118,30 @@ else
   ok "the response does not echo the password field"
 fi
 
+# The row holds the seal, never the secret: the api seals a catalogued secret before the write, and the schema refuses a
+# secret-kind row that does not start with the sealed prefix, so this is the proof of both.
 stored="$(psql_db -c "SELECT value_text FROM settings WHERE key = 'mail.password'")"
-[ "$stored" = "hunter2" ] && ok "the secret reached the settings row" \
-  || bad "the secret reached the settings row" "stored: ${stored:-nothing}"
+case "$stored" in
+  sealed:v1:*) ok "the secret reached the settings row sealed" ;;
+  *) bad "the secret reached the settings row sealed" "stored: ${stored:-nothing}" ;;
+esac
+case "$stored" in
+  *hunter2*) bad "the row carries no part of the secret" "the row repeats hunter2" ;;
+  *) ok "the row carries no part of the secret" ;;
+esac
+
+# The page a person lands on says a secret is stored and that it is sealed; it never renders the value.
+# The page needs settings:read, which the writing session's role now holds, and it shows one group at a time: fetch the
+# mail group, where the secret is rendered.
+page="$(curl -s --max-time 20 -H "Cookie: cms_session=$writer_session" "http://127.0.0.1:$listen_port/settings?group=mail")"
+case "$page" in
+  *sealed*) ok "the settings page renders the secret as sealed" ;;
+  *) bad "the settings page renders the secret as sealed" "the page has no sealed marker" ;;
+esac
+case "$page" in
+  *hunter2*) bad "the settings page renders no part of the secret" "the page repeats hunter2" ;;
+  *) ok "the settings page renders no part of the secret" ;;
+esac
 
 tier="$(psql_db -c "SELECT tier FROM settings WHERE key = 'mail.password'")"
 [ "$tier" = "secret" ] && ok "the row carries the catalogue's secret tier" \

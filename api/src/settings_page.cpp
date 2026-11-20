@@ -9,6 +9,12 @@ namespace cms::api {
 namespace {
 
 constexpr std::string_view SECRET_TIER = "secret";
+/// What a stored secret renders as: the page says it is there and that it is sealed, never what it holds.
+constexpr std::string_view SEALED_MARK = "sealed";
+/// The marker the visible settings carry instead of a secret's value (settings_view.cpp). The page never sees the seal
+/// itself: a secret is redacted before the route reads it, which is why the marker is what tells this page that a value
+/// exists at all.
+constexpr std::string_view REDACTED_MARK = "<redacted>";
 
 struct SettingsWords {
   std::string_view title;
@@ -20,12 +26,12 @@ struct SettingsWords {
 constexpr SettingsWords THAI_SETTINGS{.title = "ตั้งค่า",
                                       .lede = "ค่าที่ระบบอ่านจริง แต่ละรายการมีชั้นการเข้าถึงกำกับ",
                                       .submit_label = "บันทึก",
-                                      .secret_hint = "ปล่อยว่างไว้เพื่อคงค่าเดิม"};
+                                      .secret_hint = "เก็บไว้แบบ sealed แล้ว ปล่อยว่างไว้เพื่อใช้ค่าเดิม"};
 
 constexpr SettingsWords ENGLISH_SETTINGS{.title = "Settings",
                                          .lede = "The values the system reads, each with its access tier.",
                                          .submit_label = "Save",
-                                         .secret_hint = "Leave empty to keep the current value"};
+                                         .secret_hint = "Stored sealed; leave it empty to keep the current value"};
 
 auto group_of(std::string_view key) -> std::string {
   const auto separator = key.find('.');
@@ -78,10 +84,14 @@ auto settings_model(const Locale& locale, std::string_view site_name,
       continue;
     }
     const auto is_secret = setting.tier == SECRET_TIER;
+    // A secret is write-only on a page: it shows that a value is stored and that it is sealed, and the value itself never
+    // leaves the row (ADR 0054 §4).
+    const auto shown = is_secret ? (setting.value == REDACTED_MARK ? std::string{SEALED_MARK} : std::string{})
+                                 : setting.value;
     data["settings"].push_back({{"key", setting.key},
                                 {"tier", setting.tier},
                                 {"description", setting.key},
-                                {"value", is_secret ? std::string{} : setting.value}});
+                                {"value", shown}});
   }
   return data;
 }

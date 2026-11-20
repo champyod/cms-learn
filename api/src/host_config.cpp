@@ -10,6 +10,8 @@
 
 #include <cms/api/host_config.hpp>
 
+#include <cms/seal.hpp>
+
 namespace cms::api {
 namespace {
 
@@ -197,6 +199,13 @@ auto load_host_config(std::string_view path) -> Result<HostConfig> {
   if (!problems.empty()) {
     return std::unexpected(
         Error::make(ErrorCode::invalid_argument, "host file rejected: " + join(problems)));
+  }
+
+  // The deployment's seal key is validated once, here, and held for the process: every settings secret is sealed with it,
+  // and a key that cannot be used stops the service at start rather than at the first secret (ADR 0054 §4).
+  const auto configured = cms::seal::configure(entries.at("CMSLEARN_SEAL_KEY"));
+  if (!configured) {
+    return std::unexpected(configured.error());
   }
 
   return HostConfig{

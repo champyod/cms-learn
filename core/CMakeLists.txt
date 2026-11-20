@@ -28,6 +28,18 @@ add_executable(cms_object_put src/object_put.cpp)
 target_link_libraries(cms_object_put PRIVATE cms::object_store)
 cms_apply_warnings(cms_object_put PRIVATE)
 
+# Sealing is the one part of core that needs a translation unit: libsodium's secret box, behind the deployment's key
+# (ADR 0054 §4). Everything else in core is headers, so this is a target of its own rather than a member of cms::core.
+add_library(cms_seal STATIC src/seal.cpp)
+add_library(cms::seal ALIAS cms_seal)
+target_include_directories(cms_seal PUBLIC
+  "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
+  "$<INSTALL_INTERFACE:include>")
+target_link_libraries(cms_seal PUBLIC cms::core PRIVATE unofficial-sodium::sodium)
+target_compile_features(cms_seal PUBLIC cxx_std_26)
+cms_apply_warnings(cms_seal PUBLIC)
+cms_apply_hardening(cms_seal)
+
 target_include_directories(cms_core INTERFACE
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>"
   "$<INSTALL_INTERFACE:include>")

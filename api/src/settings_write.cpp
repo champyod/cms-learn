@@ -1,5 +1,7 @@
 #include <cms/api/settings_write.hpp>
 
+#include <cms/seal.hpp>
+
 #include <algorithm>
 #include <cctype>
 #include <exception>
@@ -91,6 +93,37 @@ auto writes_a_secret(const std::vector<CatalogueEntry>& catalogue,
   });
 }
 
+/// @brief Turns a form value into what the row may hold: a secret is sealed here, and an empty secret keeps the value
+/// that is already stored.
+///
+/// This is the one function that writes a settings row, so the seal lives here rather than in the route: every caller —
+/// the settings form, a plan, a test fixture — passes through it, and the schema's `settings_secret_is_sealed` CHECK is
+/// the second line of defence rather than the only one.
+auto stored_changes(const std::vector<CatalogueEntry>& catalogue, const std::vector<SettingChange>& changes)
+    -> Result<std::vector<SettingChange>> {
+  auto stored = std::vector<SettingChange>{};
+  for (const auto& change : changes) {
+    const auto* entry = entry_for(catalogue, change.key);
+    if (entry == nullptr || entry->tier != SECRET_TIER) {
+      stored.push_back(change);
+      continue;
+    }
+    if (change.value.empty()) {
+      continue;
+    }
+    const auto sealer = cms::seal::sealer();
+    if (!sealer) {
+      return std::unexpected(sealer.error());
+    }
+    const auto sealed = sealer->seal(change.value);
+    if (!sealed) {
+      return std::unexpected(sealed.error());
+    }
+    stored.push_back(SettingChange{.key = change.key, .value = *sealed});
+  }
+  return stored;
+}
+
 auto apply_settings(db::connection& database, const std::vector<CatalogueEntry>& catalogue,
                     const std::vector<SettingChange>& changes, const Actor& actor)
     -> Result<void> {
@@ -128,7 +161,11 @@ auto apply_settings(db::connection& database, const std::vector<CatalogueEntry>&
       (void)rows_set;
     }
 
-    for (const auto& change : changes) {
+    const auto stored = stored_changes(catalogue, changes);
+    if (!stored) {
+      return std::unexpected(stored.error());
+    }
+    for (const auto& change : *stored) {
       const auto* entry = entry_for(catalogue, change.key);
       store(database, *entry, change.value, actor);
     }

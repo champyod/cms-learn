@@ -12,6 +12,10 @@ CREATE TABLE settings (
   admin_actor_id uuid REFERENCES admin_accounts (id),
   system_actor_id uuid REFERENCES system_accounts (id),
   CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,7}$'),
+  -- A secret is never stored as plain text (ADR 0054 §4): the api seals it before the row exists, and this is where every
+  -- writer must pass. The prefix is the shape core writes, so a value sealed by anything else is refused here instead of
+  -- being read back as if it were a secret.
+  CONSTRAINT settings_secret_is_sealed CHECK (tier <> 'secret' OR value_text LIKE 'sealed:v1:%'),
   CONSTRAINT settings_one_actor CHECK (
     (actor_kind = 'learner' AND learner_actor_id IS NOT NULL
       AND admin_actor_id IS NULL AND system_actor_id IS NULL)

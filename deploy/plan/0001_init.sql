@@ -374,6 +374,7 @@ CREATE TABLE IF NOT EXISTS settings (
     CONSTRAINT settings_system_actor_id_fkey FOREIGN KEY (system_actor_id) REFERENCES system_accounts (id),
     CONSTRAINT settings_key_shape CHECK (key ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*){1,7}$'::text),
     CONSTRAINT settings_one_actor CHECK (actor_kind = 'learner'::account_kind AND learner_actor_id IS NOT NULL AND admin_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'admin'::account_kind AND admin_actor_id IS NOT NULL AND learner_actor_id IS NULL AND system_actor_id IS NULL OR actor_kind = 'system'::account_kind AND system_actor_id IS NOT NULL AND learner_actor_id IS NULL AND admin_actor_id IS NULL),
+    CONSTRAINT settings_secret_is_sealed CHECK (tier <> 'secret'::setting_tier OR value_text LIKE 'sealed:v1:%'),
     CONSTRAINT settings_value_matches_kind CHECK (CASE kind
     WHEN 'bool'::setting_kind THEN value_text IN ('true'::text, 'false'::text)
     WHEN 'int'::setting_kind THEN

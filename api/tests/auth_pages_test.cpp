@@ -87,7 +87,7 @@ TEST_CASE("the sign-in notice is a canned phrase in the page's own language", "[
                  "approve"));
 }
 
-TEST_CASE("the settings model renders one group and blanks every secret value", "[web][unit]") {
+TEST_CASE("the settings model renders one group and marks every secret value sealed", "[web][unit]") {
   const auto locale = cms::api::choose_locale("th", "");
   const auto model = cms::api::settings_model(locale, "CMS Learn", sample_settings(), "");
   CHECK(model["active_group"] == "site");
@@ -102,7 +102,8 @@ TEST_CASE("the settings model renders one group and blanks every secret value", 
   REQUIRE(mail["settings"].size() == 2);
   CHECK(mail["settings"][0]["key"] == "mail.host");
   CHECK(mail["settings"][1]["tier"] == "secret");
-  CHECK(mail["settings"][1]["value"] == "");
+  // A secret is write-only: the page says it is stored and sealed, and the value itself never arrives here.
+  CHECK(mail["settings"][1]["value"] == "sealed");
 }
 
 TEST_CASE("an unknown group falls back to the first group", "[web][unit]") {

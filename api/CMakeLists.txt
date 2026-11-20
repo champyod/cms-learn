@@ -38,7 +38,7 @@ add_library(cms::api_config ALIAS cms_api_config)
 target_include_directories(cms_api_config PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 
-target_link_libraries(cms_api_config PUBLIC cms::core)
+target_link_libraries(cms_api_config PUBLIC cms::core cms::seal)
 cms_apply_warnings(cms_api_config PUBLIC)
 cms_apply_hardening(cms_api_config)
 cms_apply_sanitizers(cms_api_config)
@@ -52,7 +52,7 @@ add_library(cms::api_web ALIAS cms_api_web)
 target_include_directories(cms_api_web PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 
-target_link_libraries(cms_api_web PUBLIC cms::bank pantor::inja)
+target_link_libraries(cms_api_web PUBLIC cms::bank pantor::inja cms::seal)
 cms_apply_warnings(cms_api_web PUBLIC)
 cms_apply_hardening(cms_api_web)
 cms_apply_sanitizers(cms_api_web)
@@ -70,7 +70,7 @@ add_library(cms::api_authority ALIAS cms_api_authority)
 target_include_directories(cms_api_authority PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
 target_link_libraries(cms_api_authority PUBLIC cms::api_identity cms::api_mail cms::db_drogon
-                                             cms::bank simdjson::simdjson)
+                                             cms::bank cms::seal simdjson::simdjson)
 cms_apply_warnings(cms_api_authority PUBLIC)
 cms_apply_hardening(cms_api_authority)
 cms_apply_sanitizers(cms_api_authority)

@@ -72,6 +72,7 @@ auto commit_settings(const std::shared_ptr<const db::connection_config>& config,
     -> Result<void> {
   try {
     auto transaction = cms::db::Transaction{*config->client};
+    // apply_settings seals a secret itself, so the route hands it the form's changes unchanged.
     const auto applied = apply_settings(transaction.connection(), catalogue, changes, actor);
     if (!applied) {
       return std::unexpected(applied.error());

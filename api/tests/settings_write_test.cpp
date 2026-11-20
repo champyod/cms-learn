@@ -2,6 +2,7 @@
 
 #include <cms/api/settings_view.hpp>
 #include <cms/api/settings_write.hpp>
+#include <cms/seal.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/db/transaction.hpp>
 #include <cms/db/tables.hpp>
@@ -47,7 +48,12 @@ auto admin(std::string_view id) -> cms::api::Actor {
 
 /// Creates the acting principal if it is not there. Idempotent because the cases share one database and Catch2
 /// may run them in any order: a case that writes must not depend on another case having gone first.
+/// The deployment's seal key in this binary: apply_settings seals a secret, and a process without a key must not be able
+/// to write one, so the fixture configures the same key the api reads from CMSLEARN_SEAL_KEY (idempotent, same key).
+constexpr std::string_view TEST_SEAL_KEY = "0123456789abcdef0123456789abcdef";
 void given_operator() {
+  const auto configured = cms::seal::configure(TEST_SEAL_KEY);
+  REQUIRE(configured.has_value());
   auto database = live_database();
   for (const auto& row : database(sqlpp::select(cms::db::adminAccounts.id)
                                       .from(cms::db::adminAccounts)
@@ -61,9 +67,14 @@ void given_operator() {
       cms::db::adminAccounts.status = std::string{"active"}));
 }
 
+/// The snapshot the view caches against: its version must be the one the trigger keeps, or the view never rebuilds after a
+/// write and every case that follows reads the value from before it.
 auto stored_settings() -> cms::SettingsSnapshot {
-  auto snapshot = cms::SettingsSnapshot{1, {}};
+  auto snapshot = cms::SettingsSnapshot{0, {}};
   auto database = live_database();
+  for (const auto& row : database(sqlpp::select(cms::db::settingsMeta.version).from(cms::db::settingsMeta))) {
+    snapshot.version = row.version;
+  }
   for (const auto& row :
        database(sqlpp::select(cms::db::settings.key, cms::db::settings.valueText)
                     .from(cms::db::settings))) {
@@ -111,10 +122,17 @@ TEST_CASE("a secret is stored and never read back", "[settings][write][live]") {
   REQUIRE(applied.has_value());
   transaction.commit();
 
-  // The value reached the table — that is how a credential is rotated — and no reader may see it.
+  // The value reached the table sealed — that is how a credential is rotated — and no reader may see it.
   const auto shown = visible("mail.password");
   CHECK(shown.tier == "secret");
   CHECK(shown.value == std::string{cms::api::REDACTED});
+
+  const auto snapshot = stored_settings();
+  const auto stored = snapshot.values.find("mail.password");
+  REQUIRE(stored != snapshot.values.end());
+  const auto& text = std::get<std::string>(stored->second);
+  CHECK(text.starts_with(cms::seal::PREFIX));
+  CHECK(text.find("hunter2") == std::string::npos);
 
   for (const auto& setting : *shared_view().for_snapshot(stored_settings())) {
     CHECK(setting.value != "hunter2");

@@ -3,6 +3,7 @@
 #include <cms/api/settings_plan.hpp>
 #include <cms/api/settings_view.hpp>
 #include <cms/api/settings_write.hpp>
+#include <cms/seal.hpp>
 #include <cms/db/connection.hpp>
 #include <cms/db/tables.hpp>
 #include <cms/db/transaction.hpp>
@@ -54,7 +55,12 @@ auto live_config() -> const std::shared_ptr<const cms::db::connection_config>& {
 
 /// Creates the planning principal if it is not there. Idempotent because the cases share one database and
 /// Catch2 may run them in any order, and a plan names its author through a foreign key.
+/// The deployment's seal key in this binary: apply_settings seals a secret, and a process without a key must not be able
+/// to write one, so the fixture configures the same key the api reads from CMSLEARN_SEAL_KEY (idempotent, same key).
+constexpr std::string_view TEST_SEAL_KEY = "0123456789abcdef0123456789abcdef";
 void given_planner() {
+  const auto configured = cms::seal::configure(TEST_SEAL_KEY);
+  REQUIRE(configured.has_value());
   auto database = live_database();
   for (const auto& row : database(sqlpp::select(cms::db::adminAccounts.id)
                                       .from(cms::db::adminAccounts)
