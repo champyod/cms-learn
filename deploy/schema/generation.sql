@@ -75,6 +75,26 @@ CREATE TRIGGER generation_jobs_move_forward
   BEFORE UPDATE ON generation_jobs
   FOR EACH ROW EXECUTE FUNCTION generation_job_moves_forward();
 
+-- The insert path carries the start state's rule too, so a job is created queued and only queued: no caller can write a
+-- row that is already done, failed or awaiting-evidence, the same shape the task side's insert trigger has (ADR 0046 §2).
+CREATE FUNCTION job_starts_queued() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NEW.state <> 'queued' THEN
+    RAISE EXCEPTION 'generation job for task % version % is created queued, not %, because a job''s state is its history and a row cannot have one before it exists',
+      NEW.task_id, NEW.task_version, NEW.state
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER generation_jobs_start_queued
+  BEFORE INSERT ON generation_jobs
+  FOR EACH ROW EXECUTE FUNCTION job_starts_queued();
+
 CREATE TABLE generation_candidates (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   job_id bigint NOT NULL REFERENCES generation_jobs (id) ON DELETE CASCADE,

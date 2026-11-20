@@ -54,7 +54,9 @@ refusal="$(env -i "$worker" --check 2>&1)"
 status=$?
 set -e
 [ "$status" -eq 2 ] || fail "the worker started without configuration (exit $status)"
-for key in CMSLEARN_MODEL_ENDPOINT CMSLEARN_MODEL_ID CMSLEARN_MODEL_KEY CMSLEARN_MODEL_PROMPT_VERSION CMSLEARN_DATABASE_URL; do
+# The model is the operator's record, so its four keys are gone from the configuration surface: the refusal names the
+# nine that remain, and an operator's first instruction is the page rather than an export.
+for key in CMSLEARN_DATABASE_URL CMSLEARN_CERTIFIER_DATABASE_URL CMSLEARN_S3_ENDPOINT CMSLEARN_CONTENT_ROOT CMSLEARN_COMMIT; do
   printf '%s' "$refusal" | grep -q "$key" || fail "the refusal does not name $key: $refusal"
 done
 printf '%s' "$refusal" | grep -q "secret" && fail "the refusal printed a value"
@@ -141,6 +143,19 @@ refusal="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
 printf '%s' "$refusal" | grep -q "has no certificate for verified" \
   || fail "an INSERT of a verified row without a certificate was not refused: $refusal"
 note "an insert of a verified row without its certificate is refused, naming the certificate"
+
+# The start state is a property of the table too: a job is created queued, and a row that is already done or failed cannot
+# be written at all — as the owner or as the role the worker runs under, so the rule is about the statement, not the caller.
+for state in done failed; do
+  refusal="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
+    -c "INSERT INTO generation_jobs (task_id, task_version, state) VALUES ('probe-task', 1, '$state')" 2>&1 || true)"
+  printf '%s' "$refusal" | grep -q "is created queued, not $state" \
+    || fail "an insert of a $state job as the owner was not refused: $refusal"
+  refusal="$(as_generator "INSERT INTO generation_jobs (task_id, task_version, state) VALUES ('probe-task', 1, '$state')" || true)"
+  printf '%s' "$refusal" | grep -q "is created queued, not $state" \
+    || fail "an insert of a $state job as the generator was not refused: $refusal"
+  note "an insert of a $state job is refused as the owner and as the generator, naming the start state"
+done
 
 # The job side carries the same rule: a move to done needs a verified certificate for the job's own task and version,
 # and the table is what refuses, not the pipeline that happens to call it first (ADR 0046 §2, ADR 0050).

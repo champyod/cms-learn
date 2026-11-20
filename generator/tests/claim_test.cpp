@@ -288,3 +288,24 @@ TEST_CASE("a job moves only the way the record allows", "[claim][live]") {
       database, "UPDATE generation_jobs SET state = 'running' WHERE id = $1", {job});
   CHECK(reopened.find("nothing reopens it") != std::string::npos);
 }
+
+TEST_CASE("a job cannot be created already finished", "[claim][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  (void)fresh_job(database, "claim-probe-start-state");
+
+  // The state is the job's history, so a row cannot be born with one: the insert path carries the same rule the update path
+  // does, the shape the task side already has.
+  for (const auto state : {"done", "failed", "awaiting-evidence"}) {
+    const auto refused = database_refusal(
+        database, "INSERT INTO generation_jobs (task_id, task_version, state) VALUES ($1, 1, $2)",
+        {std::string{"claim-probe-start-state"}, std::string{state}});
+    CHECK(refused.find("is created queued, not " + std::string{state}) != std::string::npos);
+  }
+
+  // A queued row is the one the record allows, so the rule does not block the normal path.
+  const auto job = cms::generate::test::prepare_job(database, "claim-probe-start-queued");
+  CHECK(job_row(database, job).state == "queued");
+}

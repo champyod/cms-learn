@@ -561,6 +561,12 @@
           "path": "public.job_done_needs_its_certificate"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION job_starts_queued()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  IF NEW.state <> 'queued' THEN\n    RAISE EXCEPTION 'generation job for task % version % is created queued, not %, because a job''s state is its history and a row cannot have one before it exists',\n      NEW.task_id, NEW.task_version, NEW.state\n      USING ERRCODE = 'check_violation';\n  END IF;\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.job_starts_queued"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION levels_partition_the_scale()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nAS $$\nDECLARE\n  expected integer := 800;\n  current_min integer;\nBEGIN\n  FOR current_min IN SELECT difficulty_min FROM levels ORDER BY difficulty_min LOOP\n    IF current_min <> expected THEN\n      RAISE EXCEPTION 'level list is not a partition of 800..3500: a band starts at %, expected %',\n        current_min, expected;\n    END IF;\n    expected := (SELECT difficulty_max + 100 FROM levels WHERE difficulty_min = current_min);\n  END LOOP;\n  IF expected - 100 <> 3500 THEN\n    RAISE EXCEPTION 'level list is not a partition of 800..3500: the last band ends at %, expected 3500',\n      expected - 100;\n  END IF;\n  RETURN NULL;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -697,6 +703,12 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.generation_jobs.generation_jobs_move_forward"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER generation_jobs_start_queued\n    BEFORE INSERT ON generation_jobs\n    FOR EACH ROW\n    EXECUTE FUNCTION job_starts_queued();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.generation_jobs.generation_jobs_start_queued"
         },
         {
           "sql": "CREATE CONSTRAINT TRIGGER levels_partition_check\n    AFTER INSERT OR UPDATE OR DELETE ON levels\n    DEFERRABLE INITIALLY DEFERRED\n    FOR EACH ROW\n    EXECUTE FUNCTION levels_partition_the_scale();",

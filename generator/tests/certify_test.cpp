@@ -288,8 +288,9 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
       "INSERT INTO task_subtasks (task_id, task_version, position, points, min_n, max_n) "
       "VALUES ($1, 1, 1, 40, 1, 10), ($1, 1, 2, 60, 1, 20)",
       {std::string{task_id}});
-  database.execute_text("INSERT INTO generation_jobs (task_id, task_version, state) VALUES ($1, 1, $2)",
-                        {std::string{task_id}, std::string{"awaiting-evidence"}});
+  // The job starts queued and walks to awaiting-evidence through the state machine's own moves: a row cannot be created
+  // already advanced, because its state is its history (ADR 0046 §2, ADR 0050).
+  database.execute_text("INSERT INTO generation_jobs (task_id, task_version) VALUES ($1, 1)", {std::string{task_id}});
   auto job = std::int64_t{0};
   for (const auto& row : database(sqlpp::select(cms::db::generationJobs.id)
                                       .from(cms::db::generationJobs)
@@ -298,6 +299,12 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
                                       .limit(1))) {
     job = row.id;
   }
+  // The two legal moves the worker makes before the certifier runs, so the fixture ends where the record lets a job end
+  // before a certificate decides it.
+  database.execute_text("UPDATE generation_jobs SET state = 'running', claimed_by = 'certify-fixture', "
+                        "claimed_at = now(), lease_expires_at = now() + interval '5 minutes' WHERE id = $1", {job});
+  database.execute_text("UPDATE generation_jobs SET state = 'awaiting-evidence', claimed_by = NULL, claimed_at = NULL, "
+                        "lease_expires_at = NULL WHERE id = $1", {job});
 
   const auto write = [&](std::string_view key, std::string_view bytes) {
     store.overwrite(key, bytes);

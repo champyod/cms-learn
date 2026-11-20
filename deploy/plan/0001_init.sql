@@ -997,6 +997,22 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION job_starts_queued()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  IF NEW.state <> 'queued' THEN
+    RAISE EXCEPTION 'generation job for task % version % is created queued, not %, because a job''s state is its history and a row cannot have one before it exists',
+      NEW.task_id, NEW.task_version, NEW.state
+      USING ERRCODE = 'check_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION levels_partition_the_scale()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1501,6 +1517,11 @@ CREATE OR REPLACE TRIGGER generation_jobs_move_forward
     BEFORE UPDATE ON generation_jobs
     FOR EACH ROW
     EXECUTE FUNCTION generation_job_moves_forward();
+
+CREATE OR REPLACE TRIGGER generation_jobs_start_queued
+    BEFORE INSERT ON generation_jobs
+    FOR EACH ROW
+    EXECUTE FUNCTION job_starts_queued();
 
 CREATE CONSTRAINT TRIGGER levels_partition_check
     AFTER INSERT OR UPDATE OR DELETE ON levels
