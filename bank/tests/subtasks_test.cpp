@@ -282,6 +282,43 @@ TEST_CASE("a subtask's narrowing is refused when it names nothing or leaves the 
   std::filesystem::remove_all(root, ignored);
 }
 
+TEST_CASE("a bound given as text is refused by name, never read as an absent bound", "[subtasks]") {
+  const auto root = cms::testing::scratch_directory("cms-subtasks-malformed");
+  const auto task_dir = root / "content" / "tasks" / "probe-malformed";
+  write_text(task_dir / "statement.en.md", "# Probe\n\nBody.");
+  write_text(task_dir / "examples" / "1.in", "42\n");
+  write_text(task_dir / "examples" / "1.out", "42\n");
+  write_text(task_dir / "solutions" / "main.cpp", "int main() { return 0; }\n");
+  const auto manifest = [](std::string_view bounds, std::string_view subtask) {
+    return std::string{R"({
+    "id": "probe-malformed", "version": 1, "status": "draft",
+    "title": {"en": "Probe", "th": "\u0e17\u0e14\u0e2a\u0e2d\u0e1a"},
+    "topics": [], "difficulty": 900,
+    "limits": {"time_ms": 1000, "memory_mb": 256},)"} +
+           std::string{bounds} + R"("subtasks": [)" + std::string{subtask} + R"(],
+    "checker": {"kind": "token"}, "origin": {"kind": "original"},
+    "verification": {"reference_solution": "solutions/main.cpp"}
+  })";
+  };
+  constexpr std::string_view BOUNDS = R"("bounds": {"min_n": 1, "max_n": 2000, "value_min": 1, "value_max": 100},)";
+
+  write_text(task_dir / "task.json",
+             manifest(BOUNDS, R"({"position": 1, "points": 100, "max_n": "2000"})"));
+  const auto subtask_typo = cms::bank::load_task(task_dir);
+  REQUIRE(!subtask_typo.has_value());
+  CHECK(subtask_typo.error().message.find("subtask 1: max_n is not an integer") != std::string::npos);
+
+  write_text(task_dir / "task.json", manifest(
+                                        R"("bounds": {"min_n": 1, "max_n": "2000", "value_min": 1, "value_max": 100},)",
+                                        R"({"position": 1, "points": 100, "max_n": 2000})"));
+  const auto task_typo = cms::bank::load_task(task_dir);
+  REQUIRE(!task_typo.has_value());
+  CHECK(task_typo.error().message.find("probe-malformed: max_n is not an integer") != std::string::npos);
+
+  std::error_code ignored;
+  std::filesystem::remove_all(root, ignored);
+}
+
 TEST_CASE("the seeder records a partition and the statement carries the section", "[subtasks][live]") {
   if (!cms::test::has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");

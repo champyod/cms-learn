@@ -86,6 +86,13 @@ auto sample_cases(const SampleRequest& request) -> Result<std::vector<Sample>> {
     }
   }
   const auto interval = cms::is_empty(request.narrowing) ? request.bounds : cms::narrowed(request.narrowing, request.bounds);
+  // The span a value is drawn from is (value_max - value_min) + 1, so an interval that admits no value would make the
+  // draw a modulo by zero. The reader above refuses this already; this is the refusal that keeps a future caller from
+  // reintroducing it.
+  if (interval.value_min > interval.value_max) {
+    return std::unexpected(refuse("the bounds admit no value: value_min " + std::to_string(interval.value_min) +
+                                  " is above value_max " + std::to_string(interval.value_max)));
+  }
   auto samples = std::vector<Sample>{};
   samples.reserve(static_cast<std::size_t>(request.count));
   for (std::int64_t index = 0; index < request.count; ++index) {

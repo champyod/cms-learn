@@ -52,7 +52,8 @@ struct Sample {
 ///
 /// The same request draws the same bytes every time: the seed is an argument, never the clock, and the values are
 /// drawn inside the narrowing the request names. A shape this sampler does not build, a narrowing the task does not
-/// admit, or a count below one is refused by name rather than guessed.
+/// admit, a count below one, or an interval that admits no value is refused by name rather than guessed — the last
+/// before the draw, so the span a value comes from can never be zero.
 [[nodiscard]] auto sample_cases(const SampleRequest& request) -> Result<std::vector<Sample>>;
 
 /// @brief The one case the example and the oracle's check are drawn at: the smallest the task's bounds admit.

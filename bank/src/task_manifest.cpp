@@ -39,6 +39,21 @@ auto nested(const simdjson::dom::object& object, std::string_view name)
   return child;
 }
 
+/// @return The integer @p name holds, nothing when the key is absent, or a refusal naming @p name when it holds
+/// another type: a typo is never silently an absent bound. The caller adds the place it read.
+auto strict_integer(const simdjson::dom::object& object, std::string_view name)
+    -> Result<std::optional<std::int64_t>> {
+  auto element = simdjson::dom::element{};
+  if (object.at_key(name).get(element) != simdjson::SUCCESS) {
+    return std::optional<std::int64_t>{};
+  }
+  auto value = std::int64_t{0};
+  if (element.get_int64().get(value) != simdjson::SUCCESS) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument, std::string{name} + " is not an integer"));
+  }
+  return std::optional<std::int64_t>{value};
+}
+
 auto parse_identity(const simdjson::dom::object& object, std::string_view where, Task& task)
     -> Result<void> {
   const auto id = required_text(object, "id", where);
@@ -179,24 +194,39 @@ auto parse_bounds(const simdjson::dom::object& object, std::string_view where, T
   if (!bounds) {
     return {};
   }
-  const auto min_n = required_integer(*bounds, "min_n", where);
+  const auto min_n = strict_integer(*bounds, "min_n");
   if (!min_n) {
-    return std::unexpected(min_n.error());
+    return std::unexpected(detail::fail(where, min_n.error().message));
   }
-  const auto max_n = required_integer(*bounds, "max_n", where);
+  const auto max_n = strict_integer(*bounds, "max_n");
   if (!max_n) {
-    return std::unexpected(max_n.error());
+    return std::unexpected(detail::fail(where, max_n.error().message));
   }
-  const auto value_min = required_integer(*bounds, "value_min", where);
+  const auto value_min = strict_integer(*bounds, "value_min");
   if (!value_min) {
-    return std::unexpected(value_min.error());
+    return std::unexpected(detail::fail(where, value_min.error().message));
   }
-  const auto value_max = required_integer(*bounds, "value_max", where);
+  const auto value_max = strict_integer(*bounds, "value_max");
   if (!value_max) {
-    return std::unexpected(value_max.error());
+    return std::unexpected(detail::fail(where, value_max.error().message));
+  }
+  auto missing = std::string{};
+  const auto note = [&missing](std::string_view name, std::optional<std::int64_t> value) {
+    if (value.has_value()) {
+      return;
+    }
+    missing += missing.empty() ? "" : ", ";
+    missing += name;
+  };
+  note("min_n", *min_n);
+  note("max_n", *max_n);
+  note("value_min", *value_min);
+  note("value_max", *value_max);
+  if (!missing.empty()) {
+    return std::unexpected(detail::fail(where, "the task's bounds are missing " + missing));
   }
   task.bounds = cms::TaskBounds{
-      .min_n = *min_n, .max_n = *max_n, .value_min = *value_min, .value_max = *value_max};
+      .min_n = **min_n, .max_n = **max_n, .value_min = **value_min, .value_max = **value_max};
   return {};
 }
 
@@ -239,10 +269,17 @@ auto parse_subtasks(const simdjson::dom::object& object, std::string_view where,
       return std::unexpected(detail::fail(
           where, "a subtask narrows the task's bounds, and the task declares none"));
     }
-    const auto bounds = cms::SubtaskBounds{.min_n = detail::field_integer(entry, "min_n"),
-                                           .max_n = detail::field_integer(entry, "max_n"),
-                                           .value_min = detail::field_integer(entry, "value_min"),
-                                           .value_max = detail::field_integer(entry, "value_max")};
+    auto bounds = cms::SubtaskBounds{};
+    for (const auto& [name, target] : {std::pair{"min_n", &bounds.min_n}, std::pair{"max_n", &bounds.max_n},
+                                       std::pair{"value_min", &bounds.value_min},
+                                       std::pair{"value_max", &bounds.value_max}}) {
+      const auto value = strict_integer(entry, name);
+      if (!value) {
+        return std::unexpected(detail::fail(
+            where, "subtask " + std::to_string(*position) + ": " + value.error().message));
+      }
+      *target = *value;
+    }
     if (const auto refused = cms::narrowing_refusal(bounds, *task.bounds); refused.has_value()) {
       return std::unexpected(detail::fail(
           where, "subtask " + std::to_string(*position) + ": " + *refused));

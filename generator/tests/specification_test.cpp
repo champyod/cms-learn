@@ -147,6 +147,40 @@ TEST_CASE("a plan with no bound, or a complexity this step cannot read, is refus
   CHECK(unknown.error().message.find("reads O(1), O(log n), O(n), O(n log n)") != std::string::npos);
 }
 
+TEST_CASE("a step-3 answer whose bounds are inverted is refused by name, naming both values", "[generate]") {
+  const auto inverted_n = cms::generate::parse_specification_answer(
+      R"({"input": "n, then n integers", "output": "their sum", "input_shape": "n_then_values",)"
+      R"("bounds": {"min_n": 200001, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000},)"
+      R"("subtasks": [], "oracle": "int main() { return 0; }"})",
+      call());
+
+  REQUIRE(!inverted_n.has_value());
+  CHECK(inverted_n.error().message.find("inverted") != std::string::npos);
+  CHECK(inverted_n.error().message.find("min_n 200001") != std::string::npos);
+  CHECK(inverted_n.error().message.find("max_n 200000") != std::string::npos);
+
+  const auto inverted_values = cms::generate::parse_specification_answer(
+      R"({"input": "n, then n integers", "output": "their sum", "input_shape": "n_then_values",)"
+      R"("bounds": {"min_n": 1, "max_n": 200000, "value_min": 5, "value_max": 4},)"
+      R"("subtasks": [], "oracle": "int main() { return 0; }"})",
+      call());
+
+  REQUIRE(!inverted_values.has_value());
+  CHECK(inverted_values.error().message.find("inverted") != std::string::npos);
+  CHECK(inverted_values.error().message.find("value_min 5") != std::string::npos);
+  CHECK(inverted_values.error().message.find("value_max 4") != std::string::npos);
+}
+
+TEST_CASE("the sampler refuses bounds that admit no value rather than dividing by them", "[sampler]") {
+  const auto samples = sample_cases(
+      SampleRequest{.bounds = cms::TaskBounds{.min_n = 1, .max_n = 10, .value_min = 5, .value_max = 4}});
+
+  REQUIRE(!samples.has_value());
+  CHECK(samples.error().message.find("admit no value") != std::string::npos);
+  CHECK(samples.error().message.find("value_min 5") != std::string::npos);
+  CHECK(samples.error().message.find("value_max 4") != std::string::npos);
+}
+
 TEST_CASE("a subtask bound that is not an integer is refused by name, never read as absent", "[generate]") {
   const auto answer = cms::generate::parse_specification_answer(
       R"({"input": "n, then n integers", "output": "their sum", "input_shape": "n_then_values",)"

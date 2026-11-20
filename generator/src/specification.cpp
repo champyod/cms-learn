@@ -78,6 +78,15 @@ auto read_bounds(const simdjson::dom::object& object, cms::TaskBounds& bounds) -
   if (!missing.empty()) {
     return std::unexpected(refuse("the specification's bounds are missing " + joined(missing)));
   }
+  if (*min_n > *max_n) {
+    return std::unexpected(refuse("the specification's bounds are inverted: min_n " +
+                                  std::to_string(*min_n) + " is above max_n " + std::to_string(*max_n)));
+  }
+  if (*value_min > *value_max) {
+    return std::unexpected(refuse("the specification's bounds are inverted: value_min " +
+                                  std::to_string(*value_min) + " is above value_max " +
+                                  std::to_string(*value_max)));
+  }
   bounds = cms::TaskBounds{.min_n = *min_n, .max_n = *max_n, .value_min = *value_min, .value_max = *value_max};
   return {};
 }
