@@ -15,10 +15,6 @@ struct RequiredKey {
 };
 
 constexpr auto REQUIRED_KEYS = std::array{
-    RequiredKey{"CMSLEARN_MODEL_ENDPOINT", &ModelConfig::endpoint},
-    RequiredKey{"CMSLEARN_MODEL_ID", &ModelConfig::model_id},
-    RequiredKey{"CMSLEARN_MODEL_KEY", &ModelConfig::key},
-    RequiredKey{"CMSLEARN_MODEL_PROMPT_VERSION", &ModelConfig::prompt_version},
     RequiredKey{"CMSLEARN_DATABASE_URL", &ModelConfig::database_url},
     RequiredKey{"CMSLEARN_CERTIFIER_DATABASE_URL", &ModelConfig::certifier_database_url},
     RequiredKey{"CMSLEARN_S3_ENDPOINT", &ModelConfig::store_endpoint},

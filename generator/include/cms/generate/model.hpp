@@ -131,6 +131,13 @@ class RecordBackedClient final : public ModelClient {
                                            std::string_view prompt_version, std::int64_t seed)
     -> Result<std::unique_ptr<ModelClient>>;
 
+/// @brief The prompt set this binary carries, as one version string.
+///
+/// The prompts ship inside the build, so their version is a fact about the binary rather than a deployment's environment
+/// (ADR 0028 keeps deployment facts out of the code and code facts out of the deployment). ADR 0015 records it beside
+/// every call. Making it configurable would be a schema change and its own task, never a key added back here.
+inline constexpr std::string_view PROMPT_VERSION = "v1";
+
 /// @brief The protocol value this build speaks: an OpenAI-compatible chat completions endpoint.
 inline constexpr std::string_view OPENAI_CHAT_PROTOCOL = "openai_chat";
 

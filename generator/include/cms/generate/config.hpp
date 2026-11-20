@@ -8,16 +8,14 @@
 
 namespace cms::generate {
 
-/// @brief The deployer's configuration (ADR 0028): the model's endpoint, id, key and prompt version; the database the
-/// record is written to; the certifier's own connection; the object store every artefact's bytes go to; the content
-/// root the vocabulary is read from;
-/// and the commit the evidence is produced from, which the certificate records. No member has a default, because a
-/// default chosen in our environment is a product that works where we work.
+/// @brief The deployer's configuration (ADR 0028): the database the record is written to; the certifier's own connection;
+/// the object store every artefact's bytes go to; the content root the vocabulary is read from; and the commit the
+/// evidence is produced from, which the certificate records.
+///
+/// The model itself is not here: its endpoint, model id, protocol and key are the operator's record in the database
+/// (ADR 0055), so nothing in the environment can override or be required alongside it. No member has a default, because
+/// a default chosen in our environment is a product that works where we work.
 struct ModelConfig {
-  std::string endpoint;
-  std::string model_id;
-  std::string key;
-  std::string prompt_version;
   std::string database_url;
   /// The certifier's own role: the grants that decide a verification are its, not the generator's (ADR 0046).
   std::string certifier_database_url;

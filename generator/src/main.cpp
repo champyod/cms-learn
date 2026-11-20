@@ -107,7 +107,8 @@ auto run(const cms::generate::ModelConfig& config) -> int {
   // disabled record fails the step by name and ends the job failed — the operator fixes the record, not the process.
   const auto model_config = std::make_shared<const cms::db::connection_config>(
       cms::db::connection_config{.client = client});
-  auto model = cms::generate::RecordBackedClient{model_config, config.prompt_version, MODEL_CALL_SEED};
+  auto model = cms::generate::RecordBackedClient{model_config, std::string{cms::generate::PROMPT_VERSION},
+                                                  MODEL_CALL_SEED};
 
   const auto report = cms::generate::run_pipeline(model, connection, worker_name(), ports, facts);
   if (!report) {

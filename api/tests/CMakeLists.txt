@@ -168,6 +168,11 @@ add_test(
 set_tests_properties(api_settings_route_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RESOURCE_LOCK e2e)
 
 add_test(
+  NAME api_model_admin_e2e
+  COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/model_admin_e2e.sh" "$<TARGET_FILE:cms_api>")
+set_tests_properties(api_model_admin_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RESOURCE_LOCK e2e)
+
+add_test(
   NAME api_render_e2e
   COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/../../tools/check-render.sh" "$<TARGET_FILE:cms_api>")
 set_tests_properties(api_render_e2e PROPERTIES SKIP_RETURN_CODE 77 TIMEOUT 120 RESOURCE_LOCK e2e)
