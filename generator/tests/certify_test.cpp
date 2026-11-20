@@ -10,6 +10,8 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <exception>
 #include <vector>
 #include <optional>
@@ -22,6 +24,7 @@
 #include <cms/db/connection.hpp>
 #include <cms/db/tables.hpp>
 #include <cms/db/transaction.hpp>
+#include <cms/testing/scratch_directory.hpp>
 #include <cms/object_store.hpp>
 
 #include "live_database.hpp"
@@ -55,6 +58,8 @@ int main() {
 
 /// The intended solution: the same answer, so every method accepts it.
 constexpr std::string_view REFERENCE_SOURCE = R"(#include <cstdio>
+#include <filesystem>
+#include <fstream>
 int main() {
   int count = 0;
   if (std::scanf("%d", &count) != 1) return 1;
@@ -71,6 +76,8 @@ int main() {
 
 /// A reference that is right only at n = 1: the differential finds it on the case at the subtask's bound.
 constexpr std::string_view SMALLEST_ONLY_REFERENCE = R"(#include <cstdio>
+#include <filesystem>
+#include <fstream>
 int main() {
   int count = 0;
   if (std::scanf("%d", &count) != 1) return 1;
@@ -89,6 +96,8 @@ int main() {
 /// the half-limit margin of its 1000 ms declared limit.
 constexpr std::string_view SLOW_REFERENCE = R"(#include <chrono>
 #include <cstdio>
+#include <filesystem>
+#include <fstream>
 int main() {
   int count = 0;
   if (std::scanf("%d", &count) != 1) return 1;
@@ -111,6 +120,8 @@ int main() {
 /// A correct reference that touches 200 MB, above the 128 MB half of the task's 256 MB limit, so 0048's memory margin
 /// has something real to refuse.
 constexpr std::string_view BLOATED_REFERENCE = R"(#include <cstdio>
+#include <filesystem>
+#include <fstream>
 #include <vector>
 int main() {
   int count = 0;
@@ -133,6 +144,8 @@ int main() {
 
 /// A correct reference that stays small, so its own footprint can be measured from a bloated process.
 constexpr std::string_view SMALL_REFERENCE = R"(#include <cstdio>
+#include <filesystem>
+#include <fstream>
 int main() {
   int count = 0;
   if (std::scanf("%d", &count) != 1) return 1;
@@ -149,6 +162,8 @@ int main() {
 
 /// A generator implementing the contract: stdin "<seed> <n>", stdout "n" then n values in the declared bounds.
 constexpr std::string_view GENERATOR_SOURCE = R"(#include <cstdio>
+#include <filesystem>
+#include <fstream>
 int main() {
   long long seed = 0;
   long long n = 0;
@@ -185,6 +200,8 @@ constexpr std::string_view ALWAYS_OK_CHECKER = R"(int main() { return 0; }
 
 /// The partial for subtask 1: right up to the subtask's bound, wrong above it.
 constexpr std::string_view FIRST_PARTIAL = R"(#include <cstdio>
+#include <filesystem>
+#include <fstream>
 int main() {
   int count = 0;
   if (std::scanf("%d", &count) != 1) return 1;
@@ -202,6 +219,8 @@ int main() {
 /// The partial for subtask 2: it earns that group on its own cases, loses subtask 1's case, and is wrong above the
 /// task's full bound.
 constexpr std::string_view SECOND_PARTIAL = R"(#include <cstdio>
+#include <filesystem>
+#include <fstream>
 int main() {
   int count = 0;
   if (std::scanf("%d", &count) != 1) return 1;
@@ -862,4 +881,120 @@ TEST_CASE("a task cannot be published without a verified certificate", "[certify
     refused = error.what();
   }
   CHECK(refused.find("has no verified certificate, so it cannot move to published") != std::string::npos);
+}
+
+namespace {
+
+/// A hand-written task's content on disk: its task.json, one reference and one example, in a scratch root the test owns.
+constexpr auto HAND_REFERENCE = std::string_view{"#include <cstdio>\nint main() { long long n = 0; if (scanf(\"%lld\", &n) != 1) return 1; "
+                                                 "printf(\"%lld\\n\", n * 2); return 0; }"};
+constexpr auto HAND_WRONG = std::string_view{"#include <cstdio>\nint main() { printf(\"0\\n\"); return 0; }"};
+constexpr auto HAND_SLOW = std::string_view{"#include <cstdio>\nint main() { volatile long long x = 0; for (long long i = 0; i < 4000000000LL; "
+                                            "++i) { x += i; } printf(\"%lld\\n\", x > 0 ? 4LL : 4LL); return 0; }"};
+
+/// @return The scratch content root, with the task's files written into it.
+auto hand_written_root(const std::filesystem::path& scratch, std::string_view task_id,
+                       std::string_view reference) -> std::filesystem::path {
+  const auto task_root = scratch / "tasks" / std::string{task_id};
+  std::filesystem::create_directories(task_root / "examples");
+  std::ofstream{task_root / "task.json"} << R"({"id": ")" << task_id << R"(", "reference": "solution.cpp"})";
+  std::ofstream{task_root / "solution.cpp"} << reference;
+  std::ofstream{task_root / "examples" / "1.in"} << "2\n";
+  std::ofstream{task_root / "examples" / "1.out"} << "4\n";
+  return scratch;
+}
+
+/// @brief The task row a hand-written content file would seed: draft, its reference in the row, pending verification.
+auto given_hand_written(cms::db::connection& database, std::string_view task_id, std::string_view reference) -> void {
+  actor(database);
+  database.execute_text(
+      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, "
+      "checker, origin, verification, solution, content_hash) "
+      "VALUES ($1, 1, 'draft', 'Hand written', 'เขียนมือ', 800, 1000, 256, 'token', 'original', 'pending', $2, $3)",
+      {std::string{task_id}, std::string{reference}, std::string(64, 'h')});
+}
+
+}  // namespace
+
+TEST_CASE("a hand-written task is certified by the checks it can carry", "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto scratch = cms::testing::scratch_directory("certify-hand");
+  const auto task_id = std::string{"hand-written-correct"};
+  given_hand_written(database, task_id, HAND_REFERENCE);
+  const auto root = hand_written_root(scratch, task_id, HAND_REFERENCE);
+
+  const auto certificate = cms::generate::certify_task(database, root, task_id, 1, COMMIT);
+  if (!certificate) {
+    UNSCOPED_INFO(certificate.error().message);
+  }
+  REQUIRE(certificate.has_value());
+  CHECK(certificate->outcome == cms::generate::VerificationOutcome::verified);
+  CHECK(certificate->job_id == 0);
+  REQUIRE(certificate->checks.size() == 3);
+  CHECK(certificate->checks[0].find("passes every example") != std::string::npos);
+  CHECK(certificate->checks[1].find("inside the") != std::string::npos);
+  // The gap is said out loud, in words an operator reads: 0057's whole point.
+  CHECK(certificate->checks[2].find("brute-force differential did not run") != std::string::npos);
+  CHECK(certificate->checks[2].find("no brute-force program") != std::string::npos);
+
+  // The certificate names the task with no job, and the verification it moved is what lets the task be published.
+  auto has_job = true;
+  for (const auto& row : database(sqlpp::select(cms::db::generationCertificates.jobId)
+                                      .from(cms::db::generationCertificates)
+                                      .where(cms::db::generationCertificates.taskId == task_id))) {
+    has_job = row.jobId.has_value();
+  }
+  CHECK_FALSE(has_job);
+  CHECK(verification_of(database, task_id) == "verified");
+  auto published_refusal = std::string{};
+  try {
+    database.execute_text("UPDATE tasks SET status = 'published' WHERE id = $1 AND version = 1", {task_id});
+  } catch (const std::exception& error) {
+    published_refusal = error.what();
+  }
+  CHECK(published_refusal.empty());
+  auto status = std::string{};
+  for (const auto& row : database(sqlpp::select(cms::db::tasks.status)
+                                      .from(cms::db::tasks)
+                                      .where(cms::db::tasks.id == task_id))) {
+    status = std::string{row.status};
+  }
+  CHECK(status == "published");
+}
+
+TEST_CASE("a hand-written task whose reference is wrong or too slow refuses by name", "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto scratch = cms::testing::scratch_directory("certify-hand-refused");
+
+  const auto wrong_id = std::string{"hand-written-wrong"};
+  given_hand_written(database, wrong_id, HAND_WRONG);
+  const auto wrong_root = hand_written_root(scratch, wrong_id, HAND_WRONG);
+  const auto wrong = cms::generate::certify_task(database, wrong_root, wrong_id, 1, COMMIT);
+  REQUIRE(!wrong.has_value());
+  CHECK(wrong.error().message.find("solution.cpp") != std::string::npos);
+  CHECK(wrong.error().message.find("1.in") != std::string::npos);
+
+  // A reference that answers correctly but needs more than half the declared time is refused for the measurement it
+  // broke, not for its answer.
+  const auto slow_id = std::string{"hand-written-slow"};
+  given_hand_written(database, slow_id, HAND_SLOW);
+  const auto slow_root = hand_written_root(scratch, slow_id, HAND_SLOW);
+  const auto slow = cms::generate::certify_task(database, slow_root, slow_id, 1, COMMIT);
+  if (slow) {
+    UNSCOPED_INFO("the slow reference was certified: " + std::to_string(slow->checks.size()) + " check(s)");
+  } else {
+    UNSCOPED_INFO(slow.error().message);
+  }
+  REQUIRE(!slow.has_value());
+  CHECK(slow.error().message.find("solution.cpp") != std::string::npos);
+  CHECK(slow.error().message.find("above the") != std::string::npos);
+  // No certificate was written for either, so neither task can be published.
+  CHECK(verification_of(database, wrong_id) == "pending");
+  CHECK(verification_of(database, slow_id) == "pending");
 }

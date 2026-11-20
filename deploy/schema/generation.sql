@@ -284,7 +284,9 @@ GRANT SELECT ON task_types, task_field_defs, task_field_values, task_topics, top
 -- without one is refused by the trigger below, so "verified" is reachable only through step 7.
 CREATE TABLE generation_certificates (
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  job_id bigint NOT NULL REFERENCES generation_jobs (id) ON DELETE CASCADE,
+  -- A generated task's certificate names the job that produced its evidence. A hand-written task has no job: it is
+  -- certified by the checks it can carry (ADR 0057 §3), so the link is empty and the task link below is what names it.
+  job_id bigint REFERENCES generation_jobs (id) ON DELETE CASCADE,
   task_id text NOT NULL,
   task_version integer NOT NULL,
   outcome task_verification_status NOT NULL,

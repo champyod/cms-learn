@@ -74,15 +74,15 @@ INSERT INTO sessions (id, account_kind, learner_id, expires_at)
   VALUES ('$session', 'learner', '$learner', now() + interval '1 hour');
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
-VALUES ('alpha', 1, 'published', 'Alpha', 'แอลฟา', 900, 1000, 256, 'token', 'original',
+VALUES ('alpha', 1, 'draft', 'Alpha', 'แอลฟา', 900, 1000, 256, 'token', 'original',
         'pending', 'int main() {}', repeat('a', 64)),
-       ('beta', 1, 'published', 'Beta', 'บีตา', 1200, 1000, 256, 'token', 'original',
+       ('beta', 1, 'draft', 'Beta', 'บีตา', 1200, 1000, 256, 'token', 'original',
         'pending', 'int main() {}', repeat('b', 64)),
-       ('gamma', 1, 'published', 'Gamma', 'แกมมา', 1600, 1000, 256, 'token', 'original',
+       ('gamma', 1, 'draft', 'Gamma', 'แกมมา', 1600, 1000, 256, 'token', 'original',
         'pending', 'int main() {}', repeat('c', 64)),
-       ('delta', 1, 'published', 'Delta', 'เดลตา', 2600, 1000, 256, 'token', 'original',
+       ('delta', 1, 'draft', 'Delta', 'เดลตา', 2600, 1000, 256, 'token', 'original',
         'pending', 'int main() {}', repeat('d', 64)),
-       ('hidden', 1, 'published', 'Hidden', 'ซ่อน', 900, 1000, 256, 'token', 'original',
+       ('hidden', 1, 'draft', 'Hidden', 'ซ่อน', 900, 1000, 256, 'token', 'original',
         'pending', 'int main() {}', repeat('e', 64));
 -- ADR 0046 §2: a task row cannot be created verified, so the fixture builds the certificate it needs and moves the
 -- verification with the guarded UPDATE the trigger allows.
@@ -94,6 +94,8 @@ SELECT j.id, t.id, t.version, 'verified', '["the task list route fixture certifi
   FROM tasks t JOIN generation_jobs j ON j.task_id = t.id AND j.task_version = t.version
  WHERE t.id IN ('alpha', 'beta', 'gamma', 'delta', 'hidden');
 UPDATE tasks SET verification = 'verified' WHERE id IN ('alpha', 'beta', 'gamma', 'delta', 'hidden') AND version = 1;
+-- Publishing needs the certificate that came before it (ADR 0057): the row is created draft, certified, then published.
+UPDATE tasks SET status = 'published' WHERE verification = 'verified';
 INSERT INTO task_topics (task_id, task_version, topic) VALUES
   ('alpha', 1, 'io'),
   ('beta', 1, 'complexity'),

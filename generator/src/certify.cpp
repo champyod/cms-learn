@@ -1,6 +1,10 @@
 #include <cms/generate/certify.hpp>
 
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <sstream>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -331,7 +335,8 @@ auto revalidate_certificate(cms::db::connection& database, const cms::store::Obj
                                                  static_cast<std::int64_t>(task_version))
                                       .order_by(cms::db::generationCertificates.createdAt.desc())
                                       .limit(1))) {
-    job_id = row.jobId;
+    // A hand-written task's certificate names no job (ADR 0057): its evidence is the task's own files, not a job's.
+    job_id = row.jobId.value_or(0);
     recorded_outcome = std::string{row.outcome};
     recorded_commit = std::string{row.commitId};
     recorded_evidence = std::string{row.evidence};
@@ -605,6 +610,199 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
       "UPDATE tasks SET verification = $3::task_verification_status WHERE id = $1 AND version = $2",
       {evidence.task_id, static_cast<std::int64_t>(evidence.task_version),
        std::string{outcome_name(certificate.outcome)}});
+  return certificate;
+}
+
+}  // namespace cms::generate
+
+namespace cms::generate {
+namespace {
+
+/// One example a hand-written task ships: the input and the answer it must produce.
+struct Example {
+  std::filesystem::path input_path;
+  std::string input;
+  std::string expected;
+};
+
+/// @return The reference file's name as the task's own `task.json` names it, so a refusal points at the file an author
+/// edits rather than at a row column.
+auto reference_path_of(const std::filesystem::path& task_root) -> std::string {
+  auto stream = std::ifstream{task_root / "task.json", std::ios::binary};
+  if (!stream) {
+    return "solution.cpp";
+  }
+  auto buffer = std::ostringstream{};
+  buffer << stream.rdbuf();
+  const auto json = buffer.str();
+  auto parser = simdjson::dom::parser{};
+  auto document = simdjson::dom::element{};
+  if (parser.parse(json).get(document) != simdjson::SUCCESS) {
+    return "solution.cpp";
+  }
+  auto named = std::string_view{};
+  if (document["reference"].get_string().get(named) != simdjson::SUCCESS) {
+    return "solution.cpp";
+  }
+  return std::string{named};
+}
+
+auto read_file(const std::filesystem::path& path) -> Result<std::string> {
+  auto stream = std::ifstream{path, std::ios::binary};
+  if (!stream) {
+    return std::unexpected(Error::make(ErrorCode::not_found, "the example " + path.string() + " cannot be read"));
+  }
+  auto buffer = std::ostringstream{};
+  buffer << stream.rdbuf();
+  return buffer.str();
+}
+
+/// @return Every example of @p task_root, in the order the file names sort, or a refusal naming the directory that holds
+/// none. An example without its answer is refused rather than skipped: a task whose examples are half missing is a task
+/// whose reference was never fully run.
+auto examples_of(const std::filesystem::path& task_root) -> Result<std::vector<Example>> {
+  const auto directory = task_root / "examples";
+  auto paths = std::vector<std::filesystem::path>{};
+  auto error = std::error_code{};
+  for (const auto& entry : std::filesystem::directory_iterator{directory, error}) {
+    if (entry.is_regular_file() && entry.path().extension() == ".in") {
+      paths.push_back(entry.path());
+    }
+  }
+  if (error || paths.empty()) {
+    return std::unexpected(Error::make(ErrorCode::not_found,
+                                       "task " + task_root.filename().string() + " ships no examples under " +
+                                           (directory.string()) + ", so its reference has nothing to pass"));
+  }
+  std::sort(paths.begin(), paths.end());
+  auto examples = std::vector<Example>{};
+  for (const auto& path : paths) {
+    auto expected_path = path;
+    expected_path.replace_extension(".out");
+    const auto input = read_file(path);
+    if (!input) {
+      return std::unexpected(input.error());
+    }
+    const auto expected = read_file(expected_path);
+    if (!expected) {
+      return std::unexpected(expected.error());
+    }
+    examples.push_back(Example{.input_path = path, .input = *input, .expected = *expected});
+  }
+  return examples;
+}
+
+/// @return The answer as it is compared: trailing spaces and newlines dropped, so a missing final newline is not a
+/// mismatch that an author has to guess at.
+auto trimmed(std::string_view text) -> std::string_view {
+  const auto end = text.find_last_not_of(" \t\r\n");
+  return end == std::string_view::npos ? std::string_view{} : text.substr(0, end + 1);
+}
+
+}  // namespace
+
+auto certify_task(cms::db::connection& database, const std::filesystem::path& content_root, std::string_view task_id,
+                  std::int32_t version, std::string_view commit_id) -> Result<Certificate> {
+  auto task = std::optional<Certificate>{};
+  auto limit = ProgramMeasurement{};
+  auto solution = std::string{};
+  for (const auto& row : database(sqlpp::select(db::tasks.timeLimitMs, db::tasks.memoryLimitMb, db::tasks.solution,
+                                                db::tasks.contentHash)
+                                      .from(db::tasks)
+                                      .where(db::tasks.id == std::string{task_id} &&
+                                             db::tasks.version == static_cast<std::int64_t>(version)))) {
+    solution = std::string{row.solution};
+    task = Certificate{.job_id = 0,
+                       .task_id = std::string{task_id},
+                       .task_version = version,
+                       .outcome = VerificationOutcome::verified,
+                       .commit_id = std::string{commit_id},
+                       .checks = {},
+                       .artefacts = {}};
+    limit.time_ms = 0;
+    limit.peak_memory_kb = static_cast<std::int64_t>(row.timeLimitMs);
+    limit.time_ms = static_cast<std::int64_t>(row.memoryLimitMb);
+  }
+  if (!task) {
+    return std::unexpected(Error::make(ErrorCode::not_found, "task " + std::string{task_id} + " version " +
+                                                                 std::to_string(version) + " is not in the record"));
+  }
+  const auto time_limit_ms = limit.peak_memory_kb;
+  const auto memory_limit_mb = limit.time_ms;
+  const auto task_root = std::filesystem::path{content_root} / "tasks" / std::string{task_id};
+  const auto reference = reference_path_of(task_root);
+
+  const auto examples = examples_of(task_root);
+  if (!examples) {
+    return std::unexpected(examples.error());
+  }
+
+  for (const auto& example : *examples) {
+    const auto answer = run_program(solution, example.input, time_limit_ms);
+    if (!answer) {
+      return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                         reference + " failed on " + example.input_path.string() + ": " +
+                                             answer.error().message));
+    }
+    if (trimmed(*answer) != trimmed(example.expected)) {
+      return std::unexpected(Error::make(
+          ErrorCode::invalid_argument,
+          reference + " does not match the answer expected on " + example.input_path.string() +
+              ", so an author has to correct that file"));
+    }
+  }
+
+  const auto half_time_ms = time_limit_ms / REFERENCE_MARGIN_DIVISOR;
+  const auto half_memory_kb = memory_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
+  const auto measured = measure_program(solution, examples->back().input, time_limit_ms);
+  if (!measured) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       reference + " could not be measured: " + measured.error().message));
+  }
+  if (measured->time_ms > half_time_ms || measured->peak_memory_kb > half_memory_kb) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument,
+        reference + " measures " + std::to_string(measured->time_ms) + " ms and " +
+            std::to_string(megabytes(measured->peak_memory_kb)) + " MB on " + examples->back().input_path.string() +
+            ", above the " + std::to_string(half_time_ms) + " ms and " + std::to_string(half_memory_kb / KB_PER_MB) +
+            " MB halves of the declared " + std::to_string(time_limit_ms) + " ms and " +
+            std::to_string(memory_limit_mb) + " MB limits"));
+  }
+
+  auto certificate = *task;
+  certificate.checks.push_back("the reference " + reference + " passes every example the task ships (" +
+                               std::to_string(examples->size()) + " of " + std::to_string(examples->size()) + ")");
+  certificate.checks.push_back("the reference " + reference + " measures " + std::to_string(measured->time_ms) +
+                               " ms and " + std::to_string(megabytes(measured->peak_memory_kb)) + " MB at " +
+                               examples->back().input_path.string() + ", inside the " + std::to_string(half_time_ms) +
+                               " ms and " + std::to_string(half_memory_kb / KB_PER_MB) +
+                               " MB halves of the declared limits");
+  certificate.checks.push_back(
+      "the brute-force differential did not run: a hand-written task ships no brute-force program to compare against, "
+      "so this certificate carries the checks a hand-written task can (ADR 0057 §2)");
+
+  auto checks = std::string{"["};
+  auto first = true;
+  for (const auto& check : certificate.checks) {
+    if (!first) {
+      checks += ',';
+    }
+    first = false;
+    checks += as_json_string(check);
+  }
+  checks += ']';
+
+  try {
+    database.execute_text(
+        "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) "
+        "VALUES (NULL, $1, $2, 'verified'::task_verification_status, $3::jsonb, $4, $5::jsonb)",
+        {std::string{task_id}, static_cast<std::int64_t>(version), checks, std::string{commit_id},
+         std::string{"{\"artefacts\": []}"}});
+    database.execute_text("UPDATE tasks SET verification = 'verified' WHERE id = $1 AND version = $2",
+                          {std::string{task_id}, static_cast<std::int64_t>(version)});
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
+  }
   return certificate;
 }
 

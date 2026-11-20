@@ -623,7 +623,7 @@ CREATE TABLE IF NOT EXISTS generation_cases (
 
 CREATE TABLE IF NOT EXISTS generation_certificates (
     id bigint GENERATED ALWAYS AS IDENTITY,
-    job_id bigint NOT NULL,
+    job_id bigint,
     task_id text NOT NULL,
     task_version integer NOT NULL,
     outcome task_verification_status NOT NULL,

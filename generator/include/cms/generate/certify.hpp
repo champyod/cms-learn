@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -20,6 +21,15 @@ enum class VerificationOutcome : std::uint8_t { pending, verified, failed };
 [[nodiscard]] auto outcome_name(VerificationOutcome outcome) -> std::string_view;
 
 /// @brief One method the certifier re-ran: whether its evidence held, and the sentence the certificate records.
+/// The half-limit margin ADR 0048 fixes: a reference must fit inside half of what the task allows.
+inline constexpr std::int64_t REFERENCE_MARGIN_DIVISOR = 2;
+inline constexpr std::int64_t KB_PER_MB = 1024;
+
+/// @brief Kilobytes rounded up to whole megabytes, so a message never claims less than was measured.
+[[nodiscard]] inline auto megabytes(std::int64_t kilobytes) -> std::int64_t {
+  return (kilobytes + KB_PER_MB - 1) / KB_PER_MB;
+}
+
 struct ReRunResult {
   bool is_passed{false};
   std::string sentence;
@@ -108,5 +118,24 @@ struct CertificateState {
 /// @param commit_id The commit the evidence was produced from, recorded so a later reader knows what was checked.
 [[nodiscard]] auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& store,
                                std::int64_t job_id, std::string_view commit_id) -> Result<Certificate>;
+
+/// @brief Certifies a hand-written task by the checks it can carry (ADR 0057 §3).
+///
+/// The reference runs against every example the task ships and must match each expected answer; it must also fit inside
+/// half its declared limits, the same margin a generated task's reference gets (ADR 0048). The differential does not run,
+/// because a hand-written task ships no brute-force program to compare against, and the certificate's checks list says so
+/// rather than leaving the gap silent.
+///
+/// A refusal names the file the reference came from and the example or measurement that failed, so an author knows which
+/// solution to fix.
+///
+/// @param database The certifier's own connection: writing a certificate and moving a verification are its grants.
+/// @param content_root The root the task's examples and its `task.json` are read from.
+/// @param task_id The task to certify.
+/// @param version The version to certify.
+/// @param commit_id The commit the evidence is produced from, which the certificate records.
+[[nodiscard]] auto certify_task(cms::db::connection& database, const std::filesystem::path& content_root,
+                                std::string_view task_id, std::int32_t version, std::string_view commit_id)
+    -> Result<Certificate>;
 
 }  // namespace cms::generate

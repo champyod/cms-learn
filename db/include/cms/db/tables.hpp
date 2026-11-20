@@ -573,8 +573,8 @@ struct GenerationCertificates_ {
   };
   struct JobId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(job_id, jobId);
-    using data_type = ::sqlpp::integral;
-    using has_default = std::false_type;
+    using data_type = std::optional<::sqlpp::integral>;
+    using has_default = std::true_type;
   };
   struct TaskId {
     SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(task_id, taskId);
@@ -615,7 +615,7 @@ struct GenerationCertificates_ {
   template <typename T>
   using _table_columns =
       sqlpp::table_columns<T, Id, JobId, TaskId, TaskVersion, Outcome, Checks, CommitId, Evidence, CreatedAt>;
-  using _required_insert_columns = sqlpp::detail::type_set<JobId, TaskId, TaskVersion, Outcome, Checks, CommitId, Evidence>;
+  using _required_insert_columns = sqlpp::detail::type_set<TaskId, TaskVersion, Outcome, Checks, CommitId, Evidence>;
 };
 
 struct GenerationJobs_ {

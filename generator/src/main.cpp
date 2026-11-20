@@ -1,5 +1,8 @@
+#include <cms/db/tables.hpp>
+
 #include <cms/generate/artefact.hpp>
 #include <cms/generate/candidates.hpp>
+#include <cms/generate/certify.hpp>
 #include <cms/generate/config.hpp>
 #include <cms/generate/pipeline.hpp>
 #include <cms/generate/specification.hpp>
@@ -124,8 +127,52 @@ auto run(const cms::generate::ModelConfig& config) -> int {
 
 /// The generation worker: it proves its configuration is the deployer's, then claims one queued job and drives it
 /// through the steps this build wires (1 to 3). A missing value names the key and never prints one.
+/// @brief Certifies a hand-written task by the checks it can carry (ADR 0057) and reports the certificate.
+///
+/// The certifier's own pool is used, because writing a certificate and moving a verification are its grants and the
+/// generator holds neither: a certificate on the generator's connection would be the privilege escalation the two roles
+/// exist to prevent.
+auto certify_content(const cms::generate::ModelConfig& config, std::string_view task_id) -> int {
+  const auto client = client_from(config.certifier_database_url);
+  if (!database_answers(client)) {
+    return fail("the database named by CMSLEARN_CERTIFIER_DATABASE_URL did not answer");
+  }
+  auto connection = cms::db::connection{std::make_shared<const cms::db::connection_config>(
+      cms::db::connection_config{.client = client})};
+  auto version = std::int32_t{0};
+  for (const auto& row : connection(sqlpp::select(cms::db::tasks.version)
+                                        .from(cms::db::tasks)
+                                        .where(cms::db::tasks.id == std::string{task_id})
+                                        .order_by(cms::db::tasks.version.desc())
+                                        .limit(1))) {
+    version = static_cast<std::int32_t>(row.version);
+  }
+  if (version == 0) {
+    return fail("task " + std::string{task_id} + " is not in the record, so there is nothing to certify");
+  }
+  const auto certificate = cms::generate::certify_task(connection, std::filesystem::path{config.content_root},
+                                                       task_id, version, config.commit_id);
+  if (!certificate) {
+    return fail(certificate.error().message);
+  }
+  std::println("task {} version {} is {}", task_id, version, cms::generate::outcome_name(certificate->outcome));
+  for (const auto& check : certificate->checks) {
+    std::println("  {}", check);
+  }
+  return WORK_DONE;
+}
+
 auto worker(int argc, char** argv) -> int {
   const auto check_only = argc > 1 && std::string{argv[1]} == "--check";
+  const auto arguments = std::vector<std::string>(argv, argv + argc);
+  const auto certify_index = [&]() -> std::optional<std::size_t> {
+    for (auto index = std::size_t{1}; index < arguments.size(); ++index) {
+      if (arguments[index] == "--certify-content") {
+        return index;
+      }
+    }
+    return std::nullopt;
+  }();
   const auto config = cms::generate::read_model_config(cms::generate::environment_lookup());
   if (!config) {
     std::fprintf(stderr, "cms-generate: %s\n", config.error().message.c_str());
@@ -133,6 +180,12 @@ auto worker(int argc, char** argv) -> int {
   }
   if (check_only) {
     return WORK_DONE;
+  }
+  if (certify_index.has_value()) {
+    if (*certify_index + 1 >= arguments.size()) {
+      return fail("--certify-content needs a task id: cms-generate --certify-content <task>");
+    }
+    return certify_content(*config, arguments[*certify_index + 1]);
   }
   return run(*config);
 }

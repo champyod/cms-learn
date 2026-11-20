@@ -59,9 +59,9 @@ INSERT INTO sessions (id, account_kind, learner_id, expires_at)
 VALUES ('$session', 'learner', '$account', now() + interval '1 hour');
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
-VALUES ('probe-task', 1, 'published', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original',
+VALUES ('probe-task', 1, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original',
         'pending', 'int main() {}', repeat('a', 64)),
-       ('hidden-task', 1, 'published', 'Hidden', 'ซ่อน', 900, 1000, 256, 'token', 'original',
+       ('hidden-task', 1, 'draft', 'Hidden', 'ซ่อน', 900, 1000, 256, 'token', 'original',
         'pending', 'int main() {}', repeat('b', 64));
 -- ADR 0046 §2: a task row cannot be created verified, so the fixture builds the certificate it needs and moves the
 -- verification with the guarded UPDATE the trigger allows.
@@ -73,6 +73,8 @@ SELECT j.id, t.id, t.version, 'verified', '["the submit route fixture certified 
   FROM tasks t JOIN generation_jobs j ON j.task_id = t.id AND j.task_version = t.version
  WHERE t.id IN ('probe-task', 'hidden-task');
 UPDATE tasks SET verification = 'verified' WHERE id IN ('probe-task', 'hidden-task') AND version = 1;
+-- Publishing needs the certificate that came before it (ADR 0057): the row is created draft, certified, then published.
+UPDATE tasks SET status = 'published' WHERE verification = 'verified';
 INSERT INTO task_visibility (task_id, principal_id) VALUES ('probe-task', $everyone);
 SQL
 

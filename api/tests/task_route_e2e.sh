@@ -91,15 +91,15 @@ learner_value="$("$principal_value" encode learner "$(psql_db -c "SELECT serial_
 psql_db <<SQL >/dev/null 2>&1
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
                    memory_limit_mb, checker, origin, verification, solution, content_hash)
-VALUES ('everyone-task', 1, 'published', 'Everyone Task', 'งานสาธารณะ', 900, 1000, 256, 'token',
+VALUES ('everyone-task', 1, 'draft', 'Everyone Task', 'งานสาธารณะ', 900, 1000, 256, 'token',
         'original', 'pending', '$solution', repeat('a', 64)),
-       ('learner-task', 1, 'published', 'Learner Task', 'งานเฉพาะผู้เรียน', 900, 1000, 256, 'token',
+       ('learner-task', 1, 'draft', 'Learner Task', 'งานเฉพาะผู้เรียน', 900, 1000, 256, 'token',
         'original', 'pending', '$solution', repeat('b', 64)),
        ('draft-task', 1, 'draft', 'Draft Task', 'งานฉบับร่าง', 900, 1000, 256, 'token',
         'original', 'pending', '$solution', repeat('c', 64)),
-       ('hidden-task', 1, 'published', 'Hidden Task', 'งานที่ซ่อนไว้', 900, 1000, 256, 'token',
+       ('hidden-task', 1, 'draft', 'Hidden Task', 'งานที่ซ่อนไว้', 900, 1000, 256, 'token',
         'original', 'pending', '$solution', repeat('d', 64)),
-       ('broken-task', 1, 'published', 'Broken Task', 'งานที่ไม่มีคำบรรยาย', 900, 1000, 256, 'token',
+       ('broken-task', 1, 'draft', 'Broken Task', 'งานที่ไม่มีคำบรรยาย', 900, 1000, 256, 'token',
         'original', 'pending', '$solution', repeat('e', 64));
 -- ADR 0046 §2: a task row cannot be created verified, so the fixture builds the certificate it needs and moves the
 -- verification with the guarded UPDATE the trigger allows.
@@ -111,6 +111,8 @@ SELECT j.id, t.id, t.version, 'verified', '["the task route fixture certified th
   FROM tasks t JOIN generation_jobs j ON j.task_id = t.id AND j.task_version = t.version
  WHERE t.id IN ('everyone-task', 'learner-task', 'hidden-task', 'broken-task');
 UPDATE tasks SET verification = 'verified' WHERE id IN ('everyone-task', 'learner-task', 'hidden-task', 'broken-task') AND version = 1;
+-- Publishing needs the certificate that came before it (ADR 0057): the row is created draft, certified, then published.
+UPDATE tasks SET status = 'published' WHERE verification = 'verified';
 
 INSERT INTO task_visibility (task_id, principal_id)
 VALUES ('everyone-task', $everyone),

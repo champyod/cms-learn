@@ -16,8 +16,7 @@ namespace cms::generate {
 namespace {
 
 /// ADR 0048: the reference's measured time and memory must stay at or below half the declared limit.
-constexpr std::int64_t REFERENCE_MARGIN_DIVISOR = 2;
-constexpr std::int64_t KB_PER_MB = 1024;
+
 
 constexpr std::string_view CASES = "the test cases the generator prints";
 constexpr std::string_view REFERENCE_PASS = "the reference and the subtask solutions through the checker";
@@ -37,10 +36,6 @@ auto held(std::string_view subject, std::string detail) -> ReRunResult {
 auto not_run(std::string_view subject) -> ReRunResult {
   return ReRunResult{.is_passed = false,
                      .sentence = std::string{subject} + ": not run (" + std::string{NOT_REBUILT} + ")"};
-}
-
-auto megabytes(std::int64_t kilobytes) -> std::int64_t {
-  return (kilobytes + KB_PER_MB - 1) / KB_PER_MB;
 }
 
 auto sizes_of(const std::vector<GeneratedCase>& cases) -> std::string {
