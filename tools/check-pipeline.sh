@@ -142,6 +142,18 @@ printf '%s' "$refusal" | grep -q "has no certificate for verified" \
   || fail "an INSERT of a verified row without a certificate was not refused: $refusal"
 note "an insert of a verified row without its certificate is refused, naming the certificate"
 
+# The job side carries the same rule: a move to done needs a verified certificate for the job's own task and version,
+# and the table is what refuses, not the pipeline that happens to call it first (ADR 0046 §2, ADR 0050).
+psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
+  -c "UPDATE generation_jobs SET state = 'running', claimed_by = 'gate', claimed_at = now(), lease_expires_at = now() + interval '5 minutes' WHERE task_id = 'probe-task'" >/dev/null 2>&1
+psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
+  -c "UPDATE generation_jobs SET state = 'awaiting-evidence' WHERE task_id = 'probe-task'" >/dev/null 2>&1
+refusal="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
+  -c "UPDATE generation_jobs SET state = 'done' WHERE task_id = 'probe-task'" 2>&1 || true)"
+printf '%s' "$refusal" | grep -q "has no verified certificate" \
+  || fail "a job moved to done without a certificate was not refused: $refusal"
+note "a job with no verified certificate cannot move to done, naming the certificate"
+
 refusal="$(as_certifier "UPDATE tasks SET title_en = 'rewritten'" || true)"
 printf '%s' "$refusal" | grep -q "permission denied for table tasks" \
   || fail "the certifier rewrote a task's content: $refusal"
@@ -158,5 +170,14 @@ certificates="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq 
 [ "$row" = "verified" ] && [ "$certificates" = "1" ] \
   || fail "the certificate and the verification disagree: $row / $certificates certificate(s)"
 note "the certifier writes the certificate and the verification together"
+
+# With the certificate in place the same direct move is allowed: the guard is about the certificate, not about who asks.
+wrote="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
+  -c "UPDATE generation_jobs SET state = 'done' WHERE task_id = 'probe-task'" 2>&1 || true)"
+[ -z "$wrote" ] || fail "a job with its certificate could not move to done: $wrote"
+state="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq -c \
+  "SELECT state FROM generation_jobs WHERE task_id = 'probe-task'")"
+[ "$state" = "done" ] || fail "the job did not reach done after its certificate: $state"
+note "a job with its verified certificate moves to done"
 
 printf 'pipeline gate: OK\n'

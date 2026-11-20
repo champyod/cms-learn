@@ -62,6 +62,22 @@ auto fresh_job(cms::db::connection& database, std::string_view task_id) -> std::
   return cms::generate::test::prepare_job(database, task_id);
 }
 
+/// @return A job that has reached done the way the record allows: claimed, ended awaiting-evidence, given the verified
+/// certificate the job's own guard requires, then finished. A done job cannot exist without one (ADR 0046 §2).
+auto finished_job(cms::db::connection& database, std::string_view task_id) -> std::int64_t {
+  const auto job = fresh_job(database, task_id);
+  REQUIRE(cms::generate::claim_job(database, WORKER).has_value());
+  REQUIRE(cms::generate::finish_claim(database, job, WORKER, "awaiting-evidence").has_value());
+  database.execute_text("INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, "
+                        "evidence) VALUES ($1, $2, 1, 'verified', '[\"step 3, 5 and 6 read back\"]'::jsonb, 'deadbeef', "
+                        "'{}'::jsonb)",
+                        {job, std::string{task_id}});
+  // The claim ended at awaiting-evidence, so nothing holds it: the move to done is the direct one the worker makes after
+  // the certificate is written, and the guard is what allows it now.
+  database.execute_text("UPDATE generation_jobs SET state = 'done' WHERE id = $1", {job});
+  return job;
+}
+
 /// @return The refusal the database gave for @p statement, empty when it ran.
 auto database_refusal(cms::db::connection& database, std::string_view statement,
                       std::vector<cms::db::bound_value> parameters) -> std::string {
@@ -225,10 +241,14 @@ TEST_CASE("a finished or failed job is not claimable", "[claim][live]") {
   }
   auto database = cms::generate::test::live_database();
 
-  for (const auto ending : {"done", "failed"}) {
-    const auto job = fresh_job(database, std::string{"claim-probe-"} + ending);
-    REQUIRE(cms::generate::claim_job(database, WORKER).has_value());
-    REQUIRE(cms::generate::finish_claim(database, job, WORKER, ending).has_value());
+  // A done job needs its certificate, so the fixture walks the record's own path for that ending and the plain one for
+  // failed; both endings must then refuse a second claim and a stolen one. The failed job is prepared without clearing,
+  // because the done one has to survive the fixture that made it.
+  const auto job = finished_job(database, "claim-probe-done");
+  const auto failed = cms::generate::test::prepare_job(database, "claim-probe-failed");
+  REQUIRE(cms::generate::claim_job(database, WORKER).has_value());
+  REQUIRE(cms::generate::finish_claim(database, failed, WORKER, "failed").has_value());
+  for (const auto finished : {job, failed}) {
 
     const auto claimed = cms::generate::claim_job(database, OTHER_WORKER);
 
@@ -238,7 +258,7 @@ TEST_CASE("a finished or failed job is not claimable", "[claim][live]") {
         database,
         "UPDATE generation_jobs SET claimed_by = 'thief', claimed_at = now(), "
         "lease_expires_at = now() + interval '1 minute' WHERE id = $1",
-        {job});
+        {finished});
     CHECK(stolen.find("nothing reopens it") != std::string::npos);
   }
 }
@@ -250,12 +270,20 @@ TEST_CASE("a job moves only the way the record allows", "[claim][live]") {
   auto database = cms::generate::test::live_database();
   const auto job = fresh_job(database, "claim-probe-moves");
 
+  // A legal-but-premature move is what the state machine itself refuses; the certificate guard answers for done and the
+  // pipeline gate covers that one.
   const auto skipped_a_step = database_refusal(
-      database, "UPDATE generation_jobs SET state = 'done' WHERE id = $1", {job});
-  CHECK(skipped_a_step.find("cannot move from queued to done") != std::string::npos);
+      database, "UPDATE generation_jobs SET state = 'awaiting-evidence' WHERE id = $1", {job});
+  CHECK(skipped_a_step.find("cannot move from queued to awaiting-evidence") != std::string::npos);
 
   REQUIRE(cms::generate::claim_job(database, WORKER).has_value());
-  REQUIRE(cms::generate::finish_claim(database, job, WORKER, "done").has_value());
+  REQUIRE(cms::generate::finish_claim(database, job, WORKER, "awaiting-evidence").has_value());
+  database.execute_text("INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, "
+                        "evidence) VALUES ($1, 'claim-probe-moves', 1, 'verified', '[\"step 3, 5 and 6 read back\"]'::jsonb, "
+                        "'deadbeef', '{}'::jsonb)",
+                        {job});
+  const auto finished = database_refusal(database, "UPDATE generation_jobs SET state = 'done' WHERE id = $1", {job});
+  CHECK(finished.empty());
   const auto reopened = database_refusal(
       database, "UPDATE generation_jobs SET state = 'running' WHERE id = $1", {job});
   CHECK(reopened.find("nothing reopens it") != std::string::npos);
