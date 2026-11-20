@@ -54,8 +54,15 @@ constexpr std::string_view COMMIT = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
 /// The task's own limits, equal to what step 3 derives from O(n log n) at the task's bound: the certifier refuses a
 /// specification whose derived limits are not the task's, so the fixture states them where the task row carries them.
 /// The task's declared limits, which step 3 derives and the certifier's half-limit margin is measured against (ADR 0048).
-constexpr std::int64_t TASK_TIME_MS = 100;
-constexpr std::int64_t TASK_MEMORY_MB = 16;
+///
+/// The margin is half of these — 556 ms and 38 MB — against a reference that measures about 17 ms and 5 MB: a factor of
+/// thirty-two in time and eight in memory. The fixture used to declare 100 ms and 16 MB, a 50 ms margin; a 17 ms
+/// reference under a gate running several test binaries at once can cross that, the certificate refuses, and the case
+/// fails on a machine that was merely busy. Time is what load moves, so the plan's bound is raised to five million
+/// ($specification_answer) until step 3 derives 1113 ms for it, and the declared limits follow step 3 exactly — the
+/// certifier refuses a task whose limits disagree with the derived ones, which is what keeps these two in step.
+constexpr std::int64_t TASK_TIME_MS = 1113;
+constexpr std::int64_t TASK_MEMORY_MB = 77;
 
 constexpr std::string_view SUM_ORACLE = R"(#include <iostream>
 int main() {
@@ -200,8 +207,10 @@ auto judge_answer() -> std::string {
 }
 
 auto specification_answer() -> std::string {
+  // The bound is step 3's own input: it derives the limits from the complexity and the largest n, so a larger bound is
+  // the honest way to ask for a wider half-limit margin (see TASK_TIME_MS).
   return R"({"input": "n, then n integers", "output": "their sum", "input_shape": "n_then_values",)"
-         R"("bounds": {"min_n": 1, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000},)"
+         R"("bounds": {"min_n": 1, "max_n": 5000000, "value_min": -1000000000, "value_max": 1000000000},)"
          R"("subtasks": [{"position": 1, "max_n": 100}, )"
          R"({"position": 2, "min_n": 1000, "max_n": 200000}], "oracle": )" +
          json_string(SUM_ORACLE) + "}";
