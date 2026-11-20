@@ -102,18 +102,12 @@ auto run(const cms::generate::ModelConfig& config) -> int {
   // The vocabulary and the locale names are content (ADR 0056), read from the root the deployment names, so no
   // language is decided in this binary.
   const auto facts = cms::generate::RunnerFacts{.content_root = std::filesystem::path{config.content_root}};
-  // The model is the operator's record, not the environment: the enabled default is read here, its key opened with the
-  // deployment's key, and the adapter chosen from the record's own protocol. A deployment that edits only the page is
-  // never overridden by a stale environment value, and an empty table is an operator's fix, not a redeploy.
-  const auto record = cms::generate::read_effective_model(connection);
-  if (!record) {
-    return fail(record.error().message);
-  }
-  auto built = cms::generate::make_model_client(*record, config.prompt_version, MODEL_CALL_SEED);
-  if (!built) {
-    return fail(built.error().message);
-  }
-  auto& model = **built;
+  // The model is the operator's record, not the environment: the client reads the effective record on its first call,
+  // opens the key with the deployment's key and picks the adapter from the record's protocol. Reading at the call means a
+  // disabled record fails the step by name and ends the job failed — the operator fixes the record, not the process.
+  const auto model_config = std::make_shared<const cms::db::connection_config>(
+      cms::db::connection_config{.client = client});
+  auto model = cms::generate::RecordBackedClient{model_config, config.prompt_version, MODEL_CALL_SEED};
 
   const auto report = cms::generate::run_pipeline(model, connection, worker_name(), ports, facts);
   if (!report) {

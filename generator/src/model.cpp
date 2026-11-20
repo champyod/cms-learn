@@ -62,3 +62,27 @@ auto make_model_client(const ModelRecord& record, std::string_view prompt_versio
 }
 
 }  // namespace cms::generate
+
+namespace cms::generate {
+
+RecordBackedClient::RecordBackedClient(std::shared_ptr<const cms::db::connection_config> config,
+                                       std::string prompt_version, std::int64_t seed)
+    : config_(std::move(config)), prompt_version_(std::move(prompt_version)), seed_(seed) {}
+
+auto RecordBackedClient::complete(std::string_view prompt) -> Result<Completion> {
+  if (adapter_ == nullptr) {
+    auto database = cms::db::connection{*config_};
+    const auto record = read_effective_model(database);
+    if (!record) {
+      return std::unexpected(record.error());
+    }
+    auto built = make_model_client(*record, prompt_version_, seed_);
+    if (!built) {
+      return std::unexpected(built.error());
+    }
+    adapter_ = std::move(*built);
+  }
+  return adapter_->complete(prompt);
+}
+
+}  // namespace cms::generate

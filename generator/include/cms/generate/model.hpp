@@ -98,6 +98,28 @@ class RecordedClient final : public ModelClient {
 [[nodiscard]] auto make_model_client(const ModelRecord& record, std::string_view prompt_version, std::int64_t seed)
     -> Result<std::unique_ptr<ModelClient>>;
 
+/// @brief A client that answers through the deployment's effective record: it reads the record on its first call, opens the
+/// key with the deployment's sealer, and delegates to the adapter the record's protocol names.
+///
+/// The record is read at the call, not at process start, so an operator who disables the record stops the very next step
+/// by name — the step that would have called it ends failed with that refusal attached — instead of needing a restart.
+class RecordBackedClient final : public ModelClient {
+ public:
+  /// @param config The deployment's connection, read fresh for every job.
+  /// @param prompt_version The prompt version this deployment runs.
+  /// @param seed The seed every call of a job shares.
+  RecordBackedClient(std::shared_ptr<const cms::db::connection_config> config, std::string prompt_version,
+                     std::int64_t seed);
+
+  [[nodiscard]] auto complete(std::string_view prompt) -> Result<Completion> override;
+
+ private:
+  std::shared_ptr<const cms::db::connection_config> config_;
+  std::string prompt_version_;
+  std::int64_t seed_{0};
+  std::unique_ptr<ModelClient> adapter_;
+};
+
 /// @brief Builds the OpenAI-compatible chat adapter (generator/src/model_http.cpp).
 ///
 /// @param record The effective record; its base address and model id become the request's URL and body fields.

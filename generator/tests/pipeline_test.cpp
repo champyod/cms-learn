@@ -1,11 +1,20 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
+#include <atomic>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
+#include <thread>
 #include <fstream>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
 
 #include <sqlpp23/sqlpp23.h>
 
@@ -16,6 +25,7 @@
 #include <cms/generate/candidates.hpp>
 #include <cms/generate/certify.hpp>
 #include <cms/generate/model.hpp>
+#include <cms/seal.hpp>
 #include <cms/generate/pipeline.hpp>
 #include <cms/generate/solution.hpp>
 #include <cms/generate/specification.hpp>
@@ -31,6 +41,8 @@
 namespace {
 
 constexpr auto RUN_TASK = "pipeline-run-probe";
+constexpr auto BINARY_PATH_TASK = "pipeline-binary-path-probe";
+constexpr auto DISABLED_TASK = "pipeline-disabled-model-probe";
 constexpr auto REFERENCE_TASK = "pipeline-reference-probe";
 constexpr auto REFUSAL_TASK = "pipeline-refusal-probe";
 constexpr auto MISSING_TASK = "pipeline-missing-probe";
@@ -209,16 +221,176 @@ auto statement_answer(std::string_view locale) -> std::string {
 
 /// @return A recording of one whole job: four shards, the decision, step 3, one statement, step 5's two programs, and
 /// step 6's two programs.
-auto whole_job_recording(std::string_view reference = SUM_REFERENCE) -> cms::generate::RecordedClient {
-  return cms::generate::RecordedClient{
-      "deployer-model",
-      "prompt-v1",
-      7,
-      {planner_answer("prefix sums"), planner_answer("segment tree"), planner_answer("sqrt decomposition"),
-       planner_answer("sparse table"), judge_answer(), specification_answer(), statement_answer("en"),
-       std::string{reference}, std::string{FIRST_PARTIAL}, std::string{SECOND_PARTIAL}, std::string{GENERATOR},
-       std::string{CHECKER}}};
+/// The twelve answers a whole job asks for, in order. Kept as text so a socket can serve exactly what the recorded client
+/// answers: the model's shape is the product's, and only where it comes from differs.
+auto whole_job_answers(std::string_view reference = SUM_REFERENCE) -> std::vector<std::string> {
+  return {planner_answer("prefix sums"), planner_answer("segment tree"), planner_answer("sqrt decomposition"),
+          planner_answer("sparse table"), judge_answer(), specification_answer(), statement_answer("en"),
+          std::string{reference}, std::string{FIRST_PARTIAL}, std::string{SECOND_PARTIAL}, std::string{GENERATOR},
+          std::string{CHECKER}};
 }
+
+auto whole_job_recording(std::string_view reference = SUM_REFERENCE) -> cms::generate::RecordedClient {
+  return cms::generate::RecordedClient{"deployer-model", "prompt-v1", 7, whole_job_answers(reference)};
+}
+
+/// @brief A model endpoint on this host that answers the OpenAI chat shape, one scripted answer per request.
+///
+/// The test's model client is the product's adapter, not a stub: it opens a socket, sends the request the adapter builds
+/// and parses the answer the same way. Only the vendor is absent, which is the one thing a test cannot stand in for.
+class LocalModelServer {
+ public:
+  explicit LocalModelServer(std::vector<std::string> answers) : answers_(std::move(answers)) {
+    listener_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    REQUIRE(listener_ >= 0);
+    auto address = ::sockaddr_in{};
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = ::htonl(INADDR_LOOPBACK);
+    address.sin_port = 0;
+    REQUIRE(::bind(listener_, reinterpret_cast<::sockaddr*>(&address), sizeof(address)) == 0);
+    auto bound = ::socklen_t{sizeof(address)};
+    REQUIRE(::getsockname(listener_, reinterpret_cast<::sockaddr*>(&address), &bound) == 0);
+    port_ = ::ntohs(address.sin_port);
+    REQUIRE(::listen(listener_, 8) == 0);
+    thread_ = std::thread([this] { serve(); });
+  }
+
+  ~LocalModelServer() {
+    stopping_ = true;
+    if (listener_ >= 0) {
+      ::shutdown(listener_, SHUT_RDWR);
+      ::close(listener_);
+    }
+    if (thread_.joinable()) {
+      thread_.join();
+    }
+  }
+
+  LocalModelServer(const LocalModelServer&) = delete;
+  LocalModelServer& operator=(const LocalModelServer&) = delete;
+
+  [[nodiscard]] auto base_url() const -> std::string {
+    return "http://127.0.0.1:" + std::to_string(port_) + "/v1";
+  }
+
+  [[nodiscard]] auto requests() const -> std::size_t { return answered_; }
+
+ private:
+  void serve() {
+    while (!stopping_) {
+      const auto connection = ::accept(listener_, nullptr, nullptr);
+      if (connection < 0) {
+        return;
+      }
+      auto request = std::string{};
+      auto buffer = std::array<char, 4096>{};
+      while (request.find("\r\n\r\n") == std::string::npos) {
+        const auto read = ::read(connection, buffer.data(), buffer.size());
+        if (read <= 0) {
+          break;
+        }
+        request.append(buffer.data(), static_cast<std::size_t>(read));
+      }
+      // The body is scripted by size, not parsed: one request carries one answer.
+      const auto header_end = request.find("\r\n\r\n");
+      auto length = std::size_t{0};
+      if (const auto marker = request.find("Content-Length: "); marker != std::string::npos) {
+        length = static_cast<std::size_t>(std::stoul(request.substr(marker + 16)));
+      }
+      while (header_end != std::string::npos && request.size() < header_end + 4 + length) {
+        const auto read = ::read(connection, buffer.data(), buffer.size());
+        if (read <= 0) {
+          break;
+        }
+        request.append(buffer.data(), static_cast<std::size_t>(read));
+      }
+      const auto answer = answers_.at(answered_ < answers_.size() ? answered_ : answers_.size() - 1);
+      ++answered_;
+      // A JSON string may not hold a raw control character, and the answers carry newlines and tabs.
+      auto escaped = std::string{};
+      for (const auto character : answer) {
+        if (character == '"' || character == '\\') {
+          escaped += '\\';
+          escaped += character;
+        } else if (static_cast<unsigned char>(character) < 0x20) {
+          const auto digits = "0123456789abcdef";
+          const auto code = static_cast<unsigned int>(static_cast<unsigned char>(character));
+          escaped += "\\u00";
+          escaped += digits[code / 16U];
+          escaped += digits[code % 16U];
+        } else {
+          escaped += character;
+        }
+      }
+      const auto body = "{\"choices\":[{\"message\":{\"content\":\"" + escaped + "\"}}]}";
+      const auto response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " +
+                            std::to_string(body.size()) + "\r\nConnection: close\r\n\r\n" + body;
+      (void)::write(connection, response.data(), response.size());
+      ::close(connection);
+    }
+  }
+
+  int listener_{-1};
+  std::uint16_t port_{0};
+  std::vector<std::string> answers_;
+  std::size_t answered_{0};
+  std::atomic<bool> stopping_{false};
+  std::thread thread_;
+};
+
+/// The deployment's seal key in this binary, and the helper the model fixtures seal with.
+constexpr std::string_view TEST_SEAL_KEY = "0123456789abcdef0123456789abcdef";
+
+auto sealed(std::string_view plaintext) -> std::string {
+  const auto sealer = cms::seal::Sealer::from_key(TEST_SEAL_KEY);
+  REQUIRE(sealer.has_value());
+  const auto value = sealer->seal(plaintext);
+  REQUIRE(value.has_value());
+  return *value;
+}
+
+/// @brief The model record the operator added: sealed key, protocol, endpoint, one default.
+auto write_model_record(cms::db::connection& database, std::string_view name, std::string_view base_url,
+                        std::string_view model_id, std::string_view sealed_key, bool enabled = true,
+                        bool is_default = true) -> void {
+  database.execute_text("INSERT INTO system_accounts (id, handle) VALUES "
+                        "('00000000-0000-4000-8000-000000000033', 'system:pipeline-model') ON CONFLICT DO NOTHING",
+                        {});
+  database.execute_text("SET cms.actor_kind = 'system'", {});
+  database.execute_text("SET cms.actor_id = '00000000-0000-4000-8000-000000000033'", {});
+  database.execute_text("DELETE FROM models", {});
+  database.execute_text("INSERT INTO models (name, base_url, protocol, model_id, sealed_key, enabled, is_default, "
+                        "actor_kind) VALUES ($1, $2, 'openai_chat', $3, $4, $5, $6, 'system')",
+                        {std::string{name}, std::string{base_url}, std::string{model_id}, std::string{sealed_key},
+                         enabled, is_default});
+}
+
+SQLPP_CREATE_NAME_TAG(certificate_rows);
+
+using certificate_row = ::sqlpp::result_row_t<::sqlpp::field_spec_t<certificate_rows_t::_sqlpp_name_tag,
+                                                                   ::sqlpp::integral>>;
+
+auto certificates_of(cms::db::connection& database, std::int64_t job_id) -> std::int64_t {
+  auto rows = ::sqlpp::result_t<cms::db::result, certificate_row>{database.query_text(
+      "SELECT count(*) AS certificate_rows FROM generation_certificates WHERE job_id = $1", {job_id})};
+  return rows.empty() ? 0 : rows.front().certificate_rows;
+}
+
+
+/// @return The model id the job's newest artefact records, which is the record the call went through.
+auto last_artefact_model_id(cms::db::connection& database, std::int64_t job_id) -> std::string {
+  for (const auto& row : database(sqlpp::select(cms::db::generationArtefacts.modelId)
+                                      .from(cms::db::generationArtefacts)
+                                      .where(cms::db::generationArtefacts.jobId == job_id)
+                                      .order_by(cms::db::generationArtefacts.id.desc())
+                                      .limit(1))) {
+    return std::string{row.modelId};
+  }
+  return {};
+}
+
+/// @brief A model record the operator has disabled: the worker must refuse by name rather than call it.
+auto write_model_record_clear(cms::db::connection& database) -> void { database.execute_text("DELETE FROM models", {}); }
 
 /// @brief A certifier that answers what a certificate would say, without running the three methods again.
 ///
@@ -640,4 +812,85 @@ TEST_CASE("the brief names the task's own difficulty, topics and technique", "[g
   CHECK(brief->difficulty == "900");
   CHECK(brief->topics == std::vector<std::string>{"prefix-sums"});
   CHECK(brief->locales == std::vector<std::string>{"en"});
+}
+
+TEST_CASE("the binary's path drives a queued job to done through a real certificate", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
+  auto database = cms::generate::test::live_database();
+  drain_queue(database);
+  const auto job = seed_job(BINARY_PATH_TASK);
+  auto store = cms::generate::test::MemoryStore{};
+  auto certifier = cms::generate::SqlCertifier{*cms::generate::test::live_client(), store, COMMIT};
+  auto wired = Wired{certifier, store};
+  auto server = LocalModelServer{whole_job_answers()};
+
+  // The record an operator adds: sealed key, the protocol the adapter speaks, the endpoint the server answers on.
+  write_model_record(database, "probe-model", server.base_url(), "probe-model-1", sealed("probe-key"));
+
+  // The client the binary builds: it reads the record on its first call, opens the key with the deployment's sealer and
+  // talks to the endpoint over a socket. No RecordedClient, no stub, and the certificate below is written by the real
+  // certifier because Wired carries SqlCertifier.
+  auto model = cms::generate::RecordBackedClient{
+      std::make_shared<const cms::db::connection_config>(
+          cms::db::connection_config{.client = cms::generate::test::live_client()}),
+      "prompt-v1", 7};
+
+  const auto report = cms::generate::run_pipeline(model, database, WORKER, wired.ports, facts());
+  if (!report) {
+    UNSCOPED_INFO(report.error().message);
+  }
+  REQUIRE(report.has_value());
+  CHECK(report->state == "done");
+  CHECK(report->steps.size() == 7);
+
+  const auto [state, holder, attempts] = job_row(database, job);
+  CHECK(state == "done");
+  CHECK(holder.empty());
+
+  const auto certificates = certificates_of(database, job);
+  REQUIRE(certificates == 1);
+  const auto outcome = verification_of(database, BINARY_PATH_TASK);
+  CHECK(outcome == "verified");
+  CHECK(server.requests() >= 12);
+
+  // The record names the model the artefacts were produced by, without a new column.
+  CHECK(last_artefact_model_id(database, job) == "probe-model-1");
+  write_model_record_clear(database);
+}
+
+TEST_CASE("a disabled model record ends the job failed, naming what the operator has to fix", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  REQUIRE(cms::seal::configure(TEST_SEAL_KEY).has_value());
+  auto database = cms::generate::test::live_database();
+  drain_queue(database);
+  const auto job = seed_job(DISABLED_TASK);
+  auto store = cms::generate::test::MemoryStore{};
+  auto certifier = cms::generate::SqlCertifier{*cms::generate::test::live_client(), store, COMMIT};
+  auto wired = Wired{certifier, store};
+  // The record exists and is the default, and an operator has turned it off: the worker must refuse by name rather than
+  // call it, and the job must end failed with that refusal instead of sitting queued or running.
+  write_model_record(database, "probe-model", "http://127.0.0.1:9/v1", "probe-model-1", sealed("probe-key"), false);
+
+  auto model = cms::generate::RecordBackedClient{
+      std::make_shared<const cms::db::connection_config>(
+          cms::db::connection_config{.client = cms::generate::test::live_client()}),
+      "prompt-v1", 7};
+
+  const auto report = cms::generate::run_pipeline(model, database, WORKER, wired.ports, facts());
+  REQUIRE(!report.has_value());
+  CHECK(report.error().message.find("no enabled model record") != std::string::npos);
+
+  const auto [state, holder, attempts] = job_row(database, job);
+  CHECK(state == "failed");
+  CHECK(holder.empty());
+  const auto refusals = refusals_of(database, job);
+  REQUIRE(!refusals.empty());
+  CHECK(refusals.front().second.find("no enabled model record") != std::string::npos);
+  CHECK(certificates_of(database, job) == 0);
+  write_model_record_clear(database);
 }
