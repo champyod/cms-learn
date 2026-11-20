@@ -19,48 +19,109 @@
     "verification"
   ],
   "properties": {
-    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
-    "version": { "type": "integer", "minimum": 1 },
-    "status": { "enum": ["draft", "published", "rejected"] },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "published",
+        "rejected"
+      ]
+    },
     "title": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["en", "th"],
+      "required": [
+        "en",
+        "th"
+      ],
       "properties": {
-        "en": { "type": "string", "minLength": 1 },
-        "th": { "type": "string", "minLength": 1 }
+        "en": {
+          "type": "string",
+          "minLength": 1
+        },
+        "th": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "topics": {
       "type": "array",
       "minItems": 1,
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
-    "technique": { "type": "string", "minLength": 1 },
-    "difficulty": { "type": "integer", "minimum": 800, "maximum": 3500, "multipleOf": 100 },
+    "technique": {
+      "type": "string",
+      "minLength": 1
+    },
+    "difficulty": {
+      "type": "integer",
+      "minimum": 800,
+      "maximum": 3500,
+      "multipleOf": 100
+    },
     "locales": {
       "type": "array",
       "minItems": 1,
-      "items": { "enum": ["en", "th"] }
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "limits": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["time_ms", "memory_mb"],
+      "required": [
+        "time_ms",
+        "memory_mb"
+      ],
       "properties": {
-        "time_ms": { "type": "integer", "minimum": 100, "maximum": 20000 },
-        "memory_mb": { "type": "integer", "minimum": 16, "maximum": 1024 }
+        "time_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 20000
+        },
+        "memory_mb": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 1024
+        }
       }
     },
     "bounds": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["min_n", "max_n", "value_min", "value_max"],
+      "required": [
+        "min_n",
+        "max_n",
+        "value_min",
+        "value_max"
+      ],
       "properties": {
-        "min_n": { "type": "integer", "minimum": 1 },
-        "max_n": { "type": "integer", "minimum": 1 },
-        "value_min": { "type": "integer" },
-        "value_max": { "type": "integer" }
+        "min_n": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_n": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "value_min": {
+          "type": "integer"
+        },
+        "value_max": {
+          "type": "integer"
+        }
       }
     },
     "subtasks": {
@@ -69,52 +130,110 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["position", "points"],
+        "required": [
+          "position",
+          "points"
+        ],
         "properties": {
-          "position": { "type": "integer", "minimum": 1 },
-          "points": { "type": "integer", "minimum": 1 },
-          "min_n": { "type": "integer", "minimum": 1 },
-          "max_n": { "type": "integer", "minimum": 1 },
-          "value_min": { "type": "integer" },
-          "value_max": { "type": "integer" }
+          "position": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "points": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "min_n": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_n": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "value_min": {
+            "type": "integer"
+          },
+          "value_max": {
+            "type": "integer"
+          }
         }
       }
     },
     "checker": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
-        "kind": { "enum": ["standard", "token", "testlib", "interactive"] },
-        "path": { "type": "string", "minLength": 1 }
+        "kind": {
+          "enum": [
+            "standard",
+            "token",
+            "testlib",
+            "interactive"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "testdata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["manifest"],
+      "required": [
+        "manifest"
+      ],
       "properties": {
-        "manifest": { "type": "string", "minLength": 1 },
-        "cases": { "type": "integer", "minimum": 1 }
+        "manifest": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cases": {
+          "type": "integer",
+          "minimum": 1
+        }
       }
     },
     "origin": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
-        "kind": { "enum": ["original", "imported", "ai"] },
-        "pipeline": { "type": "string" },
-        "source": { "type": "string" },
-        "license": { "type": "string" }
+        "kind": {
+          "enum": [
+            "original",
+            "imported",
+            "ai"
+          ]
+        },
+        "pipeline": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "license": {
+          "type": "string"
+        }
       }
     },
     "verification": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["reference_solution"],
+      "required": [
+        "reference_solution"
+      ],
       "properties": {
-        "reference_solution": { "type": "string", "minLength": 1 }
+        "reference_solution": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     }
   }

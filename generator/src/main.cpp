@@ -108,10 +108,9 @@ auto run(const cms::generate::ModelConfig& config) -> int {
                                                   .solutions = solution_sink,
                                                   .test_plans = test_plan_sink,
                                                   .certifier = certifier};
-  // The locales a task ships are data (ADR 0031 §2), and nothing in this build declares their names yet: the runner
-  // refuses at step 4 by name rather than naming a language here.
-  const auto facts = cms::generate::RunnerFacts{
-      .vocabulary = std::filesystem::path{config.content_root} / "topics.json", .locales = {}};
+  // The vocabulary and the locale names are content (ADR 0056), read from the root the deployment names, so no
+  // language is decided in this binary.
+  const auto facts = cms::generate::RunnerFacts{.content_root = std::filesystem::path{config.content_root}};
   auto model = UnavailableModelClient{};
 
   const auto report = cms::generate::run_pipeline(model, connection, worker_name(), ports, facts);

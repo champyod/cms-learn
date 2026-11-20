@@ -82,13 +82,12 @@ struct PipelinePorts {
   Certifier& certifier;
 };
 
-/// @brief What the runner needs that is neither a model call nor a row.
+/// @brief What the runner needs that is neither a model call nor a row: the content root it reads two files from.
 struct RunnerFacts {
-  /// The vocabulary the technique's four names are read from: the content root's `topics.json`.
-  std::filesystem::path vocabulary;
-  /// The locales the task ships, named as the prompt needs them. Empty is refused at step 4 rather than guessed from a
-  /// tag: ADR 0031 §2 keeps a language's name out of the step, so it can only arrive as data.
-  std::vector<LocaleDeclaration> locales;
+  /// The content tree: `topics.json` names the technique for the leak check, and `locales.json` carries every
+  /// language's tag and display name (ADR 0056). Both are content, so the test and the deployment read one source, and
+  /// ADR 0031 §2 keeps a language's name out of the code.
+  std::filesystem::path content_root;
 };
 
 /// @brief The brief step 1 reads, assembled from the job row and the task it belongs to.
@@ -102,6 +101,14 @@ struct RunnerFacts {
 /// @param claim The job the worker holds.
 /// @return The brief, or a refusal naming the job, the task or the empty list it could not read.
 [[nodiscard]] auto load_brief(cms::db::connection& database, const JobClaim& claim) -> Result<Brief>;
+
+/// @brief Reads the locales `content/locales.json` declares: each tag with the name a prompt says.
+///
+/// @param content_root The content tree the worker was pointed at.
+/// @return The declarations in file order, or a refusal naming the file when it is missing, unreadable, or carries an
+/// entry without a tag or a name.
+[[nodiscard]] auto read_locale_declarations(const std::filesystem::path& content_root)
+    -> Result<std::vector<LocaleDeclaration>>;
 
 /// @brief Runs steps 4 to 7 for a job whose step 3 is recorded, and ends the claim on the certificate.
 ///

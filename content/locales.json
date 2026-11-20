@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "note": "The languages a task may ship, each with the name a prompt says when it asks for that language. A statement's locale file is one of these tags, and the generator reads both the tag and the name from here: ADR 0031 §2 keeps a language's name out of the code.",
+  "locales": [
+    { "tag": "en", "name": "English" },
+    { "tag": "th", "name": "Thai" }
+  ]
+}

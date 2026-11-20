@@ -47,6 +47,33 @@ if (topicsFile) {
   }
 }
 
+// ── locales ──────────────────────────────────────────────────────────────────────────────────
+/// The languages a task may ship, with the name a prompt says (ADR 0031 §2: the code knows no language, so the
+/// name arrives as data). A task's `locales` entry and its statement file both have to be declared here.
+interface LocaleEntry { tag: string; name: string }
+
+const localesPath = join(contentDir, "locales.json");
+const localesFile = readJson<{ version: number; locales: LocaleEntry[] }>(localesPath);
+const locales = new Map<string, string>();
+let localeCount = 0;
+
+if (localesFile) {
+  const validateLocales = ajv.compile(readJson<object>(join(contentDir, "schema/locales.schema.json")) ?? {});
+  if (!validateLocales(localesFile)) {
+    schemaErrors(localesPath, validateLocales.errors);
+  }
+  const seen = new Set<string>();
+  for (const locale of localesFile.locales ?? []) {
+    if (seen.has(locale.tag)) violations.push(`${rel(localesPath)}: duplicate locale tag "${locale.tag}"`);
+    seen.add(locale.tag);
+    if (locale.name.trim().length === 0) {
+      violations.push(`${rel(localesPath)}: locale "${locale.tag}" carries no display name`);
+    }
+    locales.set(locale.tag, locale.name);
+    localeCount += 1;
+  }
+}
+
 // ── levels ───────────────────────────────────────────────────────────────────────────────────
 interface Level { id: string; title: { en: string }; min: number; max: number }
 
@@ -341,6 +368,9 @@ if (existsSync(tasksDir)) {
     }
 
     for (const locale of task.locales ?? []) {
+      if (!locales.has(locale)) {
+        violations.push(`${rel(taskPath)}: locale "${locale}" is not declared in content/locales.json`);
+      }
       const statement = join(dir, `statement.${locale}.md`);
       if (!existsSync(statement)) violations.push(`${rel(taskPath)}: missing ${rel(statement)}`);
     }
@@ -371,7 +401,7 @@ if (existsSync(tasksDir)) {
 
 // ── verdict ───────────────────────────────────────────────────────────────────────────────────
 const scanned =
-  `topics ${vocabulary.size} · tracks ${trackCount} · ` +
+  `topics ${vocabulary.size} · locales ${localeCount} · tracks ${trackCount} · ` +
   `stages ${stageCount} · levels ${levelCount} · tasks ${taskCount} (draft ${taskCounts.draft}, ` +
   `published ${taskCounts.published}, rejected ${taskCounts.rejected}) · ` +
   `prereqs ${prereqTagCount} tag(s), ${prereqTagsWithEdges} with edges ` +

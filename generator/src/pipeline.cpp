@@ -2,18 +2,22 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <fstream>
+#include <sstream>
 #include <exception>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
 
+#include <simdjson.h>
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/db/connection.hpp>
 #include <cms/db/tables.hpp>
 #include <cms/db/transaction.hpp>
 #include <cms/generate/planner.hpp>
+#include "json.hpp"
 #include <cms/generate/sampler.hpp>
 
 namespace cms::generate {
@@ -159,6 +163,49 @@ auto SqlCertifier::certify(std::int64_t job_id) -> Result<Certificate> {
   } catch (const std::exception& failure) {
     return std::unexpected(Error::make(ErrorCode::unavailable, failure.what()));
   }
+}
+
+/// @brief Reads `locales.json` from the content root: every language's tag and the name a prompt says.
+///
+/// ADR 0031 §2 keeps a language's name out of the step, so it can only arrive as data; ADR 0056 puts that data beside
+/// `topics.json`, where every other label already lives.
+auto read_locale_declarations(const std::filesystem::path& content_root) -> Result<std::vector<LocaleDeclaration>> {
+  const auto file = content_root / "locales.json";
+  auto stream = std::ifstream{file, std::ios::binary};
+  if (!stream) {
+    return std::unexpected(Error::make(ErrorCode::unavailable,
+                                       "the locale declarations cannot be read: " + file.string()));
+  }
+  auto buffer = std::ostringstream{};
+  buffer << stream.rdbuf();
+  const auto text = buffer.str();
+  const auto padded = simdjson::padded_string{text};
+  auto parser = simdjson::dom::parser{};
+  auto document = simdjson::dom::element{};
+  if (parser.parse(padded).get(document) != simdjson::SUCCESS) {
+    return std::unexpected(refused("the locale declarations are not valid JSON: " + file.string()));
+  }
+  auto entries = simdjson::dom::array{};
+  if (document.at_key("locales").get_array().get(entries) != simdjson::SUCCESS) {
+    return std::unexpected(refused("the locale declarations carry no locales array: " + file.string()));
+  }
+  auto declared = std::vector<LocaleDeclaration>{};
+  for (const auto entry : entries) {
+    auto object = simdjson::dom::object{};
+    if (entry.get_object().get(object) != simdjson::SUCCESS) {
+      continue;
+    }
+    const auto tag = detail::field_text(object, "tag");
+    const auto name = detail::field_text(object, "name");
+    if (!tag || tag->empty() || !name || name->empty()) {
+      return std::unexpected(refused("a locale in " + file.string() + " carries no tag or no display name"));
+    }
+    declared.push_back(LocaleDeclaration{.tag = *tag, .name = *name});
+  }
+  if (declared.empty()) {
+    return std::unexpected(refused("the locale declarations name no language: " + file.string()));
+  }
+  return declared;
 }
 
 auto load_brief(cms::db::connection& database, const JobClaim& claim) -> Result<Brief> {
@@ -335,14 +382,25 @@ auto run_second_half(ModelClient& client, cms::db::connection& database, std::st
   if (!chosen) {
     return std::unexpected(refuse(STATEMENT_STEP, "the plan", chosen.error()));
   }
-  const auto technique = read_technique_names(facts.vocabulary, brief->technique);
+  const auto technique = read_technique_names(facts.content_root / "topics.json", brief->technique);
   if (!technique) {
     return std::unexpected(refuse(STATEMENT_STEP, "the technique", technique.error()));
   }
-  if (facts.locales.empty()) {
-    return std::unexpected(refuse(STATEMENT_STEP, "the locales",
-                                  refused("no locale names are declared, so no statement can be written: ADR 0031 §2 "
-                                          "keeps a language's name out of the step")));
+  const auto declared = read_locale_declarations(facts.content_root);
+  if (!declared) {
+    return std::unexpected(refuse(STATEMENT_STEP, "the locales", declared.error()));
+  }
+  auto locales = std::vector<LocaleDeclaration>{};
+  for (const auto& locale : brief->locales) {
+    const auto found = std::find_if(declared->begin(), declared->end(),
+                                    [&](const LocaleDeclaration& entry) { return entry.tag == locale; });
+    if (found == declared->end()) {
+      return std::unexpected(refuse(STATEMENT_STEP, "the locales",
+                                    refused("the task ships locale \"" + locale +
+                                            "\" and content/locales.json does not declare it, so no prompt can name "
+                                            "the language it asks for")));
+    }
+    locales.push_back(*found);
   }
   const auto smallest = smallest_case(specification->specification.bounds);
   if (!smallest) {
@@ -363,7 +421,7 @@ auto run_second_half(ModelClient& client, cms::db::connection& database, std::st
   const auto statement_input = StatementInput{.specification = specification->specification,
                                               .trap = *trap,
                                               .technique = *technique,
-                                              .locales = facts.locales};
+                                              .locales = locales};
   const auto written = write_statement(client, statement_input, *oracle_check);
   if (!written) {
     return std::unexpected(refuse(STATEMENT_STEP, "statement", written.error()));
@@ -384,7 +442,7 @@ auto run_second_half(ModelClient& client, cms::db::connection& database, std::st
   }
   report.steps.emplace_back("statement (" + std::to_string(written->statements.size()) + " locale(s))");
 
-  for (const auto& locale : facts.locales) {
+  for (const auto& locale : locales) {
     const auto read_back =
         read_artefact(ports.client, ports.store, claim.id, STATEMENT_STEP, STATEMENT_KIND, locale.tag);
     if (!read_back) {

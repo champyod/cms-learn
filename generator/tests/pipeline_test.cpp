@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -21,6 +22,8 @@
 #include <cms/generate/statement.hpp>
 #include <cms/generate/test_plan.hpp>
 
+#include <cms/testing/scratch_directory.hpp>
+
 #include "live_database.hpp"
 #include "memory_store.hpp"
 #include "pipeline_fixture.hpp"
@@ -32,6 +35,7 @@ constexpr auto REFERENCE_TASK = "pipeline-reference-probe";
 constexpr auto REFUSAL_TASK = "pipeline-refusal-probe";
 constexpr auto MISSING_TASK = "pipeline-missing-probe";
 constexpr auto CERTIFICATE_TASK = "pipeline-certificate-probe";
+constexpr auto LOCALE_TASK = "pipeline-locale-probe";
 constexpr auto BRIEF_TASK = "pipeline-brief-probe";
 constexpr auto WORKER = "worker-probe";
 constexpr std::string_view COMMIT = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
@@ -393,18 +397,23 @@ struct Wired {
   cms::generate::PipelinePorts ports;
 };
 
-/// @return The declared locales, which the caller supplies because ADR 0031 §2 keeps a language's name out of the step.
-auto declared_locales() -> std::vector<cms::generate::LocaleDeclaration> {
-  return {cms::generate::LocaleDeclaration{.tag = "en", .name = "English"}};
-}
-
-/// @return The vocabulary the technique's names are read from: the content tree that ships with the image.
-auto vocabulary() -> std::filesystem::path {
-  return std::filesystem::path{CMS_CONTENT_DIR} / "topics.json";
-}
-
+/// @return The content tree that ships with the image: the vocabulary and the locale names both live there (ADR 0056).
 auto facts() -> cms::generate::RunnerFacts {
-  return cms::generate::RunnerFacts{.vocabulary = vocabulary(), .locales = declared_locales()};
+  return cms::generate::RunnerFacts{.content_root = std::filesystem::path{CMS_CONTENT_DIR}};
+}
+
+/// @return A content root carrying one declared locale, so a task that ships another one has nowhere to read it from.
+auto content_root_with_one_locale() -> std::filesystem::path {
+  const auto root = std::filesystem::path{CMS_CONTENT_DIR};
+  const auto limited = cms::testing::scratch_directory("cms-locales-limited");
+  std::filesystem::create_directories(limited);
+  std::filesystem::copy_file(root / "topics.json", limited / "topics.json",
+                             std::filesystem::copy_options::overwrite_existing);
+  auto file = std::ofstream{limited / "locales.json"};
+  REQUIRE(file.good());
+  // A synthetic language, so this fixture proves the refusal without naming a real one anywhere in the generator.
+  file << R"({"version": 1, "locales": [{"tag": "zz", "name": "Zedish"}]})";
+  return limited;
 }
 
 }  // namespace
@@ -581,6 +590,36 @@ TEST_CASE("a step's refusal ends the job failed and is recorded on the job", "[g
   REQUIRE(refusals.size() == 1);
   CHECK(refusals.front().first == 1);
   CHECK(refusals.front().second.find("missing or has wrong: approach") != std::string::npos);
+}
+
+TEST_CASE("a task statement in a locale the content does not declare is refused by name", "[generate][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  drain_queue(database);
+  const auto job = seed_job(LOCALE_TASK);
+  auto store = cms::generate::test::MemoryStore{};
+  auto certifier = StubCertifier{LOCALE_TASK, cms::generate::VerificationOutcome::verified};
+  auto wired = Wired{certifier, store};
+  auto client = whole_job_recording();
+  // Steps 1 to 3 record their evidence, then step 4 finds its language is not declared beside topics.json: the task
+  // ships "en" and this root declares only "th".
+  const auto content_root = content_root_with_one_locale();
+
+  const auto report = cms::generate::run_pipeline(
+      client, database, WORKER, wired.ports,
+      cms::generate::RunnerFacts{.content_root = content_root});
+
+  REQUIRE(!report.has_value());
+  CHECK(report.error().message.find("step 4") != std::string::npos);
+  CHECK(report.error().message.find("locales.json does not declare") != std::string::npos);
+  CHECK(report.error().message.find("\"en\"") != std::string::npos);
+  // No prompt was built for the statement: the four plan calls and the two before it, and nothing after.
+  CHECK(client.prompts().size() == 6);
+  const auto [state, holder, attempts] = job_row(database, job);
+  CHECK(state == "failed");
+  CHECK(holder.empty());
 }
 
 TEST_CASE("the brief names the task's own difficulty, topics and technique", "[generate][live]") {

@@ -5,6 +5,7 @@ const GRID_TASK = "content/tasks/grid-shortest-path/task.json";
 const TRACKS = "content/tracks.json";
 const PREREQS = "content/prereqs.json";
 const LEVELS = "content/levels.json";
+const LOCALES = "content/locales.json";
 
 export const CONTENT_GATE: Gate = {
   id: "content",
@@ -24,6 +25,27 @@ export const CONTENT_GATE: Gate = {
     {
       name: "task tagged outside the vocabulary",
       plant: [{ kind: "json", path: GRID_TASK, edits: [{ kind: "append", pointer: ["topics"], value: "graph-theory" }] }],
+      expect: { status: "non-zero" },
+    },
+    {
+      name: "a task statement in a locale the content does not declare",
+      plant: [{ kind: "json", path: RANGE_TASK, edits: [{ kind: "set", pointer: ["locales"], value: ["en", "fr"] }] }],
+      expect: { status: "non-zero" },
+    },
+    {
+      name: "a locale declared twice",
+      plant: [
+        {
+          kind: "json",
+          path: LOCALES,
+          edits: [{ kind: "append", pointer: ["locales"], value: { tag: "en", name: "English again" } }],
+        },
+      ],
+      expect: { status: "non-zero" },
+    },
+    {
+      name: "a locale with no display name",
+      plant: [{ kind: "json", path: LOCALES, edits: [{ kind: "set", pointer: ["locales", 1, "name"], value: "" }] }],
       expect: { status: "non-zero" },
     },
     {
