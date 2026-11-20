@@ -20,11 +20,14 @@ constexpr auto REQUIRED_KEYS = std::array{
     RequiredKey{"CMSLEARN_MODEL_KEY", &ModelConfig::key},
     RequiredKey{"CMSLEARN_MODEL_PROMPT_VERSION", &ModelConfig::prompt_version},
     RequiredKey{"CMSLEARN_DATABASE_URL", &ModelConfig::database_url},
+    RequiredKey{"CMSLEARN_CERTIFIER_DATABASE_URL", &ModelConfig::certifier_database_url},
     RequiredKey{"CMSLEARN_S3_ENDPOINT", &ModelConfig::store_endpoint},
     RequiredKey{"CMSLEARN_S3_REGION", &ModelConfig::store_region},
     RequiredKey{"CMSLEARN_S3_BUCKET", &ModelConfig::store_bucket},
     RequiredKey{"CMSLEARN_S3_ACCESS_KEY_ID", &ModelConfig::store_access_key_id},
     RequiredKey{"CMSLEARN_S3_SECRET_ACCESS_KEY", &ModelConfig::store_secret_access_key},
+    RequiredKey{"CMSLEARN_CONTENT_ROOT", &ModelConfig::content_root},
+    RequiredKey{"CMSLEARN_COMMIT", &ModelConfig::commit_id},
 };
 
 }  // namespace

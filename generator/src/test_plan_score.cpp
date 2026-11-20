@@ -202,7 +202,7 @@ auto score_solutions(const Step6Answer& answer, std::string_view reference,
 auto write_test_plan(ModelClient& client, const Specification& specification, std::string_view oracle,
                      std::string_view reference,
                      const std::vector<std::pair<std::int32_t, std::string>>& partials,
-                     std::int64_t time_limit_ms) -> Result<std::vector<Score>> {
+                     std::int64_t time_limit_ms) -> Result<TestPlanResult> {
   const auto generator_request = generator_prompt(specification);
   if (!generator_request) {
     return std::unexpected(generator_request.error());
@@ -237,7 +237,11 @@ auto write_test_plan(ModelClient& client, const Specification& specification, st
     return std::unexpected(cases.error());
   }
   answer.cases = *cases;
-  return score_solutions(answer, reference, partials, time_limit_ms);
+  const auto scores = score_solutions(answer, reference, partials, time_limit_ms);
+  if (!scores) {
+    return std::unexpected(scores.error());
+  }
+  return TestPlanResult{.answer = std::move(answer), .scores = *scores};
 }
 
 auto MemoryTestPlanSink::record(std::int64_t job_id, const Step6Answer& answer, const std::vector<Score>& scores)

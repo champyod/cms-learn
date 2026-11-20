@@ -93,11 +93,18 @@ struct Score {
                                    const std::vector<std::pair<std::int32_t, std::string>>& partials,
                                    std::int64_t time_limit_ms) -> Result<std::vector<Score>>;
 
+/// @brief What step 6 produced and what its programs earned: the sink records both, so a caller that received only the
+/// scores could not write the step.
+struct TestPlanResult {
+  Step6Answer answer;
+  std::vector<Score> scores;
+};
+
 /// @brief Runs step 6: two calls, the cases built from the generator, and both proofs.
 [[nodiscard]] auto write_test_plan(ModelClient& client, const Specification& specification,
                                    std::string_view oracle, std::string_view reference,
                                    const std::vector<std::pair<std::int32_t, std::string>>& partials,
-                                   std::int64_t time_limit_ms) -> Result<std::vector<Score>>;
+                                   std::int64_t time_limit_ms) -> Result<TestPlanResult>;
 
 /// @brief Where step 6's record goes: one artefact row per program and per subtask's cases, cited by its rows.
 class TestPlanSink {

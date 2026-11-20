@@ -7,6 +7,7 @@
 #include <array>
 #include <cstdio>
 #include <exception>
+#include <filesystem>
 #include <memory>
 #include <print>
 #include <string>
@@ -73,6 +74,12 @@ auto run(const cms::generate::ModelConfig& config) -> int {
   if (!database_answers(client)) {
     return fail("the database named by CMSLEARN_DATABASE_URL did not answer");
   }
+  // The certifier decides a verification on the role that owns that decision, so its pool is a second one, made from
+  // its own variable. Reusing the worker's connection would be the privilege escalation the grants exist to prevent.
+  const auto certifier_client = client_from(config.certifier_database_url);
+  if (!database_answers(certifier_client)) {
+    return fail("the database named by CMSLEARN_CERTIFIER_DATABASE_URL did not answer");
+  }
   const auto store_config = cms::store::StoreConfig{.endpoint = config.store_endpoint,
                                                     .region = config.store_region,
                                                     .bucket = config.store_bucket,
@@ -88,10 +95,26 @@ auto run(const cms::generate::ModelConfig& config) -> int {
   auto candidate_sink = cms::generate::SqlCandidateSink{*client};
   auto specification_sink = cms::generate::SqlSpecificationSink{*client, **store};
   auto artefact_sink = cms::generate::SqlArtefactSink{*client, **store};
+  auto statement_sink = cms::generate::SqlStatementSink{*client, **store};
+  auto solution_sink = cms::generate::SqlSolutionSink{*client, **store};
+  auto test_plan_sink = cms::generate::SqlTestPlanSink{*client, **store};
+  auto certifier = cms::generate::SqlCertifier{*certifier_client, **store, config.commit_id};
+  const auto ports = cms::generate::PipelinePorts{.client = *client,
+                                                  .store = **store,
+                                                  .candidates = candidate_sink,
+                                                  .specifications = specification_sink,
+                                                  .artefacts = artefact_sink,
+                                                  .statements = statement_sink,
+                                                  .solutions = solution_sink,
+                                                  .test_plans = test_plan_sink,
+                                                  .certifier = certifier};
+  // The locales a task ships are data (ADR 0031 §2), and nothing in this build declares their names yet: the runner
+  // refuses at step 4 by name rather than naming a language here.
+  const auto facts = cms::generate::RunnerFacts{
+      .vocabulary = std::filesystem::path{config.content_root} / "topics.json", .locales = {}};
   auto model = UnavailableModelClient{};
 
-  const auto report = cms::generate::run_pipeline(model, connection, worker_name(), candidate_sink,
-                                                  specification_sink, artefact_sink);
+  const auto report = cms::generate::run_pipeline(model, connection, worker_name(), ports, facts);
   if (!report) {
     return fail(report.error().message);
   }

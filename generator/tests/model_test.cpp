@@ -72,12 +72,18 @@ TEST_CASE("the worker's configuration names every missing key and no value", "[g
                    {"CMSLEARN_MODEL_KEY", "k"},
                    {"CMSLEARN_MODEL_PROMPT_VERSION", "v1"},
                    {"CMSLEARN_DATABASE_URL", "postgres://x"},
+                   {"CMSLEARN_CERTIFIER_DATABASE_URL", "postgres://certifier"},
                    {"CMSLEARN_S3_ENDPOINT", "https://store.example.invalid"},
                    {"CMSLEARN_S3_REGION", "us-east-1"},
                    {"CMSLEARN_S3_BUCKET", "b"},
                    {"CMSLEARN_S3_ACCESS_KEY_ID", "a"},
-                   {"CMSLEARN_S3_SECRET_ACCESS_KEY", "s"}}));
+                   {"CMSLEARN_S3_SECRET_ACCESS_KEY", "s"},
+                   {"CMSLEARN_CONTENT_ROOT", "/content"},
+                   {"CMSLEARN_COMMIT", "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"}}));
   REQUIRE(complete.has_value());
   CHECK(complete->model_id == "m");
   CHECK(complete->store_bucket == "b");
+  CHECK(complete->content_root == "/content");
+  CHECK(complete->certifier_database_url == "postgres://certifier");
+  CHECK(complete->commit_id == "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678");
 }

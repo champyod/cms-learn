@@ -457,6 +457,11 @@ TEST_CASE("a complete job is certified and the certificate names every method it
 
   const auto certificate = cms::generate::certify_job(connection, store, job_of(connection, "certify-ok"), COMMIT);
 
+  if (certificate.has_value() && certificate->outcome != cms::generate::VerificationOutcome::verified) {
+    for (const auto& check : certificate->checks) {
+      UNSCOPED_INFO("a method said: " + check);
+    }
+  }
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::verified);
   CHECK(certificate->commit_id == std::string{COMMIT});

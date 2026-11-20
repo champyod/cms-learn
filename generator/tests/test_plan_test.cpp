@@ -292,16 +292,20 @@ TEST_CASE("two calls: one for the generator, one for the checker", "[generate]")
   auto client = cms::generate::RecordedClient{"tests", "tests-v1", 9, {std::string{CONSTANT_GENERATOR},
                                                                       std::string{TOKEN_CHECKER}}};
 
-  const auto scores =
+  const auto written =
       cms::generate::write_test_plan(client, specification(), SUM_REFERENCE, SUM_REFERENCE, partials(), 1000);
 
-  if (!scores) {
-    FAIL("write_test_plan refused: " + scores.error().message);
+  if (!written) {
+    FAIL("write_test_plan refused: " + written.error().message);
   }
-  REQUIRE(scores.has_value());
+  REQUIRE(written.has_value());
   CHECK(client.prompts().size() == 2);
   CHECK(client.prompts()[0].find("seed and n") != std::string::npos);
   CHECK(client.prompts()[1].find("exits 0 when") != std::string::npos);
+  CHECK(written->answer.generator.source == CONSTANT_GENERATOR);
+  CHECK(written->answer.checker.source == TOKEN_CHECKER);
+  CHECK(!written->answer.cases.empty());
+  CHECK(!written->scores.empty());
 }
 
 TEST_CASE("step 6 records two program rows and one case row per subtask", "[generate][live]") {
