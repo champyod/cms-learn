@@ -13,6 +13,11 @@ namespace {
 
 constexpr std::int64_t BYTES_PER_VALUE = 8;
 constexpr std::int64_t BYTES_PER_MB = 1024 * 1024;
+/// The address-space allowance is this multiple of the used limit, and never below the floor: a program maps more
+/// than it touches (its binary, its stack, its allocator), so a reservation equal to the use would refuse an honest
+/// reference — while a program that maps several times what it touches is exactly what the reserved limit is for.
+constexpr std::int64_t ADDRESS_SPACE_FACTOR = 2;
+constexpr std::int64_t ADDRESS_SPACE_FLOOR_MB = 64;
 
 auto refuse(std::string_view message) -> Error {
   return Error::make(ErrorCode::invalid_argument, message);
@@ -111,12 +116,22 @@ auto derive_limit(std::string_view complexity, const Bounds& bounds) -> Result<D
     return std::unexpected(Error::make(
         ErrorCode::invalid_argument,
         "the derivation lands outside the allowed band: n = " + std::to_string(bounds.max_n) +
-            " needs " + std::to_string(static_cast<std::int64_t>(values)) + " MB, and a task allows " +
+            " needs " + std::to_string(static_cast<std::int64_t>(values)) + " MB of values, and a task allows " +
             std::to_string(MEMORY_LIMIT_FLOOR_MB) + ".." + std::to_string(MEMORY_LIMIT_CEILING_MB) + " MB"));
+  }
+  const auto used = std::max(MEMORY_LIMIT_FLOOR_MB, static_cast<std::int64_t>(values));
+  const auto reserved = std::max(ADDRESS_SPACE_FLOOR_MB, used * ADDRESS_SPACE_FACTOR);
+  if (reserved > MEMORY_LIMIT_CEILING_MB) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument,
+        "the derivation lands outside the allowed band: n = " + std::to_string(bounds.max_n) +
+            " needs " + std::to_string(used) + " MB used, and the address space allowance that follows is " +
+            std::to_string(reserved) + " MB, above the " + std::to_string(MEMORY_LIMIT_CEILING_MB) + " MB ceiling"));
   }
   auto derived = DerivedLimit{};
   derived.time_limit_ms = std::max(TIME_LIMIT_FLOOR_MS, static_cast<std::int64_t>(milliseconds));
-  derived.memory_limit_mb = std::max(MEMORY_LIMIT_FLOOR_MB, static_cast<std::int64_t>(values));
+  derived.memory_used_limit_mb = used;
+  derived.memory_reserved_limit_mb = reserved;
   derived.derivation = std::string{complexity} + " at n = " + std::to_string(bounds.max_n) + " is " +
                        std::to_string(static_cast<std::int64_t>(*operations)) + " operations; at " +
                        std::to_string(OPERATIONS_PER_MILLISECOND) + " operations per millisecond that is " +
@@ -125,7 +140,9 @@ auto derive_limit(std::string_view complexity, const Bounds& bounds) -> Result<D
                        " ms, so the time limit is " + std::to_string(derived.time_limit_ms) + " ms; n values double "
                        "in memory are " + std::to_string(static_cast<std::int64_t>(values)) + " MB, inside " +
                        std::to_string(MEMORY_LIMIT_FLOOR_MB) + ".." + std::to_string(MEMORY_LIMIT_CEILING_MB) +
-                       " MB, so the memory limit is " + std::to_string(derived.memory_limit_mb) + " MB";
+                       " MB, so the used limit is " + std::to_string(used) +
+                       " MB; the reserved limit is twice that, " + std::to_string(reserved) +
+                       " MB, because a program maps more than it touches";
   return derived;
 }
 

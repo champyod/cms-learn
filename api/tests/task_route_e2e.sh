@@ -90,18 +90,18 @@ learner_value="$("$principal_value" encode learner "$(psql_db -c "SELECT serial_
 
 psql_db <<SQL >/dev/null 2>&1
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
-                   memory_limit_mb, checker, origin, verification, solution, content_hash)
-VALUES ('everyone-task', 1, 'draft', 'Everyone Task', 'งานสาธารณะ', 900, 1000, 256, 'token',
+                   memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash)
+VALUES ('everyone-task', 1, 'draft', 'Everyone Task', 'งานสาธารณะ', 900, 1000, 256, 512, 'token',
         'original', 'pending', '$solution', repeat('a', 64)),
-       ('learner-task', 1, 'draft', 'Learner Task', 'งานเฉพาะผู้เรียน', 900, 1000, 256, 'token',
+       ('learner-task', 1, 'draft', 'Learner Task', 'งานเฉพาะผู้เรียน', 900, 1000, 256, 512, 'token',
         'original', 'pending', '$solution', repeat('b', 64)),
-       ('draft-task', 1, 'draft', 'Draft Task', 'งานฉบับร่าง', 900, 1000, 256, 'token',
+       ('draft-task', 1, 'draft', 'Draft Task', 'งานฉบับร่าง', 900, 1000, 256, 512, 'token',
         'original', 'pending', '$solution', repeat('c', 64)),
-       ('hidden-task', 1, 'draft', 'Hidden Task', 'งานที่ซ่อนไว้', 900, 1000, 256, 'token',
+       ('hidden-task', 1, 'draft', 'Hidden Task', 'งานที่ซ่อนไว้', 900, 1000, 256, 512, 'token',
         'original', 'pending', '$solution', repeat('d', 64)),
-       ('stale-task', 1, 'draft', 'Stale Task', 'งานที่ใบรับรองถูกถอน', 900, 1000, 256, 'token',
+       ('stale-task', 1, 'draft', 'Stale Task', 'งานที่ใบรับรองถูกถอน', 900, 1000, 256, 512, 'token',
         'original', 'pending', '$solution', repeat('s', 64)),
-       ('broken-task', 1, 'draft', 'Broken Task', 'งานที่ไม่มีคำบรรยาย', 900, 1000, 256, 'token',
+       ('broken-task', 1, 'draft', 'Broken Task', 'งานที่ไม่มีคำบรรยาย', 900, 1000, 256, 512, 'token',
         'original', 'pending', '$solution', repeat('e', 64));
 -- ADR 0046 §2: a task row cannot be created verified, so the fixture builds the certificate it needs and moves the
 -- verification with the guarded UPDATE the trigger allows.

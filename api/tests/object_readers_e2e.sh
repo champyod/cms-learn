@@ -95,7 +95,7 @@ psql_db "SELECT set_config('cms.actor_id', 'a0000001-1111-4111-8111-0000000000f9
 # A published task is served only after a certification, so the fixture builds the row that makes it so: the task
 # starts unverified, a job and its certificate row are written, and then the one UPDATE the trigger guards moves the
 # task to verified. Writing the claim straight into the INSERT would be the shortcut ADR 0046 §2 removed.
-psql_db "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash, seeded) VALUES ('probe-object', 1, 'batch', 'draft', 'Object probe', 'ทดสอบวัตถุ', 900, 1000, 256, 'token', 'original', 'pending', '', '', false) ON CONFLICT DO NOTHING;" >/dev/null
+psql_db "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash, seeded) VALUES ('probe-object', 1, 'batch', 'draft', 'Object probe', 'ทดสอบวัตถุ', 900, 1000, 256, 512, 'token', 'original', 'pending', '', '', false) ON CONFLICT DO NOTHING;" >/dev/null
 psql_db "INSERT INTO generation_jobs (task_id, task_version) VALUES ('probe-object', 1) ON CONFLICT (task_id, task_version) DO NOTHING;" >/dev/null
 psql_db "INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) SELECT id, 'probe-object', 1, 'verified', '[\"the object readers case\"]'::jsonb, 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', '{}'::jsonb FROM generation_jobs WHERE task_id = 'probe-object' AND task_version = 1;" >/dev/null
 psql_db "UPDATE tasks SET verification = 'verified' WHERE id = 'probe-object' AND version = 1;" >/dev/null

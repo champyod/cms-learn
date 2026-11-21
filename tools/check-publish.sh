@@ -60,9 +60,9 @@ psql_db() { psql -X -h "$work" -p "$port" -U postgres -d "$database" -tAq "$@"; 
 # A certificate names a task version, so the row it certifies has to exist first. The generator writes files and
 # never a database row, which is the same split the pipeline has.
 given_task() {
-  psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb,
+  psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb,
                                  checker, origin, verification, solution, content_hash)
-              VALUES ('$1', 1, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original', 'pending', '', '')
+              VALUES ('$1', 1, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 512, 'token', 'original', 'pending', '', '')
               ON CONFLICT (id, version) DO NOTHING" >/dev/null 2>&1 \
     || { echo "  [!!] the gate could not write the task row for $1"; exit 1; }
 }
@@ -84,7 +84,7 @@ printf 'Given a sequence and queries\n' >"$work/statement.en"
 cp "$repo/content/tasks/range-sum-query/solutions/main.cpp" "$work/main.cpp"
 
 "$generator" --out "$work/draft" --id probe-task --title-en "Probe" --title-th "ทดสอบ" \
-  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-mb 256 --checker token \
+  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-used-mb 256 --memory-reserved-mb 512 --checker token \
   --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
   --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp" \
   >/dev/null 2>&1 || { echo "publish gate FAILED: the generator refused the specification" >&2; exit 1; }
@@ -148,7 +148,7 @@ fi
 # ADR 0046 §2 retired the file's verification claim, so this fixture is deliberately illegal: its manifest still
 # names one. It publishes anyway on a verified certificate row, because the promoter reads the row and never the file.
 "$generator" --out "$work/claim" --id probe-claim --title-en "Probe" --title-th "ทดสอบ" \
-  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-mb 256 --checker token \
+  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-used-mb 256 --memory-reserved-mb 512 --checker token \
   --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
   --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp" \
   >/dev/null 2>&1 \
@@ -167,7 +167,7 @@ grep -q '"status": "published"' "$work/claim/task.json" \
 
 # A reference that does not reproduce its expected output stops the publish, even with a verified certificate.
 "$generator" --out "$work/wrong" --id probe-wrong --title-en "Probe" --title-th "ทดสอบ" \
-  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-mb 256 --checker token \
+  --technique prefix-sums --topics "prefix-sums" --difficulty 900 --time-ms 1000 --memory-used-mb 256 --memory-reserved-mb 512 --checker token \
   --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
   --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp" \
   >/dev/null 2>&1 \

@@ -26,7 +26,7 @@ printf '#include <iostream>\nint main() { return 0; }\n' >"$work/main.cpp"
 
 generate() {
   "$generator" --out "$1" --id probe-task --title-en "Probe" --title-th "ทดสอบ" \
-    --topics "prefix-sums,complexity" --technique prefix-sums --difficulty 900 --time-ms 1000 --memory-mb 256 \
+    --topics "prefix-sums,complexity" --technique prefix-sums --difficulty 900 --time-ms 1000 --memory-used-mb 256 --memory-reserved-mb 512 \
     --checker token --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
     --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp"
 }
@@ -69,7 +69,7 @@ else
 fi
 
 if "$generator" --out "$work/off-topic" --id probe-task --title-en "Probe" --title-th "ทดสอบ" \
-  --topics "prefix-sums,complexity" --technique bfs --difficulty 900 --time-ms 1000 --memory-mb 256 \
+  --topics "prefix-sums,complexity" --technique bfs --difficulty 900 --time-ms 1000 --memory-used-mb 256 --memory-reserved-mb 512 \
   --checker token --statement-en "$work/statement.en" --statement-th "$work/statement.th" \
   --example-in "$work/example.in" --example-out "$work/example.out" --solution "$work/main.cpp" \
   >/dev/null 2>&1; then

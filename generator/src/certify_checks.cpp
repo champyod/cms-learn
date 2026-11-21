@@ -124,6 +124,7 @@ struct Slowest {
 auto limits(const std::vector<GeneratedCase>& cases, const ReRunEvidence& evidence) -> ReRunResult {
   auto slowest_time = Slowest{};
   auto slowest_memory = Slowest{};
+  auto slowest_reserved = Slowest{};
   for (const auto& sample : cases) {
     const auto measured = measure_program(evidence.reference_source, sample.input, evidence.time_limit_ms);
     if (!measured) {
@@ -135,30 +136,46 @@ auto limits(const std::vector<GeneratedCase>& cases, const ReRunEvidence& eviden
     if (measured->peak_memory_kb > slowest_memory.measured) {
       slowest_memory = Slowest{.n = sample.n, .measured = measured->peak_memory_kb};
     }
+    if (measured->peak_reserved_kb > slowest_reserved.measured) {
+      slowest_reserved = Slowest{.n = sample.n, .measured = measured->peak_reserved_kb};
+    }
   }
   const auto half_time_ms = evidence.time_limit_ms / REFERENCE_MARGIN_DIVISOR;
-  const auto half_memory_kb = evidence.memory_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
+  const auto half_used_kb = evidence.memory_used_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
+  const auto half_reserved_kb = evidence.memory_reserved_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
   auto broken = std::string{};
-  if (slowest_time.measured > half_time_ms) {
-    broken += "the reference measured " + std::to_string(slowest_time.measured) + " ms at n = " +
-              std::to_string(slowest_time.n) + ", above the " + std::to_string(half_time_ms) +
-              " ms half of the declared " + std::to_string(evidence.time_limit_ms) + " ms time limit";
-  }
-  if (slowest_memory.measured > half_memory_kb) {
+  const auto add = [&broken](std::string sentence) {
     broken += broken.empty() ? "" : "; ";
-    broken += "the reference measured " + std::to_string(megabytes(slowest_memory.measured)) + " MB at n = " +
-              std::to_string(slowest_memory.n) + ", above the " + std::to_string(half_memory_kb / KB_PER_MB) +
-              " MB half of the declared " + std::to_string(evidence.memory_limit_mb) + " MB memory limit";
+    broken += std::move(sentence);
+  };
+  if (slowest_time.measured > half_time_ms) {
+    add("the reference measured " + std::to_string(slowest_time.measured) + " ms at n = " +
+        std::to_string(slowest_time.n) + ", above the " + std::to_string(half_time_ms) +
+        " ms half of the declared " + std::to_string(evidence.time_limit_ms) + " ms time limit");
+  }
+  if (slowest_memory.measured > half_used_kb) {
+    add("the reference touched " + std::to_string(megabytes(slowest_memory.measured)) + " MB at n = " +
+        std::to_string(slowest_memory.n) + ", above the " + std::to_string(half_used_kb / KB_PER_MB) +
+        " MB half of the declared " + std::to_string(evidence.memory_used_limit_mb) + " MB used limit");
+  }
+  if (slowest_reserved.measured > half_reserved_kb) {
+    add("the reference mapped " + std::to_string(megabytes(slowest_reserved.measured)) + " MB at n = " +
+        std::to_string(slowest_reserved.n) + ", above the " + std::to_string(half_reserved_kb / KB_PER_MB) +
+        " MB half of the declared " + std::to_string(evidence.memory_reserved_limit_mb) + " MB reserved limit");
   }
   if (!broken.empty()) {
     return failed(LIMITS, broken);
   }
-  return held(LIMITS, std::to_string(slowest_time.measured) + " ms at n = " + std::to_string(slowest_time.n) + " and " +
-                         std::to_string(megabytes(slowest_memory.measured)) + " MB at n = " +
-                         std::to_string(slowest_memory.n) + ", inside the " + std::to_string(half_time_ms) +
-                         " ms and " + std::to_string(half_memory_kb / KB_PER_MB) + " MB halves of the declared " +
-                         std::to_string(evidence.time_limit_ms) + " ms and " +
-                         std::to_string(evidence.memory_limit_mb) + " MB limits");
+  return held(LIMITS, std::to_string(slowest_time.measured) + " ms at n = " + std::to_string(slowest_time.n) +
+                         ", " + std::to_string(megabytes(slowest_memory.measured)) + " MB used at n = " +
+                         std::to_string(slowest_memory.n) + " and " +
+                         std::to_string(megabytes(slowest_reserved.measured)) + " MB reserved at n = " +
+                         std::to_string(slowest_reserved.n) + ", inside the " + std::to_string(half_time_ms) +
+                         " ms, " + std::to_string(half_used_kb / KB_PER_MB) + " MB used and " +
+                         std::to_string(half_reserved_kb / KB_PER_MB) + " MB reserved halves of the declared " +
+                         std::to_string(evidence.time_limit_ms) + " ms, " +
+                         std::to_string(evidence.memory_used_limit_mb) + " MB used and " +
+                         std::to_string(evidence.memory_reserved_limit_mb) + " MB reserved limits");
 }
 
 }  // namespace

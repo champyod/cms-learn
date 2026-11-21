@@ -66,8 +66,8 @@ psql_db >"$work/seed.log" 2>&1 <<SQL || die "seeding the queue failed; see $work
 INSERT INTO learner_accounts (id, handle, email, status)
 VALUES ('11111111-1111-4111-8111-111111111100', 'claim_gate', 'claim_gate@example.org', 'active');
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
-                   memory_limit_mb, checker, origin, verification, solution, content_hash)
-VALUES ('claim-gate-task', 1, 'draft', 'Claim gate', 'ทดสอบเกต', 800, 1000, 256,
+                   memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash)
+VALUES ('claim-gate-task', 1, 'draft', 'Claim gate', 'ทดสอบเกต', 800, 1000, 256, 512,
         'standard', 'original', 'pending', 'int main() { return 0; }', repeat('0', 64));
 INSERT INTO submissions (account_id, task_id, task_version, source)
 SELECT '11111111-1111-4111-8111-111111111100', 'claim-gate-task', 1, 'int main() { return 0; }'

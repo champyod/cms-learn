@@ -41,9 +41,9 @@ auto live_database() -> cms::db::connection {
 
 auto given_task(cms::db::connection& database, std::int64_t version) -> void {
   database.execute_text(
-      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, "
+      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, "
       "checker, origin, verification, solution, content_hash) "
-      "VALUES ($1, $2, 'draft', 'Promote probe', 'ทดสอบการเผยแพร่', 800, 1000, 256, 'token', 'original', 'pending', "
+      "VALUES ($1, $2, 'draft', 'Promote probe', 'ทดสอบการเผยแพร่', 800, 1000, 256, 512, 'token', 'original', 'pending', "
       "'', '') ON CONFLICT (id, version) DO NOTHING",
       {std::string{TASK_ID}, version});
 }

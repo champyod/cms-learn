@@ -95,8 +95,8 @@ auto load_task(cms::db::connection& database, const cms::judge::ClaimedSubmissio
   auto task = cms::judge::TaskRun{};
   auto found = false;
   for (const auto& row :
-       database(sqlpp::select(cms::db::tasks.timeLimitMs, cms::db::tasks.memoryLimitMb,
-                             cms::db::tasks.checker)
+       database(sqlpp::select(cms::db::tasks.timeLimitMs, cms::db::tasks.memoryUsedLimitMb,
+                             cms::db::tasks.memoryReservedLimitMb, cms::db::tasks.checker)
                     .from(cms::db::tasks)
                     .where(cms::db::tasks.id == submission.task_id &&
                            cms::db::tasks.version == submission.task_version))) {
@@ -108,7 +108,8 @@ auto load_task(cms::db::connection& database, const cms::judge::ClaimedSubmissio
           "the judge does not run the '" + kind + "' checker kind yet; the row stays claimable"));
     }
     task.time_limit_ms = row.timeLimitMs;
-    task.memory_limit_kb = row.memoryLimitMb * 1024;
+    task.memory_used_limit_kb = row.memoryUsedLimitMb * 1024;
+    task.memory_reserved_limit_kb = row.memoryReservedLimitMb * 1024;
     task.checker = flags.checker;
     task.cpp_standard = flags.standard;
   }

@@ -82,7 +82,8 @@ auto sample_task() -> cms::api::TaskPage {
   task.title_en = "Range Sum Queries";
   task.title_th = "ผลรวมของช่วงข้อมูล";
   task.time_limit_ms = 1500;
-  task.memory_limit_mb = 200;
+  task.memory_used_limit_mb = 200;
+  task.memory_reserved_limit_mb = 400;
   task.statement_en = "# Range Sum Queries\n\nAnswer each query in order.";
   task.statement_th = "# ผลรวมของช่วงข้อมูล\n\nจงตอบผลรวมของแต่ละช่วง";
   task.example_input = "3 2\n1 2 3\n1 2\n2 3\n";

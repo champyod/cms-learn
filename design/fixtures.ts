@@ -47,8 +47,11 @@ export interface TaskFixture {
   task_id: string;
   title: string;
   limit_label: string;
+  used_memory_label: string;
+  reserved_memory_label: string;
   time_ms: number;
-  memory_mb: number;
+  memory_used_mb: number;
+  memory_reserved_mb: number;
   statement: string;
   example_label: string;
   example_input: string;
@@ -64,8 +67,11 @@ export const taskFixture: TaskFixture = {
   task_id: "range-sum-query",
   title: "ผลรวมของช่วงข้อมูล",
   limit_label: "ขีดจำกัด",
+  used_memory_label: "ใช้จริง",
+  reserved_memory_label: "ที่จองไว้",
   time_ms: 1000,
-  memory_mb: 256,
+  memory_used_mb: 256,
+  memory_reserved_mb: 512,
   statement: "<p>ให้ลำดับตัวเลขและคำถามหลายข้อ จงตอบผลรวมของแต่ละช่วง</p>",
   example_label: "ตัวอย่าง",
   example_input: "3 2\n1 2 3\n1 2\n2 3\n",

@@ -189,6 +189,17 @@ export const CONTENT_GATE: Gate = {
       expect: { status: "non-zero", message: "ADR 0046 \u00a72 retired" },
     },
     {
+      name: "a reserved memory limit below the used one",
+      plant: [
+        {
+          kind: "json",
+          path: RANGE_TASK,
+          edits: [{ kind: "set", pointer: ["limits", "memory_reserved_mb"], value: 128 }],
+        },
+      ],
+      expect: { status: "non-zero", message: "below the used limit" },
+    },
+    {
       name: "a task file that still says verified",
       plant: [{ kind: "json", path: RANGE_TASK, edits: [{ kind: "set", pointer: ["status"], value: "verified" }] }],
       expect: { status: "non-zero", message: "status" },
@@ -199,8 +210,8 @@ export const CONTENT_GATE: Gate = {
         {
           kind: "patch",
           path: RANGE_TASK,
-          find: `"limits": { "time_ms": 1000, "memory_mb": 256 },`,
-          replace: `"limits": { "time_ms": 1000, "memory_mb": 256 },
+          find: `"limits": { "time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512 },`,
+          replace: `"limits": { "time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512 },
   "bounds": { "min_n": 1, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000 },
   "subtasks": [
     { "position": 1, "points": 40, "max_n": 2000 },
@@ -216,8 +227,8 @@ export const CONTENT_GATE: Gate = {
         {
           kind: "patch",
           path: RANGE_TASK,
-          find: `"limits": { "time_ms": 1000, "memory_mb": 256 },`,
-          replace: `"limits": { "time_ms": 1000, "memory_mb": 256 },
+          find: `"limits": { "time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512 },`,
+          replace: `"limits": { "time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512 },
   "bounds": { "min_n": 1, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000 },
   "subtasks": [{ "position": 1, "points": 100 }],`,
         },
@@ -230,8 +241,8 @@ export const CONTENT_GATE: Gate = {
         {
           kind: "patch",
           path: RANGE_TASK,
-          find: `"limits": { "time_ms": 1000, "memory_mb": 256 },`,
-          replace: `"limits": { "time_ms": 1000, "memory_mb": 256 },
+          find: `"limits": { "time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512 },`,
+          replace: `"limits": { "time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512 },
   "bounds": { "min_n": 1, "max_n": 200000, "value_min": -1000000000, "value_max": 1000000000 },
   "subtasks": [{ "position": 1, "points": 100, "max_n": 200001 }],`,
         },

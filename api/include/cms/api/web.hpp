@@ -96,7 +96,8 @@ struct TaskPage {
   std::string title_en;
   std::string title_th;
   std::int32_t time_limit_ms{0};
-  std::int32_t memory_limit_mb{0};
+  std::int32_t memory_used_limit_mb{0};
+  std::int32_t memory_reserved_limit_mb{0};
   std::string statement_en;
   std::string statement_th;
   std::string example_input;

@@ -62,7 +62,8 @@ constexpr std::string_view COMMIT = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
 /// ($specification_answer) until step 3 derives 1113 ms for it, and the declared limits follow step 3 exactly — the
 /// certifier refuses a task whose limits disagree with the derived ones, which is what keeps these two in step.
 constexpr std::int64_t TASK_TIME_MS = 1113;
-constexpr std::int64_t TASK_MEMORY_MB = 77;
+constexpr std::int64_t TASK_MEMORY_USED_MB = 77;
+constexpr std::int64_t TASK_MEMORY_RESERVED_MB = 154;
 
 constexpr std::string_view SUM_ORACLE = R"(#include <iostream>
 int main() {
@@ -488,8 +489,9 @@ auto seed_job(std::string_view task_id) -> std::int64_t {
       "INSERT INTO topics (id, label_en, label_th) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING",
       {"prefix-sums", "Prefix sums", "ผลรวมสะสม"});
   connection.execute_text(
-      "UPDATE tasks SET time_limit_ms = $3, memory_limit_mb = $4 WHERE id = $1 AND version = $2",
-      {std::string{task_id}, std::int64_t{1}, TASK_TIME_MS, TASK_MEMORY_MB});
+      "UPDATE tasks SET time_limit_ms = $3, memory_used_limit_mb = $4, memory_reserved_limit_mb = $5 "
+      "WHERE id = $1 AND version = $2",
+      {std::string{task_id}, std::int64_t{1}, TASK_TIME_MS, TASK_MEMORY_USED_MB, TASK_MEMORY_RESERVED_MB});
   // The teacher's request lives on the job row (ADR 0036 §2); step 4 refuses a job that stored none.
   connection.execute_text("UPDATE generation_jobs SET brief = $2, description = $3 WHERE id = $1",
                           {job, "a sequence and its range sums", "range sums probe"});

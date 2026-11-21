@@ -21,7 +21,8 @@ struct TaskSpec {
   std::string technique;
   std::int32_t difficulty{0};
   std::int32_t time_ms{0};
-  std::int32_t memory_mb{0};
+  std::int32_t memory_used_mb{0};
+  std::int32_t memory_reserved_mb{0};
   std::string checker;
   std::string statement_en;
   std::string statement_th;

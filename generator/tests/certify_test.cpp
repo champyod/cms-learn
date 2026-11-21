@@ -38,7 +38,8 @@ using cms::generate::SubtaskConstraint;
 constexpr std::string_view COMMIT = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678";
 constexpr std::string_view TYPE_ID = "certify_type";
 constexpr std::int64_t TASK_TIME_MS = 1000;
-constexpr std::int64_t TASK_MEMORY_MB = 256;
+constexpr std::int64_t TASK_MEMORY_USED_MB = 256;
+constexpr std::int64_t TASK_MEMORY_RESERVED_MB = 512;
 
 /// The brute force: read n and n values, print their sum.
 constexpr std::string_view ORACLE_SOURCE = R"(#include <cstdio>
@@ -277,7 +278,8 @@ struct JobSources {
   std::string_view reference{REFERENCE_SOURCE};
   std::string_view checker{CHECKER_SOURCE};
   std::int64_t spec_time_ms{TASK_TIME_MS};
-  std::int64_t spec_memory_mb{TASK_MEMORY_MB};
+  std::int64_t spec_memory_used_mb{TASK_MEMORY_USED_MB};
+  std::int64_t spec_memory_reserved_mb{TASK_MEMORY_RESERVED_MB};
 };
 
 /// One job whose evidence is complete: a task with two subtasks, the specification row, the oracle, the reference,
@@ -296,9 +298,10 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
       {std::string{TYPE_ID}});
   database.execute_text(
       "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, "
-      "memory_limit_mb, points, checker, origin, verification, solution, content_hash) "
-      "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, $3, $4, 100, 'token', 'original', 'pending', '', $5)",
-      {std::string{task_id}, std::string{TYPE_ID}, TASK_TIME_MS, TASK_MEMORY_MB, std::string(64, 'c')});
+      "memory_used_limit_mb, memory_reserved_limit_mb, points, checker, origin, verification, solution, content_hash) "
+      "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, $3, $4, $5, 100, 'token', 'original', 'pending', '', $6)",
+      {std::string{task_id}, std::string{TYPE_ID}, TASK_TIME_MS, TASK_MEMORY_USED_MB, TASK_MEMORY_RESERVED_MB,
+       std::string(64, 'c')});
   database.execute_text(
       "INSERT INTO task_field_values (task_id, task_version, field_key, value) "
       "VALUES ($1, 1, 'score_mode', to_jsonb('subtasks'::text))",
@@ -370,9 +373,11 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
 
   if (with_specification) {
     database.execute_text(
-        "INSERT INTO generation_specifications (job_id, specification, time_limit_ms, memory_limit_mb, derivation, "
-        "answer_artefact_id, oracle_artefact_id) VALUES ($1, $2::jsonb, $3, $4, 'derived', $5, $6)",
-        {job, specification_json(), sources.spec_time_ms, sources.spec_memory_mb, reference_artefact, oracle});
+        "INSERT INTO generation_specifications (job_id, specification, time_limit_ms, memory_used_limit_mb, "
+        "memory_reserved_limit_mb, derivation, "
+        "answer_artefact_id, oracle_artefact_id) VALUES ($1, $2::jsonb, $3, $4, $5, 'derived', $6, $7)",
+        {job, specification_json(), sources.spec_time_ms, sources.spec_memory_used_mb,
+         sources.spec_memory_reserved_mb, reference_artefact, oracle});
   }
   return job;
 }
@@ -536,7 +541,9 @@ TEST_CASE("a complete job is certified and the certificate names every method it
   CHECK(mentions(certificate->checks, "the reference and the subtask solutions through the checker"));
   CHECK(mentions(certificate->checks, "the brute-force differential"));
   CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
-  CHECK(mentions(certificate->checks, "inside the 500 ms and 128 MB halves of the declared 1000 ms and 256 MB limits"));
+  CHECK(mentions(certificate->checks,
+                 "inside the 500 ms, 128 MB used and 256 MB reserved halves of the declared 1000 ms, 256 MB used "
+                 "and 512 MB reserved limits"));
   holder->commit();
   CHECK(verification_of(database, "certify-ok") == "verified");
   CHECK(certificate_count(database, "certify-ok") == 1);
@@ -663,7 +670,7 @@ TEST_CASE("stale limits refuse rather than certify", "[certify][live]") {
   {
     auto fixture = transaction();
     (void)build_job(fixture->connection(), store, "certify-stale",
-                    JobSources{.spec_time_ms = 500, .spec_memory_mb = 128}, true);
+                    JobSources{.spec_time_ms = 500, .spec_memory_used_mb = 128, .spec_memory_reserved_mb = 256}, true);
     fixture->commit();
   }
   auto holder = transaction();
@@ -800,8 +807,8 @@ TEST_CASE("a reference above half the memory limit is failed, naming the value, 
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
   CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
-  CHECK(mentions(certificate->checks, "above the 128 MB half of the declared 256 MB memory limit"));
-  CHECK(mentions(certificate->checks, "the reference measured "));
+  CHECK(mentions(certificate->checks, "above the 128 MB half of the declared 256 MB used limit"));
+  CHECK(mentions(certificate->checks, "the reference touched "));
   CHECK(mentions(certificate->checks, "MB at n = "));
 }
 
@@ -859,9 +866,9 @@ TEST_CASE("a task cannot be published without a verified certificate", "[certify
   auto refused = std::string{};
   try {
     database.execute_text(
-        "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, "
+        "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, "
         "checker, origin, verification, solution, content_hash) VALUES ('publish-probe', 1, 'published', 'P', 'P', "
-        "800, 1000, 256, 'token', 'original', 'pending', 'int main() {}', repeat('a', 64))",
+        "800, 1000, 256, 512, 'token', 'original', 'pending', 'int main() {}', repeat('a', 64))",
         {});
   } catch (const std::exception& error) {
     refused = error.what();
@@ -870,9 +877,9 @@ TEST_CASE("a task cannot be published without a verified certificate", "[certify
 
   // The move is refused too, and by the certificate, not by anything else: the row is draft and has none.
   database.execute_text(
-      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, "
+      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, "
       "checker, origin, verification, solution, content_hash) VALUES ('publish-probe', 1, 'draft', 'P', 'P', "
-      "800, 1000, 256, 'token', 'original', 'pending', 'int main() {}', repeat('a', 64))",
+      "800, 1000, 256, 512, 'token', 'original', 'pending', 'int main() {}', repeat('a', 64))",
       {});
   refused.clear();
   try {
@@ -915,9 +922,9 @@ auto hand_written_root(const std::filesystem::path& scratch, std::string_view ta
 auto given_hand_written(cms::db::connection& database, std::string_view task_id, std::string_view reference) -> void {
   actor(database);
   database.execute_text(
-      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, "
+      "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, "
       "checker, origin, verification, solution, content_hash) "
-      "VALUES ($1, 1, 'draft', 'Hand written', 'เขียนมือ', 800, 1000, 256, 'token', 'original', 'pending', $2, $3)",
+      "VALUES ($1, 1, 'draft', 'Hand written', 'เขียนมือ', 800, 1000, 256, 512, 'token', 'original', 'pending', $2, $3)",
       {std::string{task_id}, std::string{reference}, std::string(64, 'h')});
 }
 

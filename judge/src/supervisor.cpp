@@ -141,7 +141,7 @@ auto isolate_arguments(const RunSpec& spec) -> std::vector<std::string> {
       "--stderr",    (spec.box_dir / spec.error).string(),
       "--time",      seconds_text(spec.time_limit_ms),
       "--wall-time", seconds_text(spec.wall_limit_ms),
-      "--mem",       std::to_string(spec.memory_limit_kb),
+      "--mem",       std::to_string(spec.memory_reserved_limit_kb),
       "--processes", std::to_string(spec.process_limit),
       "--dir",       "box=" + box,
   };

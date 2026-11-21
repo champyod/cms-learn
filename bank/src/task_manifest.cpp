@@ -147,12 +147,24 @@ auto parse_limits(const simdjson::dom::object& object, std::string_view where, T
   if (!time) {
     return std::unexpected(time.error());
   }
-  const auto memory = required_integer(*limits, "memory_mb", where);
-  if (!memory) {
-    return std::unexpected(memory.error());
+  const auto used = required_integer(*limits, "memory_used_mb", where);
+  if (!used) {
+    return std::unexpected(used.error());
+  }
+  const auto reserved = required_integer(*limits, "memory_reserved_mb", where);
+  if (!reserved) {
+    return std::unexpected(reserved.error());
+  }
+  if (*reserved < *used) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument,
+        std::string{where} + ": memory_reserved_mb " + std::to_string(*reserved) +
+            " is below memory_used_mb " + std::to_string(*used) +
+            "; a program cannot touch what it may not map"));
   }
   task.time_limit_ms = static_cast<std::int32_t>(*time);
-  task.memory_limit_mb = static_cast<std::int32_t>(*memory);
+  task.memory_used_limit_mb = static_cast<std::int32_t>(*used);
+  task.memory_reserved_limit_mb = static_cast<std::int32_t>(*reserved);
   return {};
 }
 

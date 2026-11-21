@@ -45,7 +45,8 @@ auto refused(std::string_view message) -> Error {
 struct SpecificationRecord {
   Specification specification;
   std::int64_t time_limit_ms{0};
-  std::int64_t memory_limit_mb{0};
+  std::int64_t memory_used_limit_mb{0};
+  std::int64_t memory_reserved_limit_mb{0};
 };
 
 /// @return The artefact of @p step and @p kind, read back through the digest its row records, or the refusal naming what
@@ -75,11 +76,13 @@ auto read_specification_record(::drogon::orm::DbClient& client, cms::db::connect
   }
   auto record = SpecificationRecord{.specification = *specification};
   for (const auto& row : database(sqlpp::select(cms::db::generationSpecifications.timeLimitMs,
-                                                cms::db::generationSpecifications.memoryLimitMb)
+                                                cms::db::generationSpecifications.memoryUsedLimitMb,
+                                                cms::db::generationSpecifications.memoryReservedLimitMb)
                                       .from(cms::db::generationSpecifications)
                                       .where(cms::db::generationSpecifications.jobId == job_id))) {
     record.time_limit_ms = static_cast<std::int64_t>(row.timeLimitMs);
-    record.memory_limit_mb = static_cast<std::int64_t>(row.memoryLimitMb);
+    record.memory_used_limit_mb = static_cast<std::int64_t>(row.memoryUsedLimitMb);
+    record.memory_reserved_limit_mb = static_cast<std::int64_t>(row.memoryReservedLimitMb);
   }
   if (record.time_limit_ms == 0) {
     return std::unexpected(refused("step 3 recorded no specification row for generation job " +

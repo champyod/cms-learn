@@ -38,12 +38,14 @@ struct Specification {
   std::vector<SubtaskConstraint> subtasks;
 };
 
-/// @brief The one time and one memory limit, with the sentence that shows how they were computed.
+/// @brief The time and the two memory limits, with the sentence that shows how they were computed.
 ///
 /// ADR 0015 (interpretation of 2026-11-17): the limits are the task's, and a subtask carries a constraint instead.
+/// ADR 0059: `used` is what the program may touch, `reserved` the address space it may map.
 struct DerivedLimit {
   std::int64_t time_limit_ms{0};
-  std::int64_t memory_limit_mb{0};
+  std::int64_t memory_used_limit_mb{0};
+  std::int64_t memory_reserved_limit_mb{0};
   std::string derivation;
 };
 
@@ -119,8 +121,10 @@ struct OracleCheck {
 /// @brief What one run of a program cost, which the half-limit margin of ADR 0048 is measured against.
 struct ProgramMeasurement {
   std::int64_t time_ms{0};
-  /// Peak resident memory the run reached, in kilobytes: the unit `wait4` reports on the judge's platform.
+  /// Peak resident memory the run touched, in kilobytes: what the used limit counts.
   std::int64_t peak_memory_kb{0};
+  /// Peak virtual address space the run mapped, in kilobytes: what the reserved limit counts (`RLIMIT_AS`).
+  std::int64_t peak_reserved_kb{0};
 };
 
 /// @brief Runs @p source on @p input and measures the run itself, refusing a program that does not build or answer.

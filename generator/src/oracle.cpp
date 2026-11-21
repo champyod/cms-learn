@@ -55,20 +55,21 @@ auto first_line(std::string_view text) -> std::string {
   return std::string{line};
 }
 
-/// @return The high-water mark of @p pid's current address space in kB, or 0 when it cannot be read.
+/// @return @p key's value in `/proc/<pid>/status` in kB, or 0 when it cannot be read.
 ///
-/// `VmHWM` in `/proc/<pid>/status` is the peak of the address space that exists now, and `execve` replaces that
-/// address space — so a mark read after the program has replaced the fork's copy is the program's own footprint,
-/// never the pages it inherited. It only rises, so the largest sample taken while the program runs is its peak.
-auto peak_resident_kb(pid_t pid) -> std::int64_t {
+/// The two marks this reads are `VmHWM` (peak resident, what the program touched) and `VmPeak` (peak virtual, the
+/// address space it mapped). Both belong to the address space that exists now, and `execve` replaces that space —
+/// so a mark read after the program replaced the fork's copy is the program's own, never the pages it inherited.
+/// Both only rise, so the largest sample taken while the program runs is its peak.
+auto status_kb(pid_t pid, std::string_view key) -> std::int64_t {
   auto stream = std::ifstream{"/proc/" + std::to_string(pid) + "/status"};
   auto line = std::string{};
   while (std::getline(stream, line)) {
-    if (line.rfind("VmHWM:", 0) != 0) {
+    if (line.rfind(key, 0) != 0) {
       continue;
     }
     auto value = std::int64_t{0};
-    const auto digits = std::string_view{line}.substr(6);
+    const auto digits = std::string_view{line}.substr(key.size());
     const auto first = digits.find_first_of("0123456789");
     if (first == std::string_view::npos) {
       return 0;
@@ -79,6 +80,10 @@ auto peak_resident_kb(pid_t pid) -> std::int64_t {
   }
   return 0;
 }
+
+auto peak_resident_kb(pid_t pid) -> std::int64_t { return status_kb(pid, "VmHWM:"); }
+
+auto peak_reserved_kb(pid_t pid) -> std::int64_t { return status_kb(pid, "VmPeak:"); }
 
 /// @return Whether @p pid already runs @p program, so a sample taken before `execve` — when the child still holds the
 /// parent's pages — is never mistaken for the program's own footprint.
@@ -154,6 +159,10 @@ auto run_child(const std::vector<std::string>& arguments, const std::filesystem:
         if (peak > measurement->peak_memory_kb) {
           measurement->peak_memory_kb = peak;
         }
+        const auto reserved = peak_reserved_kb(child);
+        if (reserved > measurement->peak_reserved_kb) {
+          measurement->peak_reserved_kb = reserved;
+        }
       }
       nanosleep(&interval, nullptr);
     }
@@ -218,13 +227,14 @@ auto run_program_measured(std::string_view source, std::string_view input, std::
   if (measurement != nullptr) {
     measurement->time_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(finished - started).count();
-    if (measurement_value.peak_memory_kb == 0) {
+    if (measurement_value.peak_memory_kb == 0 || measurement_value.peak_reserved_kb == 0) {
       return std::unexpected(Error::make(
           ErrorCode::unavailable,
-          "answered the case but its own peak memory could not be read from /proc/<pid>/status, so the limit it has to "
-          "fit cannot be measured"));
+          "answered the case but its peak used and reserved memory could not both be read from /proc/<pid>/status, "
+          "so the limits it has to fit cannot be measured"));
     }
     measurement->peak_memory_kb = measurement_value.peak_memory_kb;
+    measurement->peak_reserved_kb = measurement_value.peak_reserved_kb;
   }
   auto answer = read_text(directory / CASE_OUT);
   if (answer.find_first_not_of(" \t\r\n") == std::string::npos) {
@@ -240,14 +250,15 @@ auto run_program(std::string_view source, std::string_view input, std::int64_t t
   return run_program_measured(source, input, time_limit_ms, nullptr);
 }
 
-/// @brief What a run cost: the wall time, and the peak resident memory of the program itself.
+/// @brief What a run cost: the wall time, and the peak used and reserved memory of the program itself.
 ///
-/// The memory number is the program's own footprint, read from `/proc/<pid>/status:VmHWM` while it runs. `VmHWM` is the
-/// high-water mark of the address space that exists at that moment, and `execve` replaces the address space, so the
-/// samples taken after the program has exec'd measure it alone. It is read this way and not from `wait4`'s `ru_maxrss`
-/// because that mark covers the whole life of the process: the pages the fork inherits from its parent count as its own
-/// until `execve` runs, and for a sanitizer-built test binary that is ~140 MB, so a three-megabyte program measured
-/// that way reported its parent's size and ADR 0048's half-limit margin could never pass for a small task.
+/// The two memory numbers are the program's own, read from `/proc/<pid>/status:VmHWM` (touched pages) and `:VmPeak`
+/// (mapped address space) while it runs. Both are high-water marks of the address space that exists at that moment,
+/// and `execve` replaces that space, so the samples taken after the program has exec'd measure it alone. They are read
+/// this way and not from `wait4`'s `ru_maxrss` because that mark covers the whole life of the process: the pages the
+/// fork inherits from its parent count as its own until `execve` runs, and for a sanitizer-built test binary that is
+/// ~140 MB, so a three-megabyte program measured that way reported its parent's size and ADR 0048's half-limit margin
+/// could never pass for a small task.
 auto measure_program(std::string_view source, std::string_view input, std::int64_t time_limit_ms)
     -> Result<ProgramMeasurement> {
   auto measurement = ProgramMeasurement{};

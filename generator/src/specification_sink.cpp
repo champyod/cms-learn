@@ -55,12 +55,13 @@ RETURNING id
 )";
 
 constexpr std::string_view RECORD_SPECIFICATION = R"(
-INSERT INTO generation_specifications (job_id, specification, time_limit_ms, memory_limit_mb, derivation,
-                                      answer_artefact_id, oracle_artefact_id)
-VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7)
+INSERT INTO generation_specifications (job_id, specification, time_limit_ms, memory_used_limit_mb,
+                                      memory_reserved_limit_mb, derivation, answer_artefact_id, oracle_artefact_id)
+VALUES ($1, $2::jsonb, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (job_id) DO UPDATE
 SET specification = excluded.specification, time_limit_ms = excluded.time_limit_ms,
-    memory_limit_mb = excluded.memory_limit_mb, derivation = excluded.derivation,
+    memory_used_limit_mb = excluded.memory_used_limit_mb,
+    memory_reserved_limit_mb = excluded.memory_reserved_limit_mb, derivation = excluded.derivation,
     answer_artefact_id = excluded.answer_artefact_id, oracle_artefact_id = excluded.oracle_artefact_id
 )";
 
@@ -326,8 +327,9 @@ auto SqlSpecificationSink::record(std::int64_t job_id, const Step3Answer& answer
     const auto oracle_id = insert_artefact(database, job_id, PROOF_STEP, "oracle", key, {}, *written, answer.call);
     database.execute_text(
         std::string{RECORD_SPECIFICATION},
-        {job_id, specification_json(answer.specification), answer.limit.time_limit_ms, answer.limit.memory_limit_mb,
-         answer.limit.derivation, answer_id, oracle_id});
+        {job_id, specification_json(answer.specification), answer.limit.time_limit_ms,
+         answer.limit.memory_used_limit_mb, answer.limit.memory_reserved_limit_mb, answer.limit.derivation,
+         answer_id, oracle_id});
     transaction.commit();
     const auto back = read_artefact(client_, store_, job_id, PROOF_STEP, "oracle");
     if (!back) {

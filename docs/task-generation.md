@@ -77,7 +77,7 @@ gets reused into irrelevance — both are documented failure modes of item expos
   "stage":            "graph-2",
   "topics":           ["graph", "greedy"],
   "difficulty":       1800,
-  "limits":           { "time_ms": 1000, "memory_mb": 256 },
+  "limits":           { "time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512 },
   "subtasks":         [ { "intent": "greedy", "weight": 30 }, { "intent": "greedy+dsu", "weight": 70 } ],
   "misdirection":     { "enabled": true, "lean_to": "dp", "phrasing": "manual override or null" },
   "cast":             { "people": 2, "naming": "th-en-paired", "role": "student contest" },

@@ -25,8 +25,8 @@ struct RunSpec {
   /// How long the supervisor waits before escalating, in milliseconds. Deliberately larger than the CPU
   /// limit: a program can be asleep, not running, and still hold the box.
   std::int64_t wall_limit_ms{10000};
-  /// Address space ceiling in kilobytes.
-  std::int64_t memory_limit_kb{262144};
+  /// Address-space ceiling in kilobytes: the task's reserved limit, which isolate's `--mem` enforces.
+  std::int64_t memory_reserved_limit_kb{262144};
   /// Processes the program may create. One unless the task needs otherwise.
   int process_limit{1};
   /// Files isolate redirects the program's streams to, relative to the box directory.

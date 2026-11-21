@@ -37,7 +37,8 @@ auto task_row_from(const auto& row) -> TaskPage {
   page.title_en = std::string{row.titleEn};
   page.title_th = std::string{row.titleTh};
   page.time_limit_ms = static_cast<std::int32_t>(row.timeLimitMs);
-  page.memory_limit_mb = static_cast<std::int32_t>(row.memoryLimitMb);
+  page.memory_used_limit_mb = static_cast<std::int32_t>(row.memoryUsedLimitMb);
+  page.memory_reserved_limit_mb = static_cast<std::int32_t>(row.memoryReservedLimitMb);
   return page;
 }
 
@@ -143,7 +144,8 @@ auto visible_task_row(db::connection& database, std::string_view task_id, std::i
 
   for (const auto& row :
        database(sqlpp::select(db::tasks.id, db::tasks.version, db::tasks.titleEn, db::tasks.titleTh,
-                              db::tasks.timeLimitMs, db::tasks.memoryLimitMb)
+                              db::tasks.timeLimitMs, db::tasks.memoryUsedLimitMb,
+                              db::tasks.memoryReservedLimitMb)
                     .from(db::tasks)
                     .where(db::tasks.id == std::string{task_id} &&
                            db::tasks.version == static_cast<std::int64_t>(version) &&
@@ -158,7 +160,8 @@ auto any_task_row(db::connection& database, std::string_view task_id, std::int32
     -> std::optional<TaskPage> {
   for (const auto& row :
        database(sqlpp::select(db::tasks.id, db::tasks.version, db::tasks.titleEn, db::tasks.titleTh,
-                              db::tasks.timeLimitMs, db::tasks.memoryLimitMb)
+                              db::tasks.timeLimitMs, db::tasks.memoryUsedLimitMb,
+                              db::tasks.memoryReservedLimitMb)
                     .from(db::tasks)
                     .where(db::tasks.id == std::string{task_id} &&
                            db::tasks.version == static_cast<std::int64_t>(version) &&

@@ -83,7 +83,8 @@
       "additionalProperties": false,
       "required": [
         "time_ms",
-        "memory_mb"
+        "memory_used_mb",
+        "memory_reserved_mb"
       ],
       "properties": {
         "time_ms": {
@@ -91,7 +92,12 @@
           "minimum": 100,
           "maximum": 20000
         },
-        "memory_mb": {
+        "memory_used_mb": {
+          "type": "integer",
+          "minimum": 16,
+          "maximum": 1024
+        },
+        "memory_reserved_mb": {
           "type": "integer",
           "minimum": 16,
           "maximum": 1024

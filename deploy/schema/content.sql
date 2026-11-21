@@ -17,7 +17,8 @@ CREATE TABLE tasks (
   title_th text NOT NULL CHECK (length(btrim(title_th)) > 0),
   difficulty integer NOT NULL,
   time_limit_ms integer NOT NULL,
-  memory_limit_mb integer NOT NULL,
+  memory_used_limit_mb integer NOT NULL,
+  memory_reserved_limit_mb integer NOT NULL,
   -- What the task is scored out of, stated once on the task: ADR 0033 §2 puts the limits and the total here, never
   -- on a subtask. A task that never names a total is worth 100, the number an olympiad task page states.
   points integer NOT NULL DEFAULT 100 CHECK (points BETWEEN 1 AND 1000),
@@ -37,7 +38,9 @@ CREATE TABLE tasks (
     difficulty BETWEEN 800 AND 3500 AND difficulty % 100 = 0
   ),
   CONSTRAINT tasks_time_limit CHECK (time_limit_ms BETWEEN 100 AND 20000),
-  CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb BETWEEN 16 AND 1024),
+  CONSTRAINT tasks_memory_used_limit CHECK (memory_used_limit_mb BETWEEN 16 AND 1024),
+  CONSTRAINT tasks_memory_reserved_limit CHECK (memory_reserved_limit_mb BETWEEN 16 AND 1024),
+  CONSTRAINT tasks_memory_limits_ordered CHECK (memory_used_limit_mb <= memory_reserved_limit_mb),
   -- A checker that names a file has one, and one that does not carries none. Written as a
   -- biconditional so the two states cannot drift apart, with the empty string standing for "none"
   -- rather than a nullable column the writer has to remember to null.

@@ -514,7 +514,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     title_th text NOT NULL,
     difficulty integer NOT NULL,
     time_limit_ms integer NOT NULL,
-    memory_limit_mb integer NOT NULL,
+    memory_used_limit_mb integer NOT NULL,
+    memory_reserved_limit_mb integer NOT NULL,
     points integer DEFAULT 100 NOT NULL,
     checker task_checker_kind NOT NULL,
     checker_path text DEFAULT '' NOT NULL,
@@ -527,7 +528,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     CONSTRAINT tasks_pkey PRIMARY KEY (id, version),
     CONSTRAINT tasks_checker_path CHECK ((checker = 'testlib'::task_checker_kind) = (length(checker_path) > 0)),
     CONSTRAINT tasks_difficulty_band CHECK (difficulty >= 800 AND difficulty <= 3500 AND (difficulty % 100) = 0),
-    CONSTRAINT tasks_memory_limit CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),
+    CONSTRAINT tasks_memory_limits_ordered CHECK (memory_used_limit_mb <= memory_reserved_limit_mb),
+    CONSTRAINT tasks_memory_reserved_limit CHECK (memory_reserved_limit_mb >= 16 AND memory_reserved_limit_mb <= 1024),
+    CONSTRAINT tasks_memory_used_limit CHECK (memory_used_limit_mb >= 16 AND memory_used_limit_mb <= 1024),
     CONSTRAINT tasks_points_check CHECK (points >= 1 AND points <= 1000),
     CONSTRAINT tasks_time_limit CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000),
     CONSTRAINT tasks_title_en_check CHECK (length(btrim(title_en)) > 0),
@@ -671,7 +674,8 @@ CREATE TABLE IF NOT EXISTS generation_specifications (
     job_id bigint,
     specification jsonb NOT NULL,
     time_limit_ms integer NOT NULL,
-    memory_limit_mb integer NOT NULL,
+    memory_used_limit_mb integer NOT NULL,
+    memory_reserved_limit_mb integer NOT NULL,
     derivation text NOT NULL,
     answer_artefact_id bigint NOT NULL,
     oracle_artefact_id bigint NOT NULL,
@@ -682,7 +686,9 @@ CREATE TABLE IF NOT EXISTS generation_specifications (
     CONSTRAINT generation_specifications_oracle_artefact_id_fkey FOREIGN KEY (oracle_artefact_id) REFERENCES generation_artefacts (id),
     CONSTRAINT generation_specifications_calls_distinct CHECK (answer_artefact_id <> oracle_artefact_id),
     CONSTRAINT generation_specifications_derivation_check CHECK (length(btrim(derivation)) > 0),
-    CONSTRAINT generation_specifications_memory_limit_mb_check CHECK (memory_limit_mb >= 16 AND memory_limit_mb <= 1024),
+    CONSTRAINT generation_specifications_memory_limits_ordered CHECK (memory_used_limit_mb <= memory_reserved_limit_mb),
+    CONSTRAINT generation_specifications_memory_reserved_limit_mb_check CHECK (memory_reserved_limit_mb >= 16 AND memory_reserved_limit_mb <= 1024),
+    CONSTRAINT generation_specifications_memory_used_limit_mb_check CHECK (memory_used_limit_mb >= 16 AND memory_used_limit_mb <= 1024),
     CONSTRAINT generation_specifications_time_limit_ms_check CHECK (time_limit_ms >= 100 AND time_limit_ms <= 20000)
 );
 
@@ -1796,8 +1802,8 @@ GRANT USAGE ON TYPE task_field_kind TO cmslearn_app;
 
 GRANT SELECT (digest, id, object_key) ON TABLE generation_artefacts TO cmslearn_app;
 
-GRANT SELECT (checker, checker_path, content_hash, difficulty, id, memory_limit_mb, origin, seeded, status, task_type, time_limit_ms, title_en, title_th, verification, version) ON TABLE tasks TO cmslearn_generator;
+GRANT SELECT (checker, checker_path, content_hash, difficulty, id, memory_reserved_limit_mb, memory_used_limit_mb, origin, seeded, status, task_type, time_limit_ms, title_en, title_th, verification, version) ON TABLE tasks TO cmslearn_generator;
 
-GRANT SELECT (content_hash, id, memory_limit_mb, points, status, time_limit_ms, version) ON TABLE tasks TO cmslearn_certifier;
+GRANT SELECT (content_hash, id, memory_reserved_limit_mb, memory_used_limit_mb, points, status, time_limit_ms, version) ON TABLE tasks TO cmslearn_certifier;
 
 GRANT SELECT (verification), UPDATE (verification) ON TABLE tasks TO cmslearn_certifier;

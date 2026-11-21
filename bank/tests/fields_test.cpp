@@ -68,8 +68,8 @@ auto prepare(cms::db::connection& database) -> void {
                  "ON CONFLICT (id) DO NOTHING",
                  {std::string{TYPE_ID}}).empty());
   CHECK(as_actor("INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, "
-                 "time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash) "
-                 "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 800, 1000, 256, 'token', 'original', "
+                 "time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash) "
+                 "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 800, 1000, 256, 512, 'token', 'original', "
                  "'pending', 'int main() {}', repeat('a', 64)) ON CONFLICT DO NOTHING",
                  {std::string{TASK_ID}, std::string{TYPE_ID}}).empty());
 }

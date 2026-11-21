@@ -58,10 +58,10 @@ INSERT INTO learner_accounts (id, handle, status) VALUES ('$account', 'submitter
 INSERT INTO sessions (id, account_kind, learner_id, expires_at)
 VALUES ('$session', 'learner', '$account', now() + interval '1 hour');
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
-                   memory_limit_mb, checker, origin, verification, solution, content_hash)
-VALUES ('probe-task', 1, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original',
+                   memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash)
+VALUES ('probe-task', 1, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 512, 'token', 'original',
         'pending', 'int main() {}', repeat('a', 64)),
-       ('hidden-task', 1, 'draft', 'Hidden', 'ซ่อน', 900, 1000, 256, 'token', 'original',
+       ('hidden-task', 1, 'draft', 'Hidden', 'ซ่อน', 900, 1000, 256, 512, 'token', 'original',
         'pending', 'int main() {}', repeat('b', 64));
 -- ADR 0046 §2: a task row cannot be created verified, so the fixture builds the certificate it needs and moves the
 -- verification with the guarded UPDATE the trigger allows.

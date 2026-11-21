@@ -1,6 +1,7 @@
 #include <cms/judge/run.hpp>
 
 #include <array>
+#include <charconv>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -33,6 +34,22 @@ auto write_text(const std::filesystem::path& path, std::string_view text) -> boo
   return static_cast<bool>(stream);
 }
 
+constexpr std::int64_t KILOBYTES_PER_MEGABYTE = 1024;
+
+/// Kilobytes rounded up to whole megabytes, so a message never claims less than was measured.
+auto megabytes(std::int64_t kilobytes) -> std::int64_t {
+  return (kilobytes + KILOBYTES_PER_MEGABYTE - 1) / KILOBYTES_PER_MEGABYTE;
+}
+
+auto trimmed(std::string_view text) -> std::string_view {
+  const auto first = text.find_first_not_of(" \t\r\n");
+  if (first == std::string_view::npos) {
+    return {};
+  }
+  const auto last = text.find_last_not_of(" \t\r\n");
+  return text.substr(first, last - first + 1);
+}
+
 /// The first non-blank line, for a detail sentence that names the compiler's reason without a whole log.
 auto first_line(std::string_view text) -> std::string {
   auto cursor = std::size_t{0};
@@ -62,7 +79,7 @@ auto compile_run(const RunSettings& settings, const TaskRun& task,
                     std::string{SOURCE}};
   spec.time_limit_ms = settings.compile_time_limit_ms;
   spec.wall_limit_ms = settings.compile_time_limit_ms + 10'000;
-  spec.memory_limit_kb = settings.compile_memory_kb;
+  spec.memory_reserved_limit_kb = settings.compile_memory_kb;
   spec.process_limit = 64;
   spec.input = std::string{COMPILE_INPUT};
   spec.output = std::string{COMPILE_OUTPUT};
@@ -79,7 +96,7 @@ auto case_run(const RunSettings& settings, const TaskRun& task, const std::files
   spec.program = std::string{PROGRAM};
   spec.time_limit_ms = task.time_limit_ms;
   spec.wall_limit_ms = task.time_limit_ms * 2 + 5'000;
-  spec.memory_limit_kb = task.memory_limit_kb;
+  spec.memory_reserved_limit_kb = task.memory_reserved_limit_kb;
   return spec;
 }
 
@@ -158,6 +175,42 @@ auto sandbox_verdict(const RunOutcome& outcome) -> Result<std::optional<Submissi
       ErrorCode::unavailable, "the sandbox reported no status; the run did not happen"));
 }
 
+/// The verdict a run's two memory limits earn, and the sentence naming the one it exceeded.
+auto memory_verdict(const RunOutcome& outcome, std::int64_t used_limit_kb, std::int64_t reserved_limit_kb)
+    -> Result<std::optional<Judgement>> {
+  if (outcome.status == "ML") {
+    return Judgement{
+        .verdict = SubmissionVerdict::memory_limit_exceeded,
+        .detail = "reserved memory: the program mapped more than the " +
+                  std::to_string(megabytes(reserved_limit_kb)) + " MB reserved limit"};
+  }
+  if (outcome.status != "OK" || outcome.is_killed) {
+    return std::nullopt;
+  }
+  const auto entry = outcome.meta.find("max-rss");
+  if (entry == outcome.meta.end()) {
+    return std::unexpected(Error::make(
+        ErrorCode::unavailable,
+        "the sandbox reported no peak resident memory, so the used limit cannot be enforced; the submission stays "
+        "claimable"));
+  }
+  const auto text = trimmed(entry->second);
+  auto kilobytes = std::int64_t{0};
+  const auto parsed = std::from_chars(text.data(), text.data() + text.size(), kilobytes);
+  if (text.empty() || parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size()) {
+    return std::unexpected(Error::make(
+        ErrorCode::unavailable,
+        "the sandbox reported a peak resident memory this judge cannot read (\"" + std::string{text} +
+            "\"); the submission stays claimable"));
+  }
+  if (kilobytes > used_limit_kb) {
+    return Judgement{.verdict = SubmissionVerdict::memory_limit_exceeded,
+                     .detail = "used memory: the program touched " + std::to_string(megabytes(kilobytes)) +
+                               " MB, above the " + std::to_string(megabytes(used_limit_kb)) + " MB used limit"};
+  }
+  return std::nullopt;
+}
+
 auto compile_verdict(const RunOutcome& outcome) -> std::optional<SubmissionVerdict> {
   if (outcome.status == "OK" && !outcome.is_killed) {
     return std::nullopt;
@@ -225,6 +278,14 @@ auto judge_in_box(const RunSettings& settings, const TaskRun& task, std::string_
     const auto sandbox = sandbox_verdict(*ran);
     if (!sandbox) {
       return std::unexpected(sandbox.error());
+    }
+    const auto memory =
+        memory_verdict(*ran, task.memory_used_limit_kb, task.memory_reserved_limit_kb);
+    if (!memory) {
+      return std::unexpected(memory.error());
+    }
+    if (*memory) {
+      return **memory;
     }
     if (*sandbox) {
       return Judgement{.verdict = **sandbox,

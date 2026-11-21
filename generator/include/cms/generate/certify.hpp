@@ -46,7 +46,8 @@ struct ReRunEvidence {
   /// One entry per subtask: its position, and how many cases step 6 recorded for it.
   std::vector<std::pair<std::int32_t, std::int64_t>> recorded_case_counts;
   std::int64_t time_limit_ms{0};
-  std::int64_t memory_limit_mb{0};
+  std::int64_t memory_used_limit_mb{0};
+  std::int64_t memory_reserved_limit_mb{0};
 };
 
 /// @brief Re-runs the three methods ADR 0046 §4 makes certification: the reference pass, the brute-force

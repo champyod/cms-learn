@@ -119,7 +119,8 @@ TEST_CASE("a limit is derived from the complexity at the bound, and says so", "[
 
   REQUIRE(limit.has_value());
   CHECK(limit->time_limit_ms == 100);
-  CHECK(limit->memory_limit_mb == 16);
+  CHECK(limit->memory_used_limit_mb == 16);
+  CHECK(limit->memory_reserved_limit_mb == 64);
   CHECK(limit->derivation.find("O(n log n) at n = 200000") != std::string::npos);
   CHECK(limit->derivation.find("operations per millisecond") != std::string::npos);
   CHECK(limit->derivation.find("inside 100..20000 ms") != std::string::npos);
@@ -289,12 +290,14 @@ TEST_CASE("step 3's record is one specification row and two call rows in one tra
 
   auto recorded = std::vector<std::string>{};
   for (const auto& row : database(sqlpp::select(cms::db::generationSpecifications.timeLimitMs,
-                                               cms::db::generationSpecifications.memoryLimitMb,
+                                               cms::db::generationSpecifications.memoryUsedLimitMb,
+                                               cms::db::generationSpecifications.memoryReservedLimitMb,
                                                cms::db::generationSpecifications.derivation)
                                       .from(cms::db::generationSpecifications)
                                       .where(cms::db::generationSpecifications.jobId == job))) {
     CHECK(row.timeLimitMs == 100);
-    CHECK(row.memoryLimitMb == 16);
+    CHECK(row.memoryUsedLimitMb == 16);
+    CHECK(row.memoryReservedLimitMb == 64);
     recorded.emplace_back(row.derivation);
   }
   REQUIRE(recorded.size() == 1);

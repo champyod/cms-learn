@@ -132,9 +132,11 @@ struct Evidence {
   std::string state;
   std::string specification_json;
   std::int64_t spec_time_limit_ms{0};
-  std::int64_t spec_memory_limit_mb{0};
+  std::int64_t spec_memory_used_limit_mb{0};
+  std::int64_t spec_memory_reserved_limit_mb{0};
   std::int64_t task_time_limit_ms{0};
-  std::int64_t task_memory_limit_mb{0};
+  std::int64_t task_memory_used_limit_mb{0};
+  std::int64_t task_memory_reserved_limit_mb{0};
   std::string task_content_hash;
   std::int64_t oracle_artefact{0};
   std::vector<std::pair<std::int32_t, std::int64_t>> solutions;
@@ -171,13 +173,15 @@ auto load_specification(cms::db::connection& database, std::int64_t job_id, Evid
   auto found = false;
   for (const auto& row : database(sqlpp::select(cms::db::generationSpecifications.specification,
                                                 cms::db::generationSpecifications.timeLimitMs,
-                                                cms::db::generationSpecifications.memoryLimitMb,
+                                                cms::db::generationSpecifications.memoryUsedLimitMb,
+                                                cms::db::generationSpecifications.memoryReservedLimitMb,
                                                 cms::db::generationSpecifications.oracleArtefactId)
                                       .from(cms::db::generationSpecifications)
                                       .where(cms::db::generationSpecifications.jobId == job_id))) {
     evidence.specification_json = std::string{row.specification};
     evidence.spec_time_limit_ms = row.timeLimitMs;
-    evidence.spec_memory_limit_mb = row.memoryLimitMb;
+    evidence.spec_memory_used_limit_mb = row.memoryUsedLimitMb;
+    evidence.spec_memory_reserved_limit_mb = row.memoryReservedLimitMb;
     evidence.oracle_artefact = row.oracleArtefactId;
     found = true;
   }
@@ -190,14 +194,15 @@ auto load_specification(cms::db::connection& database, std::int64_t job_id, Evid
 
 auto load_task(cms::db::connection& database, Evidence& evidence) -> Result<void> {
   auto found = false;
-  for (const auto& row : database(sqlpp::select(cms::db::tasks.timeLimitMs, cms::db::tasks.memoryLimitMb,
-                                                cms::db::tasks.contentHash)
+  for (const auto& row : database(sqlpp::select(cms::db::tasks.timeLimitMs, cms::db::tasks.memoryUsedLimitMb,
+                                                cms::db::tasks.memoryReservedLimitMb, cms::db::tasks.contentHash)
                                       .from(cms::db::tasks)
                                       .where(cms::db::tasks.id == evidence.task_id &&
                                              cms::db::tasks.version ==
                                                  static_cast<std::int64_t>(evidence.task_version)))) {
     evidence.task_time_limit_ms = row.timeLimitMs;
-    evidence.task_memory_limit_mb = row.memoryLimitMb;
+    evidence.task_memory_used_limit_mb = row.memoryUsedLimitMb;
+    evidence.task_memory_reserved_limit_mb = row.memoryReservedLimitMb;
     evidence.task_content_hash = std::string{row.contentHash};
     found = true;
   }
@@ -440,12 +445,16 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
 
   // Step 3 staged the limits the task now carries; a task row that moved since is evidence from another run.
   if (evidence.spec_time_limit_ms != evidence.task_time_limit_ms ||
-      evidence.spec_memory_limit_mb != evidence.task_memory_limit_mb) {
+      evidence.spec_memory_used_limit_mb != evidence.task_memory_used_limit_mb ||
+      evidence.spec_memory_reserved_limit_mb != evidence.task_memory_reserved_limit_mb) {
     return std::unexpected(refused(
         "task " + evidence.task_id + " version " + std::to_string(evidence.task_version) + " runs at " +
-        std::to_string(evidence.task_time_limit_ms) + " ms and " + std::to_string(evidence.task_memory_limit_mb) +
-        " MB, and step 3 derived " + std::to_string(evidence.spec_time_limit_ms) + " ms and " +
-        std::to_string(evidence.spec_memory_limit_mb) + " MB; the evidence is stale"));
+        std::to_string(evidence.task_time_limit_ms) + " ms, " +
+        std::to_string(evidence.task_memory_used_limit_mb) + " MB used and " +
+        std::to_string(evidence.task_memory_reserved_limit_mb) + " MB reserved, and step 3 derived " +
+        std::to_string(evidence.spec_time_limit_ms) + " ms, " +
+        std::to_string(evidence.spec_memory_used_limit_mb) + " MB used and " +
+        std::to_string(evidence.spec_memory_reserved_limit_mb) + " MB reserved; the evidence is stale"));
   }
 
   // Step 5 wrote the reference (position 0) and one solution per subtask; the task's subtasks must still be that set.
@@ -576,7 +585,8 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
                               .partial_sources = std::move(partial_sources),
                               .recorded_case_counts = {},
                               .time_limit_ms = evidence.spec_time_limit_ms,
-                              .memory_limit_mb = evidence.spec_memory_limit_mb};
+                              .memory_used_limit_mb = evidence.spec_memory_used_limit_mb,
+                              .memory_reserved_limit_mb = evidence.spec_memory_reserved_limit_mb};
   for (const auto& entry : evidence.cases) {
     re_run.recorded_case_counts.emplace_back(entry.position, entry.count);
   }
@@ -714,14 +724,20 @@ auto trimmed(std::string_view text) -> std::string_view {
 auto certify_task(cms::db::connection& database, const std::filesystem::path& content_root, std::string_view task_id,
                   std::int32_t version, std::string_view commit_id) -> Result<Certificate> {
   auto task = std::optional<Certificate>{};
-  auto limit = ProgramMeasurement{};
+  auto time_limit_ms = std::int64_t{0};
+  auto used_limit_mb = std::int64_t{0};
+  auto reserved_limit_mb = std::int64_t{0};
   auto solution = std::string{};
-  for (const auto& row : database(sqlpp::select(db::tasks.timeLimitMs, db::tasks.memoryLimitMb, db::tasks.solution,
+  for (const auto& row : database(sqlpp::select(db::tasks.timeLimitMs, db::tasks.memoryUsedLimitMb,
+                                                db::tasks.memoryReservedLimitMb, db::tasks.solution,
                                                 db::tasks.contentHash)
                                       .from(db::tasks)
                                       .where(db::tasks.id == std::string{task_id} &&
                                              db::tasks.version == static_cast<std::int64_t>(version)))) {
     solution = std::string{row.solution};
+    time_limit_ms = static_cast<std::int64_t>(row.timeLimitMs);
+    used_limit_mb = static_cast<std::int64_t>(row.memoryUsedLimitMb);
+    reserved_limit_mb = static_cast<std::int64_t>(row.memoryReservedLimitMb);
     task = Certificate{.job_id = 0,
                        .task_id = std::string{task_id},
                        .task_version = version,
@@ -729,16 +745,11 @@ auto certify_task(cms::db::connection& database, const std::filesystem::path& co
                        .commit_id = std::string{commit_id},
                        .checks = {},
                        .artefacts = {}};
-    limit.time_ms = 0;
-    limit.peak_memory_kb = static_cast<std::int64_t>(row.timeLimitMs);
-    limit.time_ms = static_cast<std::int64_t>(row.memoryLimitMb);
   }
   if (!task) {
     return std::unexpected(Error::make(ErrorCode::not_found, "task " + std::string{task_id} + " version " +
                                                                  std::to_string(version) + " is not in the record"));
   }
-  const auto time_limit_ms = limit.peak_memory_kb;
-  const auto memory_limit_mb = limit.time_ms;
   const auto task_root = std::filesystem::path{content_root} / "tasks" / std::string{task_id};
   const auto declared_reference = reference_path_of(task_root);
   if (!declared_reference) {
@@ -767,30 +778,52 @@ auto certify_task(cms::db::connection& database, const std::filesystem::path& co
   }
 
   const auto half_time_ms = time_limit_ms / REFERENCE_MARGIN_DIVISOR;
-  const auto half_memory_kb = memory_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
+  const auto half_used_kb = used_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
+  const auto half_reserved_kb = reserved_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
   const auto measured = measure_program(solution, examples->back().input, time_limit_ms);
   if (!measured) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                        reference + " could not be measured: " + measured.error().message));
   }
-  if (measured->time_ms > half_time_ms || measured->peak_memory_kb > half_memory_kb) {
+  auto exceeded = std::string{};
+  const auto add = [&exceeded](std::string sentence) {
+    exceeded += exceeded.empty() ? "" : "; ";
+    exceeded += std::move(sentence);
+  };
+  if (measured->time_ms > half_time_ms) {
+    add(std::to_string(measured->time_ms) + " ms is above the " + std::to_string(half_time_ms) + " ms half");
+  }
+  if (measured->peak_memory_kb > half_used_kb) {
+    add(std::to_string(megabytes(measured->peak_memory_kb)) + " MB used is above the " +
+        std::to_string(half_used_kb / KB_PER_MB) + " MB used half");
+  }
+  if (measured->peak_reserved_kb > half_reserved_kb) {
+    add(std::to_string(megabytes(measured->peak_reserved_kb)) + " MB reserved is above the " +
+        std::to_string(half_reserved_kb / KB_PER_MB) + " MB reserved half");
+  }
+  if (!exceeded.empty()) {
     return std::unexpected(Error::make(
         ErrorCode::invalid_argument,
-        reference + " measures " + std::to_string(measured->time_ms) + " ms and " +
-            std::to_string(megabytes(measured->peak_memory_kb)) + " MB on " + examples->back().input_path.string() +
-            ", above the " + std::to_string(half_time_ms) + " ms and " + std::to_string(half_memory_kb / KB_PER_MB) +
-            " MB halves of the declared " + std::to_string(time_limit_ms) + " ms and " +
-            std::to_string(memory_limit_mb) + " MB limits"));
+        reference + " measures " + std::to_string(measured->time_ms) + " ms, " +
+            std::to_string(megabytes(measured->peak_memory_kb)) + " MB used and " +
+            std::to_string(megabytes(measured->peak_reserved_kb)) + " MB reserved on " +
+            examples->back().input_path.string() + ", outside the declared " + std::to_string(time_limit_ms) +
+            " ms, " + std::to_string(used_limit_mb) + " MB used and " + std::to_string(reserved_limit_mb) +
+            " MB reserved limits (" + exceeded + ")"));
   }
 
   auto certificate = *task;
   certificate.checks.push_back("the reference " + reference + " passes every example the task ships (" +
                                std::to_string(examples->size()) + " of " + std::to_string(examples->size()) + ")");
   certificate.checks.push_back("the reference " + reference + " measures " + std::to_string(measured->time_ms) +
-                               " ms and " + std::to_string(megabytes(measured->peak_memory_kb)) + " MB at " +
-                               examples->back().input_path.string() + ", inside the " + std::to_string(half_time_ms) +
-                               " ms and " + std::to_string(half_memory_kb / KB_PER_MB) +
-                               " MB halves of the declared limits");
+                               " ms, " + std::to_string(megabytes(measured->peak_memory_kb)) + " MB used and " +
+                               std::to_string(megabytes(measured->peak_reserved_kb)) + " MB reserved at " +
+                               examples->back().input_path.string() + ", inside the " +
+                               std::to_string(half_time_ms) + " ms, " +
+                               std::to_string(half_used_kb / KB_PER_MB) + " MB used and " +
+                               std::to_string(half_reserved_kb / KB_PER_MB) + " MB reserved halves of the declared " +
+                               std::to_string(time_limit_ms) + " ms, " + std::to_string(used_limit_mb) +
+                               " MB used and " + std::to_string(reserved_limit_mb) + " MB reserved limits");
   certificate.checks.push_back(
       "the brute-force differential did not run: a hand-written task ships no brute-force program to compare against, "
       "so this certificate carries the checks a hand-written task can (ADR 0057 §2)");

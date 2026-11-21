@@ -19,8 +19,8 @@ constexpr auto PROBE_THAI_TITLE = "ทดสอบ";
     -> std::int64_t {
   database.execute_text(
       "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, "
-      "memory_limit_mb, checker, origin, verification, solution, content_hash) "
-      "VALUES ($1, 1, 'draft', 'Probe', $2, 900, 1000, 256, 'token', 'original', 'pending', '', '')",
+      "memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash) "
+      "VALUES ($1, 1, 'draft', 'Probe', $2, 900, 1000, 256, 512, 'token', 'original', 'pending', '', '')",
       {std::string{task_id}, std::string{PROBE_THAI_TITLE}});
   database.execute_text("INSERT INTO generation_jobs (task_id, task_version) VALUES ($1, 1)",
                         {std::string{task_id}});

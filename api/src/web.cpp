@@ -33,6 +33,8 @@ struct Words {
   std::string_view start;
   std::string_view empty;
   std::string_view limit_label;
+  std::string_view used_memory_label;
+  std::string_view reserved_memory_label;
   std::string_view example_label;
   std::string_view source_label;
   std::string_view submit_label;
@@ -70,6 +72,8 @@ constexpr Words THAI_WORDS{.curriculum = "หลักสูตร",
                            .start = "เริ่มขั้นนี้",
                            .empty = "ยังไม่มีหลักสูตร",
                            .limit_label = "ขีดจำกัด",
+                           .used_memory_label = "ใช้จริง",
+                           .reserved_memory_label = "ที่จองไว้",
                            .example_label = "ตัวอย่าง",
                            .source_label = "โค้ดของคุณ",
                            .submit_label = "ส่งคำตอบ",
@@ -108,6 +112,8 @@ constexpr Words ENGLISH_WORDS{.curriculum = "Curriculum",
                               .start = "Start this stage",
                               .empty = "No curriculum yet",
                               .limit_label = "Limits",
+                              .used_memory_label = "used",
+                              .reserved_memory_label = "reserved",
                               .example_label = "Example",
                               .source_label = "Your code",
                               .submit_label = "Submit",
@@ -277,7 +283,10 @@ auto task_model(const Locale& locale, const TaskPage& task, std::string_view sit
   data["task"] = {{"title", label(locale, task.title_en, task.title_th)},
                   {"limit_label", std::string{words.limit_label}},
                   {"time_ms", task.time_limit_ms},
-                  {"memory_mb", task.memory_limit_mb},
+                  {"used_memory_label", std::string{words.used_memory_label}},
+                  {"memory_used_mb", task.memory_used_limit_mb},
+                  {"reserved_memory_label", std::string{words.reserved_memory_label}},
+                  {"memory_reserved_mb", task.memory_reserved_limit_mb},
                   {"statement", label(locale, task.statement_en, task.statement_th)},
                   {"example_input", task.example_input},
                   {"example_output", task.example_output},

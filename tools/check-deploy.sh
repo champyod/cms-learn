@@ -428,9 +428,9 @@ SELECT set_config('cms.actor_kind', 'admin', true);
 SELECT set_config('cms.invoked_by', 'check-deploy', true);
 INSERT INTO admin_accounts (id, handle, status) VALUES ('a0000001-1111-4111-8111-0000000000d1', 'gate', 'active')
   ON CONFLICT DO NOTHING;
-INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker,
+INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, checker,
                    origin, verification, solution, content_hash)
-VALUES ('gate-task', 1, 'draft', 'Gate', 'ประตู', 900, 1000, 256, 'token', 'original', 'pending', '', repeat('f', 64))
+VALUES ('gate-task', 1, 'draft', 'Gate', 'ประตู', 900, 1000, 256, 512, 'token', 'original', 'pending', '', repeat('f', 64))
   ON CONFLICT DO NOTHING;
 SQL
 

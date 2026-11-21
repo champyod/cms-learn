@@ -62,9 +62,9 @@ INSERT INTO learner_accounts (id, handle, email, status)
 VALUES ('$account', 'plan_probe', 'plan_probe@example.org', 'active');
 
 INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
-                   memory_limit_mb, checker, origin, verification, solution, content_hash)
+                   memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash)
 SELECT 'synthetic-' || value, 1, 'published', 'Synthetic ' || value, 'สังเคราะห์ ' || value,
-       800 + (value % 19) * 100, 1000, 256, 'token', 'original', 'pending', 'int main() {}',
+       800 + (value % 19) * 100, 1000, 256, 512, 'token', 'original', 'pending', 'int main() {}',
        repeat('a', 64)
 FROM generate_series(1, 20000) AS value;
 

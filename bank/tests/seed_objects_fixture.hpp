@@ -162,8 +162,8 @@ inline auto prepare(cms::db::connection&, std::int64_t call_index) -> Probe {
       {std::string{TYPE_ID}});
   database.execute_text(
       "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, "
-      "memory_limit_mb, checker, origin, verification, solution, content_hash, seeded) "
-      "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original', 'pending', '', "
+      "memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash, seeded) "
+      "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 512, 'token', 'original', 'pending', '', "
       "repeat('b', 64), false) ON CONFLICT DO NOTHING",
       {std::string{TASK_ID}, std::string{TYPE_ID}});
   transaction.commit();

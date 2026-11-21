@@ -263,6 +263,7 @@ interface Task {
   difficulty: number;
   locales: string[];
   checker: { kind: string; path?: string };
+  limits: { time_ms: number; memory_used_mb: number; memory_reserved_mb: number };
   bounds?: { min_n: number; max_n: number; value_min: number; value_max: number };
   subtasks?: Subtask[];
   testdata?: { manifest: string };
@@ -304,6 +305,20 @@ const subtaskFaults = (task: Task): string[] => {
     if (valueMin > valueMax) {
       faults.push(`${at}: admits no value, since value_min ${valueMin} is above value_max ${valueMax}`);
     }
+  }
+  return faults;
+};
+
+/** ADR 0059: both memory limits are required, and the reservation cannot be smaller than the use — a program that
+ * may touch more than it may map is a task whose used limit can never be reached. */
+const limitFaults = (task: Task): string[] => {
+  const limits = task.limits;
+  if (limits === undefined) return ["no limits object"];
+  const faults: string[] = [];
+  if (limits.memory_reserved_mb < limits.memory_used_mb) {
+    faults.push(
+      `the reserved memory limit ${limits.memory_reserved_mb} MB is below the used limit ${limits.memory_used_mb} MB; a program cannot touch what it may not map`,
+    );
   }
   return faults;
 };
@@ -353,6 +368,7 @@ if (existsSync(tasksDir)) {
 
     if (!validateTask(task)) schemaErrors(taskPath, validateTask.errors);
     for (const fault of retiredClaimFaults(task)) violations.push(`${rel(taskPath)}: ${fault}`);
+    for (const fault of limitFaults(task)) violations.push(`${rel(taskPath)}: ${fault}`);
     for (const fault of subtaskFaults(task)) violations.push(`${rel(taskPath)}: ${fault}`);
 
     for (const topic of task.topics ?? []) {

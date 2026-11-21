@@ -50,7 +50,8 @@ struct Task {
   std::string title_th;
   std::int32_t difficulty{0};
   std::int32_t time_limit_ms{0};
-  std::int32_t memory_limit_mb{0};
+  std::int32_t memory_used_limit_mb{0};
+  std::int32_t memory_reserved_limit_mb{0};
   /// What the task is scored out of, stated once on the task (ADR 0033 §2).
   std::int32_t points{100};
   /// The task's own bounds, which every subtask narrows; absent for a task that carries no subtask.

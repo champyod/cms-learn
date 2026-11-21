@@ -29,7 +29,8 @@ constexpr std::string_view VERIFICATION_PENDING = "pending";
 constexpr std::string_view CHECKER_TOKEN = "token";
 constexpr std::string_view ORIGIN_ORIGINAL = "original";
 constexpr std::int64_t DEFAULT_TIME_LIMIT_MS = 1000;
-constexpr std::int64_t DEFAULT_MEMORY_LIMIT_MB = 256;
+constexpr std::int64_t DEFAULT_MEMORY_USED_LIMIT_MB = 256;
+constexpr std::int64_t DEFAULT_MEMORY_RESERVED_LIMIT_MB = 512;
 
 auto to_int(std::string_view text, std::int64_t& number) -> bool {
   const auto parsed = std::from_chars(text.begin(), text.end(), number);
@@ -314,7 +315,8 @@ auto save_task_draft(db::connection& database, const Actor& actor, std::string_v
         db::tasks.status = std::string{STATUS_DRAFT}, db::tasks.titleEn = title_en,
         db::tasks.titleTh = title_th, db::tasks.difficulty = difficulty,
         db::tasks.timeLimitMs = DEFAULT_TIME_LIMIT_MS,
-        db::tasks.memoryLimitMb = DEFAULT_MEMORY_LIMIT_MB,
+        db::tasks.memoryUsedLimitMb = DEFAULT_MEMORY_USED_LIMIT_MB,
+        db::tasks.memoryReservedLimitMb = DEFAULT_MEMORY_RESERVED_LIMIT_MB,
         db::tasks.checker = std::string{CHECKER_TOKEN},
         db::tasks.origin = std::string{ORIGIN_ORIGINAL},
         db::tasks.verification = std::string{VERIFICATION_PENDING},

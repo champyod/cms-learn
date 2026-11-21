@@ -183,7 +183,7 @@ function writeDemo(root: string, source: string, examples?: { input: string; out
         topics: ["complexity"],
         difficulty: 800,
         locales: ["en", "th"],
-        limits: { time_ms: 1000, memory_mb: 256 },
+        limits: { time_ms: 1000, memory_used_mb: 256, memory_reserved_mb: 512 },
         checker: { kind: "token" },
         origin: { kind: "original" },
         // ADR 0046 §2 retired the file's verification claim: `status`, `methods` and `verified_at` are refused by today's

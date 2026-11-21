@@ -116,9 +116,9 @@ fi
 
 insert_task() {
   psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty,
-                                 time_limit_ms, memory_limit_mb, checker, origin, verification,
+                                 time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification,
                                  solution, content_hash)
-              VALUES ('$1', 1, 'draft', '$1', '$1', 800, 1000, 256, 'token', 'original',
+              VALUES ('$1', 1, 'draft', '$1', '$1', 800, 1000, 256, 512, 'token', 'original',
                       'pending', 'int main() {}', repeat('a', 64))" >/dev/null 2>&1
   # A row cannot be created verified (ADR 0046 §2): write the certificate it needs, then move the verification with
   # the guarded UPDATE.
@@ -135,8 +135,8 @@ insert_task() {
 # Publishing is a boundary rule now (ADR 0057): a file cannot create a published row, and a row cannot move to published
 # without a verified certificate. Both refusals are printed here, beside the serving assertions they protect.
 refusal="$(psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
-                                          memory_limit_mb, checker, origin, verification, solution, content_hash)
-                       VALUES ('publish-probe', 1, 'published', 'P', 'P', 800, 1000, 256, 'token', 'original',
+                                          memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash)
+                       VALUES ('publish-probe', 1, 'published', 'P', 'P', 800, 1000, 256, 512, 'token', 'original',
                                'pending', 'int main() {}', repeat('a', 64))" 2>&1 || true)"
 if printf '%s' "$refusal" | grep -q "cannot be created published"; then
   ok "a task row cannot be created published"
@@ -144,8 +144,8 @@ else
   bad "a task row cannot be created published" "${refusal:-the insert was accepted}"
 fi
 refusal="$(psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms,
-                                          memory_limit_mb, checker, origin, verification, solution, content_hash)
-                       VALUES ('publish-probe', 1, 'draft', 'P', 'P', 800, 1000, 256, 'token', 'original',
+                                          memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash)
+                       VALUES ('publish-probe', 1, 'draft', 'P', 'P', 800, 1000, 256, 512, 'token', 'original',
                                'pending', 'int main() {}', repeat('a', 64))" 2>&1 || true)"
 refusal="$(psql_db -c "UPDATE tasks SET status = 'published' WHERE id = 'publish-probe' AND version = 1" 2>&1 || true)"
 if printf '%s' "$refusal" | grep -q "has no verified certificate, so it cannot move to published"; then

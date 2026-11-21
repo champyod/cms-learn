@@ -52,6 +52,19 @@ struct Judgement {
 /// @brief The verdict a compile run means; nothing when the compiler reported success.
 [[nodiscard]] auto compile_verdict(const RunOutcome& outcome) -> std::optional<SubmissionVerdict>;
 
+/// @brief The verdict a run's two memory limits earn, and a sentence naming the one that was exceeded.
+///
+/// `ML` from the sandbox is the reserved limit: `isolate --mem` limits address space. A clean run is then
+/// judged against its used limit from the peak resident size in the same report. Any other status decides
+/// the run on its own and leaves memory to that verdict.
+///
+/// @return Nothing when neither limit was exceeded (or when another status owns the verdict); a judgement when
+/// one was; or an error when a clean report carries no readable peak resident size, because a limit nobody
+/// measured cannot be enforced — the submission stays claimable rather than passing unmeasured.
+[[nodiscard]] auto memory_verdict(const RunOutcome& outcome, std::int64_t used_limit_kb,
+                                  std::int64_t reserved_limit_kb)
+    -> Result<std::optional<Judgement>>;
+
 /// @brief The verdict a checker's answer becomes; only `ok` is an acceptance.
 [[nodiscard]] auto checker_verdict(Verdict verdict) -> SubmissionVerdict;
 
@@ -64,7 +77,10 @@ struct Case {
 /// @brief One submission's task, as the judge needs it to run the submission.
 struct TaskRun {
   std::int64_t time_limit_ms{1000};
-  std::int64_t memory_limit_kb{262144};
+  /// The memory the program may touch, checked against the peak resident size isolate reports.
+  std::int64_t memory_used_limit_kb{262144};
+  /// The address space the program may map, passed to isolate as `--mem`.
+  std::int64_t memory_reserved_limit_kb{262144};
   std::string checker;
   std::string cpp_standard{std::string{DEFAULT_CPP_STANDARD}};
   std::vector<Case> cases;

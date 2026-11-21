@@ -63,8 +63,9 @@ thing and looks identical to a correct one from outside.
 1. **reference-pass** — the reference solution is accepted by the checker on every test
 2. **bruteforce-differential** — on small random inputs the reference agrees with a brute force
    (this is what catches a wrong checker or a mis-generated expected output)
-3. **limits-measured** — the reference runs inside the declared `time_ms`/`memory_mb` on the slowest
-   test with margin, so a correct-but-slow student solution is not failed by a wrong limit
+3. **limits-measured** — the reference runs inside the declared `time_ms` and both memory limits
+   (`memory_used_mb`, what it touches, and `memory_reserved_mb`, the address space it maps) on the
+   slowest test with margin, so a correct-but-slow student solution is not failed by a wrong limit
 
 The gate is enforced twice on purpose: structurally here (status, methods recorded, files present)
 and behaviourally by the judge before publish. A validator cannot prove behaviour; a judge alone

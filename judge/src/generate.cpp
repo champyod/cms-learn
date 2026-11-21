@@ -54,8 +54,13 @@ auto refuse_incomplete(const TaskSpec& spec) -> Result<void> {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
                                        "the difficulty must be a multiple of 100 within 800 to 3500"));
   }
-  if (spec.time_ms < 100 || spec.memory_mb < 16) {
+  if (spec.time_ms < 100 || spec.time_ms > 20000 || spec.memory_used_mb < 16 ||
+      spec.memory_used_mb > 1024 || spec.memory_reserved_mb < 16 || spec.memory_reserved_mb > 1024) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument, "the limits are out of range"));
+  }
+  if (spec.memory_reserved_mb < spec.memory_used_mb) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "the reserved memory limit is below the used limit"));
   }
   return {};
 }
@@ -76,8 +81,9 @@ auto manifest_text(const TaskSpec& spec) -> std::string {
   text += "  \"technique\": \"" + spec.technique + "\",\n";
   text += "  \"difficulty\": " + std::to_string(spec.difficulty) + ",\n";
   text += "  \"locales\": [\"en\", \"th\"],\n";
-  text += "  \"limits\": { \"time_ms\": " + std::to_string(spec.time_ms) + ", \"memory_mb\": " +
-          std::to_string(spec.memory_mb) + " },\n";
+  text += "  \"limits\": { \"time_ms\": " + std::to_string(spec.time_ms) + ", \"memory_used_mb\": " +
+          std::to_string(spec.memory_used_mb) + ", \"memory_reserved_mb\": " +
+          std::to_string(spec.memory_reserved_mb) + " },\n";
   text += "  \"checker\": { \"kind\": \"" + spec.checker + "\" },\n";
   text += "  \"origin\": { \"kind\": \"ai\", \"pipeline\": \"cms_generate_task\" },\n";
   text += "  \"verification\": { \"reference_solution\": \"solutions/main.cpp\" }\n";

@@ -20,7 +20,10 @@ export function Task({ mode, data }: { mode: Mode; data: TaskFixture }) {
           <p className="mt-1 text-sm opacity-70">
             {slot(mode, "task.limit_label", data.limit_label)} {slot(mode, "task.time_ms", String(data.time_ms))} ms
             {" · "}
-            {slot(mode, "task.memory_mb", String(data.memory_mb))} MB
+            {slot(mode, "task.used_memory_label", data.used_memory_label)}{" "}
+            {slot(mode, "task.memory_used_mb", String(data.memory_used_mb))} MB{" · "}
+            {slot(mode, "task.reserved_memory_label", data.reserved_memory_label)}{" "}
+            {slot(mode, "task.memory_reserved_mb", String(data.memory_reserved_mb))} MB
           </p>
 
           <article className="prose mt-6 max-w-none">

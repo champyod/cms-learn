@@ -66,8 +66,8 @@ auto prepare_task(cms::db::connection& database, std::string_view task_id, std::
   make_type(database);
   database.execute_text(
       "INSERT INTO tasks (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms, "
-      "memory_limit_mb, points, checker, origin, verification, solution, content_hash) "
-      "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 100, 'token', 'original', 'pending', '', $3)",
+      "memory_used_limit_mb, memory_reserved_limit_mb, points, checker, origin, verification, solution, content_hash) "
+      "VALUES ($1, 1, $2, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 512, 100, 'token', 'original', 'pending', '', $3)",
       {std::string{task_id}, std::string{TYPE_ID}, std::string{content_hash}});
   database.execute_text(
       "INSERT INTO task_field_values (task_id, task_version, field_key, value) "
@@ -87,7 +87,8 @@ auto task_with(std::string_view id, std::string_view hash, std::int32_t points,
   task.title_th = "ทดสอบ";
   task.difficulty = 900;
   task.time_limit_ms = 1000;
-  task.memory_limit_mb = 256;
+  task.memory_used_limit_mb = 256;
+  task.memory_reserved_limit_mb = 512;
   task.points = points;
   task.bounds = cms::TaskBounds{.min_n = 1, .max_n = 200000, .value_min = 1, .value_max = 1000000000};
   task.subtasks = std::move(subtasks);
@@ -202,7 +203,7 @@ TEST_CASE("a task's task.json can name its points and its subtasks", "[subtasks]
     "id": "probe-subtask", "version": 1, "status": "draft",
     "title": {"en": "Probe", "th": "\u0e17\u0e14\u0e2a\u0e2d\u0e1a"},
     "topics": [], "difficulty": 900,
-    "limits": {"time_ms": 1000, "memory_mb": 256},
+    "limits": {"time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512},
     "points": 100,
     "bounds": {"min_n": 1, "max_n": 200000, "value_min": 1, "value_max": 1000000000},
     "subtasks": [
@@ -226,7 +227,7 @@ TEST_CASE("a task's task.json can name its points and its subtasks", "[subtasks]
     "id": "probe-subtask", "version": 1, "status": "draft",
     "title": {"en": "Probe", "th": "\u0e17\u0e14\u0e2a\u0e2d\u0e1a"},
     "topics": [], "difficulty": 900,
-    "limits": {"time_ms": 1000, "memory_mb": 256},
+    "limits": {"time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512},
     "bounds": {"min_n": 1, "max_n": 200000, "value_min": 1, "value_max": 1000000000},
     "subtasks": [
       {"position": 1, "points": 30, "max_n": 2000},
@@ -255,7 +256,7 @@ TEST_CASE("a subtask's narrowing is refused when it names nothing or leaves the 
     "id": "probe-narrowing", "version": 1, "status": "draft",
     "title": {"en": "Probe", "th": "\u0e17\u0e14\u0e2a\u0e2d\u0e1a"},
     "topics": [], "difficulty": 900,
-    "limits": {"time_ms": 1000, "memory_mb": 256},)"} +
+    "limits": {"time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512},)"} +
            std::string{bounds} + R"("subtasks": [)" + std::string{subtask} + R"(],
     "checker": {"kind": "token"}, "origin": {"kind": "original"},
     "verification": {"reference_solution": "solutions/main.cpp"}
@@ -294,7 +295,7 @@ TEST_CASE("a bound given as text is refused by name, never read as an absent bou
     "id": "probe-malformed", "version": 1, "status": "draft",
     "title": {"en": "Probe", "th": "\u0e17\u0e14\u0e2a\u0e2d\u0e1a"},
     "topics": [], "difficulty": 900,
-    "limits": {"time_ms": 1000, "memory_mb": 256},)"} +
+    "limits": {"time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512},)"} +
            std::string{bounds} + R"("subtasks": [)" + std::string{subtask} + R"(],
     "checker": {"kind": "token"}, "origin": {"kind": "original"},
     "verification": {"reference_solution": "solutions/main.cpp"}

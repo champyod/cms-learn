@@ -222,7 +222,10 @@ CREATE TABLE generation_specifications (
   job_id bigint PRIMARY KEY REFERENCES generation_jobs (id) ON DELETE CASCADE,
   specification jsonb NOT NULL,
   time_limit_ms integer NOT NULL CHECK (time_limit_ms BETWEEN 100 AND 20000),
-  memory_limit_mb integer NOT NULL CHECK (memory_limit_mb BETWEEN 16 AND 1024),
+  memory_used_limit_mb integer NOT NULL CHECK (memory_used_limit_mb BETWEEN 16 AND 1024),
+  memory_reserved_limit_mb integer NOT NULL CHECK (memory_reserved_limit_mb BETWEEN 16 AND 1024),
+  CONSTRAINT generation_specifications_memory_limits_ordered
+    CHECK (memory_used_limit_mb <= memory_reserved_limit_mb),
   -- The sentence a reader needs to see that the limit was computed, not chosen: the complexity, the bound, the
   -- operations, the band, and how the value landed in it.
   derivation text NOT NULL CHECK (length(btrim(derivation)) > 0),
@@ -275,7 +278,8 @@ GRANT SELECT, INSERT ON generation_solutions TO cmslearn_generator;
 GRANT SELECT, INSERT ON generation_programs TO cmslearn_generator;
 GRANT SELECT, INSERT ON generation_cases TO cmslearn_generator;
 GRANT SELECT (id, version, task_type, status, title_en, title_th, difficulty, time_limit_ms,
-              memory_limit_mb, checker, checker_path, origin, verification, content_hash, seeded)
+              memory_used_limit_mb, memory_reserved_limit_mb, checker, checker_path, origin, verification,
+              content_hash, seeded)
   ON tasks TO cmslearn_generator;
 GRANT SELECT ON task_types, task_field_defs, task_field_values, task_topics, topics TO cmslearn_generator;
 
@@ -365,7 +369,8 @@ CREATE TRIGGER generation_jobs_done_needs_certificate
 -- no privilege on a task's content, status or anything the generator writes, and the generator holds none of these.
 GRANT SELECT, INSERT ON generation_certificates TO cmslearn_certifier;
 GRANT UPDATE (verification) ON tasks TO cmslearn_certifier;
-GRANT SELECT (id, version, status, verification, content_hash, time_limit_ms, memory_limit_mb, points)
+GRANT SELECT (id, version, status, verification, content_hash, time_limit_ms, memory_used_limit_mb,
+              memory_reserved_limit_mb, points)
   ON tasks TO cmslearn_certifier;
 GRANT SELECT ON generation_jobs, generation_artefacts, generation_specifications, generation_solutions,
                 generation_programs, generation_cases, task_subtasks

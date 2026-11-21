@@ -46,7 +46,7 @@ PGHOST="$work" PGPORT="$port" PGDATABASE=claim_proof PGUSER=postgres \
 
 sql() { psql -X -h "$work" -p "$port" -U postgres -d claim_proof -tAq -c "$1"; }
 
-sql "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash) VALUES ('claim-probe', 1, 'draft', 'Claim probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original', 'pending', '', '')" >/dev/null
+sql "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash) VALUES ('claim-probe', 1, 'draft', 'Claim probe', 'ทดสอบ', 900, 1000, 256, 512, 'token', 'original', 'pending', '', '')" >/dev/null
 sql "INSERT INTO generation_jobs (task_id, task_version) VALUES ('claim-probe', 1)" >/dev/null
 
 # The statement with its two parameters bound the way the driver binds them.

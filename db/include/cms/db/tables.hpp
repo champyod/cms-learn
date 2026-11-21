@@ -768,8 +768,13 @@ struct GenerationSpecifications_ {
     using data_type = ::sqlpp::integral;
     using has_default = std::false_type;
   };
-  struct MemoryLimitMb {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(memory_limit_mb, memoryLimitMb);
+  struct MemoryUsedLimitMb {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(memory_used_limit_mb, memoryUsedLimitMb);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct MemoryReservedLimitMb {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(memory_reserved_limit_mb, memoryReservedLimitMb);
     using data_type = ::sqlpp::integral;
     using has_default = std::false_type;
   };
@@ -796,8 +801,8 @@ struct GenerationSpecifications_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(generation_specifications, generationSpecifications);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, JobId, Specification, TimeLimitMs, MemoryLimitMb, Derivation, AnswerArtefactId, OracleArtefactId, CreatedAt>;
-  using _required_insert_columns = sqlpp::detail::type_set<JobId, Specification, TimeLimitMs, MemoryLimitMb, Derivation, AnswerArtefactId, OracleArtefactId>;
+      sqlpp::table_columns<T, JobId, Specification, TimeLimitMs, MemoryUsedLimitMb, MemoryReservedLimitMb, Derivation, AnswerArtefactId, OracleArtefactId, CreatedAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<JobId, Specification, TimeLimitMs, MemoryUsedLimitMb, MemoryReservedLimitMb, Derivation, AnswerArtefactId, OracleArtefactId>;
 };
 
 struct LearnerAccounts_ {
@@ -1740,8 +1745,13 @@ struct Tasks_ {
     using data_type = ::sqlpp::integral;
     using has_default = std::false_type;
   };
-  struct MemoryLimitMb {
-    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(memory_limit_mb, memoryLimitMb);
+  struct MemoryUsedLimitMb {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(memory_used_limit_mb, memoryUsedLimitMb);
+    using data_type = ::sqlpp::integral;
+    using has_default = std::false_type;
+  };
+  struct MemoryReservedLimitMb {
+    SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(memory_reserved_limit_mb, memoryReservedLimitMb);
     using data_type = ::sqlpp::integral;
     using has_default = std::false_type;
   };
@@ -1793,8 +1803,8 @@ struct Tasks_ {
   SQLPP_CREATE_NAME_TAG_FOR_SQL_AND_CPP(tasks, tasks);
   template <typename T>
   using _table_columns =
-      sqlpp::table_columns<T, Id, Version, TaskType, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryLimitMb, Points, Checker, CheckerPath, Origin, Verification, Solution, ContentHash, Seeded, SeededAt>;
-  using _required_insert_columns = sqlpp::detail::type_set<Id, Version, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryLimitMb, Checker, Origin, Verification, Solution, ContentHash>;
+      sqlpp::table_columns<T, Id, Version, TaskType, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryUsedLimitMb, MemoryReservedLimitMb, Points, Checker, CheckerPath, Origin, Verification, Solution, ContentHash, Seeded, SeededAt>;
+  using _required_insert_columns = sqlpp::detail::type_set<Id, Version, Status, TitleEn, TitleTh, Difficulty, TimeLimitMs, MemoryUsedLimitMb, MemoryReservedLimitMb, Checker, Origin, Verification, Solution, ContentHash>;
 };
 
 struct Topics_ {

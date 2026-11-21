@@ -10,7 +10,7 @@
   "technique": "bfs",
   "difficulty": 1200,
   "locales": ["en", "th"],
-  "limits": { "time_ms": 1000, "memory_mb": 256 },
+  "limits": { "time_ms": 1000, "memory_used_mb": 256, "memory_reserved_mb": 512 },
   "checker": { "kind": "standard" },
   "origin": { "kind": "ai", "pipeline": "gen-v1" },
   "verification": {

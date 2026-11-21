@@ -98,7 +98,7 @@ note "the generator role cannot write tasks.status or tasks.verification: permis
 # The same role must be able to do its own job, or the refusal above would just mean it can do nothing.
 # A job row needs a task to hang from, so one is written as the schema owner first.
 psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -q -c \
-  "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash) VALUES ('probe-task', 1, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original', 'pending', '', '')" >/dev/null 2>&1 \
+  "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash) VALUES ('probe-task', 1, 'draft', 'Probe', 'ทดสอบ', 900, 1000, 256, 512, 'token', 'original', 'pending', '', '')" >/dev/null 2>&1 \
   || fail "the gate could not write the probe task"
 set +e
 as_generator "INSERT INTO generation_jobs (task_id, task_version) VALUES ('probe-task', 1)" >/dev/null 2>&1
@@ -139,7 +139,7 @@ note "a verification without its certificate is refused, naming the certificate"
 # The insert path is guarded too, so the rule is a property of the table and not of the statement a caller happens to
 # use. A row cannot be created verified: the certificate's foreign key names a task row, so none can exist yet.
 refusal="$(psql -X -h "$work" -p "$port" -U postgres -d pipeline_gate -tAq \
-  -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker, origin, verification, solution, content_hash) VALUES ('insert-probe', 1, 'draft', 'Insert probe', 'ทดสอบ', 900, 1000, 256, 'token', 'original', 'verified', '', '')" 2>&1 || true)"
+  -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash) VALUES ('insert-probe', 1, 'draft', 'Insert probe', 'ทดสอบ', 900, 1000, 256, 512, 'token', 'original', 'verified', '', '')" 2>&1 || true)"
 printf '%s' "$refusal" | grep -q "has no certificate for verified" \
   || fail "an INSERT of a verified row without a certificate was not refused: $refusal"
 note "an insert of a verified row without its certificate is refused, naming the certificate"
