@@ -197,12 +197,13 @@ function writeDemo(root: string, source: string, examples?: { input: string; out
   writeFileSync(join(demo, "statement.en.md"), "Read one integer and print it.\n");
   writeFileSync(join(demo, "statement.th.md"), "อ่านจำนวนเต็มหนึ่งจำนวนแล้วพิมพ์ออกมา\n");
   rmSync(join(demo, "examples"), { recursive: true, force: true });
-  if (examples) {
-    const dir = join(demo, "examples");
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "01.in"), examples.input);
-    writeFileSync(join(dir, "01.out"), examples.output);
-  }
+  // Every case gets an example, even the ones that plant a defect no example can show: the api e2e cases import this
+  // content and their harness needs an example to read, so a demo without one failed them on the fixture ("the bank is
+  // the files") instead of on a defect. A case that supplies its own replaces these.
+  const dir = join(demo, "examples");
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "01.in"), examples?.input ?? "3\n");
+  writeFileSync(join(dir, "01.out"), examples?.output ?? "3\n");
 }
 
 /** Everything a staged tree is compiled from: the component sources, the data, the presets and the modules.
@@ -464,6 +465,9 @@ function escapeForCtest(name: string): string {
 }
 
 /** A case ctest says it failed; a skipped case has its own section and is not a failure of the tree. */
+/** How much of one failing case's output the baseline prints: enough for the first error, not the whole log. */
+const FAILURE_LINES = 12;
+
 const FAILED_CASE = /^\s*\d+\s+-\s+(.+?)\s+\((?:Failed|Timeout|Exception)\)\s*$/gm;
 
 /** One command in a staged tree, both streams kept: cmake reports on stderr and ctest splits the two. */
@@ -560,7 +564,31 @@ function baselineExclusion(root: string, work: string): string {
     `baseline      ${failed.length} test(s) fail in a staged tree and are excluded by name — this run does not prove: ${failed.join(", ")}` +
       `\n              ${exclusionReason()}`,
   );
+  // The line above points at "the failure text above"; this is it. Without it the sentence aims at output nobody prints —
+  // the same defect as the canned reason it replaced, one layer further out. Each excluded case gets its own block, so a
+  // reader can tell "cannot load its data" from "the harness has no example to read".
+  for (const name of failed) {
+    const block = failureBlock(tested.output, name);
+    console.log(`\nfailure       ${name}`);
+    for (const line of block.split("\n").slice(0, FAILURE_LINES)) {
+      console.log(`              ${line}`);
+    }
+  }
+  console.log("");
   return failed.map(escapeForCtest).join("|");
+}
+
+/** The lines ctest printed for one failing case, trimmed to what the reader needs; "" when ctest printed nothing. */
+function failureBlock(output: string, name: string): string {
+  const lines = output.split("\n");
+  const start = lines.findIndex((line) => line.includes(name) && /-\s+(?:Failed|Timeout|Exception)/.test(line));
+  if (start === -1) return "ctest printed no section for this case";
+  const collected: string[] = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^\s*\d+\s+-\s+\S/.test(line)) break;
+    if (line.trim() !== "") collected.push(line.trim());
+  }
+  return collected.length === 0 ? "ctest printed no detail for this case" : collected.join("\n");
 }
 
 interface CacheStats {
