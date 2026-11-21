@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { settingsFixture } from "./catalogue.ts";
-import { adminFixture, homeFixture, signinFixture, signupFixture, taskFixture, taskListFixture } from "./fixtures.ts";
+import { adminFixture, homeFixture, modelsFixture, signinFixture, signupFixture, taskFixture, taskListFixture } from "./fixtures.ts";
 import { AdminHome } from "./pages/admin_home.tsx";
+import { AdminModels } from "./pages/admin_models.tsx";
 import { AdminTaskForm, taskFormFixture } from "./pages/admin_task_form.tsx";
 import { Home } from "./pages/home.tsx";
 import { Progress, progressFixture } from "./pages/progress.tsx";
@@ -16,6 +17,7 @@ import type { Mode } from "./slots.ts";
 // without a generated template — or a template with no page — is a failure rather than a silent omission.
 export const pages: Record<string, (mode: Mode) => React.ReactElement> = {
   admin_home: (mode) => <AdminHome mode={mode} data={adminFixture} />,
+  admin_models: (mode) => <AdminModels mode={mode} data={modelsFixture} />,
   admin_task_form: (mode) => <AdminTaskForm mode={mode} data={taskFormFixture} />,
   home: (mode) => <Home mode={mode} data={homeFixture} />,
   progress: (mode) => <Progress mode={mode} data={progressFixture} />,

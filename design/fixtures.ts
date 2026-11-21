@@ -268,6 +268,97 @@ export interface LearnerRow {
 }
 
 /// The administrator panel's page data. Every field names a template variable the server fills.
+/// One model record as the page lists it: the address and protocol the worker calls, and the two flags the
+/// operator switches.
+export interface ModelRow {
+  name: string;
+  base_url: string;
+  protocol: string;
+  model_id: string;
+  is_default: boolean;
+  enabled: boolean;
+}
+
+/// The model records page: the words around the table and the add form, plus one record of each state.
+export interface ModelsFixture {
+  site_name: string;
+  title: string;
+  lede: string;
+  notice: string;
+  has_notice: boolean;
+  list_title: string;
+  name_label: string;
+  address_label: string;
+  protocol_label: string;
+  model_label: string;
+  state_label: string;
+  enabled_label: string;
+  disabled_label: string;
+  default_label: string;
+  enable_label: string;
+  disable_label: string;
+  pick_label: string;
+  add_title: string;
+  key_label: string;
+  key_hint: string;
+  make_default_label: string;
+  add_label: string;
+  empty_label: string;
+  action: string;
+  csrf_token: string;
+  has_no_models: boolean;
+  protocols: string[];
+  models: ModelRow[];
+}
+
+export const modelsFixture: ModelsFixture = {
+  site_name: "CMS Learn",
+  title: "Models",
+  lede: "The model the worker calls: one record is the enabled default.",
+  notice: "",
+  has_notice: false,
+  list_title: "Records",
+  name_label: "Name",
+  address_label: "Base address",
+  protocol_label: "Protocol",
+  model_label: "Model id",
+  state_label: "State",
+  enabled_label: "enabled",
+  disabled_label: "disabled",
+  default_label: "default",
+  enable_label: "Enable",
+  disable_label: "Disable",
+  pick_label: "Make default",
+  add_title: "Add a model",
+  key_label: "Key",
+  key_hint: "Stored sealed; it is never shown again.",
+  make_default_label: "Make it the default",
+  add_label: "Add record",
+  empty_label: "No model record yet: the worker refuses until one exists.",
+  action: "/admin/models",
+  csrf_token: "0f8c1a5e7b9d4c2a",
+  has_no_models: false,
+  protocols: ["openai-chat"],
+  models: [
+    {
+      name: "primary",
+      base_url: "https://api.example.com/v1",
+      protocol: "openai-chat",
+      model_id: "gpt-5.1",
+      is_default: true,
+      enabled: true,
+    },
+    {
+      name: "spare",
+      base_url: "https://backup.example.com/v1",
+      protocol: "openai-chat",
+      model_id: "gpt-5.1-mini",
+      is_default: false,
+      enabled: false,
+    },
+  ],
+};
+
 export interface AdminFixture {
   site_name: string;
   title: string;
