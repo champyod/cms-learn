@@ -261,4 +261,105 @@ if git -C "$repo" ls-files -z | xargs -0 grep -lnE "AKIA[0-9A-Z]{16}" 2>/dev/nul
 fi
 note "no tracked file carries a store credential"
 
+# ── 12. every service has its own role, and the separation is attempted rather than declared ──────
+# ADR 0058: the grants were written but nothing enforced them, because every service connected as the same user. These
+# attempts use each service's own credentials, and every line names the role that made it, so a refusal for the web cannot
+# be mistaken for a refusal from a superuser.
+python3 - "$work/config.json" "$deploy/host.env.example" <<'PY' || exit 1
+import json, sys
+services = json.load(open(sys.argv[1]))["services"]
+example = open(sys.argv[2]).read()
+
+def role_of(url, name, role):
+    if role not in url:
+        raise SystemExit(f"deploy gate FAILED: {name} does not connect as {role}: {url!r}")
+    if ":" in url.split("@")[0].split("//")[-1]:
+        raise SystemExit(f"deploy gate FAILED: {name}'s database URL carries a password")
+
+# The api takes every fact from its host file, so its role is asserted where that file declares it.
+for line in example.splitlines():
+    if line.startswith("CMSLEARN_DATABASE_URL="):
+        role_of(line.split("=", 1)[1], "api", "cmslearn_api_user")
+        break
+else:
+    raise SystemExit("deploy gate FAILED: the host file names no database URL")
+role_of((services["judge"].get("environment") or {}).get("DATABASE_URL", ""), "judge", "cmslearn_judge_user")
+
+for name in ("api", "judge"):
+    environment = services[name].get("environment") or {}
+    if not environment.get("PGPASSFILE"):
+        raise SystemExit(f"deploy gate FAILED: {name} does not name the file its password comes from")
+    if not services[name].get("secrets"):
+        raise SystemExit(f"deploy gate FAILED: {name} mounts no secret")
+print("  every service names its own role, and its password file is the only place the credential lives")
+PY
+
+attempt() {  # role, password, SQL: prints the role beside the outcome, then the outcome alone
+  local role="$1" password="$2" sql="$3" outcome
+  if PGPASSWORD="$password" PGHOST="$cluster" PGPORT="$port" PGDATABASE=cmslearn_roles PGUSER="$role"             psql -X -q -tA -c "$sql" >/dev/null 2>"$work/attempt.err"; then
+    outcome="allowed"
+  else
+    outcome="refused: $(head -1 "$work/attempt.err" | sed 's/^ERROR:  //')"
+  fi
+  printf '  %-22s %s\n' "$role" "$outcome" >&2
+  printf '%s' "$outcome"
+}
+
+expect_refused() {
+  local got
+  got="$(attempt "$1" "$2" "$3")"
+  case "$got" in
+    refused:*) note "$1 is refused $4" ;;
+    *) fail "$1 was allowed $4 — a service's role reaches what it does not need" ;;
+  esac
+}
+
+expect_allowed() {
+  local got
+  got="$(attempt "$1" "$2" "$3")"
+  [ "$got" = "allowed" ] || fail "$1 cannot $4, which its job needs ($got)"
+  note "$1 may $4"
+}
+
+CERTIFICATE_INSERT="INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) VALUES (NULL, 'gate', 1, 'verified', '[\"the deploy gate wrote this\"]'::jsonb, repeat('a', 40), '{}'::jsonb)"
+
+if command -v initdb >/dev/null 2>&1 && command -v psql >/dev/null 2>&1; then
+  . "$repo/tools/postgres-cluster.sh"
+  pg_cluster_binaries
+  cluster="$(mktemp -d)"
+  port=$((56400 + (RANDOM % 200)))
+  pg_cluster_prepare "$cluster" >/dev/null 2>&1
+  pg_cluster_init "$cluster" >"$cluster/initdb.log" 2>&1 || fail "the scratch cluster would not start"
+  pg_cluster_start "$cluster" "$port" "$cluster/pg.log" >/dev/null 2>&1 || fail "the scratch cluster would not start"
+  trap 'pg_cluster_stop "$cluster" >/dev/null 2>&1 || true; rm -rf "$cluster"' EXIT
+
+  psql -X -h "$cluster" -p "$port" -U postgres -q -c "CREATE DATABASE cmslearn_roles" >/dev/null 2>&1
+  psql -X -h "$cluster" -p "$port" -U postgres -d cmslearn_roles -q -v ON_ERROR_STOP=1     -v api_password=gate_api -v generator_password=gate_generator -v certifier_password=gate_certifier     -v judge_password=gate_judge -v bank_password=gate_bank -v backup_password=gate_backup     -f "$deploy/roles.sql" >/dev/null 2>&1 || fail "deploy/roles.sql does not apply"
+  PGHOST="$cluster" PGPORT="$port" PGDATABASE=cmslearn_roles PGUSER=postgres     bash "$repo/tools/apply-plan.sh" >/dev/null 2>&1 || fail "the plan does not apply to the roles database"
+
+  # A certificate names a task, so the attempts below need one row to point at; it is written as the owner, because the
+  # point of these attempts is what the service roles may do afterwards, not how the row got there.
+  psql -X -h "$cluster" -p "$port" -U postgres -d cmslearn_roles -q >/dev/null 2>&1 <<'SQL'
+SELECT set_config('cms.actor_id', 'a0000001-1111-4111-8111-0000000000d1', true);
+SELECT set_config('cms.actor_kind', 'admin', true);
+SELECT set_config('cms.invoked_by', 'check-deploy', true);
+INSERT INTO admin_accounts (id, handle, status) VALUES ('a0000001-1111-4111-8111-0000000000d1', 'gate', 'active')
+  ON CONFLICT DO NOTHING;
+INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_limit_mb, checker,
+                   origin, verification, solution, content_hash)
+VALUES ('gate-task', 1, 'draft', 'Gate', 'ประตู', 900, 1000, 256, 'token', 'original', 'pending', '', repeat('f', 64))
+  ON CONFLICT DO NOTHING;
+SQL
+
+  expect_allowed cmslearn_certifier_user gate_certifier "${CERTIFICATE_INSERT/gate/gate-task}" "write a certificate"
+  expect_refused cmslearn_certifier_user gate_certifier     "INSERT INTO generation_jobs (task_id, task_version) VALUES ('gate-task', 1)" "a generation job"
+  expect_refused cmslearn_certifier_user gate_certifier     "UPDATE tasks SET title_en = 'hijacked' WHERE id = 'gate-task'" "any column of a task but its verification"
+  expect_refused cmslearn_generator_user gate_generator "$CERTIFICATE_INSERT" "a certificate"
+  expect_refused cmslearn_judge_user gate_judge "SELECT * FROM learner_accounts" "the bank"
+  expect_refused cmslearn_api_user gate_api "$CERTIFICATE_INSERT" "a certificate"
+  note "each line above names the role that attempted it, so no refusal came from a superuser"
+else
+  note "skipped: no PostgreSQL binaries, so the service roles were not attempted"
+fi
+
 printf 'deploy gate: OK\n'

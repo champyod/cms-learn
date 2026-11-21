@@ -1,4 +1,7 @@
-GRANT USAGE ON SCHEMA public TO cmslearn_app, cmslearn_judge;
+-- Every group a service works through needs the schema itself before any table grant matters. The generator and the
+-- certifier were granted tables in generation.sql and never this, which a superuser's `SET ROLE` hides: the owner holds it.
+GRANT USAGE ON SCHEMA public TO cmslearn_app, cmslearn_judge, cmslearn_generator, cmslearn_certifier, cmslearn_backup,
+  cmslearn_migrate;
 
 GRANT SELECT, INSERT, UPDATE ON learner_accounts, admin_accounts, system_accounts, roles, sessions TO cmslearn_app;
 GRANT SELECT, INSERT, DELETE ON admin_roles, role_capabilities TO cmslearn_app;

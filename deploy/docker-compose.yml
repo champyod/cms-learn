@@ -25,6 +25,17 @@ x-hardening: &hardening
       max-size: "10m"
       max-file: "3"
 
+# Every service authenticates as its own database role (ADR 0058), and its password lives in a file only that service
+# mounts: not in this file, not in a committed environment file, and not in a container's environment — the environment is
+# readable from `docker inspect` and from anything with the socket. libpq reads PGPASSFILE itself, so the DSN the service
+# is given carries no password at all.
+secrets:
+  api_db_password:       { file: ./secrets/api.pgpass }
+  generator_db_password: { file: ./secrets/generator.pgpass }
+  certifier_db_password: { file: ./secrets/certifier.pgpass }
+  judge_db_password:     { file: ./secrets/judge.pgpass }
+  bank_db_password:      { file: ./secrets/bank.pgpass }
+
 services:
   proxy:
     <<: *hardening
@@ -59,6 +70,8 @@ services:
       # The service takes every fact from the file this names — addresses, ports, the database URL, the
       # seal key, the socket. NOTHING else configures it, and a missing file stops it.
       CMSLEARN_HOST_FILE: /run/cms-learn/host.env
+      # The password is in the mounted file, not in this environment: libpq reads it from here.
+      PGPASSFILE: /run/secrets/api.pgpass
       # Everything else the service decides at runtime comes from settings rows: registration,
       # approval, the domain allowlist, session lifetimes and the log level are all operator-editable
       # from the CLI and the panel, and none of them is a reason to recreate this container.
@@ -66,6 +79,8 @@ services:
     # operator's own configuration: the file naming every fact this service takes.
     volumes:
       - ./host.env:/run/cms-learn/host.env:ro
+    secrets:
+      - api_db_password
     networks: [edge, internal]
     depends_on:
       database: { condition: service_healthy }
@@ -75,13 +90,17 @@ services:
     <<: *hardening
     image: ghcr.io/champyod/cms-learn-judge:${TAG:-dev}
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}
+      # Its own role, and a DSN with no password in it: the credential is the mounted file.
+      DATABASE_URL: postgres://cmslearn_judge_user@database:5432/${POSTGRES_DB:-cmslearn}
+      PGPASSFILE: /run/secrets/judge.pgpass
       ISOLATE_CGROUP_PATH: ${ISOLATE_CGROUP_PATH:-/sys/fs/cgroup/cms-learn-isolate}
     # isolate needs the host cgroup tree and an unconfined seccomp profile — the same shape the
     # contest worker uses. It is the one container allowed to loosen the default.
     cgroup: host
     security_opt:
       - seccomp:unconfined
+    secrets:
+      - judge_db_password
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
       - judge-work:/var/lib/cms-learn/work
