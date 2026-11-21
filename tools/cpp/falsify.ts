@@ -144,7 +144,7 @@ const STAGED_CONFIG = ["CMakeLists.txt", "CMakePresets.json", ".clang-tidy", "cm
  * load, the deployment the deploy cases parse, and the tools the e2e cases invoke by path. A new case that needs a new
  * directory adds it here, and `stagedEntries` refuses to stage a tree when a listed directory is missing.
  */
-const STAGED_DATA = ["content", "deploy", "tools"];
+const STAGED_DATA = ["content", "deploy", "tools", "docs"];
 
 function stagedEntries(repo: string): string[] {
   const rootLists = join(repo, "CMakeLists.txt");
@@ -186,7 +186,9 @@ function writeDemo(root: string, source: string, examples?: { input: string; out
         limits: { time_ms: 1000, memory_mb: 256 },
         checker: { kind: "token" },
         origin: { kind: "original" },
-        verification: { status: "pending", reference_solution: "solutions/main.cpp", methods: [] },
+        // ADR 0046 §2 retired the file's verification claim: `status`, `methods` and `verified_at` are refused by today's
+        // seeder, so a demo carrying them was refused by the fixture rather than by the defect a case plants.
+        verification: { reference_solution: "solutions/main.cpp" },
       },
       null,
       2,
@@ -503,6 +505,33 @@ function scImapLauncher(root: string): string {
   return found === null ? "" : found[1].trim();
 }
 
+/**
+ * What this run lacks, measured rather than assumed.
+ *
+ * The exclusion line used to assert "no database and no docker socket" on every run, including one that had both — the
+ * same defect as a gate reporting an analysis it never ran, one level up. This probes the walls the excluded cases need
+ * and says only what is actually absent; when nothing is missing it says that too, because the cause is then in the
+ * failures themselves and the reader has to see them.
+ */
+function exclusionReason(): string {
+  const missing: string[] = [];
+  if (!commandOnPath("initdb") || !commandOnPath("psql")) {
+    missing.push("no PostgreSQL server binaries on PATH");
+  }
+  if (!existsSync("/var/run/docker.sock")) {
+    missing.push("no docker socket at /var/run/docker.sock");
+  }
+  if (missing.length === 0) {
+    return "excluded after failing in a staged tree that had a database and a docker socket: the cause is in the failure\n              text above, not in what this run lacks — the case still proves nothing and is not counted as a pass";
+  }
+  return `excluded because this run lacks ${missing.join(" and ")} — a case that needs either cannot state a verdict, so\n              each is named above rather than counted as a pass`;
+}
+
+function commandOnPath(command: string): boolean {
+  const probe = spawnSync("command", ["-v", command], { shell: true, encoding: "utf8" });
+  return probe.status === 0 && (probe.stdout ?? "").trim() !== "";
+}
+
 function baselineExclusion(root: string, work: string): string {
   for (const step of BASELINE_STEPS) {
     const result = runIn(root, step.command, step.args);
@@ -529,8 +558,7 @@ function baselineExclusion(root: string, work: string): string {
   }
   console.log(
     `baseline      ${failed.length} test(s) fail in a staged tree and are excluded by name — this run does not prove: ${failed.join(", ")}` +
-      `\n              excluded because a staged tree carries no database and no docker socket, so a case that needs either\n` +
-      `              cannot state a verdict — each is named above rather than counted as a pass`,
+      `\n              ${exclusionReason()}`,
   );
   return failed.map(escapeForCtest).join("|");
 }
