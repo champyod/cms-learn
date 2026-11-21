@@ -221,6 +221,17 @@ To get it outside the image: add LLVM's repository for trixie (`deb http://apt.l
 main`) and install `clang-tidy-23` at that exact version. The gate prints the version it actually used on every run, so a
 result and the tool that produced it are always reported together.
 
+### The security gate's tier, and the runner's user
+
+`check:security` — secrets, fixable CVEs, deployment hardening — is part of the fast tier (`bun run gate:fast`)
+as well as the full tier, so a Dockerfile that declares no non-root user fails on the change that adds it rather
+than at the nightly proof.
+
+The runner image `check:cpp` uses declares `USER runner` (uid/gid 1000). Every path its gate legitimately writes
+is named in the image — `/home/runner` and the caches below it — plus the build tree inside the mounted checkout;
+a write anywhere else is refused. The analyser version is still read from `clang-tidy --version`, which the gate
+prints beside its verdict.
+
 ### Obtaining the pinned schema tool
 
 The gates look in `${XDG_DATA_HOME:-$HOME/.local/share}/cms-learn/tools` first, then the

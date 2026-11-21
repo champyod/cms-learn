@@ -43,3 +43,23 @@ RUN wget -qO /tmp/bun.zip "https://github.com/oven-sh/bun/releases/download/bun-
 
 # The gate asks each tool what it is; the image is the answer, so a green run inside it means what it says.
 RUN clang-tidy --version && g++ --version && bun --version
+
+# The gate executes the checkout's own code; it must not be able to write outside the tree it was handed.
+# UID and GID 1000 are the first user on a typical Linux host, so the checkout and the vcpkg cache mounted
+# from it stay writable without a chown; other hosts pass --user and mount a home they own (README).
+RUN groupadd --gid 1000 runner \
+    && useradd --uid 1000 --gid 1000 --create-home --home-dir /home/runner --shell /bin/bash runner \
+    && mkdir -p /src/build /home/runner/.cache/ccache /home/runner/.cache/tmp \
+        /home/runner/.cache/bun /home/runner/.vcpkg \
+    && chown -R runner:runner /home/runner /src
+
+# Every path the gate legitimately writes is named here rather than inherited from whoever runs the image.
+ENV HOME=/home/runner \
+    XDG_CACHE_HOME=/home/runner/.cache \
+    CCACHE_DIR=/home/runner/.cache/ccache \
+    BUN_INSTALL_CACHE_DIR=/home/runner/.cache/bun \
+    TMPDIR=/home/runner/.cache/tmp \
+    VCPKG_ROOT=/home/runner/.vcpkg
+
+USER runner
+RUN id -un && test "$(id -u)" -ne 0
