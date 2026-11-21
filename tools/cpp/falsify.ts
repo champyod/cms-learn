@@ -35,7 +35,7 @@ import {
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { runGate } from "./gate.ts";
+import { format, runGate } from "./gate.ts";
 
 interface Case {
   name: string;
@@ -660,6 +660,30 @@ try {
     caught += 1;
   } else {
     console.log(`WRONG RESULT  ${"empty-tree".padEnd(28)} — reported green with no sources`);
+    missed += 1;
+  }
+
+  // A run that stops before the analysis must say so. "0 unit(s) analysed … 0 finding(s)" is a true count that forms a
+  // false sentence — it reads as an analysis that found nothing when it never ran — so the summary has to name the step
+  // it did not reach. The empty tree stops the gate before any unit is analysed, which is the shape of the failure.
+  const stoppedSummary = format(empty, emptyRoot);
+  const stoppedNamed = stoppedSummary.includes("static analysis did not run") && !stoppedSummary.includes("0 unit(s) analysed");
+  if (stoppedNamed) {
+    console.log(`behaved       ${"stopped-analysis".padEnd(28)} (names the analysis it never ran)`);
+    caught += 1;
+  } else {
+    console.log(`WRONG RESULT  ${"stopped-analysis".padEnd(28)} — the summary reads as a clean analysis: ${stoppedSummary.split("\n")[0].slice(0, 140)}`);
+    missed += 1;
+  }
+
+  // And a run that does analyse every unit still prints its count, so the honest case is unchanged by the line above.
+  const analysedSummary = format(clean, cleanRoot);
+  const honestCount = /\d+ unit\(s\) analysed in \d+ worker\(s\)/.test(analysedSummary) && !analysedSummary.includes("did not run");
+  if (honestCount) {
+    console.log(`behaved       ${"analysed-summary".padEnd(28)} (prints the count it measured)`);
+    caught += 1;
+  } else {
+    console.log(`WRONG RESULT  ${"analysed-summary".padEnd(28)} — the honest summary changed: ${analysedSummary.split("\n")[0].slice(0, 140)}`);
     missed += 1;
   }
 

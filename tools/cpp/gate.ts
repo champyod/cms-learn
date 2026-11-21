@@ -452,13 +452,27 @@ function toolVersion(root: string, command: string[]): string {
   return (numbered[0] ?? `${command[0]} missing`).slice(0, 80);
 }
 
-function format(report: GateReport, root: string): string {
+/**
+ * The analysis part of the summary.
+ *
+ * A count of zero from a run that stopped before the analysis is true and reads false: "0 unit(s) analysed … 0 finding(s)"
+ * says the analysis found nothing when it never ran. A verdict that did not happen is named, with the reason the gate
+ * stopped, so the summary can only be read for what it is.
+ */
+function analysisLine(report: GateReport): string {
+  if (!report.tidy) return "static analysis skipped (fast tier)";
+  if (report.analysed === 0) {
+    const stopped = report.reasons[0] ?? "the gate stopped before it";
+    return `static analysis did not run — no unit was analysed, so the finding count says nothing (${stopped})`;
+  }
+  return `${report.analysed} unit(s) analysed in ${report.workers} worker(s) in ${Math.round(report.analysisMillis / 1000)} s`;
+}
+
+export function format(report: GateReport, root: string): string {
   const parts = [
     `${report.targets} target(s) built`,
     `${report.cases} case(s) passed`,
-    report.tidy
-      ? `${report.analysed} unit(s) analysed in ${report.workers} worker(s) in ${Math.round(report.analysisMillis / 1000)} s`
-      : "static analysis skipped (fast tier)",
+    analysisLine(report),
     report.ok ? "0 finding(s)" : `${report.findings.length} finding(s)`,
   ];
   // Which tools produced the verdict is part of the verdict: clang-tidy's check set grows between major
