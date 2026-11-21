@@ -5,6 +5,7 @@ import { CONTENT_GATE } from "./cases/content.ts";
 import { DEPLOY_GATE } from "./cases/deploy.ts";
 import { OBJECTS_GATE } from "./cases/objects.ts";
 import { PIPELINE_GATE } from "./cases/pipeline.ts";
+import { ISOLATION_GATE } from "./cases/isolation.ts";
 import { JUDGE_GATE } from "./cases/judge.ts";
 import { LIVE_GATE } from "./cases/live.ts";
 import { PM_GATE } from "./cases/pm.ts";
@@ -33,6 +34,7 @@ export const GATES: readonly Gate[] = [
   CONTENT_GATE,
   VISIBILITY_GATE,
   JUDGE_GATE,
+  ISOLATION_GATE,
   LIVE_GATE,
 ];
 
