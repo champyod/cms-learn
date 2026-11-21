@@ -744,7 +744,7 @@ auto certify_task(cms::db::connection& database, const std::filesystem::path& co
   if (!declared_reference) {
     return std::unexpected(declared_reference.error());
   }
-  const auto reference = *declared_reference;
+  const auto& reference = *declared_reference;
 
   const auto examples = examples_of(task_root);
   if (!examples) {

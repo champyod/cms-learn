@@ -205,6 +205,21 @@ To get it: install the distribution package (`pacman -S ccache`, `apt install cc
 or take the release at tag `v4.11.3` from the project's releases and build it with CMake — the harness only
 needs the binary on `PATH`.
 
+### The analyser the C++ gate runs
+
+`check:cpp`'s findings belong to one clang-tidy version. Debian 13 ships 19.0, which reports fourteen pre-existing
+findings on the tree 23 reports none on, so the analyser is pinned the way the compiler is (ADR 0043 §6):
+
+| What | Version | Pinned by |
+|---|---|---|
+| clang-tidy | 23.1.6 | `deploy/runner/Dockerfile`, the exact LLVM package `1:23.1.6~++20261116014037+5b10d2d74929-1~exp1~20261116134151.96` |
+| clang (the compile database it reads) | 23.1.6 | the same LLVM package set |
+| the base image | `gcc@sha256:07280eb2e744f1b7a2d8d4a3894c089ea07266c109758afc388a634bd098e4eb` | the `FROM` line, by digest |
+
+To get it outside the image: add LLVM's repository for trixie (`deb http://apt.llvm.org/trixie/ llvm-toolchain-trixie-23
+main`) and install `clang-tidy-23` at that exact version. The gate prints the version it actually used on every run, so a
+result and the tool that produced it are always reported together.
+
 ### Obtaining the pinned schema tool
 
 The gates look in `${XDG_DATA_HOME:-$HOME/.local/share}/cms-learn/tools` first, then the

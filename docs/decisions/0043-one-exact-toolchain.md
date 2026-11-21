@@ -69,3 +69,15 @@ So §2 is read as covering the whole gate toolchain — compiler, clang-tidy, cm
 falsifiers invoke — each at one recorded version, and the image carrying those versions is the one that runs them.
 Until clang-tidy is pinned, `check:cpp` is green only on a machine whose clang-tidy happens to match the version
 the findings were triaged against, which is the accident this record exists to remove.
+
+## 7. Amendment, 2026-11-21 — the analyser is pinned in the image
+
+§6 named the gap; this closes it. `deploy/runner/Dockerfile` builds the runner image from the digest-pinned
+`gcc@sha256:07280…e4eb` base and installs clang-tidy **23.1.6** from LLVM's own repository at the exact package
+`1:23.1.6~++20261116014037+5b10d2d74929-1~exp1~20261116134151.96`, symlinking it as `clang-tidy` and `clang++`. The image
+was built here and answers `Debian LLVM version 23.1.6` and `g++ (GCC) 16.2.0` from a single `docker run`, so the pin and
+the image agree rather than merely being written down together.
+
+The compiler did not move: the base is still the pinned GCC 16.2.0, named by digest. The analyser is now the version the
+findings belong to, and the gate's own header line — which asks `clang-tidy --version` on every run — is what tells a
+reader which analyser produced a verdict.
