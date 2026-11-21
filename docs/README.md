@@ -15,6 +15,7 @@ lives in `.agents/` on the machine that made the decision.
 | The database: tables, and the invariants it enforces | [`schema.md`](schema.md) |
 | What an operator can change, and what is deliberately not a setting | [`settings.md`](settings.md) |
 | The server: sizing, exposure, threat table, operator checklist | [`infra/single-server.md`](infra/single-server.md) |
+| How to run the whole C++ gate as the runner user, with the services its cases need | [`infra/runner-gate.md`](infra/runner-gate.md) |
 | Which features are shipped versus planned | [`../FEATURES.md`](../FEATURES.md) |
 | The rules an agent or contributor must follow | [`../AGENTS.md`](../AGENTS.md) |
 
