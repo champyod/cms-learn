@@ -406,6 +406,14 @@ expect_allowed() {
 
 CERTIFICATE_INSERT="INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence) VALUES (NULL, 'gate', 1, 'verified', '[\"the deploy gate wrote this\"]'::jsonb, repeat('a', 40), '{}'::jsonb)"
 
+note "the first-run target exists and does what it claims"
+makefile="${FIRST_RUN_MAKEFILE:-$repo/Makefile}"
+[ -f "$makefile" ] || fail "no Makefile at $makefile"
+grep -qE '^first-run:' "$makefile" || fail "the Makefile declares no first-run target"
+grep -qE '^[[:space:]]+bash tools/first-run\.sh$' "$makefile" || fail "the first-run target does not run tools/first-run.sh"
+[ -f "$repo/tools/first-run.sh" ] || fail "no tools/first-run.sh"
+bash "$repo/tools/check-first-run.sh" || fail "the first-run target does not do what it claims"
+
 if command -v initdb >/dev/null 2>&1 && command -v psql >/dev/null 2>&1; then
   . "$repo/tools/postgres-cluster.sh"
   pg_cluster_binaries

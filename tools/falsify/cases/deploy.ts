@@ -28,6 +28,18 @@ export const DEPLOY_GATE: Gate = {
       expect: red("does not require CMSLEARN_S3_SECRET_ACCESS_KEY"),
     },
     {
+      // One command is the deployment's entry point: without it the operator is back at the README's
+      // eight steps, and the contract has nothing to assert.
+      name: "first-run-target-removed",
+      command: {
+        command: "bash",
+        args: ["{repo}/tools/check-deploy.sh"],
+        env: { DEPLOY_DIR: "{root}/deploy", FIRST_RUN_MAKEFILE: "{root}/Makefile" },
+      },
+      plant: [{ kind: "write", path: "Makefile", content: "help:\n\t@printf 'no first run\\n'\n" }],
+      expect: red("declares no first-run target"),
+    },
+    {
       name: "db-published-publicly",
       plant: [{ kind: "patch", path: "deploy/docker-compose.yml", find: "127.0.0.1:5432:5432", replace: "5432:5432" }],
       expect: red("only proxy may face the internet"),

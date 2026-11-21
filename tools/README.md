@@ -1,6 +1,6 @@
 # Tools — one job per language
 
-Seventy files under `tools/`: thirty-seven shell, thirty-three TypeScript. C++ owns a fourth kind of
+Seventy-two files under `tools/`: thirty-nine shell, thirty-three TypeScript. C++ owns a fourth kind of
 work and owns no file here. The three rows below say which language does which job, and every file in
 the inventory maps to exactly one of them.
 
@@ -52,6 +52,7 @@ tool and is not counted.
 | `tools/check-content-db.sh` | shell | 160 | assertion | gate — seeds the bank twice into a scratch cluster and requires the second seed to write nothing |
 | `tools/check-db.sh` | shell | 111 | assertion | gate — `db/include/cms/db/tables.hpp` is byte-identical to a fresh render |
 | `tools/check-deploy.sh` | shell | 149 | assertion | gate — compose exposure, isolation, pinning, Caddyfile, Prometheus |
+| `tools/check-first-run.sh` | shell | 319 | assertion | gate — the first run's order, refusals and idempotence, with stubbed docker and curl |
 | `tools/check-generator.sh` | shell | 72 | assertion | gate — a generated draft is the shape the loader reads, and two runs are identical |
 | `tools/check-island-fallback.sh` | shell | 44 | assertion | gate — the submission form posts without the editor island |
 | `tools/check-isolation.sh` | shell | 65 | assertion | gate — a fork bomb is contained by the sandbox and the box is torn down |
@@ -104,6 +105,7 @@ tool and is not counted.
 | `tools/falsify-settings-gate.sh` | shell | 88 | assertion | gate — the settings gate goes red on a secret that can be read back |
 | `tools/falsify-templates-gate.sh` | shell | 46 | assertion | gate — the template gate goes red on a stale or orphaned template |
 | `tools/falsify-vocab-gate.sh` | shell | 172 | assertion | gate — the vocabulary gate goes red on an unresolved, ambiguous or looping tag |
+| `tools/first-run.sh` | shell | 302 | driver | takes an empty host to the stack: facts, secrets, roles, plan, CrowdSec, health |
 | `tools/port-templates.ts` | typescript | 59 | orchestration | renders the design package into `api/templates` |
 | `tools/render-assets.sh` | shell | 99 | assertion | driver — renders rasters from the SVG masters, with a `--check` comparison |
 | `tools/render-catalogue.ts` | typescript | 94 | orchestration | turns the settings catalogue into the data the form and the service consume |
@@ -118,9 +120,9 @@ tool and is not counted.
 
 | Language | Files | Lines |
 |---|---|---|
-| shell | 37 | 3 656 |
+| shell | 39 | 4 277 |
 | typescript | 33 | 3 977 |
-| total | 70 | 7 633 |
+| total | 72 | 8 254 |
 
 ## Gates and falsifiers
 

@@ -77,43 +77,53 @@ name each one.
 | 9 | Caddy validates the Caddyfile **with the binary that will run it** | a config that only parses in the docs is not a config |
 | 10 | Prometheus config parses for the pinned Prometheus | same reason |
 
-## First boot (one time, ~15 minutes)
+## First boot (one command)
 
 ```bash
-# 0. DNS: an A/AAAA record for DOMAIN must point at this box before Caddy can issue a certificate.
+make first-run          # tools/first-run.sh
+```
 
-# 1. configure
+It renders the stack, generates the secrets the roles read, creates the roles, applies the plan, starts
+CrowdSec, installs the in-band CRS rules, obtains the bouncer key, brings every service up and waits
+for `https://$DOMAIN/healthz` to answer. Running it twice converges: it never rewrites a secret, never
+replaces an existing bouncer, and the plan is idempotent.
+
+The facts it cannot invent are the operator's: `DOMAIN`, `ACME_EMAIL`, `AGE_PUBLIC_KEY` and
+`CMSLEARN_BOOTSTRAP_ADMIN`. Every one that is missing is named in a single refusal, together with an
+unpublished image in `release.toml` or a host without docker, before anything on the host is changed:
+
+```bash
 cp deploy/.env.example deploy/.env
 cp deploy/host.env.example deploy/host.env
 chmod 600 deploy/.env deploy/host.env
-# .env:    DOMAIN, ACME_EMAIL, POSTGRES_PASSWORD (openssl rand -base64 32),
-#          GRAFANA_PASSWORD, AGE_PUBLIC_KEY, CROWDSEC_API_KEY (see step 3)
-# host.env: CMSLEARN_DATABASE_URL (the same password), CMSLEARN_SEAL_KEY (openssl rand -base64 32),
-#          CMSLEARN_BOOTSTRAP_ADMIN. It is the api's only input — addresses, ports, seal key, socket —
-#          and the service refuses to start when one is missing, naming every such key.
-# host.env is gitignored: it carries the seal key and belongs to this server only.
+```
 
-# 2. the backup key lives on YOUR machine, never here
-age-keygen -o cms-learn-backup.key     # prints the age1… public key → AGE_PUBLIC_KEY
+`host.env` is gitignored: it carries the seal key and belongs to this server only. The backup key is
+generated on your machine, never here (`age-keygen -o cms-learn-backup.key`); its public half is
+`AGE_PUBLIC_KEY`.
 
-# 3. from deploy/: the schema, then the database
-cd deploy
-docker compose --profile migrate run --rm schema
-docker compose up -d database
+Everything else is generated once and recorded where its reader is: role passwords in
+`deploy/secrets/<service>.pgpass` (mode 600, mounted only into that service), the CrowdSec bouncer key
+and the operator-visible passwords in `deploy/.env`, and the seal key in `deploy/host.env`. A role that
+exists without its file is refused rather than given a new password, because the old one cannot be
+recovered.
 
-# 4. first start (proxy will retry TLS until the record propagates). The api creates system:bootstrap and
-#    the first administrator from CMSLEARN_BOOTSTRAP_ADMIN itself, and prints the handle once.
-docker compose up -d database crowdsec
-docker compose exec crowdsec cscli appsec-rules install crowdsecurity/crs
-docker compose exec crowdsec cscli bouncers add caddy-proxy -o raw   # → CROWDSEC_API_KEY
-docker compose up -d
+DNS comes first: an A/AAAA record for `DOMAIN` must point at this box before Caddy can issue a
+certificate. The first run waits for the health endpoint, so a missing record is a named failure, not a
+stack that looks up but does not serve.
 
-# 5. verify
+Verify what it started:
+
+```bash
 curl -fsSI https://$DOMAIN | head -5          # HSTS + no Server header
-curl -fsSI https://$DOMAIN/admin | head -5   # the panel, behind the same edge
+curl -fsSI https://$DOMAIN/admin | head -5    # the panel, behind the same edge
 docker compose exec crowdsec cscli decisions list
 docker compose exec crowdsec cscli metrics show appsec
 ```
+
+`bun run check:deploy` asserts the target exists and drives `tools/check-first-run.sh`, which proves the
+order, the secrets' placement and every refusal with stubbed docker and curl, so the command is covered
+by the deployment contract rather than by this page.
 
 `appsec-rules install` is not optional: the AppSec config in `crowdsec/appsec-config.yaml` declares
 `crowdsecurity/crs` as **in-band** rules (the request in front of it gets a 403). The stock

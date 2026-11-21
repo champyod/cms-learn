@@ -3,7 +3,8 @@
 # This builds and checks the C++ and Rust artifacts. Running the stack stays with
 # `deploy/docker-compose.yml`, because a service that is deployed by two different commands is a
 # service with two configurations; `make upgrade` is an entry point to `tools/upgrade.sh` rather than
-# a second implementation of the deploy sequence.
+# a second implementation of the deploy sequence, and `make first-run` is the entry point for the
+# first boot on an empty host.
 
 BUILD_DIR ?= build
 BUILD_TYPE ?= RelWithDebInfo
@@ -13,7 +14,7 @@ CARGO ?= cargo
 
 .DEFAULT_GOAL := help
 
-.PHONY: help configure build test gate upgrade clean
+.PHONY: help configure build test gate upgrade first-run clean
 
 help:
 	@printf '%s\n' \
@@ -22,6 +23,7 @@ help:
 	  'test        run the C++ tests' \
 	  'gate        run every repository gate' \
 	  'upgrade     deploy the release release.toml names, with a rollback on failure' \
+	  'first-run   take an empty host to the stack: facts, secrets, roles, schema, CrowdSec, services' \
 	  'clean       remove build outputs'
 
 configure:
@@ -39,6 +41,9 @@ gate: test
 
 upgrade:
 	bash tools/upgrade.sh
+
+first-run:
+	bash tools/first-run.sh
 
 clean:
 	$(CMAKE) -E rm -rf $(BUILD_DIR)
