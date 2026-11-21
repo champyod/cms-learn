@@ -5,8 +5,12 @@
 #   - only `proxy` publishes ports; every other service listens on an internal network
 #   - `internal` has no gateway, so the judge and the database cannot reach the internet at all
 #   - every image comes from release.toml: a third-party image by digest, a local one by build context
-#   - nothing is installed on the host; the only host mounts are read-only: /sys, /proc, the cgroup
-#     tree that `isolate` requires, and the checkout files a service reads but never writes
+#   - every service has a read-only root filesystem; the directories it writes are named as volumes,
+#     and every mount into it is read-only except the cgroup tree `isolate` requires
+#   - every service drops every capability and adds back only the ones its own job needs, named beside
+#     the service and asserted by tools/check-deploy.sh (ADR 0060)
+#   - every service has a memory, CPU and process limit, so one service cannot take the machine from
+#     the others
 #
 # A service whose image is `{{image:...}}` is pinned in release.toml; the placeholder names the key
 # there, not the service here.
@@ -15,6 +19,8 @@ name: cms-learn
 
 x-hardening: &hardening
   restart: unless-stopped
+  read_only: true
+  cap_drop: [ALL]
   labels:
     org.cmslearn.release: "{{version}}"
   security_opt:
@@ -24,6 +30,17 @@ x-hardening: &hardening
     options:
       max-size: "10m"
       max-file: "3"
+
+# Every service authenticates as its own database role (ADR 0058), and its password lives in a file only that service
+# mounts: not in this file, not in a committed environment file, and not in a container's environment — the environment is
+# readable from `docker inspect` and from anything with the socket. libpq reads PGPASSFILE itself, so the DSN the service
+# is given carries no password at all.
+secrets:
+  api_db_password:       { file: ./secrets/api.pgpass }
+  generator_db_password: { file: ./secrets/generator.pgpass }
+  certifier_db_password: { file: ./secrets/certifier.pgpass }
+  judge_db_password:     { file: ./secrets/judge.pgpass }
+  bank_db_password:      { file: ./secrets/bank.pgpass }
 
 services:
   proxy:
@@ -44,7 +61,16 @@ services:
       - caddy-data:/data              # certificates; losing this only costs a re-issue
       - caddy-config:/config
       - caddy-logs:/var/log/caddy     # CrowdSec reads this
+    # It terminates TLS as an unprivileged user on mapped ports, so no capability is added back.
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
     networks: [edge]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256m
+          pids: 256
     depends_on:
       crowdsec: { condition: service_started }
       api: { condition: service_started }
@@ -59,6 +85,8 @@ services:
       # The service takes every fact from the file this names — addresses, ports, the database URL, the
       # seal key, the socket. NOTHING else configures it, and a missing file stops it.
       CMSLEARN_HOST_FILE: /run/cms-learn/host.env
+      # The password is in the mounted file, not in this environment: libpq reads it from here.
+      PGPASSFILE: /run/secrets/api.pgpass
       # Everything else the service decides at runtime comes from settings rows: registration,
       # approval, the domain allowlist, session lifetimes and the log level are all operator-editable
       # from the CLI and the panel, and none of them is a reason to recreate this container.
@@ -66,7 +94,18 @@ services:
     # operator's own configuration: the file naming every fact this service takes.
     volumes:
       - ./host.env:/run/cms-learn/host.env:ro
+    # The admin socket is the one file it creates, and /tmp is the only directory it can create it in.
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    secrets:
+      - api_db_password
     networks: [edge, internal]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512m
+          pids: 512
     depends_on:
       database: { condition: service_healthy }
       objects: { condition: service_healthy }
@@ -75,22 +114,48 @@ services:
     <<: *hardening
     image: {{image:judge}}
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}
+      # Its own role, and a DSN with no password in it: the credential is the mounted file.
+      DATABASE_URL: postgres://cmslearn_judge_user@database:5432/${POSTGRES_DB:-cmslearn}
+      PGPASSFILE: /run/secrets/judge.pgpass
       ISOLATE_CGROUP_PATH: ${ISOLATE_CGROUP_PATH:-/sys/fs/cgroup/cms-learn-isolate}
-    # isolate needs the host cgroup tree and an unconfined seccomp profile — the same shape the
-    # contest worker uses. It is the one container allowed to loosen the default.
+    # isolate creates namespaces, mounts the box and /proc, raises its loopback and switches to the box user,
+    # so it is the one service that needs capabilities back. Each one below was removed in turn and isolate
+    # stopped at a named step: SYS_ADMIN mounts the box tree, SYS_CHROOT enters the box, SETUID/SETGID switch
+    # to the box uid, CHOWN gives it the box tree, DAC_OVERRIDE reads the executable, FOWNER chmods the box's
+    # own /tmp, NET_ADMIN raises lo. seccomp is unconfined because isolate's clone flags are not in Docker's
+    # default profile; no-new-privileges still holds, and is repeated because a security_opt list replaces
+    # the anchor's rather than merging with it.
     cgroup: host
     security_opt:
+      - no-new-privileges:true
       - seccomp:unconfined
+    cap_add:
+      - SYS_ADMIN
+      - SYS_CHROOT
+      - SETUID
+      - SETGID
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - NET_ADMIN
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
       - judge-work:/var/lib/cms-learn/work
+    # isolate keeps its boxes and locks under /var/lib/isolate and /run/isolate; the boxes hold the compiled
+    # program that is executed, so that tree must allow exec.
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=256m
+      - /var/lib/isolate:rw,exec,nosuid,nodev,size=512m
+      - /run/isolate:rw,noexec,nosuid,nodev,size=64m
+    secrets:
+      - judge_db_password
     networks: [internal]          # no gateway: a submission cannot reach the internet
     deploy:
       resources:
         limits:
           cpus: "2.0"
           memory: 2g
+          pids: 512
     depends_on:
       database: { condition: service_healthy }
 
@@ -105,10 +170,26 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # The image's entrypoint starts as root to make the data directory belong to its own user, which is what
+    # the four capabilities below are for; the socket directory is a tmpfs created at start.
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - SETUID
+      - SETGID
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=32m
+      - /var/run/postgresql:rw,noexec,nosuid,nodev,size=32m,mode=1777
     # Bound to loopback only: the operator reaches it through an SSH tunnel, nothing else can.
     ports:
       - "127.0.0.1:5432:5432"
     networks: [internal]
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 2g
+          pids: 256
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cmslearn} -d ${POSTGRES_DB:-cmslearn}"]
       interval: 10s
@@ -128,7 +209,15 @@ services:
       - crowdsec-etc:/etc/crowdsec
       - caddy-logs:/var/log/caddy:ro
       - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.d/caddy.yaml:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
     networks: [edge]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256m
+          pids: 128
     healthcheck:
       test: ["CMD", "cscli", "lapi", "status"]
       interval: 30s
@@ -146,7 +235,15 @@ services:
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prom-data:/prometheus
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
     networks: [internal, edge]    # edge only to be scrapeable; nothing publishes it
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512m
+          pids: 128
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:9090/-/healthy"]
       interval: 30s
@@ -162,9 +259,17 @@ services:
       GF_AUTH_ANONYMOUS_ENABLED: "false"
     volumes:
       - grafana-data:/var/lib/grafana
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
     ports:
       - "127.0.0.1:3001:3000"     # loopback only; reach it through an SSH tunnel
     networks: [internal]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256m
+          pids: 256
     depends_on:
       prometheus: { condition: service_started }
 
@@ -177,6 +282,12 @@ services:
     volumes:
       - /:/host:ro,rslave
     networks: [internal]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.1"
+          memory: 64m
+          pids: 64
 
   backup:
     <<: *hardening
@@ -190,7 +301,15 @@ services:
       BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-7}
     volumes:
       - backups:/backups
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
     networks: [internal, edge]    # edge for the offsite sync, never for inbound
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128m
+          pids: 64
     depends_on:
       database: { condition: service_healthy }
 
@@ -211,7 +330,15 @@ services:
     volumes:
       - ../deploy/plan:/app/deploy/plan:ro
       - ../tools:/app/tools:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
     networks: [internal]
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256m
+          pids: 64
     depends_on:
       database: { condition: service_healthy }
 
@@ -229,6 +356,12 @@ services:
     expose: ["8333"]
     volumes:
       - objectdata:/data
+    # Its entrypoint drops from root to its own user, which is what the two capabilities are for.
+    cap_add:
+      - SETUID
+      - SETGID
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
     networks: [internal]
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9333/cluster/status"]
@@ -241,6 +374,7 @@ services:
         limits:
           cpus: "0.5"
           memory: 512m
+          pids: 256
 
 volumes:
   caddy-data:

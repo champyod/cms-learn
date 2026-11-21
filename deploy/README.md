@@ -71,9 +71,11 @@ name each one.
 | 3 | Network `internal` is `internal: true` | no gateway means no egress, enforced by the runtime |
 | 4 | `judge` is attached to internal networks only | a submission cannot fetch a payload or exfiltrate |
 | 5 | Every third-party image is pinned by digest, from `release.toml` | the thing tested is the thing that runs |
-| 6 | `no-new-privileges` everywhere; `judge` is the documented exception | `isolate` needs the host cgroup tree |
-| 7 | Caddy validates the Caddyfile **with the binary that will run it** | a config that only parses in the docs is not a config |
-| 8 | Prometheus config parses for the pinned Prometheus | same reason |
+| 6 | Every service runs with a read-only root filesystem, drops every capability, adds back exactly the ones its job needs, and sets `no-new-privileges` — the judge too, beside its documented seccomp exception | a service that can write its own rootfs can replace the binary it runs; Docker's default capability set is authority nobody asked for (ADR 0060) |
+| 7 | Every writable path inside a container is a named volume or a bounded tmpfs, and every bind mount is read-only except the judge's cgroup tree | a read-only rootfs with an unnamed writable directory is a promise, not a boundary |
+| 8 | Every service has a memory, CPU and process limit | one service's leak or fork bomb must not take the machine from the rest |
+| 9 | Caddy validates the Caddyfile **with the binary that will run it** | a config that only parses in the docs is not a config |
+| 10 | Prometheus config parses for the pinned Prometheus | same reason |
 
 ## First boot (one time, ~15 minutes)
 
@@ -127,8 +129,12 @@ sudo mkdir -p /sys/fs/cgroup/cms-learn-isolate
 # delegate to the container's cgroup, exactly as documented for the contest worker
 ```
 
-`judge` runs with `cgroup: host`, `seccomp:unconfined` and `/sys/fs/cgroup` mounted rw. That is the
-one place this stack loosens a default, and the reason ADR 0001 picked `isolate` over a microVM.
+`judge` runs with `cgroup: host`, `seccomp:unconfined` and `/sys/fs/cgroup` mounted rw, and it adds
+eight capabilities back for `isolate` (`SYS_ADMIN`, `SYS_CHROOT`, `SETUID`, `SETGID`, `CHOWN`,
+`DAC_OVERRIDE`, `FOWNER`, `NET_ADMIN`, each with its reason in ADR 0060); `database` adds the four and
+`objects` the two their entrypoints need, and every other service adds none. `no-new-privileges` still
+holds in the judge. That is the one place this stack loosens a default, and the reason ADR 0001 picked
+`isolate` over a microVM.
 
 ## Day-2 operations
 

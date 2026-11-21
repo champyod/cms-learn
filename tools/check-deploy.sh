@@ -16,6 +16,12 @@
 #   8. /admin is routed to the panel listener the host file names, and nothing else is
 #   9. the api image carries what it renders: the only thing mounted into it is its host file
 #  10. the Prometheus config is valid for the Prometheus version pinned in compose
+#  11. every service has a read-only root filesystem, drops every capability, adds back exactly the
+#      capabilities its own job needs, sets no-new-privileges, and has memory, CPU and process limits
+#  12. every writable path inside a container is a named volume or a bounded tmpfs, and every bind
+#      mount is read-only except the judge's cgroup tree
+#  13. the proxy binary carries no file capability, which a dropped bounding set would turn into an
+#      exec failure
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -118,16 +124,83 @@ for name, svc in services.items():
     if tag in ("latest", "<none>") and "@sha256:" not in image:
         errors.append(f"{name} image is not pinned: {image}")
 
-# 6: privilege escalation
+# 6, 11 + 12: every container is hardened. The two tables below are the contract, not a description of the
+# file: a service missing from a table fails as loudly as one whose row changed, so a new service cannot join
+# the stack without someone deciding why it needs what it asks for. ADR 0060 carries the reasoning per row.
+CAP_ADD = {
+    "api": set(),
+    "backup": set(),
+    "crowdsec": set(),
+    "database": {"CHOWN", "DAC_OVERRIDE", "SETGID", "SETUID"},
+    "grafana": set(),
+    "judge": {"CHOWN", "DAC_OVERRIDE", "FOWNER", "NET_ADMIN", "SETGID", "SETUID", "SYS_ADMIN", "SYS_CHROOT"},
+    "node-exporter": set(),
+    "objects": {"SETGID", "SETUID"},
+    "prometheus": set(),
+    "proxy": set(),
+    "schema": set(),
+}
+WRITABLE_PATHS = {
+    "api": {"/tmp"},
+    "backup": {"/backups", "/tmp"},
+    "crowdsec": {"/etc/crowdsec", "/tmp", "/var/lib/crowdsec/data"},
+    "database": {"/tmp", "/var/lib/postgresql/data", "/var/run/postgresql"},
+    "grafana": {"/tmp", "/var/lib/grafana"},
+    "judge": {"/run/isolate", "/sys/fs/cgroup", "/tmp", "/var/lib/cms-learn/work", "/var/lib/isolate"},
+    "node-exporter": set(),
+    "objects": {"/data", "/tmp"},
+    "prometheus": {"/prometheus", "/tmp"},
+    "proxy": {"/config", "/data", "/tmp", "/var/log/caddy"},
+    "schema": {"/tmp"},
+}
+
+for name in sorted(set(services) - set(CAP_ADD)):
+    errors.append(f"{name} has no row in the hardening table — a service cannot join the stack unexplained")
+for name in sorted(set(CAP_ADD) - set(services)):
+    errors.append(f"the hardening table names {name}, which no service defines")
+
 for name, svc in services.items():
-    opts = svc.get("security_opt") or []
-    escalates = not any(str(o).startswith("no-new-privileges") for o in opts)
-    if escalates and name != "judge":
+    if name not in CAP_ADD:
+        continue
+    if svc.get("read_only") is not True:
+        errors.append(f"{name} runs on a writable root filesystem; read_only: true is the rule")
+    dropped = [str(cap).upper() for cap in (svc.get("cap_drop") or [])]
+    if dropped != ["ALL"]:
+        errors.append(f"{name} does not drop every capability: cap_drop is {dropped or 'unset'}")
+    added = {str(cap).upper() for cap in (svc.get("cap_add") or [])}
+    if added != CAP_ADD[name]:
+        errors.append(
+            f"{name} adds back {', '.join(sorted(added)) or 'nothing'} but its job needs "
+            f"{', '.join(sorted(CAP_ADD[name])) or 'nothing'}"
+        )
+    options = [str(option) for option in (svc.get("security_opt") or [])]
+    if "no-new-privileges:true" not in options:
         errors.append(f"{name} does not set no-new-privileges:true")
-if "seccomp:unconfined" in json.dumps(services.get("judge", {})):
-    pass  # documented, required by isolate
-else:
-    errors.append("judge does not document its seccomp exception")
+    loosens_seccomp = any(option.startswith("seccomp:") for option in options)
+    if name == "judge" and "seccomp:unconfined" not in options:
+        errors.append("judge does not document its seccomp exception")
+    if name != "judge" and loosens_seccomp:
+        errors.append(f"{name} loosens seccomp; only the judge's sandbox has a reason")
+    limits = ((svc.get("deploy") or {}).get("resources") or {}).get("limits") or {}
+    for field, label in (("memory", "memory"), ("cpus", "CPU"), ("pids", "process")):
+        try:
+            amount = float(limits.get(field))
+        except (TypeError, ValueError):
+            amount = 0
+        if amount <= 0:
+            errors.append(f"{name} sets no {label} limit")
+    writable = set()
+    for volume in svc.get("volumes") or []:
+        if not volume.get("read_only"):
+            writable.add(str(volume.get("target")))
+    for mount in svc.get("tmpfs") or []:
+        writable.add(str(mount).split(":", 1)[0])
+    if writable != WRITABLE_PATHS[name]:
+        errors.append(
+            f"{name}'s writable paths are {sorted(writable) or 'none'}, but the container writes "
+            f"{sorted(WRITABLE_PATHS[name]) or 'nowhere'} — every path it writes must be a volume or a tmpfs, "
+            "and every bind mount must be read-only"
+        )
 
 # 7: the api carries what it renders. The one bind mount it may have is the operator's own configuration; a
 # template, a stylesheet or the settings catalogue inside the container must come from the image, or the thing
@@ -145,12 +218,22 @@ if errors:
     for e in errors:
         print(f"  - {e}", file=sys.stderr)
     sys.exit(1)
-print(f"  {len(services)} services, exposure and isolation invariants hold")
+print(f"  {len(services)} services: exposure, isolation and hardening invariants hold")
 PY
 
 note "caddy validates the Caddyfile with the modules it will run"
 proxy_image="cms-learn-proxy:gate"
 docker build -q -t "$proxy_image" "$deploy/proxy" >/dev/null || fail "proxy image did not build"
+
+# 13: a file capability is not in the container's bounding set once every capability is dropped, and the
+# kernel refuses to exec a binary carrying one outside it. The proxy's job needs no capability, so the
+# binary must carry none either; a green compose cannot save a container that cannot start.
+file_caps="$(docker run --rm --entrypoint /usr/sbin/getcap "$proxy_image" /usr/bin/caddy)" \
+  || fail "could not read the proxy binary's file capabilities"
+[ -z "$file_caps" ] \
+  || fail "the proxy binary carries file capabilities ($file_caps); with cap_drop: [ALL] it cannot be executed"
+note "the proxy binary carries no file capability"
+
 docker run --rm --entrypoint caddy \
   -e DOMAIN=learn.example.com -e ACME_EMAIL=ops@example.com -e CROWDSEC_API_KEY=gate-only-key \
   -v "$deploy/Caddyfile:/etc/caddy/Caddyfile:ro" "$proxy_image" \

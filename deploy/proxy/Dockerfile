@@ -19,6 +19,13 @@ RUN caddy list-modules | grep -q 'http.handlers.crowdsec' \
  && caddy list-modules | grep -q 'http.handlers.rate_limit' \
  && caddy version
 
+# The base image marks the binary with cap_net_bind_service so it can bind 80/443. This image runs
+# unprivileged on mapped ports and compose drops every capability; a file capability outside the
+# container's bounding set makes exec itself fail, so the capability the design does not use is
+# removed here rather than granted back to every proxy container.
+RUN setcap -r /usr/bin/caddy \
+ && [ -z "$(getcap /usr/bin/caddy)" ]
+
 # The stock image has no user and runs as root. A process that terminates TLS for the whole site has
 # no business doing it as uid 0: it only needs its own config, certs and log directory.
 # Ports below 1024 are unprivileged-mapped in compose instead (80→8080, 443→8443), precisely so this
