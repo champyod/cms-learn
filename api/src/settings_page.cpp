@@ -1,5 +1,7 @@
 #include <cms/api/settings_page.hpp>
 
+#include <cms/api/settings_catalogue.hpp>
+
 #include <algorithm>
 #include <string>
 #include <string_view>
@@ -55,6 +57,9 @@ auto settings_model(const Locale& locale, std::string_view site_name,
     -> nlohmann::json {
   auto groups = std::vector<std::string>{};
   for (const auto& setting : settings) {
+    if (!is_implemented(setting.key)) {
+      continue;
+    }
     const auto group = group_of(setting.key);
     if (std::find(groups.begin(), groups.end(), group) == groups.end()) {
       groups.push_back(group);
@@ -78,8 +83,25 @@ auto settings_model(const Locale& locale, std::string_view site_name,
     data["groups"].push_back({{"key", group}});
   }
 
-  data["settings"] = nlohmann::json::array();
+  // Only a setting a service reads is offered (ADR 0054 §5): the catalogue lists 109 and the platform reads 17, and a
+  // field whose edit changes nothing is a promise the platform cannot keep. The unread ones are recorded in the record, not
+  // shown with a warning: a warning still offers them.
+  auto offered = std::vector<VisibleSetting>{};
   for (const auto& setting : settings) {
+    if (is_implemented(setting.key)) {
+      offered.push_back(setting);
+    }
+  }
+
+  data["counts"] = {{"catalogued", static_cast<int>(settings.size())},
+                    {"offered", static_cast<int>(offered.size())}};
+  data["unread_note"] = pick(locale,
+                             "Only the settings the system reads are offered. The rest are catalogued and unread, and are "
+                             "recorded rather than shown.",
+                             "แสดงเฉพาะค่าที่ระบบอ่านจริง ค่าที่เหลืออยู่ในสารบัญแต่ยังไม่มีใครอ่าน จึงบันทึกไว้แทนการแสดง");
+
+  data["settings"] = nlohmann::json::array();
+  for (const auto& setting : offered) {
     if (group_of(setting.key) != active) {
       continue;
     }
@@ -88,10 +110,15 @@ auto settings_model(const Locale& locale, std::string_view site_name,
     // leaves the row (ADR 0054 §4).
     const auto shown = is_secret ? (setting.value == REDACTED_MARK ? std::string{SEALED_MARK} : std::string{})
                                  : setting.value;
+    const auto reload = setting.reload;
     data["settings"].push_back({{"key", setting.key},
                                 {"tier", setting.tier},
                                 {"description", setting.key},
-                                {"value", shown}});
+                                {"value", shown},
+                                {"scope", setting_scope(setting.key)},
+                                {"permission", setting_permission(setting.tier)},
+                                {"effect", setting_effect(reload)},
+                                {"sealed", is_secret}});
   }
   return data;
 }

@@ -21,6 +21,8 @@ struct VisibleSetting {
   /// The stored value, or the redaction marker when the tier is secret. Defaulted so a caller can build the
   /// first three fields at once and fill the value afterwards.
   std::string value{};
+  /// `hot` or `restart`, carried from the catalogue so the page can state what a change costs (ADR 0054 §3).
+  std::string reload{};
 };
 
 /// @brief The catalogue: every key the build knows, with its kind, tier and reload class.

@@ -75,7 +75,7 @@ auto visible_settings(const std::vector<CatalogueEntry>& catalogue, const Settin
   visible.reserve(catalogue.size());
 
   for (const auto& entry : catalogue) {
-    auto shown = VisibleSetting{.key = entry.key, .kind = entry.kind, .tier = entry.tier};
+    auto shown = VisibleSetting{.key = entry.key, .kind = entry.kind, .tier = entry.tier, .reload = entry.reload};
     if (entry.tier == SECRET_TIER) {
       // The value is not read at all. Redacting after reading would leave the plaintext in this frame for
       // the rest of the call, and one early return away from being logged.

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Posts a settings form through the real route and checks what it wrote, and what it refused.
 #
-# The settings page renders one field per catalogued key and posts them all, so the route is exercised the
-# way a browser posts it: cookie in, form body in, row out. It skips (exit 77) when the PostgreSQL server
+# The settings page renders one field per *offered* key — the ones a service actually reads (ADR 0054 §5) — and each
+# field states its scope, who may change it, what a change costs and whether it is stored sealed. The route is exercised
+# the way a browser posts it: cookie in, form body in, row out. It skips (exit 77) when the PostgreSQL server
 # binaries are not installed.
 set -uo pipefail
 
@@ -141,6 +142,29 @@ esac
 case "$page" in
   *hunter2*) bad "the settings page renders no part of the secret" "the page repeats hunter2" ;;
   *) ok "the settings page renders no part of the secret" ;;
+esac
+
+# The page offers only what a service reads and states what each change costs (ADR 0054 §5).
+page_site="$(curl -s --max-time 20 -H "Cookie: cms_session=$writer_session" "http://127.0.0.1:$listen_port/settings?group=site")"
+case "$page_site" in
+  *'name="site.name"'*) ok "a setting a service reads is offered" ;;
+  *) bad "a setting a service reads is offered" "site.name is missing" ;;
+esac
+case "$page_site" in
+  *'name="site.tagline"'*) bad "a catalogued-but-unread setting is not offered" "site.tagline is on the page" ;;
+  *) ok "a catalogued-but-unread setting is not offered" ;;
+esac
+missing="$(printf '%s' "$page_site" | python3 -c '
+import re, sys
+html = sys.stdin.read()
+rows = re.findall(r"<p class=\"mb-1 text-xs opacity-70\"([^>]*)>", html)
+print(sum(1 for r in rows if not all(a in r for a in ("data-scope=", "data-permission=", "data-effect=", "data-sealed="))))
+')"
+[ "$missing" = "0" ] && [ -n "$page_site" ] && ok "every offered setting states its scope, permission, effect and whether it is sealed" \
+  || bad "every offered setting states its scope, permission, effect and whether it is sealed" "$missing row(s) short a fact"
+case "$page_site" in
+  *"takes effect immediately"*|*"after the api service restarts"*) ok "a change states what it costs before it is made" ;;
+  *) bad "a change states what it costs before it is made" "no effect sentence on the page" ;;
 esac
 
 tier="$(psql_db -c "SELECT tier FROM settings WHERE key = 'mail.password'")"

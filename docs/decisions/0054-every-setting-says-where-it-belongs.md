@@ -57,3 +57,25 @@ for visible content already forbids it — *never render a placeholder a reader 
 - **One permission level with a reload badge.** An operator without the right role could change a lockout, and
   a restart would still be discovered after the fact.
 - **Removing only the non-system entries.** It fixes the classification and leaves the secrets in plain text.
+
+## 6. Amendment, 2026-11-21 — the page offers what works, and says what a change costs
+
+The catalogue is not the platform. `deploy/catalogue/settings.json` declares **109** keys; the tree reads **17** of them
+(the grep that decides it excludes the catalogue itself, the tests and the docs). The other 92 are declarations of intent,
+and offering one on `/settings` promised an effect the platform does not have — an operator changes `site.tagline` and
+nothing anywhere reads it.
+
+So the page offers only the 17, from the one list in `api/include/cms/api/settings_catalogue.hpp`, and each row states the
+four facts §1 requires plus the cost of the change in the operator's words:
+
+| Fact | Where it comes from |
+|---|---|
+| scope | the key's prefix — `site`, `identity`, `mail` — the same groups the tabs already use |
+| who may change it | the capability the route already enforces, `settings:write` (a secret also needs `settings:secret_write`) |
+| how it takes effect | the catalogue's `reload`: `hot` → "takes effect immediately"; `restart` → "takes effect after the api service restarts; the running service keeps the old value until then" |
+| whether it is sealed | the catalogue's `secret` tier; the page renders `sealed` and never the value |
+
+The unread 92 are recorded here rather than shown with a warning, because a warning still offers them. A key that gains a
+reader is added to that list in the same change that reads it; a key whose reader is deleted is removed from it, and
+`api/tests/settings_route_test.sh` holds the page to the list in both directions — `site.tagline` must not be offered,
+`site.name` must be, and every offered row must carry all of its facts.

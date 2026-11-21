@@ -38,10 +38,11 @@ auto render(std::string_view template_name, const nlohmann::json& model)
 
 auto sample_settings() -> std::vector<cms::api::VisibleSetting> {
   return {
-      {.key = "site.name", .kind = "text", .tier = "public", .value = "CMS Learn"},
-      {.key = "site.maintenance_mode", .kind = "bool", .tier = "operator", .value = "false"},
-      {.key = "mail.host", .kind = "text", .tier = "operator", .value = "smtp.example.org"},
-      {.key = "mail.password", .kind = "text", .tier = "secret", .value = "<redacted>"},
+      {.key = "site.name", .kind = "text", .tier = "public", .value = "CMS Learn", .reload = "hot"},
+      // Catalogued and read by nothing, so the page must not offer it (ADR 0054 §6).
+      {.key = "site.maintenance_mode", .kind = "bool", .tier = "operator", .value = "false", .reload = "hot"},
+      {.key = "mail.host", .kind = "text", .tier = "operator", .value = "smtp.example.org", .reload = "hot"},
+      {.key = "mail.password", .kind = "text", .tier = "secret", .value = "<redacted>", .reload = "restart"},
   };
 }
 
@@ -94,7 +95,8 @@ TEST_CASE("the settings model renders one group and marks every secret value sea
   REQUIRE(model["groups"].size() == 2);
   CHECK(model["groups"][0]["key"] == "site");
   CHECK(model["groups"][1]["key"] == "mail");
-  REQUIRE(model["settings"].size() == 2);
+  // Only the offered ones: site.maintenance_mode is catalogued and unread, so it is not in this group.
+  REQUIRE(model["settings"].size() == 1);
   CHECK(model["settings"][0]["key"] == "site.name");
 
   const auto mail = cms::api::settings_model(locale, "CMS Learn", sample_settings(), "mail");
@@ -104,6 +106,27 @@ TEST_CASE("the settings model renders one group and marks every secret value sea
   CHECK(mail["settings"][1]["tier"] == "secret");
   // A secret is write-only: the page says it is stored and sealed, and the value itself never arrives here.
   CHECK(mail["settings"][1]["value"] == "sealed");
+}
+
+TEST_CASE("the settings model offers only what a service reads, and states what a change costs", "[web][unit]") {
+  const auto locale = cms::api::choose_locale("en", "");
+  const auto model = cms::api::settings_model(locale, "CMS Learn", sample_settings(), "site");
+  // site.name is read by the page itself; site.tagline is catalogued and read by nothing, so it is not offered (ADR 0054 §6).
+  REQUIRE(model["settings"].size() == 1);
+  CHECK(model["settings"][0]["key"] == "site.name");
+  CHECK(model["settings"][0]["scope"] == "site");
+  CHECK(model["settings"][0]["permission"] == "settings:write");
+  CHECK(model["settings"][0]["effect"] == "takes effect immediately");
+  CHECK(model["settings"][0]["sealed"] == false);
+  CHECK(model["counts"]["catalogued"] == 4);
+  CHECK(model["counts"]["offered"] == 3);
+
+  const auto mail = cms::api::settings_model(locale, "CMS Learn", sample_settings(), "mail");
+  REQUIRE(mail["settings"].size() == 2);
+  CHECK(mail["settings"][1]["sealed"] == true);
+  CHECK(mail["settings"][1]["scope"] == "mail");
+  CHECK(mail["settings"][1]["permission"] == "settings:secret_write");
+  CHECK(mail["settings"][1]["effect"] == "takes effect after the api service restarts; the running service keeps the old value until then");
 }
 
 TEST_CASE("an unknown group falls back to the first group", "[web][unit]") {
