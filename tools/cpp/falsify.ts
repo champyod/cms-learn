@@ -134,7 +134,17 @@ const CLEAN_EXAMPLES = { input: "3\n", output: "3\n" };
 // root CMakeLists and not to this list, so every staged tree died at configure, and `content/` and
 // `deploy/catalogue/` were missing, so thirty-three data-backed tests failed for want of their files.
 const STAGED_CONFIG = ["CMakeLists.txt", "CMakePresets.json", ".clang-tidy", "cmake", "vcpkg-ports"];
-const STAGED_DATA = ["content", "deploy"];
+
+/**
+ * The data a staged tree carries besides its sources.
+ *
+ * The staging rule: a staged tree must hold every directory the cases it runs reach for, because a case that cannot find
+ * one either excludes itself or fails for the missing directory instead of for the defect it exists to catch — an
+ * unanswered question wearing a pass. So the list is the full set of static data the suite reads: the content the gates
+ * load, the deployment the deploy cases parse, and the tools the e2e cases invoke by path. A new case that needs a new
+ * directory adds it here, and `stagedEntries` refuses to stage a tree when a listed directory is missing.
+ */
+const STAGED_DATA = ["content", "deploy", "tools"];
 
 function stagedEntries(repo: string): string[] {
   const rootLists = join(repo, "CMakeLists.txt");
@@ -518,7 +528,9 @@ function baselineExclusion(root: string, work: string): string {
     return "";
   }
   console.log(
-    `baseline      ${failed.length} test(s) fail in a staged tree and are excluded by name — this run does not prove: ${failed.join(", ")}`,
+    `baseline      ${failed.length} test(s) fail in a staged tree and are excluded by name — this run does not prove: ${failed.join(", ")}` +
+      `\n              excluded because a staged tree carries no database and no docker socket, so a case that needs either\n` +
+      `              cannot state a verdict — each is named above rather than counted as a pass`,
   );
   return failed.map(escapeForCtest).join("|");
 }
