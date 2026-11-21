@@ -31,6 +31,7 @@ step "schema" bun run check:schema
 step "content" bun run validate
 step "vocabulary" bash -c 'bun run vocab:build && bun run vocab:gate'
 step "references" bun run check:references
+step "feature registry" bun run check:registry
 
 # The build and every case that runs against it, without the static analysis the full tier adds.
 step "cpp build, unit, live and end-to-end cases" bun run check:cpp:fast

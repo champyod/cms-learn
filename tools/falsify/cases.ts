@@ -9,6 +9,7 @@ import { JUDGE_GATE } from "./cases/judge.ts";
 import { LIVE_GATE } from "./cases/live.ts";
 import { PM_GATE } from "./cases/pm.ts";
 import { REFERENCES_GATE } from "./cases/references.ts";
+import { REGISTRY_GATE } from "./cases/registry.ts";
 import { SCHEMA_GATE } from "./cases/schema.ts";
 import { SECURITY_GATE } from "./cases/security.ts";
 import { STACK_GATE } from "./cases/stack.ts";
@@ -21,6 +22,7 @@ export const GATES: readonly Gate[] = [
   BRIEF_LEAK_GATE,
   ALGO_LEAK_GATE,
   REFERENCES_GATE,
+  REGISTRY_GATE,
   SCHEMA_GATE,
   STACK_GATE,
   DEPLOY_GATE,

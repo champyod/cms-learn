@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **50 shipped · 5 partial · 9 planned** (64 features).
+Counts at last update: **52 shipped · 5 partial · 7 planned** (64 features).
 
 ---
 
@@ -75,7 +75,7 @@ Counts at last update: **50 shipped · 5 partial · 9 planned** (64 features).
 |---|---|---|---|---|
 | F-032 | A task's fields are data: a task type and its fields are rows, so a new field or type needs no rebuild | A | ● | `deploy/schema/fields.sql`, `content/task_types.json`, `bank/src/seed.cpp`; `docs/decisions/0024-task-fields-are-data.md` |
 | F-033 | The authoring form is generated from those rows: adding a row adds a question, deleting one removes it, and nothing outside the type's fields can be written | A | ● | `api/src/task_plan.cpp`, `api/src/admin_routes.cpp`, `design/pages/admin_task_form.tsx`, `api/tests/task_form_e2e.sh` |
-| F-042 | A task's bytes live in object storage, the row holds the key, and a missing object is a refusal naming it at both doors, never empty content | C | ● | `core/src/object_store.cpp`, `api/src/admin_routes.cpp` (502 naming the key), `bank/src/seed.cpp` (`verify_objects` before any write), `tools/check-objects.sh`; the store requires a credential (`docs/decisions/0026`) |
+| F-042 | A task's bytes live in object storage, the row holds the key, and a missing object is a refusal naming it at both doors, never empty content | C | ● | `core/src/object_store.cpp`, `api/src/admin_routes.cpp` (502 naming the key), `bank/src/seed.cpp` (`verify_objects` before any write), `tools/check-objects.sh`; the store requires a credential (`docs/decisions/0026-object-store-requires-a-key.md`) |
 
 ## Accounts and security
 
@@ -98,7 +98,7 @@ Counts at last update: **50 shipped · 5 partial · 9 planned** (64 features).
 | F-060 | CI running every gate and every falsification on each push | C | ● | `.github/workflows/ci.yml` — jobs `content`, `references`, `deploy-contract`, `security`, `gates`, `cpp-fast`, `cpp-full`. Every script name the workflow uses exists in `package.json` (checked: 40 named, 0 missing), and `check:render` now has one |
 | F-061 | Containerised stack (compose), no host installs | C | ● | `deploy/docker-compose.yml` — 10 services, contract asserted by `tools/check-deploy.sh` |
 | F-062 | Ingress and TLS | C | ● | `deploy/Caddyfile` + `deploy/proxy/Dockerfile` — Caddy 2.11.7, auto-ACME, HSTS, per-IP rate limits; `caddy validate` run inside the built image |
-| F-063 | Backups with a restore drill | A | ● | `deploy/backup/run.sh`, `restore-drill.sh` — verified end to end against Postgres 18.6 (250 users / 1000 submissions restored, live DB untouched) |
+| F-063 | Backups with a restore drill | A | ● | `deploy/backup/run.sh`, `deploy/backup/restore-drill.sh` — verified end to end against Postgres 18.6 (250 users / 1000 submissions restored, live DB untouched) |
 | F-064 | Observability: judge queue depth, submission latency, error rate | C | ◐ | `/metrics` exists on the api only (`api/src/main.cpp`); the judge has none, and queue depth/latency/error-rate are not exposed |
 | F-065 | Image and dependency CVE scanning | C | ● | `tools/security-scan.sh` — Trivy 0.66.0 for secrets, fixable CVEs and deployment hardening; `tools/falsify/cases/security.ts` catches 3 planted defects and keeps a clean file green |
 | F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | C | ○ | ADR 0001 §1 |

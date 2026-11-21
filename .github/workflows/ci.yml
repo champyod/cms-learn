@@ -52,6 +52,9 @@ jobs:
       - name: content integrity
         run: bun run validate
 
+      - name: feature registry — every cited path and ADR resolves
+        run: bun run check:registry
+
       # Manual runs can force the red path, so the notification job is exercised on purpose rather
       # than only ever skipped on green runs.
       - name: simulated failure (manual runs only)
@@ -64,6 +67,10 @@ jobs:
       - name: gate falsifiability
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: bun run validate:falsify
+
+      - name: registry gate falsifiability
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: bun run check:registry:falsify
 
   references:
     name: reference solutions

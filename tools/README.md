@@ -1,6 +1,6 @@
 # Tools — one job per language
 
-Sixty-eight files under `tools/`: thirty-seven shell, thirty-one TypeScript. C++ owns a fourth kind of
+Seventy files under `tools/`: thirty-seven shell, thirty-three TypeScript. C++ owns a fourth kind of
 work and owns no file here. The three rows below say which language does which job, and every file in
 the inventory maps to exactly one of them.
 
@@ -59,6 +59,7 @@ tool and is not counted.
 | `tools/check-live.sh` | shell | 151 | assertion | gate — every `[live]` case runs against a scratch cluster, and selecting nothing fails |
 | `tools/check-pm.sh` | shell | 57 | assertion | gate — exactly one lockfile, and it is `bun.lock` |
 | `tools/check-publish.sh` | shell | 89 | assertion | gate — a draft becomes published only through machine evidence |
+| `tools/check-registry.ts` | typescript | 206 | assertion | gate — every cited path and ADR in FEATURES.md resolves, and its counts line matches the rows |
 | `tools/check-references.sh` | shell | 82 | assertion | gate — every reference builds at `-O2` under `-Werror` and reproduces its examples |
 | `tools/check-render.sh` | shell | 148 | assertion | gate — the front page and an asset render from the shipped bank, and a missing template fails `/` |
 | `tools/check-scaffold.sh` | shell | 138 | assertion | gate — headers compile standalone, manifests match overlay ports, then the defect is planted |
@@ -81,6 +82,7 @@ tool and is not counted.
 | `tools/falsify/cases/live.ts` | typescript | 24 | orchestration | the live gate's 1 defect: the `[live]` tag selects nothing |
 | `tools/falsify/cases/pm.ts` | typescript | 23 | orchestration | the package-manager gate's 2 defects plus the untouched control |
 | `tools/falsify/cases/references.ts` | typescript | 33 | orchestration | the reference gate's 4 defects plus the control |
+| `tools/falsify/cases/registry.ts` | typescript | 60 | orchestration | the registry gate's 4 defects plus the control |
 | `tools/falsify/cases/schema.ts` | typescript | 66 | orchestration | the schema gate's 6 defects plus the control |
 | `tools/falsify/cases/security.ts` | typescript | 62 | orchestration | the scan's 3 planted defects plus the clean control |
 | `tools/falsify/cases/stack.ts` | typescript | 57 | orchestration | the stack gate's 6 defects plus the control |
@@ -117,8 +119,8 @@ tool and is not counted.
 | Language | Files | Lines |
 |---|---|---|
 | shell | 37 | 3 656 |
-| typescript | 31 | 3 711 |
-| total | 68 | 7 367 |
+| typescript | 33 | 3 977 |
+| total | 70 | 7 633 |
 
 ## Gates and falsifiers
 
@@ -137,6 +139,7 @@ Every `check:` gate except `check:catalogue` and `check:isolation` has a falsifi
 | `validate` | `validate:falsify` — `tools/falsify/cases/content.ts`, `bun run tools/falsify/runner.ts content` |
 | `check:schema` | `check:schema:falsify` — `tools/falsify/cases/schema.ts`, `bun run tools/falsify/runner.ts schema` |
 | `check:references` | `check:references:falsify` — `tools/falsify/cases/references.ts`, `bun run tools/falsify/runner.ts references` |
+| `check:registry` | `check:registry:falsify` — `tools/falsify/cases/registry.ts`, `bun run tools/falsify/runner.ts registry` |
 | `check:stack` | `check:stack:falsify` — `tools/falsify/cases/stack.ts`, `bun run tools/falsify/runner.ts stack` |
 | `check:deploy` | `check:deploy:falsify` — `tools/falsify/cases/deploy.ts`, `bun run tools/falsify/runner.ts deploy` |
 | `check:upgrade` | `check:upgrade:falsify` — `tools/falsify/cases/upgrade.ts`, `bun run tools/falsify/runner.ts upgrade` |
