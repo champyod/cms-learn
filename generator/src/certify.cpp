@@ -625,12 +625,17 @@ struct Example {
   std::string expected;
 };
 
-/// @return The reference file's name as the task's own `task.json` names it, so a refusal points at the file an author
-/// edits rather than at a row column.
-auto reference_path_of(const std::filesystem::path& task_root) -> std::string {
+/// @return The reference's path exactly as the task's own `task.json` declares it under
+/// `verification.reference_solution`, which is the key the content schema carries.
+///
+/// A refusal that names a file the task does not ship sends its reader to a path that is not there, so a task that
+/// declares no reference is refused by name here rather than guessed at.
+auto reference_path_of(const std::filesystem::path& task_root) -> Result<std::string> {
   auto stream = std::ifstream{task_root / "task.json", std::ios::binary};
   if (!stream) {
-    return "solution.cpp";
+    return std::unexpected(Error::make(ErrorCode::not_found,
+                                       "task " + task_root.filename().string() + " ships no task.json, so the file its "
+                                       "reference comes from cannot be named"));
   }
   auto buffer = std::ostringstream{};
   buffer << stream.rdbuf();
@@ -638,11 +643,16 @@ auto reference_path_of(const std::filesystem::path& task_root) -> std::string {
   auto parser = simdjson::dom::parser{};
   auto document = simdjson::dom::element{};
   if (parser.parse(json).get(document) != simdjson::SUCCESS) {
-    return "solution.cpp";
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "task " + task_root.filename().string() + " has a task.json that does not parse, "
+                                       "so the file its reference comes from cannot be named"));
   }
   auto named = std::string_view{};
-  if (document["reference"].get_string().get(named) != simdjson::SUCCESS) {
-    return "solution.cpp";
+  if (document["verification"]["reference_solution"].get_string().get(named) != simdjson::SUCCESS) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "task " + task_root.filename().string() +
+                                           " declares no verification.reference_solution, so the file its reference "
+                                           "comes from cannot be named"));
   }
   return std::string{named};
 }
@@ -730,7 +740,11 @@ auto certify_task(cms::db::connection& database, const std::filesystem::path& co
   const auto time_limit_ms = limit.peak_memory_kb;
   const auto memory_limit_mb = limit.time_ms;
   const auto task_root = std::filesystem::path{content_root} / "tasks" / std::string{task_id};
-  const auto reference = reference_path_of(task_root);
+  const auto declared_reference = reference_path_of(task_root);
+  if (!declared_reference) {
+    return std::unexpected(declared_reference.error());
+  }
+  const auto reference = *declared_reference;
 
   const auto examples = examples_of(task_root);
   if (!examples) {

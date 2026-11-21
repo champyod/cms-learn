@@ -886,6 +886,9 @@ TEST_CASE("a task cannot be published without a verified certificate", "[certify
 namespace {
 
 /// A hand-written task's content on disk: its task.json, one reference and one example, in a scratch root the test owns.
+/// The path the fixture's task.json declares under verification.reference_solution.
+constexpr auto DECLARED_REFERENCE = std::string_view{"solutions/main.cpp"};
+
 constexpr auto HAND_REFERENCE = std::string_view{"#include <cstdio>\nint main() { long long n = 0; if (scanf(\"%lld\", &n) != 1) return 1; "
                                                  "printf(\"%lld\\n\", n * 2); return 0; }"};
 constexpr auto HAND_WRONG = std::string_view{"#include <cstdio>\nint main() { printf(\"0\\n\"); return 0; }"};
@@ -897,8 +900,12 @@ auto hand_written_root(const std::filesystem::path& scratch, std::string_view ta
                        std::string_view reference) -> std::filesystem::path {
   const auto task_root = scratch / "tasks" / std::string{task_id};
   std::filesystem::create_directories(task_root / "examples");
-  std::ofstream{task_root / "task.json"} << R"({"id": ")" << task_id << R"(", "reference": "solution.cpp"})";
-  std::ofstream{task_root / "solution.cpp"} << reference;
+  std::filesystem::create_directories(task_root / "solutions");
+  // The key the content schema carries, and the path it names: a refusal must point at this file, not at a default.
+  std::ofstream{task_root / "task.json"} << R"({"id": ")" << task_id
+                                         << R"(", "verification": {"reference_solution": ")" << DECLARED_REFERENCE
+                                         << R"("}})";
+  std::ofstream{task_root / DECLARED_REFERENCE} << reference;
   std::ofstream{task_root / "examples" / "1.in"} << "2\n";
   std::ofstream{task_root / "examples" / "1.out"} << "4\n";
   return scratch;
@@ -977,7 +984,7 @@ TEST_CASE("a hand-written task whose reference is wrong or too slow refuses by n
   const auto wrong_root = hand_written_root(scratch, wrong_id, HAND_WRONG);
   const auto wrong = cms::generate::certify_task(database, wrong_root, wrong_id, 1, COMMIT);
   REQUIRE(!wrong.has_value());
-  CHECK(wrong.error().message.find("solution.cpp") != std::string::npos);
+  CHECK(wrong.error().message.find(DECLARED_REFERENCE) != std::string::npos);
   CHECK(wrong.error().message.find("1.in") != std::string::npos);
 
   // A reference that answers correctly but needs more than half the declared time is refused for the measurement it
@@ -992,9 +999,38 @@ TEST_CASE("a hand-written task whose reference is wrong or too slow refuses by n
     UNSCOPED_INFO(slow.error().message);
   }
   REQUIRE(!slow.has_value());
-  CHECK(slow.error().message.find("solution.cpp") != std::string::npos);
+  CHECK(slow.error().message.find(DECLARED_REFERENCE) != std::string::npos);
   CHECK(slow.error().message.find("above the") != std::string::npos);
   // No certificate was written for either, so neither task can be published.
   CHECK(verification_of(database, wrong_id) == "pending");
   CHECK(verification_of(database, slow_id) == "pending");
+}
+
+TEST_CASE("a refusal names the reference file the task declares", "[certify][live]") {
+  if (!cms::generate::test::has_live_database()) {
+    SKIP("CMSLEAN_TEST_DSN is not set");
+  }
+  auto database = cms::generate::test::live_database();
+  const auto scratch = cms::testing::scratch_directory("certify-declared");
+  const auto task_id = std::string{"hand-written-declared"};
+  given_hand_written(database, task_id, HAND_WRONG);
+  const auto root = hand_written_root(scratch, task_id, HAND_WRONG);
+
+  const auto refused = cms::generate::certify_task(database, root, task_id, 1, COMMIT);
+  REQUIRE(!refused.has_value());
+  // The name comes from verification.reference_solution, so it equals the declared path exactly, and the default the
+  // code used to fall back to never appears.
+  CHECK(refused.error().message.find(std::string{DECLARED_REFERENCE}) != std::string::npos);
+  CHECK(refused.error().message.find("solution.cpp") == std::string::npos);
+
+  // A task that declares no reference is refused for that, by name, rather than certified against a guessed file.
+  const auto undeclared_id = std::string{"hand-written-undeclared"};
+  given_hand_written(database, undeclared_id, HAND_REFERENCE);
+  const auto undeclared_root = hand_written_root(scratch, undeclared_id, HAND_REFERENCE);
+  auto task_file = std::ofstream{undeclared_root / "tasks" / undeclared_id / "task.json"};
+  task_file << R"({"id": ")" << undeclared_id << R"(", "verification": {}})";
+  task_file.close();
+  const auto undeclared = cms::generate::certify_task(database, undeclared_root, undeclared_id, 1, COMMIT);
+  REQUIRE(!undeclared.has_value());
+  CHECK(undeclared.error().message.find("declares no verification.reference_solution") != std::string::npos);
 }
