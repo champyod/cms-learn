@@ -19,9 +19,21 @@ build="${3:-$repo/build/safety}"
 . "$repo/tools/postgres-cluster.sh"
 
 pg_cluster_binaries
-for tool in initdb pg_ctl psql g++ ar; do
+for tool in initdb pg_ctl psql ar; do
   command -v "$tool" >/dev/null 2>&1 || { echo "  skipped: $tool is not installed"; exit 77; }
 done
+
+# The compiler is asked for, not assumed: the pinned image keeps GCC 16 under /usr/local/bin while a host layout keeps it
+# under /usr/bin, and a gate that only works where its author's PATH happened to be fails the next reader for the wrong
+# reason. CXX wins when it is set, because that is the variable a toolchain answers with.
+compiler="${CXX:-}"
+if [ -z "$compiler" ]; then
+  compiler="$(command -v g++ || true)"
+fi
+if [ -z "$compiler" ] || [ ! -x "$compiler" ]; then
+  echo "visibility gate FAILED: no C++ compiler found, so this tree's next_task.cpp cannot be rebuilt; install g++ or point CXX at one" >&2
+  exit 1
+fi
 for binary in "$seeder" "$principal_value"; do
   [ -x "$binary" ] \
     || { echo "visibility gate FAILED: no executable at $binary; build it with: cmake --build --preset safety" >&2; exit 1; }
@@ -184,7 +196,7 @@ rebuild_serve_tests() {
   defines="$(sed -n 's/^CXX_DEFINES = //p' "$flags_make")"
   includes="$(sed -n 's/^CXX_INCLUDES = //p' "$flags_make")"
   compiler_flags="$(sed -n 's/^CXX_FLAGS = //p' "$flags_make")"
-  eval "/usr/bin/g++ $defines $includes $compiler_flags -c \"$source\" -o \"$work/relink/next_task.cpp.o\"" \
+  eval "\"$compiler\" $defines $includes $compiler_flags -c \"$source\" -o \"$work/relink/next_task.cpp.o\"" \
     || { echo "  [!!] this tree's next_task.cpp does not compile" >&2; exit 1; }
   cp "$archive" "$work/relink/libcms_bank.a"
   ar r "$work/relink/libcms_bank.a" "$work/relink/next_task.cpp.o" >/dev/null 2>&1 \
