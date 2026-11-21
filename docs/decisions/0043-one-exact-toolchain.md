@@ -81,3 +81,14 @@ the image agree rather than merely being written down together.
 The compiler did not move: the base is still the pinned GCC 16.2.0, named by digest. The analyser is now the version the
 findings belong to, and the gate's own header line — which asks `clang-tidy --version` on every run — is what tells a
 reader which analyser produced a verdict.
+
+## 8. Amendment, 2026-11-21 — the image runs the gate, not the host's tools
+
+§7 pinned the analyser; the proof that followed showed the image still borrowed bun from the host, so "one image runs the
+gate" was nearly true. `deploy/runner/Dockerfile` now installs bun **1.3.14** from its release archive, checked against the
+release's own `sha256` before it is unpacked, and the image answers `bun --version` with it beside `clang-tidy --version`
+and `g++ --version` in the same build layer.
+
+What cannot live in the image is named in `deploy/runner/README.md` rather than quietly mounted: the docker CLI and
+PostgreSQL's server binaries, which the store and visibility proofs use to start their own clusters — tools of the proof,
+not of the analyser, and a build image that can start containers holds privilege it has no use for.

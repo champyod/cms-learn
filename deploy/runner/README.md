@@ -10,23 +10,30 @@ happened to have.
 | clang-tidy | 23.1.6 | the exact LLVM package installed below |
 | clang (compile database) | 23.1.6 | the same package set, symlinked for the analyser |
 | cmake, ninja, make, the ports' build tools | Debian 13 (trixie) | the second `apt-get install` |
+| bun (the gate scripts' runtime) | 1.3.14 | `BUN_VERSION` + `BUN_SHA256` in the `Dockerfile`, checked against the release digest before it is installed |
 
-The gate also needs four things this image does not carry yet. They are mounted in the command below rather than baked
-in, because they are the runner's environment and not the analyser: bun runs the gate, a vcpkg checkout supplies the
-api's and judge's packages, Docker runs the store proof, and PostgreSQL backs the e2e fixtures.
+Two things are mounted as data rather than baked in, because they are the checkout's, not the toolchain's:
 
-| Tool | Version | Where it comes from |
-|---|---|---|
-| bun (the gate's entry point) | 1.4.4 | mounted at `/opt/bun`, on `PATH` |
-| vcpkg (the api/judge packages) | the checkout's `vcpkg version` | mounted over `build/vcpkg`; `VCPKG_ROOT` names it |
-| docker CLI (the store proof) | 27.5.1 | installed in the container; the daemon is the host's socket |
-| PostgreSQL (the e2e fixtures) | 17 | installed in the container, because the gate's cases start a scratch cluster |
+| Mount | What it is |
+|---|---|
+| the tree | the code under judgement |
+| `$HOME/.vcpkg` over `build/vcpkg` | the package cache vcpkg has already built; `VCPKG_ROOT` names it |
 
 ## Why clang-tidy is not from Debian
 
 Debian 13 ships clang-tidy 19.0. The gate's findings were triaged against 23, and the same tree reports fourteen
 pre-existing findings on 19 while 23 reports none — the analyser's check set grows between major versions, so its verdict
 is evidence only at the version the findings belong to. §6 records that measurement; this image is the answer.
+
+## What the image does not contain, and why
+
+| Not in the image | Why |
+|---|---|
+| the docker CLI | only the store proof (`tools/postgres-cluster.sh`'s container cases) needs it, and that proof runs containers itself; an image that can start containers is a much larger privilege than a build |
+| PostgreSQL's server binaries | the same reason: the store and visibility gates start their own cluster and speak the protocol, so the server is the host's tool, not the analyser's |
+
+Everything else the C++ gate runs — compiler, analyser, build tools, bun — is in the image, so a `check:cpp` from inside
+it is a claim about the image and not about the host it borrowed from.
 
 ## Building it
 

@@ -214,6 +214,7 @@ findings on the tree 23 reports none on, so the analyser is pinned the way the c
 |---|---|---|
 | clang-tidy | 23.1.6 | `deploy/runner/Dockerfile`, the exact LLVM package `1:23.1.6~++20261116014037+5b10d2d74929-1~exp1~20261116134151.96` |
 | clang (the compile database it reads) | 23.1.6 | the same LLVM package set |
+| bun (the gates' runtime) | 1.3.14 | `deploy/runner/Dockerfile`, the release `bun-linux-x64.zip` checked against `sha256:951ee2ae…e848f` |
 | the base image | `gcc@sha256:07280eb2e744f1b7a2d8d4a3894c089ea07266c109758afc388a634bd098e4eb` | the `FROM` line, by digest |
 
 To get it outside the image: add LLVM's repository for trixie (`deb http://apt.llvm.org/trixie/ llvm-toolchain-trixie-23

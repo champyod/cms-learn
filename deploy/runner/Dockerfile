@@ -30,5 +30,16 @@ RUN apt-get update \
         bison flex autoconf autoconf-archive automake libtool python3 perl \
     && rm -rf /var/lib/apt/lists/*
 
+# bun runs the gate scripts themselves (tools/cpp/gate.ts and every other gate). Pinned by version and by the release
+# digest, so a rebuilt image cannot pick up a different runtime than the one the gate was green on.
+ARG BUN_VERSION=1.3.14
+ARG BUN_SHA256=951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f
+RUN wget -qO /tmp/bun.zip "https://github.com/oven-sh/bun/releases/download/bun-v${BUN_VERSION}/bun-linux-x64.zip" \
+    && echo "${BUN_SHA256}  /tmp/bun.zip" | sha256sum -c - \
+    && unzip -q /tmp/bun.zip -d /opt \
+    && ln -sf /opt/bun-linux-x64/bun /usr/local/bin/bun \
+    && rm -f /tmp/bun.zip \
+    && bun --version
+
 # The gate asks each tool what it is; the image is the answer, so a green run inside it means what it says.
-RUN clang-tidy --version && g++ --version
+RUN clang-tidy --version && g++ --version && bun --version
