@@ -99,39 +99,50 @@ VALUES ('everyone-task', 1, 'draft', 'Everyone Task', 'งานสาธาร�
         'original', 'pending', '$solution', repeat('c', 64)),
        ('hidden-task', 1, 'draft', 'Hidden Task', 'งานที่ซ่อนไว้', 900, 1000, 256, 'token',
         'original', 'pending', '$solution', repeat('d', 64)),
+       ('stale-task', 1, 'draft', 'Stale Task', 'งานที่ใบรับรองถูกถอน', 900, 1000, 256, 'token',
+        'original', 'pending', '$solution', repeat('s', 64)),
        ('broken-task', 1, 'draft', 'Broken Task', 'งานที่ไม่มีคำบรรยาย', 900, 1000, 256, 'token',
         'original', 'pending', '$solution', repeat('e', 64));
 -- ADR 0046 §2: a task row cannot be created verified, so the fixture builds the certificate it needs and moves the
 -- verification with the guarded UPDATE the trigger allows.
 INSERT INTO generation_jobs (task_id, task_version)
-SELECT id, version FROM tasks WHERE id IN ('everyone-task', 'learner-task', 'hidden-task', 'broken-task')
+SELECT id, version FROM tasks WHERE id IN ('everyone-task', 'learner-task', 'hidden-task', 'broken-task', 'stale-task')
 ON CONFLICT (task_id, task_version) DO NOTHING;
 INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence)
 SELECT j.id, t.id, t.version, 'verified', '["the task route fixture certified this task"]'::jsonb, repeat('c', 40), '{}'::jsonb
   FROM tasks t JOIN generation_jobs j ON j.task_id = t.id AND j.task_version = t.version
- WHERE t.id IN ('everyone-task', 'learner-task', 'hidden-task', 'broken-task');
-UPDATE tasks SET verification = 'verified' WHERE id IN ('everyone-task', 'learner-task', 'hidden-task', 'broken-task') AND version = 1;
+ WHERE t.id IN ('everyone-task', 'learner-task', 'hidden-task', 'broken-task', 'stale-task');
+UPDATE tasks SET verification = 'verified' WHERE id IN ('everyone-task', 'learner-task', 'hidden-task', 'broken-task', 'stale-task') AND version = 1;
 -- Publishing needs the certificate that came before it (ADR 0057): the row is created draft, certified, then published.
 UPDATE tasks SET status = 'published' WHERE verification = 'verified';
+-- A row whose certificate stopped covering it: it stays published, and its verification moves to failed, which is the only
+-- way a published row can be uncertified without the publish trigger refusing it. The preview must refuse it too (t35).
+INSERT INTO generation_certificates (job_id, task_id, task_version, outcome, checks, commit_id, evidence)
+SELECT j.id, 'stale-task', 1, 'failed', '["the certificate withdrew"]'::jsonb, repeat('d', 40), '{}'::jsonb
+  FROM generation_jobs j WHERE j.task_id = 'stale-task' AND j.task_version = 1;
+UPDATE tasks SET verification = 'failed' WHERE id = 'stale-task' AND version = 1;
 
 INSERT INTO task_visibility (task_id, principal_id)
 VALUES ('everyone-task', $everyone),
        ('learner-task', $learner_value),
        ('draft-task', $everyone),
-       ('broken-task', $everyone);
+       ('broken-task', $everyone),
+       ('stale-task', $everyone);
 
 INSERT INTO task_statements (task_id, task_version, locale, body)
 VALUES ('everyone-task', 1, 'en', E'# Everyone Task\n\nAnswer each query in order.'),
        ('everyone-task', 1, 'th', E'# งานสาธารณะ\n\nจงตอบผลรวมของแต่ละช่วง'),
        ('learner-task', 1, 'en', E'# Learner Task\n\nOnly its learner sees this.'),
        ('learner-task', 1, 'th', E'# งานเฉพาะผู้เรียน\n\nเห็นเฉพาะผู้เรียนที่ได้รับสิทธิ์'),
+       ('stale-task', 1, 'en', E'# Stale Task\n\nPublished, certificate withdrawn.'),
        ('hidden-task', 1, 'en', E'# Hidden Task\n\nVisible to content readers only.'),
        ('hidden-task', 1, 'th', E'# งานที่ซ่อนไว้\n\nเห็นเฉพาะผู้ที่ถือสิทธิ์อ่านเนื้อหา');
 
 INSERT INTO task_examples (task_id, task_version, ordinal, input, expected_output)
 VALUES ('everyone-task', 1, 1, E'3 2\n1 2 3\n1 2\n2 3\n', E'3\n5\n'),
        ('learner-task', 1, 1, E'2 2\n4 5\n1 1\n2 2\n', E'9\n'),
-       ('hidden-task', 1, 1, E'1 1\n7\n1 1\n', E'7\n');
+       ('hidden-task', 1, 1, E'1 1\n7\n1 1\n', E'7\n'),
+       ('stale-task', 1, 1, E'1 1\n9\n1 1\n', E'9\n');
 SQL
 
 cat >"$work/host.env" <<ENV
@@ -219,6 +230,18 @@ status="$(fetch /tasks/learner-task "$other_session")"
 status="$(fetch /tasks/learner-task "$reader_session")"
 [ "$status" = "200" ] && ok "content:read sees a task granted to one learner" \
   || bad "content:read sees a task granted to one learner" "HTTP $status"
+
+# The preview and the learner read one rule (t35): a row published but no longer certified is refused to both, and the
+# content:read surface must not show the person who would publish it evidence that does not exist.
+status="$(fetch /tasks/stale-task "$learner_session")"
+[ "$status" = "404" ] && ok "a published row whose certificate withdrew is 404 for a learner" \
+  || bad "a published row whose certificate withdrew is 404 for a learner" "HTTP $status"
+status="$(fetch /tasks/stale-task "$reader_session")"
+[ "$status" = "404" ] && ok "the preview refuses the same row the learner is refused" \
+  || bad "the preview refuses the same row the learner is refused" "HTTP $status"
+status="$(fetch /tasks/learner-task "$reader_session")"
+[ "$status" = "200" ] && ok "a certified published row still previews" \
+  || bad "a certified published row still previews" "HTTP $status"
 
 status="$(fetch /tasks/learner-task)"
 if [ "$status" = "303" ] && [[ "$(location)" == *"/signin"* ]]; then

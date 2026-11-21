@@ -324,7 +324,10 @@ auto register_task_route(const std::shared_ptr<SettingsStore>& store,
           return;
         }
         if (!*task) {
-          callback(text_response(std::string{NO_TASK_BODY}, drogon::k404NotFound));
+          // A row that exists but carries no verified certificate is told apart from an unknown id, because the reader
+          // asking is the one who would publish it and the difference is the whole reason they cannot.
+          callback(text_response(std::string{read_task_refusal(database, task_id, permitted.has_value())},
+                                 drogon::k404NotFound));
           return;
         }
 

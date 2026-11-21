@@ -14,6 +14,7 @@
 #include <sqlpp23/sqlpp23.h>
 
 #include <cms/api/auth.hpp>
+#include <cms/api/route_text.hpp>
 #include <cms/api/settings_route.hpp>
 #include <cms/db/tables.hpp>
 
@@ -122,6 +123,16 @@ auto is_active(db::connection& database, const Account& account) -> Result<bool>
 
 /// Published, and visible to one of the audience's accounts: the same predicate the bank's next-task query
 /// uses, so "hidden" and "absent" are one answer.
+/// @brief The one rule a task must satisfy before any reader sees it: published, and certified by a machine.
+///
+/// A learner reaches a published row only when a certificate says a machine verified it (ADR 0046 §2, ADR 0057 §3), and a
+/// preview reaches the same rows minus the visibility question — the person previewing is the person who would publish
+/// it, so a row they can see must be a row the learner could be served. Both readers start from this predicate, so a
+/// third reader cannot decide on status alone without deleting the rule it calls.
+auto servable_task() -> auto {
+  return db::tasks.status == std::string{PUBLISHED} && db::tasks.verification == std::string{VERIFIED};
+}
+
 auto visible_task_row(db::connection& database, std::string_view task_id, std::int32_t version,
                       const std::vector<std::int64_t>& audience) -> std::optional<TaskPage> {
   const auto is_visible = sqlpp::exists(
@@ -136,9 +147,7 @@ auto visible_task_row(db::connection& database, std::string_view task_id, std::i
                     .from(db::tasks)
                     .where(db::tasks.id == std::string{task_id} &&
                            db::tasks.version == static_cast<std::int64_t>(version) &&
-                           db::tasks.status == std::string{PUBLISHED} &&
-                           // 0057: a published row that no machine verified is never served, whatever wrote it.
-                           db::tasks.verification == std::string{VERIFIED} && is_visible))) {
+                           servable_task() && is_visible))) {
     return task_row_from(row);
   }
   return std::nullopt;
@@ -153,7 +162,7 @@ auto any_task_row(db::connection& database, std::string_view task_id, std::int32
                     .from(db::tasks)
                     .where(db::tasks.id == std::string{task_id} &&
                            db::tasks.version == static_cast<std::int64_t>(version) &&
-                           db::tasks.status == std::string{PUBLISHED}))) {
+                           servable_task()))) {
     return task_row_from(row);
   }
   return std::nullopt;
@@ -238,6 +247,7 @@ auto task_viewer(db::connection& database, std::string_view session_id) -> Resul
   }
 }
 
+/// @return The newest published, certified version of @p task_id, or nothing when there is none.
 auto published_version(db::connection& database, std::string_view task_id)
     -> Result<std::optional<std::int32_t>> {
   try {
@@ -291,6 +301,25 @@ auto servable_version(db::connection& database, std::string_view task_id,
     return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }
   return std::optional<std::int32_t>{};
+}
+
+auto read_task_refusal(db::connection& database, std::string_view task_id, bool may_read_hidden) -> std::string_view {
+  try {
+    for (const auto& row : database(sqlpp::select(db::tasks.status, db::tasks.verification)
+                                        .from(db::tasks)
+                                        .where(db::tasks.id == std::string{task_id} &&
+                                               db::tasks.status == std::string{PUBLISHED}))) {
+      if (std::string_view{row.verification} != VERIFIED) {
+        return UNCERTIFIED_TASK_BODY;
+      }
+    }
+  } catch (const std::exception& error) {
+    // A read failure is still a 404, and the plain body is the safe one: a refusal must never turn an error into a claim
+    // about the row. The message is dropped on purpose, and named so the catch is not empty.
+    (void)error;
+  }
+  (void)may_read_hidden;
+  return NO_TASK_BODY;
 }
 
 auto read_task_page(db::connection& database, std::string_view task_id,

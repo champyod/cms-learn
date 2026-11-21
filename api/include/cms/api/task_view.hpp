@@ -92,6 +92,15 @@ struct TaskListFilters {
 /// @brief Every topic the vocabulary defines, ordered by id, as the filter offers them.
 [[nodiscard]] Result<std::vector<bank::Topic>> read_topic_vocabulary(db::connection& database);
 
+/// @brief The body a 404 carries: the plain one for an id that names no published row, and the sentence that says why for a
+/// row that exists, is published, and is covered by no verified certificate.
+///
+/// @param database The connection the page was read on.
+/// @param task_id The task the page was asked for.
+/// @param may_read_hidden Whether the reader holds `content:read`.
+[[nodiscard]] auto read_task_refusal(db::connection& database, std::string_view task_id, bool may_read_hidden)
+    -> std::string_view;
+
 /// @brief Reads the page data for the servable version of @p task_id.
 ///
 /// @return The page data, nothing under the same conditions as `servable_version`, or the reason
