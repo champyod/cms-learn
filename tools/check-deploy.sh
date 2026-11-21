@@ -344,6 +344,42 @@ if git -C "$repo" ls-files -z | xargs -0 grep -lnE "AKIA[0-9A-Z]{16}" 2>/dev/nul
 fi
 note "no tracked file carries a store credential"
 
+# ── 11b. the migrate step reads what it runs ──────────────────────────────────────────────────────
+# t1's schema container mounted deploy/plan and tools but not docs/dependencies.md, so the pin the wrapper
+# exists to enforce could not be read and the migrate failed inside pgschema with a path that did not exist.
+python3 - "$work/config.json" "$repo" "$deploy" <<'PY' || exit 1
+import json, os, sys
+config, repo, deploy = sys.argv[1], sys.argv[2], sys.argv[3]
+services = json.load(open(config))["services"]
+schema = services.get("schema")
+if not schema:
+    raise SystemExit("deploy gate FAILED: the stack has no schema service")
+wanted = {
+    "/app/deploy/plan": ("deploy", "plan"),
+    "/app/tools": ("tools",),
+    "/app/docs/dependencies.md": ("docs", "dependencies.md"),
+}
+mounted = {str(volume.get("target")): volume for volume in (schema.get("volumes") or [])}
+for target, suffix in wanted.items():
+    volume = mounted.get(target)
+    if volume is None:
+        raise SystemExit(f"deploy gate FAILED: the schema service does not mount {target}; the migrate step cannot read what it runs")
+    if volume.get("read_only") is not True:
+        raise SystemExit(f"deploy gate FAILED: the schema service mounts {target} writable")
+    source = str(volume.get("source", "")).replace("\\", "/")
+    if not source.endswith("/".join(suffix)):
+        raise SystemExit(f"deploy gate FAILED: the schema service mounts {target} from {source}")
+    if os.path.realpath(deploy) == os.path.realpath(os.path.join(repo, "deploy")) and not os.path.exists(source):
+        raise SystemExit(f"deploy gate FAILED: the schema service mounts {target} from {source}, which does not exist")
+print("  the migrate step mounts the plan, the tools and the pin it reads")
+PY
+
+if CMSLEARN_PGSCHEMA_DOC="$work/absent-dependencies.md" bash -c '. "$1/tools/pinned-pgschema.sh"' _ "$repo" >"$work/refusal" 2>&1; then
+  fail "the pin resolver accepted a tree without its pin document"
+fi
+grep -q "absent-dependencies.md" "$work/refusal" || fail "the pin resolver did not name the missing pin document"
+note "a missing pin document is refused by name"
+
 # ── 12. every service has its own role, and the separation is attempted rather than declared ──────
 # ADR 0058: the grants were written but nothing enforced them, because every service connected as the same user. These
 # attempts use each service's own credentials, and every line names the role that made it, so a refusal for the web cannot

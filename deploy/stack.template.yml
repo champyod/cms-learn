@@ -330,6 +330,9 @@ services:
     volumes:
       - ../deploy/plan:/app/deploy/plan:ro
       - ../tools:/app/tools:ro
+      # The wrapper resolves the pgschema pin from docs/dependencies.md; without this mount the file is
+      # missing exactly where the container looks for it.
+      - ../docs/dependencies.md:/app/docs/dependencies.md:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
     networks: [internal]

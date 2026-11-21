@@ -13,12 +13,34 @@
 # stops matching its own render.
 
 cms_pgschema_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cms_pgschema_doc="$cms_pgschema_dir/../docs/dependencies.md"
+# CMSLEARN_PGSCHEMA_DOC lets a caller that mounts the pin somewhere else point at it; the default is the
+# checkout layout the schema container reproduces (/app/tools/../docs/dependencies.md).
+cms_pgschema_doc="${CMSLEARN_PGSCHEMA_DOC:-$cms_pgschema_dir/../docs/dependencies.md}"
+cms_pgschema_plan="$cms_pgschema_dir/../deploy/plan"
 
 cms_pgschema_refuse() {
   printf 'schema tool refused: %s\n' "$*" >&2
   exit 1
 }
+
+# The migrate step reads the plan it applies, the wrapper that applies it, and the pin. Every missing one is
+# named here, before the tool is resolved: a mount that points at nothing is a deployment defect, not a
+# pgschema error with a path that does not exist.
+cms_pgschema_inputs() {
+  local missing=() path
+  for path in "$cms_pgschema_doc" "$cms_pgschema_dir/apply-plan.sh" \
+      "$cms_pgschema_plan/0001_init.json" "$cms_pgschema_plan/CHECKSUMS"; do
+    [ -r "$path" ] || missing+=("$path")
+  done
+  if [ "${#missing[@]}" -gt 0 ]; then
+    cms_pgschema_refuse "the migrate step cannot read what it runs:
+$(printf '  - %s is missing\n' "${missing[@]}")
+  the schema service mounts these from the checkout (docs/dependencies.md becomes /app/docs/dependencies.md);
+  a mount that points at nothing is reported here rather than as a pgschema failure."
+  fi
+}
+
+cms_pgschema_inputs
 
 # The pin is the version column of the Tools table, so the document an operator reads and the version the
 # gates demand are one fact rather than two.
