@@ -113,32 +113,29 @@ run; later runs reuse it.
 
 ## What it produced on the runner
 
-Measured on the runner (`m5`), 2026-11-22, image built from this tree's `deploy/runner/Dockerfile`.
-The first run was at `d01f0ae`, the commit that introduced `USER runner`; the numbers below are the
-re-run at `df63a7a`.
+Measured on the runner (`m5`), 2026-11-22, image built from this tree's `deploy/runner/Dockerfile`,
+from the tree at `a9738df`:
 
 | Fact | Value |
 |---|---|
 | the command | `bun run check:cpp` → `tools/gate-lock.sh` → `tools/cpp/gate.ts` |
 | the user the gate ran as | `runner`, uid 1000, gid 1000, groups `1000 0` |
-| the verdict | `cpp gate — 59 target(s) built · 215 case(s) passed · 147 unit(s) analysed in 4 worker(s) in 727 s · 0 finding(s)` |
+| the verdict | `cpp gate — 59 target(s) built · 217 case(s) passed · 147 unit(s) analysed in 4 worker(s) in 724 s · 0 finding(s)` |
 | the tools it printed | `g++ (GCC) 16.2.0` / `Debian clang version 23.1.6` / `Debian LLVM version 23.1.6` |
 | the services the cases used | PostgreSQL 17.12 (server and client, installed in the root phase), Docker 28.5.1 through the mounted socket, `pgschema` 1.13.4 for every `api_*_e2e` schema apply |
 | skips | the Catch2 live-database cases, printed by name on the verdict line as `(CMSLEAN_TEST_DSN is not set)` |
-| the gate's exit | 0 with that verdict; the unmodified run of the same tree was 1 (see below) |
+| the gate's exit | 0 |
 
-The verdict above is the run in which the two page cases were left out — the recipe's diagnostic, not
-the contract's run — because at `df63a7a` the unmodified gate stops before the analysis:
-
-`cpp gate — 59 target(s) built · 215 case(s) passed · static analysis did not run — no unit was analysed,
-so the finding count says nothing (ctest failed: api_settings_route_e2e, api_model_admin_e2e) · 0 finding(s)`
-
-Those two cases assert facts of the settings and model-record pages and were red on every host at that
-commit, so the analysis behind them is the only way to see whether the C++ half is clean. It is: 147
-units, 0 findings. The first run of the recipe (at `d01f0ae`) reported four findings in `generator/` —
+The first run of the recipe (at `d01f0ae`) reported four findings in `generator/` —
 `certify_checks.cpp:147` and `certify.cpp:789` `performance-unnecessary-value-param`,
 `certify_checks.cpp:149` and `certify.cpp:791` `performance-move-const-arg` — the same four the
-analyser reported natively, which is how the static half came to be run inside the image at all.
+analyser reported natively, which is how the static half came to be run inside the image at all. They
+were fixed in the source, and the analysis has reported zero since.
+
+Two commits in between were red before the analysis: `api_settings_route_e2e` and `api_model_admin_e2e`
+failed on every host at `df63a7a` (the settings page's effect sentence and the model page's form
+tokens), so the gate stopped at ctest. Their fix is part of the 217 above, which is why the count is
+217 rather than the 215 those two cases were missing from.
 
 ## What a write outside the named paths does
 
