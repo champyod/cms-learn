@@ -152,6 +152,47 @@ function checkCoverage(template: string, release: Release, deployDir: string, pr
   }
 }
 
+function checkBuilds(template: unknown, release: Release, problems: Problem[]): void {
+  if (!isRecord(template)) {
+    problems.push({ where: "deploy/stack.template.yml", message: "is not a table" });
+    return;
+  }
+  const services = template["services"];
+  if (!isRecord(services)) {
+    problems.push({ where: "deploy/stack.template.yml", message: "has no services table" });
+    return;
+  }
+  const serviceOf = new Map<string, string>();
+  for (const [name, raw] of Object.entries(services)) {
+    if (isRecord(raw) && typeof raw["image"] === "string") {
+      serviceOf.set(raw["image"], name);
+    }
+  }
+  for (const [key, entry] of release.images) {
+    if (entry.kind !== "built") {
+      continue;
+    }
+    const service = serviceOf.get(`image-token-${key}`);
+    if (service === undefined) {
+      problems.push({ where: `images.${key}`, message: "is built but no service uses it" });
+      continue;
+    }
+    const raw = services[service];
+    const build = isRecord(raw) ? raw["build"] : undefined;
+    if (!isRecord(build) || typeof build["context"] !== "string") {
+      problems.push({ where: `services.${service}`, message: `runs built image ${key} without a build section` });
+      continue;
+    }
+    const context = build["context"].replace(/^\.\//, "").replace(/\/$/, "");
+    if (context !== entry.context) {
+      problems.push({
+        where: `services.${service}.build.context`,
+        message: `builds ${context}, but release.toml builds ${key} from ${entry.context}`,
+      });
+    }
+  }
+}
+
 function render(template: string, release: Release): string {
   const withImages = template.replace(IMAGE_TOKEN, (_token, key: string) => {
     const entry = release.images.get(key);
@@ -189,6 +230,10 @@ async function main(): Promise<void> {
   const template = await Bun.file(`${deployDir}/stack.template.yml`).text();
   const release = readRelease(releaseText, problems);
   checkCoverage(template, release, deployDir, problems);
+  // The image tokens are not YAML, so they are replaced before the shape is parsed; the rule only needs
+  // to know which service names which image.
+  const shape = template.replace(IMAGE_TOKEN, (_token, key: string) => `image-token-${key}`);
+  checkBuilds(Bun.YAML.parse(shape), release, problems);
   if (problems.length > 0) {
     fail(problems);
   }

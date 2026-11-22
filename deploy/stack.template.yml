@@ -315,6 +315,11 @@ services:
 
   schema:
     <<: *hardening
+    # Built from this checkout, like the proxy and the backup: the release calls it built, so the stack
+    # must carry the build section or `compose build schema` produces nothing and the migrate step pulls
+    # an image that was never made.
+    build:
+      context: ./schema
     image: {{image:schema}}
     # One shot, run by the upgrade before any service is switched. The plan and the wrapper are
     # mounted from the checkout that rendered this stack, read-only, so the digests verified are the

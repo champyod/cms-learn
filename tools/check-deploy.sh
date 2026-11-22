@@ -22,6 +22,8 @@
 #      mount is read-only except the judge's cgroup tree
 #  13. the proxy binary carries no file capability, which a dropped bounding set would turn into an
 #      exec failure
+#  14. every image release.toml calls built has a service with a build section naming its context, and
+#      compose actually builds one — a built image with no build block is silently never made
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -221,9 +223,55 @@ if errors:
 print(f"  {len(services)} services: exposure, isolation and hardening invariants hold")
 PY
 
+# 14: the release file is the list. A service whose image release.toml calls built must carry the build
+# section, or compose exits 0 having built nothing and the run pulls an image that does not exist.
+python3 - "$repo/release.toml" "$deploy/docker-compose.yml" <<'PY'
+import sys
+import tomllib
+
+import yaml
+
+release = tomllib.load(open(sys.argv[1], "rb"))
+services = yaml.safe_load(open(sys.argv[2])).get("services", {})
+built = {key: entry for key, entry in release.get("images", {}).items() if entry.get("kind") == "built"}
+errors = []
+for key, entry in sorted(built.items()):
+    wanted = f"{entry['ref']}:${{TAG:-dev}}"
+    matching = [name for name, service in services.items() if service.get("image") == wanted]
+    if not matching:
+        errors.append(f"built image {key} ({wanted}) is used by no service")
+        continue
+    for name in matching:
+        build = services[name].get("build")
+        if not isinstance(build, dict) or not build.get("context"):
+            errors.append(
+                f"service {name} runs built image {key} without a build section — compose build would produce nothing"
+            )
+            continue
+        context = str(build["context"]).rstrip("/").split("/")[-1]
+        if context != entry.get("context"):
+            errors.append(
+                f"service {name} builds from {build['context']}, but release.toml builds {key} from {entry.get('context')}"
+            )
+if errors:
+    print("deploy gate FAILED:", file=sys.stderr)
+    for error in errors:
+        print(f"  - {error}", file=sys.stderr)
+    sys.exit(1)
+print(f"  {len(built)} built image(s) each have a matching build section")
+PY
+
 note "caddy validates the Caddyfile with the modules it will run"
 proxy_image="cms-learn-proxy:gate"
 docker build -q -t "$proxy_image" "$deploy/proxy" >/dev/null || fail "proxy image did not build"
+
+# The build section is only worth asserting if compose acts on it: the schema image is built through the
+# rendered stack, and the tag the release names must exist afterwards.
+schema_ref="$(python3 -c 'import sys,tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["images"]["schema"]["ref"])' "$repo/release.toml")"
+compose build schema >/dev/null || fail "compose build schema failed"
+docker image inspect "${schema_ref}:test" >/dev/null 2>&1 \
+  || fail "compose build schema produced no image at ${schema_ref}:test"
+note "compose build schema produced ${schema_ref}:test"
 
 # 13: a file capability is not in the container's bounding set once every capability is dropped, and the
 # kernel refuses to exec a binary carrying one outside it. The proxy's job needs no capability, so the

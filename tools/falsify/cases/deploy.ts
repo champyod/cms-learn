@@ -40,6 +40,15 @@ export const DEPLOY_GATE: Gate = {
       expect: red("declares no first-run target"),
     },
     {
+      // A built image without a build block: compose build exits 0 and produces nothing, and the run then
+      // pulls an image that was never made. The gate takes the built set from release.toml, not a hand list.
+      name: "built-service-without-build",
+      plant: [
+        { kind: "patch", path: "deploy/docker-compose.yml", find: "    build:\n      context: ./schema\n", replace: "" },
+      ],
+      expect: red("without a build section"),
+    },
+    {
       name: "db-published-publicly",
       plant: [{ kind: "patch", path: "deploy/docker-compose.yml", find: "127.0.0.1:5432:5432", replace: "5432:5432" }],
       expect: red("only proxy may face the internet"),
