@@ -27,6 +27,12 @@ stage() {
 #!/usr/bin/env bash
 printf 'docker %s\n' "$*" >> "$STUB_LOG"
 case "$*" in
+  *"config --services"*)
+    # The switch asks compose which services it serves and waits only on those; the stub must answer
+    # with a real list or the wait is empty and the sequence under test is not exercised. This case is
+    # first because the rollback asks the same question about the previous file.
+    printf '%s\n' api judge proxy backup schema database objects crowdsec prometheus grafana node-exporter
+    ;;
   *".previous-compose.yml"*) exit 0 ;;
   *" pull"*) [ "${STUB_PULL_FAIL:-0}" = 1 ] && exit 1 ;;
   *"run --rm schema"*) [ "${STUB_SCHEMA_FAIL:-0}" = 1 ] && exit 1 ;;

@@ -99,8 +99,8 @@ export const DEPLOY_GATE: Gate = {
         {
           kind: "patch",
           path: "deploy/docker-compose.yml",
-          find: "  api:\n    <<: *hardening\n    image:",
-          replace: "  api:\n    <<: *hardening\n    cap_add: [SYS_ADMIN]\n    image:",
+          find: "  api:\n    <<: *hardening\n    build:",
+          replace: "  api:\n    <<: *hardening\n    cap_add: [SYS_ADMIN]\n    build:",
         },
       ],
       expect: red("api adds back SYS_ADMIN"),

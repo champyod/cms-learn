@@ -19,12 +19,18 @@ ref = "ghcr.io/champyod/cms-learn-proxy"
 context = "proxy"
 
 [images.api]
-kind = "unpublished"
+kind = "built"
 ref = "ghcr.io/champyod/cms-learn-api"
+# The Dockerfile builds from the repository root (COPY . .), so its context is the checkout and the
+# file is named relative to it.
+context = ".."
+dockerfile = "api/Dockerfile"
 
 [images.judge]
-kind = "unpublished"
+kind = "built"
 ref = "ghcr.io/champyod/cms-learn-judge"
+context = ".."
+dockerfile = "judge/Dockerfile"
 
 [images.database]
 kind = "pinned"

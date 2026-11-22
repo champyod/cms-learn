@@ -77,6 +77,9 @@ services:
 
   api:
     <<: *hardening
+    build:
+      context: ..
+      dockerfile: api/Dockerfile
     image: {{image:api}}
     # 8080 is the public site, 8081 is the administrator panel. `expose` puts both on the `edge` network
     # without publishing either: the proxy is the only way in, and the panel answers only 8081.
@@ -112,10 +115,15 @@ services:
 
   judge:
     <<: *hardening
+    build:
+      context: ..
+      dockerfile: judge/Dockerfile
     image: {{image:judge}}
     environment:
-      # Its own role, and a DSN with no password in it: the credential is the mounted file.
-      DATABASE_URL: postgres://cmslearn_judge_user@database:5432/${POSTGRES_DB:-cmslearn}
+      # Its own role, and a DSN with no password in it: the credential is the mounted file. The runner
+      # reads CMSLEARN_DATABASE_URL; DATABASE_URL was never its variable and named a connection nothing
+      # opened.
+      CMSLEARN_DATABASE_URL: postgres://cmslearn_judge_user@database:5432/${POSTGRES_DB:-cmslearn}
       PGPASSFILE: /run/secrets/judge.pgpass
       ISOLATE_CGROUP_PATH: ${ISOLATE_CGROUP_PATH:-/sys/fs/cgroup/cms-learn-isolate}
     # isolate creates namespaces, mounts the box and /proc, raises its loopback and switches to the box user,

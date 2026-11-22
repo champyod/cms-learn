@@ -24,8 +24,8 @@ export const UPGRADE_GATE: Gate = {
       plant: [
         {
           kind: "run",
-          script: `sed -i 's#compose up -d --wait || rollback .*#compose up -d --wait || die "x"#' tools/upgrade.sh`,
-          verify: `grep -q 'compose up -d --wait || die "x"' tools/upgrade.sh`,
+          script: `sed -i 's#compose up -d --wait \\$wait_for || rollback .*#compose up -d --wait $wait_for || die "x"#' tools/upgrade.sh`,
+          verify: `grep -q 'compose up -d --wait $wait_for || die "x"' tools/upgrade.sh`,
         },
       ],
       expect: { status: "non-zero", message: "[!!]   switch " },

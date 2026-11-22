@@ -254,10 +254,20 @@ for key, entry in sorted(built.items()):
             )
             continue
         context = str(build["context"]).rstrip("/").split("/")[-1]
-        if context != entry.get("context"):
+        declared = str(entry.get("context", "")).rstrip("/").split("/")[-1]
+        if context != declared:
             errors.append(
                 f"service {name} builds from {build['context']}, but release.toml builds {key} from {entry.get('context')}"
             )
+        if entry.get("dockerfile") is not None and build.get("dockerfile") != entry["dockerfile"]:
+            errors.append(
+                f"service {name} builds from {build.get('dockerfile')}, but release.toml names {entry['dockerfile']}"
+            )
+
+built_refs = {f"{entry['ref']}:${{TAG:-dev}}": key for key, entry in built.items()}
+for name, service in services.items():
+    if service.get("build") is not None and service.get("image") not in built_refs:
+        errors.append(f"service {name} has a build section but release.toml does not call its image built")
 if errors:
     print("deploy gate FAILED:", file=sys.stderr)
     for error in errors:
@@ -529,7 +539,11 @@ for line in example.splitlines():
         break
 else:
     raise SystemExit("deploy gate FAILED: the host file names no database URL")
-role_of((services["judge"].get("environment") or {}).get("DATABASE_URL", ""), "judge", "cmslearn_judge_user")
+role_of(
+    (services["judge"].get("environment") or {}).get("CMSLEARN_DATABASE_URL", ""),
+    "judge",
+    "cmslearn_judge_user",
+)
 
 for name in ("api", "judge"):
     environment = services[name].get("environment") or {}

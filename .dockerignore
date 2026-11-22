@@ -1,0 +1,6 @@
+# The build context is the checkout: the Dockerfiles copy it in. The build tree, the git history and the
+# local caches are not source, and copying them made the context larger than the disk had room for.
+build/
+.git/
+.agent-teams/
+node_modules/

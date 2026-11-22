@@ -18,6 +18,7 @@ interface ImageEntry {
   readonly ref: string;
   readonly digest?: string;
   readonly context?: string;
+  readonly dockerfile?: string;
 }
 
 interface Release {
@@ -69,6 +70,7 @@ function readEntry(key: string, raw: unknown, problems: Problem[]): ImageEntry |
   }
   const digest = raw["digest"];
   const context = raw["context"];
+  const dockerfile = raw["dockerfile"];
 
   if (kind === "pinned") {
     if (typeof digest !== "string" || !DIGEST.test(digest)) {
@@ -84,8 +86,12 @@ function readEntry(key: string, raw: unknown, problems: Problem[]): ImageEntry |
     problems.push({ where: `images.${key}.context`, message: "a built image needs its build context" });
     return undefined;
   }
-  if (kind !== "built" && context !== undefined) {
+  if (kind !== "built" && (context !== undefined || dockerfile !== undefined)) {
     problems.push({ where: `images.${key}.context`, message: `only a built image has a context` });
+    return undefined;
+  }
+  if (dockerfile !== undefined && (typeof dockerfile !== "string" || dockerfile.length === 0)) {
+    problems.push({ where: `images.${key}.dockerfile`, message: "must be a non-empty path" });
     return undefined;
   }
 
@@ -94,6 +100,7 @@ function readEntry(key: string, raw: unknown, problems: Problem[]): ImageEntry |
     ref,
     ...(typeof digest === "string" ? { digest } : {}),
     ...(typeof context === "string" ? { context } : {}),
+    ...(typeof dockerfile === "string" ? { dockerfile } : {}),
   };
 }
 
@@ -127,7 +134,13 @@ function renderImage(entry: ImageEntry): string {
   return entry.kind === "pinned" ? `${entry.ref}@${entry.digest}` : `${entry.ref}:${RELEASE_TAG}`;
 }
 
-function checkCoverage(template: string, release: Release, deployDir: string, problems: Problem[]): void {
+function checkCoverage(
+  template: string,
+  release: Release,
+  deployDir: string,
+  root: string,
+  problems: Problem[],
+): void {
   const referenced = new Set<string>();
   for (const match of template.matchAll(IMAGE_TOKEN)) {
     const key = match[1];
@@ -144,9 +157,10 @@ function checkCoverage(template: string, release: Release, deployDir: string, pr
       problems.push({ where: `images.${key}`, message: "is declared but no service uses it" });
     }
     if (entry.kind === "built" && entry.context !== undefined) {
-      const dockerfile = `${deployDir}/${entry.context}/Dockerfile`;
+      const dockerfile =
+        entry.dockerfile === undefined ? `${deployDir}/${entry.context}/Dockerfile` : `${root}/${entry.dockerfile}`;
       if (!existsSync(dockerfile)) {
-        problems.push({ where: `images.${key}.context`, message: `has no Dockerfile at ${dockerfile}` });
+        problems.push({ where: `images.${key}.dockerfile`, message: `has no Dockerfile at ${dockerfile}` });
       }
     }
   }
@@ -190,6 +204,12 @@ function checkBuilds(template: unknown, release: Release, problems: Problem[]): 
         message: `builds ${context}, but release.toml builds ${key} from ${entry.context}`,
       });
     }
+    if (entry.dockerfile !== undefined && build["dockerfile"] !== entry.dockerfile) {
+      problems.push({
+        where: `services.${service}.build.dockerfile`,
+        message: `builds ${String(build["dockerfile"])}, but release.toml names ${entry.dockerfile}`,
+      });
+    }
   }
 }
 
@@ -229,7 +249,7 @@ async function main(): Promise<void> {
   const releaseText = await Bun.file(`${root}/release.toml`).text();
   const template = await Bun.file(`${deployDir}/stack.template.yml`).text();
   const release = readRelease(releaseText, problems);
-  checkCoverage(template, release, deployDir, problems);
+  checkCoverage(template, release, deployDir, root, problems);
   // The image tokens are not YAML, so they are replaced before the shape is parsed; the rule only needs
   // to know which service names which image.
   const shape = template.replace(IMAGE_TOKEN, (_token, key: string) => `image-token-${key}`);

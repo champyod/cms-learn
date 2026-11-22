@@ -4,7 +4,7 @@ const ONES_DIGEST = "sha256:1111111111111111111111111111111111111111111111111111
 
 export const STACK_GATE: Gate = {
   id: "stack",
-  stage: ["release.toml", "deploy"],
+  stage: ["release.toml", "deploy", "api/Dockerfile", "judge/Dockerfile"],
   command: { command: "bun", args: ["run", "{repo}/tools/render-stack.ts", "--check", "--root", "{root}"] },
   cases: [
     {
