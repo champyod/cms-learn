@@ -144,9 +144,9 @@ auto limits(const std::vector<GeneratedCase>& cases, const ReRunEvidence& eviden
   const auto half_used_kb = evidence.memory_used_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
   const auto half_reserved_kb = evidence.memory_reserved_limit_mb * KB_PER_MB / REFERENCE_MARGIN_DIVISOR;
   auto broken = std::string{};
-  const auto add = [&broken](std::string sentence) {
+  const auto add = [&broken](std::string_view sentence) {
     broken += broken.empty() ? "" : "; ";
-    broken += std::move(sentence);
+    broken += sentence;
   };
   if (slowest_time.measured > half_time_ms) {
     add("the reference measured " + std::to_string(slowest_time.measured) + " ms at n = " +

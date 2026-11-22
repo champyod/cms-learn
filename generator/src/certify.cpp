@@ -786,9 +786,9 @@ auto certify_task(cms::db::connection& database, const std::filesystem::path& co
                                        reference + " could not be measured: " + measured.error().message));
   }
   auto exceeded = std::string{};
-  const auto add = [&exceeded](std::string sentence) {
+  const auto add = [&exceeded](std::string_view sentence) {
     exceeded += exceeded.empty() ? "" : "; ";
-    exceeded += std::move(sentence);
+    exceeded += sentence;
   };
   if (measured->time_ms > half_time_ms) {
     add(std::to_string(measured->time_ms) + " ms is above the " + std::to_string(half_time_ms) + " ms half");
