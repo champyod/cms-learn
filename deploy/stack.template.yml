@@ -204,11 +204,21 @@ services:
       GIN_MODE: release
       # Caddy writes JSON access logs; this collection carries the parser for that shape.
       COLLECTIONS: crowdsecurity/caddy
+      # AppSec is not a collection: the rules come from their own hub type. The engine installs them
+      # before the listener starts, which is why the Caddyfile's appsec_url has something to reach.
+      APPSEC_RULES: crowdsecurity/crs
     volumes:
       - crowdsec-db:/var/lib/crowdsec/data
       - crowdsec-etc:/etc/crowdsec
       - caddy-logs:/var/log/caddy:ro
       - ./crowdsec/acquis.yaml:/etc/crowdsec/acquis.d/caddy.yaml:ro
+      # The AppSec datasource (the listener) and the in-band config that loads the CRS rules. Without
+      # these two files the rules are installed and the port has no listener.
+      - ./crowdsec/appsec.yaml:/etc/crowdsec/acquis.d/appsec.yaml:ro
+      - ./crowdsec/appsec-config.yaml:/etc/crowdsec/appsec-configs/cms-learn/inband.yaml:ro
+      # A whole file: the in-band block files a waf alert with remediation false, and this profile is
+      # what turns that alert into a ban the next request is refused by.
+      - ./crowdsec/profiles.yaml:/etc/crowdsec/profiles.yaml:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=64m
     networks: [edge]

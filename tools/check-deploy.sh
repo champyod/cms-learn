@@ -26,6 +26,9 @@
 #      compose actually builds one — a built image with no build block is silently never made
 #  15. the upgrade's switch waits for the release's services, not for the backup sidecar, whose first
 #      dump has not happened yet on a fresh deployment
+#  16. the edge's AppSec listener is wired: the datasource, its config and the remediation profile are
+#      mounted, the CRS rules are installed, and the Caddyfile's appsec_url port is the one the
+#      datasource listens on — a mismatch is a finding, never a silent fallback
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -293,6 +296,61 @@ head -1 "$deploy/backup/health.sh" | grep -q '^#!' \
 grep -q 'CMD \["/usr/local/bin/health.sh"\]' "$deploy/backup/Dockerfile" \
   || fail "the backup healthcheck no longer execs health.sh; the gate's contract moved"
 note "the backup healthcheck is an executable script with a fresh-install answer"
+
+python3 - "$deploy" <<'PY'
+import re
+import sys
+
+import yaml
+
+deploy = sys.argv[1]
+compose = yaml.safe_load(open(f"{deploy}/docker-compose.yml"))
+crowdsec = compose["services"]["crowdsec"]
+
+
+def target_of(fragment):
+    for volume in crowdsec.get("volumes", []):
+        source, target = (volume.get("source", ""), volume.get("target", "")) if isinstance(volume, dict) else volume.split(":", 2)[:2]
+        if fragment in source:
+            return target
+    return None
+
+
+errors = []
+if target_of("crowdsec/appsec.yaml") != "/etc/crowdsec/acquis.d/appsec.yaml":
+    errors.append("the AppSec datasource is not mounted where CrowdSec reads acquisition files")
+if not str(target_of("crowdsec/appsec-config.yaml") or "").startswith("/etc/crowdsec/appsec-configs/"):
+    errors.append("the AppSec config is not mounted under /etc/crowdsec/appsec-configs")
+if target_of("crowdsec/profiles.yaml") != "/etc/crowdsec/profiles.yaml":
+    errors.append("the WAF remediation profile is not mounted as CrowdSec's profiles file")
+if "crowdsecurity/crs" not in str(crowdsec.get("environment", {}).get("APPSEC_RULES", "")):
+    errors.append("the CRS AppSec rules are not installed by the service")
+
+datasource = yaml.safe_load(open(f"{deploy}/crowdsec/appsec.yaml"))
+listen_port = str(datasource.get("listen_addr", "")).rsplit(":", 1)[-1]
+caddy = open(f"{deploy}/Caddyfile").read()
+found = re.search(r"appsec_url\s+http://[^:]+:(\d+)", caddy)
+if found is None:
+    errors.append("the Caddyfile declares no appsec_url")
+elif found.group(1) != listen_port:
+    errors.append(
+        f"the Caddyfile calls AppSec on port {found.group(1)}, but the datasource listens on {listen_port}"
+    )
+config = yaml.safe_load(open(f"{deploy}/crowdsec/appsec-config.yaml"))
+if config.get("name") != datasource.get("appsec_config"):
+    errors.append(
+        f"the datasource loads {datasource.get('appsec_config')}, but the mounted config is named {config.get('name')}"
+    )
+if 'Alert.Kind == "waf"' not in open(f"{deploy}/crowdsec/profiles.yaml").read():
+    errors.append("no profile turns a waf alert into a decision")
+
+if errors:
+    print("deploy gate FAILED:", file=sys.stderr)
+    for error in errors:
+        print(f"  - {error}", file=sys.stderr)
+    sys.exit(1)
+print(f"  AppSec is mounted and the Caddyfile calls its listener on port {listen_port}")
+PY
 
 # 13: a file capability is not in the container's bounding set once every capability is dropped, and the
 # kernel refuses to exec a binary carrying one outside it. The proxy's job needs no capability, so the

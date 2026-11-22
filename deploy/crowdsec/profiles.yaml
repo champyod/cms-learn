@@ -1,0 +1,49 @@
+# CrowdSec's remediation profiles for this deployment.
+#
+# The default profiles only turn an alert into a decision when `Alert.Remediation` is true. A request
+# blocked by the in-band AppSec rules answers 403 itself and files a `waf` alert with remediation false,
+# so the default file alone leaves the WAF blocking each request and banning nobody. The last profile
+# below turns a `waf` alert into a ban, so the source is refused by the LAPI from the next request on.
+#
+# This file is mounted whole: CrowdSec reads one profiles.yaml, and mounting a fragment would drop the
+# defaults above it.
+name: default_ip_remediation
+#debug: true
+filters:
+ - Alert.Remediation == true && Alert.GetScope() == "Ip"
+decisions:
+ - type: ban
+   duration: 4h
+#duration_expr: Sprintf('%dh', (GetDecisionsCount(Alert.GetValue()) + 1) * 4)
+# notifications:
+#   - slack_default  # Set the webhook in /etc/crowdsec/notifications/slack.yaml before enabling this.
+#   - splunk_default # Set the splunk url and token in /etc/crowdsec/notifications/splunk.yaml before enabling this.
+#   - http_default   # Set the required http parameters in /etc/crowdsec/notifications/http.yaml before enabling this.
+#   - email_default  # Set the required email parameters in /etc/crowdsec/notifications/email.yaml before enabling this.
+on_success: break
+---
+name: default_range_remediation
+#debug: true
+filters:
+ - Alert.Remediation == true && Alert.GetScope() == "Range"
+decisions:
+ - type: ban
+   duration: 4h
+#duration_expr: Sprintf('%dh', (GetDecisionsCount(Alert.GetValue()) + 1) * 4)
+# notifications:
+#   - slack_default  # Set the webhook in /etc/crowdsec/notifications/slack.yaml before enabling this.
+#   - splunk_default # Set the splunk url and token in /etc/crowdsec/notifications/splunk.yaml before enabling this.
+#   - http_default   # Set the required http parameters in /etc/crowdsec/notifications/http.yaml before enabling this.
+#   - email_default  # Set the required email parameters in /etc/crowdsec/notifications/email.yaml before enabling this.
+on_success: break
+---
+name: cms-learn/waf_remediation
+# The in-band AppSec block answers 403 itself and files a waf alert with Remediation=false, which the
+# default profiles do not turn into a decision. This profile bans the source of a WAF alert so the next
+# request is refused at the LAPI as well as by the rules.
+filters:
+ - Alert.Kind == "waf" && Alert.GetScope() == "Ip"
+decisions:
+ - type: ban
+   duration: 4h
+on_success: break
