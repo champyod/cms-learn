@@ -1,4 +1,4 @@
-import { endWhen, otherwise, slot, when, type Mode } from "../slots.ts";
+import { endWhen, loopEnd, loopStart, otherwise, slot, when, type Mode } from "../slots.ts";
 import { RepeatList } from "../repeat.tsx";
 import { Layout } from "./layout.tsx";
 import type { ModelRow, ModelsFixture } from "../fixtures.ts";
@@ -128,13 +128,11 @@ export function AdminModels({ mode, data }: { mode: Mode; data: ModelsFixture })
               />
               <label className="form-control">
                 <span className="label-text">{slot(mode, "protocol_label", data.protocol_label)}</span>
-                <select className="select select-bordered" name="protocol">
-                  {data.protocols.map((protocol) => (
-                    <option key={protocol} value={slot(mode, "protocol", protocol)}>
-                      {protocol}
-                    </option>
-                  ))}
-                </select>
+                <select
+                  className="select select-bordered"
+                  name="protocol"
+                  dangerouslySetInnerHTML={{ __html: protocolOptions(mode, data.protocols) }}
+                />
               </label>
               <Field mode={mode} label={slot(mode, "model_label", data.model_label)} name="model_id" required />
               <label className="form-control">
@@ -161,6 +159,17 @@ export function AdminModels({ mode, data }: { mode: Mode; data: ModelsFixture })
       }
     />
   );
+}
+
+/// The protocol choices as Inja: a loop over `protocols` in template mode, the fixture's options in design mode.
+/// A map over the fixture cannot emit the loop, which left the template with one option and an unbound variable.
+function protocolOptions(mode: Mode, protocols: string[]): string {
+  if (mode === "template") {
+    const template: Mode = "template";
+    const option = `<option value="${slot(template, "protocol", "")}">${slot(template, "protocol", "")}</option>`;
+    return loopStart(template, "protocol", "protocols") + option + loopEnd(template);
+  }
+  return protocols.map((protocol) => `<option value="${protocol}">${protocol}</option>`).join("");
 }
 
 interface FieldProps {

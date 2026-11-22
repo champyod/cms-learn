@@ -49,6 +49,7 @@ export function Settings({ mode, data }: { mode: Mode; data: SettingsFixture }) 
         <>
           <h1 className="text-2xl font-semibold tracking-tight">{slot(mode, "title", data.title)}</h1>
           <p className="mt-1 opacity-70">{slot(mode, "lede", data.lede)}</p>
+          <p className="mt-1 text-sm opacity-60">{slot(mode, "unread_note", UNREAD_NOTE)}</p>
 
           <GroupNav mode={mode} groups={groups} active={active?.key ?? ""} />
 
@@ -111,6 +112,32 @@ function templateNav(): string {
 
 const SECRET_HINT = "ปล่อยว่างไว้เพื่อคงค่าเดิม";
 
+/// The sentence the page shows before offering only the settings a service reads. The route picks its
+/// locale; the design shows the English one, and the template carries the slot.
+const UNREAD_NOTE =
+  "Only the settings the system reads are offered. The rest are catalogued and unread, and are recorded rather than shown.";
+
+/// The four facts the page states about a field, derived the way the route derives them: the key's first
+/// segment, the tier's capability, the reload class's sentence, and whether the value is sealed.
+function scopeOf(key: string): string {
+  const separator = key.indexOf(".");
+  return separator === -1 ? key : key.slice(0, separator);
+}
+
+function permissionOf(tier: string): string {
+  return tier === "secret" ? "settings:secret_write" : "settings:write";
+}
+
+function effectOf(reload: string): string {
+  return reload === "hot"
+    ? "takes effect immediately"
+    : "takes effect after the api service restarts; the running service keeps the old value until then";
+}
+
+function sealedOf(tier: string): boolean {
+  return tier === "secret";
+}
+
 /// The row a template-mode render is built from. Its tier is the secret one, so the generated block carries
 /// the branch; the placeholder's own text never reaches the output because every text node in the row is a
 /// slot.
@@ -134,8 +161,27 @@ function Field({ mode, setting }: { mode: Mode; setting: SettingEntry }) {
   return (
     <div className="form-control">
       <Label id={id} entry={setting} />
+      <Facts entry={setting} />
       {setting.tier === "secret" ? <SecretInput id={id} setting={setting} /> : <PlainInput id={id} setting={setting} />}
     </div>
+  );
+}
+
+function Facts({ entry }: { entry: SettingEntry }) {
+  const scope = scopeOf(entry.key);
+  const permission = permissionOf(entry.tier);
+  const effect = effectOf(entry.reload);
+  return (
+    <p
+      className="mb-1 text-xs opacity-70"
+      data-scope={scope}
+      data-permission={permission}
+      data-effect={effect}
+      data-sealed={sealedOf(entry.tier)}
+    >
+      {scope} · {permission} · {effect}
+      {sealedOf(entry.tier) ? " · stored sealed" : ""}
+    </p>
   );
 }
 
@@ -184,6 +230,24 @@ function templateRow(): string {
       <span className="label-text-alt opacity-60">{slot(mode, "setting.tier", "")}</span>
     </label>,
   );
+  const facts = renderToStaticMarkup(
+    <p
+      className="mb-1 text-xs opacity-70"
+      data-scope={slot(mode, "setting.scope", "scope")}
+      data-permission={slot(mode, "setting.permission", "permission")}
+      data-effect={slot(mode, "setting.effect", "effect")}
+      data-sealed={slot(mode, "setting.sealed", "false")}
+    >
+      {slot(mode, "setting.scope", "scope")}
+      {" · "}
+      {slot(mode, "setting.permission", "permission")}
+      {" · "}
+      {slot(mode, "setting.effect", "effect")}
+      {when(mode, "setting.sealed")}
+      {" · stored sealed"}
+      {endWhen(mode)}
+    </p>,
+  );
   const secret = renderToStaticMarkup(
     <>
       <input
@@ -209,6 +273,7 @@ function templateRow(): string {
   );
   return (
     label +
+    facts +
     when(mode, 'setting.tier == "secret"') +
     secret +
     otherwise(mode) +
