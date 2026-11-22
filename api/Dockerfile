@@ -10,20 +10,28 @@ ARG VCPKG_BASELINE=ab9a05e70421507222d83861ac1a31be7e4272d4
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      cmake make git curl ca-certificates zip unzip tar pkg-config bison flex \
-      autoconf autoconf-archive automake libtool \
+      cmake make git curl ca-certificates zip unzip tar pkg-config \
  && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --filter=blob:none https://github.com/microsoft/vcpkg /vcpkg \
  && git -C /vcpkg checkout "${VCPKG_BASELINE}" \
  && /vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
+# libpq's build asks for the parser generator by name; without it vcpkg stops at "Could not find bison".
+# libpq asks for the parser generator, libsodium for autotools; both are named by the port, not by us.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends bison flex autoconf autoconf-archive automake libtool \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /src
 COPY . .
 
 ENV VCPKG_ROOT=/vcpkg
-RUN cmake --preset release -DVCPKG_BUILD_TYPE=release \
- && cmake --build --preset release --target cms_api --parallel
+# One configuration per image; a debug build of the same 38 packages doubles the build.
+RUN printf 'include(${CMAKE_CURRENT_LIST_DIR}/x64-linux.cmake)\nset(VCPKG_BUILD_TYPE release)\n' \
+      > /vcpkg/triplets/x64-linux-release.cmake
+RUN cmake --preset release -DVCPKG_TARGET_TRIPLET=x64-linux-release
+RUN cmake --build --preset release --target cms_api --parallel
 
 FROM debian:trixie-slim AS runtime
 
