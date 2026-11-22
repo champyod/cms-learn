@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# Applies the rendered schema plan, but only after proving it is the reviewed artifact.
+# Applies the desired schema, but only after proving the file is the reviewed artifact.
 #
-# pgschema executes a plan it is handed without checking it: an edited step applies as written, and
-# only fails if the database itself rejects the result. The digest in deploy/plan/CHECKSUMS is the
-# only link between those files and the commit that produced them, so every path that applies the
-# schema — the schema container, `make upgrade`, a manual run — goes through this wrapper.
+# The desired state is applied, not a pre-generated plan: pgschema diffs the target against the file and
+# applies the difference, so a re-run is a no-op and an existing database upgrades. A plan JSON carries
+# the fingerprint of the database it was rendered from and refuses every other one, which is why the
+# migrate cannot use it. The digest in deploy/plan/CHECKSUMS is the only link between the applied file
+# and the commit that produced it, so every path that applies the schema — the schema container, `make
+# upgrade`, a manual run — goes through this wrapper.
 #
 # Connection comes from the usual libpq environment: PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD.
 set -euo pipefail
@@ -33,4 +35,9 @@ if ! ( cd "$repo" && sha256sum --quiet --check deploy/plan/CHECKSUMS ); then
   die "the plan does not match deploy/plan/CHECKSUMS; refusing to apply it"
 fi
 
-exec "$pgschema_bin" apply --plan "$plan_dir/0001_init.json" --auto-approve "$@"
+# The desired-state diff is computed in a plan database. The schema container has no gateway, so pgschema
+# cannot fetch its embedded server there; the database being migrated is also the plan database.
+: "${PGHOST:?set PGHOST}" "${PGPORT:?set PGPORT}" "${PGDATABASE:?set PGDATABASE}" "${PGUSER:?set PGUSER}"
+exec "$pgschema_bin" apply --file "$plan_dir/0001_init.sql" \
+  --plan-host "$PGHOST" --plan-port "$PGPORT" --plan-db "$PGDATABASE" --plan-user "$PGUSER" \
+  --auto-approve "$@"

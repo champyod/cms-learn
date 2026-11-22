@@ -125,7 +125,7 @@ CREATE TYPE verdict_status AS ENUM (
     'check_failed'
 );
 
-ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE cmslearn IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;
 
 CREATE TABLE IF NOT EXISTS admin_accounts (
     id uuid DEFAULT gen_random_uuid(),

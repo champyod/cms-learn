@@ -39,16 +39,25 @@ pg_cluster_init "$work" >"$work/initdb.log" 2>&1 \
 pg_cluster_start "$work" "$port" "$work/server.log" >/dev/null 2>&1 \
   || die "the scratch cluster did not start; see $work/server.log"
 
+# The plan stamps its owner (ALTER DEFAULT PRIVILEGES FOR ROLE ...), so it must be rendered as the role
+# that owns the deployment's database. That role is the deployment fact in deploy/.env.example, not the
+# render machine's postgres: a plan rendered as postgres fails a fresh deployment on a role it never creates.
+owner="$(sed -n 's/^POSTGRES_USER=//p' "$repo/deploy/.env.example" | head -1)"
+[ -n "$owner" ] || die "deploy/.env.example names no POSTGRES_USER; the plan has no owner to render for"
+
+psql -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 \
+  -c "CREATE ROLE \"$owner\" LOGIN SUPERUSER PASSWORD 'render-only'" >/dev/null \
+  || die "could not create the deployment owner $owner"
 psql -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 -f "$repo/deploy/roles.sql" >/dev/null \
   || die "deploy/roles.sql failed"
 
 for db in render_target render_plan; do
-  createdb -h "$work" -p "$port" -U postgres "$db" || die "could not create $db"
+  createdb -h "$work" -p "$port" -U postgres -O "$owner" "$db" || die "could not create $db"
 done
 
 "$pgschema_bin" plan \
-  --host "$work" --port "$port" --db render_target --user postgres \
-  --plan-host "$work" --plan-port "$port" --plan-db render_plan --plan-user postgres \
+  --host "$work" --port "$port" --db render_target --user "$owner" \
+  --plan-host "$work" --plan-port "$port" --plan-db render_plan --plan-user "$owner" \
   --file "$repo/deploy/schema/main.sql" \
   --output-sql "$work/render.sql" --output-json "$work/render.json" --no-color \
   >"$work/render.log" 2>&1 \

@@ -123,10 +123,10 @@
           "path": "public.verdict_status"
         },
         {
-          "sql": "ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;",
+          "sql": "ALTER DEFAULT PRIVILEGES FOR ROLE cmslearn IN SCHEMA public GRANT SELECT, USAGE ON SEQUENCES TO cmslearn_app;",
           "type": "default_privilege",
           "operation": "create",
-          "path": "default_privileges.postgres.SEQUENCES.cmslearn_app"
+          "path": "default_privileges.cmslearn.SEQUENCES.cmslearn_app"
         },
         {
           "sql": "CREATE TABLE IF NOT EXISTS admin_accounts (\n    id uuid DEFAULT gen_random_uuid(),\n    handle text NOT NULL,\n    password_hash text,\n    status admin_status DEFAULT 'active'::admin_status NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    revoked_at timestamptz,\n    CONSTRAINT admin_accounts_pkey PRIMARY KEY (id),\n    CONSTRAINT admin_accounts_handle_key UNIQUE (handle),\n    CONSTRAINT admin_accounts_handle_shape CHECK (handle ~ '^[a-z0-9][a-z0-9_.-]{2,63}$'::text),\n    CONSTRAINT admin_accounts_revocation_shape CHECK ((status = 'revoked'::admin_status) = (revoked_at IS NOT NULL))\n);",

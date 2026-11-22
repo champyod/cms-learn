@@ -517,6 +517,24 @@ fi
 grep -q "absent-dependencies.md" "$work/refusal" || fail "the pin resolver did not name the missing pin document"
 note "a missing pin document is refused by name"
 
+# ── 11c. the migrate applies desired state, for the owner the deployment uses ─────────────────────
+# A pre-generated plan JSON is bound to the database it was rendered from and refuses every other one, so
+# the migrate cannot upgrade an existing database; and a plan rendered as postgres stamps FOR ROLE postgres,
+# which a fresh deployment (whose database is owned by POSTGRES_USER) fails on. Both are asserted here.
+grep -qE 'pgschema_bin" apply --file .*0001_init\.sql' "$repo/tools/apply-plan.sh" \
+  || fail "the migrate does not apply the desired state (apply-plan.sh must run pgschema apply --file 0001_init.sql)"
+if grep -qE 'pgschema_bin" apply --plan' "$repo/tools/apply-plan.sh"; then
+  fail "the migrate applies a pre-generated plan; a fingerprint-bound plan cannot upgrade another database"
+fi
+owner="$(sed -n 's/^POSTGRES_USER=//p' "$deploy/.env.example" | head -1)"
+[ -n "$owner" ] || fail "deploy/.env.example names no POSTGRES_USER"
+foreign="$(grep -oE 'FOR ROLE [a-z_]+' "$deploy/plan/0001_init.sql" | sed 's/FOR ROLE //' | sort -u | grep -vx "$owner" || true)"
+[ -z "$foreign" ] \
+  || fail "the plan is rendered for a foreign owner (${foreign//$'\n'/, }); the deployment owns its database as $owner"
+grep -q 'POSTGRES_USER' "$repo/tools/check-schema.sh" \
+  || fail "check:schema does not build its database as the deployment owner"
+note "the migrate applies desired state, and the plan and the gate both use $owner"
+
 # ── 12. every service has its own role, and the separation is attempted rather than declared ──────
 # ADR 0058: the grants were written but nothing enforced them, because every service connected as the same user. These
 # attempts use each service's own credentials, and every line names the role that made it, so a refusal for the web cannot
@@ -602,8 +620,12 @@ if command -v initdb >/dev/null 2>&1 && command -v psql >/dev/null 2>&1; then
   trap 'pg_cluster_stop "$cluster" >/dev/null 2>&1 || true; rm -rf "$cluster"' EXIT
 
   psql -X -h "$cluster" -p "$port" -U postgres -q -c "CREATE DATABASE cmslearn_roles" >/dev/null 2>&1
+  # The plan stamps the deployment owner, so the cluster must hold that role, exactly as the deployment's
+  # database does; applying as postgres here would hide a plan the deployment cannot use.
+  owner="$(sed -n 's/^POSTGRES_USER=//p' "$deploy/.env.example" | head -1)"
+  psql -X -h "$cluster" -p "$port" -U postgres -q -c "CREATE ROLE \"$owner\" LOGIN SUPERUSER PASSWORD 'gate-owner'" >/dev/null 2>&1     || fail "could not create the deployment owner $owner"
   psql -X -h "$cluster" -p "$port" -U postgres -d cmslearn_roles -q -v ON_ERROR_STOP=1     -v api_password=gate_api -v generator_password=gate_generator -v certifier_password=gate_certifier     -v judge_password=gate_judge -v bank_password=gate_bank -v backup_password=gate_backup     -f "$deploy/roles.sql" >/dev/null 2>&1 || fail "deploy/roles.sql does not apply"
-  PGHOST="$cluster" PGPORT="$port" PGDATABASE=cmslearn_roles PGUSER=postgres     bash "$repo/tools/apply-plan.sh" >/dev/null 2>&1 || fail "the plan does not apply to the roles database"
+  PGHOST="$cluster" PGPORT="$port" PGDATABASE=cmslearn_roles PGUSER="$owner"     bash "$repo/tools/apply-plan.sh" >/dev/null 2>&1 || fail "the plan does not apply to the roles database"
 
   # A certificate names a task, so the attempts below need one row to point at; it is written as the owner, because the
   # point of these attempts is what the service roles may do afterwards, not how the row got there.
