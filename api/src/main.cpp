@@ -255,7 +255,7 @@ auto run() -> int {
     cms::api::register_admin_routes(database_config, store, config->template_root, panel_port,
                                     store_config);
   }
-  cms::api::register_verdict_route(database_config);
+  cms::api::register_verdict_route(database_config, config->database_url);
   register_asset_route(config->static_root);
 
   auto watcher = cms::api::SettingsWatcher{database, store, config->database_url,

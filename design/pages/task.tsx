@@ -6,6 +6,15 @@ import { Layout } from "./layout.tsx";
 // island upgrades the textarea when JavaScript arrives, and when it does not the same field posts anyway.
 // The fallback is not a separate code path — removing the island must leave a working form.
 
+const STREAM_SCRIPT = `(() => {
+  const panel = document.getElementById("verdict-panel");
+  if (!panel || !window.EventSource) return;
+  const events = new EventSource(panel.dataset.stream);
+  events.addEventListener("verdict", (event) => {
+    panel.innerHTML = event.data;
+  });
+})();`;
+
 export function Task({ mode, data }: { mode: Mode; data: TaskFixture }) {
   return (
     <Layout
@@ -67,17 +76,17 @@ export function Task({ mode, data }: { mode: Mode; data: TaskFixture }) {
           {/* Outside the form: the submission must never depend on the island loading. */}
           <script src="/static/island.js" defer />
 
-          {/* Polling is an htmx attribute on the panel; without JavaScript the page simply does not refresh,
-              and the verdict is still there on the next load. */}
-          <section
-            className="mt-8"
-            id="verdict"
-            hx-get={slot(mode, "verdict_url", "/tasks/" + data.task_id + "/verdict")}
-            hx-trigger="every 2s"
-            hx-swap="outerHTML"
+          {/* One stream per open page: the server pushes the fragment when the verdict write happens, and
+              without JavaScript the page simply keeps the pending line it rendered. */}
+          <div
+            id="verdict-panel"
+            data-stream={slot(mode, "verdict_stream_url", "/tasks/" + data.task_id + "/verdict/stream")}
           >
-            <p className="opacity-70">{slot(mode, "verdict_pending", data.verdict_pending)}</p>
-          </section>
+            <section className="mt-8" id="verdict">
+              <p className="opacity-70">{slot(mode, "verdict_pending", data.verdict_pending)}</p>
+            </section>
+          </div>
+          <script dangerouslySetInnerHTML={{ __html: STREAM_SCRIPT }} />
         </>
       }
     />

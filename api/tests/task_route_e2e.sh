@@ -304,13 +304,80 @@ else
   bad "the verdict endpoint without a session redirects to sign-in" "HTTP $status"
 fi
 
-status="$(fetch /tasks/everyone-task/verdict "$learner_session")"
-if [ "$status" = "200" ] && grep -q 'hx-get="/tasks/everyone-task/verdict"' "$work/body" \
-  && grep -q "ยังไม่มีผลการตรวจ" "$work/body"; then
-  ok "the verdict fragment keeps polling while no verdict has arrived"
+status="$(fetch /tasks/everyone-task "$learner_session")"
+if [ "$status" = "200" ] && grep -q 'data-stream="/tasks/everyone-task/verdict/stream"' "$work/body" \
+  && ! grep -q "hx-trigger" "$work/body" && ! grep -q "every 2s" "$work/body"; then
+  ok "the task page opens one verdict stream and carries no polling attribute"
 else
-  bad "the verdict fragment keeps polling while no verdict has arrived" "HTTP $status"
+  bad "the task page opens one verdict stream and carries no polling attribute" "HTTP $status"
 fi
+
+status="$(fetch /tasks/everyone-task "$learner_session")"
+if [ "$status" = "200" ] && grep -q "1000 ms" "$work/body" \
+  && grep -q "256 MB" "$work/body" && grep -q "512 MB" "$work/body"; then
+  ok "the task page still shows its per-test cost beside the verdict panel"
+else
+  bad "the task page still shows its per-test cost beside the verdict panel" "HTTP $status"
+fi
+
+status="$(fetch /tasks/everyone-task/verdict "$learner_session")"
+if [ "$status" = "200" ] && grep -q "ยังไม่มีผลการตรวจ" "$work/body" \
+  && ! grep -q "hx-get" "$work/body" && ! grep -q "hx-trigger" "$work/body"; then
+  ok "the pending fragment carries no interval"
+else
+  bad "the pending fragment carries no interval" "HTTP $status"
+fi
+
+psql_db -c "INSERT INTO submissions (account_id, task_id, task_version, source)
+            VALUES ('$learner', 'everyone-task', 1, 'int main() {}')" >/dev/null 2>&1 \
+  || { echo "  [!!] pending submission insert failed"; exit 1; }
+stream_url="http://127.0.0.1:$listen_port/tasks/everyone-task/verdict/stream"
+curl -sN -D "$work/stream.headers" --max-time 8 -H "Cookie: cms_session=$learner_session" \
+  "$stream_url" >"$work/stream.body" &
+stream_pid=$!
+sleep 1
+if grep -qi '^content-type: text/event-stream' "$work/stream.headers" \
+  && grep -q "ยังไม่มีผลการตรวจ" "$work/stream.body"; then
+  ok "the stream answers text/event-stream and pushes the pending fragment on connect"
+else
+  bad "the stream answers text/event-stream and pushes the pending fragment on connect" \
+    "$(head -1 "$work/stream.headers" 2>/dev/null): $(head -2 "$work/stream.body" 2>/dev/null)"
+fi
+
+psql_db -c "UPDATE submissions SET verdict = 'ok', judged_at = now()
+            WHERE account_id = '$learner' AND task_id = 'everyone-task' AND verdict IS NULL" >/dev/null 2>&1
+sleep 1
+if grep -q "ผ่าน" "$work/stream.body"; then
+  ok "the verdict write pushes the judged fragment to the open stream"
+else
+  bad "the verdict write pushes the judged fragment to the open stream" "$(tail -2 "$work/stream.body" 2>/dev/null)"
+fi
+kill "$stream_pid" 2>/dev/null
+wait "$stream_pid" 2>/dev/null
+
+started="$(date +%s)"
+curl -sN --max-time 30 -H "Cookie: cms_session=$learner_session" "$stream_url" >/dev/null
+finished="$(date +%s)"
+elapsed=$((finished - started))
+if [ "$elapsed" -ge 19 ] && [ "$elapsed" -le 25 ]; then
+  ok "the stream ends on its own timeout"
+else
+  bad "the stream ends on its own timeout" "closed after ${elapsed}s"
+fi
+
+curl -sN --max-time 6 -H "Cookie: cms_session=$other_session" "$stream_url" >/dev/null 2>&1 &
+first_pid=$!
+curl -sN --max-time 6 -H "Cookie: cms_session=$other_session" "$stream_url" >/dev/null 2>&1 &
+second_pid=$!
+sleep 1
+capped="$(curl -s -o /dev/null -w '%{http_code}' --max-time 2 -H "Cookie: cms_session=$other_session" "$stream_url")"
+if [ "$capped" = "429" ]; then
+  ok "a session cannot hold more streams than its cap"
+else
+  bad "a session cannot hold more streams than its cap" "HTTP $capped"
+fi
+kill "$first_pid" "$second_pid" 2>/dev/null
+wait "$first_pid" "$second_pid" 2>/dev/null
 
 psql_db -c "INSERT INTO submissions (account_id, task_id, task_version, source, verdict, judged_at)
             VALUES ('$learner', 'everyone-task', 1, 'int main() {}', 'ok', now())" >/dev/null 2>&1 \

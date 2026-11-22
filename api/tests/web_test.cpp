@@ -287,7 +287,8 @@ TEST_CASE("the task model carries no reference solution and no starter source", 
   CHECK(model["task"].contains("starter_source"));
   CHECK(model["task"]["starter_source"] == "");
   CHECK(model["submit_action"] == "/tasks/range-sum-query/submit");
-  CHECK(model["verdict_url"] == "/tasks/range-sum-query/verdict");
+  CHECK(model["verdict_stream_url"] == "/tasks/range-sum-query/verdict/stream");
+  CHECK_FALSE(model.contains("verdict_url"));
 }
 
 TEST_CASE("a statement carrying markup is shown as text, never injected into the page",

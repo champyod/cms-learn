@@ -279,7 +279,7 @@ auto task_model(const Locale& locale, const TaskPage& task, std::string_view sit
   data["submit_label"] = std::string{words.submit_label};
   data["verdict_pending"] = std::string{words.verdict_pending};
   data["submit_action"] = "/tasks/" + task.id + "/submit";
-  data["verdict_url"] = "/tasks/" + task.id + "/verdict";
+  data["verdict_stream_url"] = "/tasks/" + task.id + "/verdict/stream";
   data["task"] = {{"title", label(locale, task.title_en, task.title_th)},
                   {"limit_label", std::string{words.limit_label}},
                   {"time_ms", task.time_limit_ms},

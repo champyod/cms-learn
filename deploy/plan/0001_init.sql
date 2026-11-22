@@ -1207,6 +1207,19 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION submissions_verdict_notifies()
+RETURNS trigger
+LANGUAGE plpgsql
+VOLATILE
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  PERFORM pg_notify('cms_verdict',
+                    NEW.account_id::text || ':' || NEW.task_id || ':' || NEW.task_version::text);
+  RETURN NEW;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION task_field_audit()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -1588,6 +1601,12 @@ CREATE OR REPLACE TRIGGER settings_version_bump
     AFTER INSERT OR UPDATE OR DELETE ON settings
     FOR EACH ROW
     EXECUTE FUNCTION settings_bump_version();
+
+CREATE OR REPLACE TRIGGER submissions_verdict_notify
+    AFTER UPDATE OF verdict ON submissions
+    FOR EACH ROW
+    WHEN (((OLD.verdict IS DISTINCT FROM NEW.verdict)))
+    EXECUTE FUNCTION submissions_verdict_notifies();
 
 CREATE OR REPLACE TRIGGER task_field_defs_audit
     AFTER INSERT OR UPDATE OR DELETE ON task_field_defs

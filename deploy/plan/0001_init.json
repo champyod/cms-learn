@@ -615,6 +615,12 @@
           "path": "public.settings_write_audit"
         },
         {
+          "sql": "CREATE OR REPLACE FUNCTION submissions_verdict_notifies()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSET search_path = pg_catalog, public\nAS $$\nBEGIN\n  PERFORM pg_notify('cms_verdict',\n                    NEW.account_id::text || ':' || NEW.task_id || ':' || NEW.task_version::text);\n  RETURN NEW;\nEND;\n$$;",
+          "type": "function",
+          "operation": "create",
+          "path": "public.submissions_verdict_notifies"
+        },
+        {
           "sql": "CREATE OR REPLACE FUNCTION task_field_audit()\nRETURNS trigger\nLANGUAGE plpgsql\nVOLATILE\nSECURITY DEFINER\nSET search_path = pg_catalog, public\nAS $$\nDECLARE\n  actor actor_identity := current_actor();\n  subject text;\nBEGIN\n  subject := CASE WHEN TG_OP = 'DELETE' THEN OLD.task_type_id || '.' || OLD.key\n                  ELSE NEW.task_type_id || '.' || NEW.key END;\n  INSERT INTO audit_events (actor_kind, learner_actor_id, admin_actor_id, system_actor_id,\n                            invoked_by, action, subject, detail)\n  VALUES (actor.kind,\n          CASE WHEN actor.kind = 'learner' THEN actor.id END,\n          CASE WHEN actor.kind = 'admin' THEN actor.id END,\n          CASE WHEN actor.kind = 'system' THEN actor.id END,\n          coalesce(current_setting('cms.invoked_by', true), ''),\n          'task.field.' || lower(TG_OP),\n          subject,\n          jsonb_build_object('kind', CASE WHEN TG_OP = 'DELETE' THEN OLD.kind ELSE NEW.kind END,\n                             'required', CASE WHEN TG_OP = 'DELETE' THEN OLD.required ELSE NEW.required END));\n  RETURN NULL;\nEND;\n$$;",
           "type": "function",
           "operation": "create",
@@ -757,6 +763,12 @@
           "type": "table.trigger",
           "operation": "create",
           "path": "public.settings.settings_version_bump"
+        },
+        {
+          "sql": "CREATE OR REPLACE TRIGGER submissions_verdict_notify\n    AFTER UPDATE OF verdict ON submissions\n    FOR EACH ROW\n    WHEN (((OLD.verdict IS DISTINCT FROM NEW.verdict)))\n    EXECUTE FUNCTION submissions_verdict_notifies();",
+          "type": "table.trigger",
+          "operation": "create",
+          "path": "public.submissions.submissions_verdict_notify"
         },
         {
           "sql": "CREATE OR REPLACE TRIGGER task_field_defs_audit\n    AFTER INSERT OR UPDATE OR DELETE ON task_field_defs\n    FOR EACH ROW\n    EXECUTE FUNCTION task_field_audit();",

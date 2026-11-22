@@ -7,7 +7,7 @@ namespace cms::api {
 namespace {
 
 constexpr std::string_view PENDING_FRAGMENT =
-    R"(<section class="mt-8" id="verdict" hx-get="{{ verdict_url }}" hx-trigger="every 2s" hx-swap="outerHTML"><p class="opacity-70">{{ verdict_pending }}</p></section>)";
+    R"(<section class="mt-8" id="verdict"><p class="opacity-70">{{ verdict_pending }}</p></section>)";
 constexpr std::string_view FINISHED_FRAGMENT =
     R"(<section class="mt-8" id="verdict"><p class="opacity-70">{{ verdict_label }}</p></section>)";
 
@@ -36,10 +36,8 @@ auto verdict_label(const Locale& locale, std::string_view verdict) -> std::strin
 
 }  // namespace
 
-auto verdict_fragment_model(const Locale& locale, std::string_view task_id,
-                            const VerdictView& view) -> nlohmann::json {
+auto verdict_fragment_model(const Locale& locale, const VerdictView& view) -> nlohmann::json {
   auto data = nlohmann::json{};
-  data["verdict_url"] = "/tasks/" + std::string{task_id} + "/verdict";
   data["verdict_pending"] = verdict_pending_label(locale);
   data["verdict_label"] = verdict_label(locale, view.verdict);
   return data;

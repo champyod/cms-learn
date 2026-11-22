@@ -25,3 +25,24 @@ CREATE TABLE submissions (
 
 CREATE INDEX submissions_account_idx ON submissions (account_id, submitted_at DESC);
 CREATE INDEX submissions_unjudged_idx ON submissions (submitted_at) WHERE verdict IS NULL;
+
+-- The verdict is written by the judge and read by another process; the write itself carries the news so an
+-- open page is fed by the change rather than by asking again. The payload names the row's audience: the
+-- account, the task and the version a stream compares against.
+CREATE FUNCTION submissions_verdict_notifies() RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, public
+AS $$
+BEGIN
+  PERFORM pg_notify('cms_verdict',
+                    NEW.account_id::text || ':' || NEW.task_id || ':' || NEW.task_version::text);
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER submissions_verdict_notify
+  AFTER UPDATE OF verdict ON submissions
+  FOR EACH ROW
+  WHEN (OLD.verdict IS DISTINCT FROM NEW.verdict)
+  EXECUTE FUNCTION submissions_verdict_notifies();
+
