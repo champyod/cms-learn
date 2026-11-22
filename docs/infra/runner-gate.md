@@ -113,31 +113,32 @@ run; later runs reuse it.
 
 ## What it produced on the runner
 
-Measured on the runner (`m5`), 2026-11-22, at commit `d01f0ae`, image built from this tree's
-`deploy/runner/Dockerfile`:
+Measured on the runner (`m5`), 2026-11-22, image built from this tree's `deploy/runner/Dockerfile`.
+The first run was at `d01f0ae`, the commit that introduced `USER runner`; the numbers below are the
+re-run at `df63a7a`.
 
 | Fact | Value |
 |---|---|
 | the command | `bun run check:cpp` → `tools/gate-lock.sh` → `tools/cpp/gate.ts` |
 | the user the gate ran as | `runner`, uid 1000, gid 1000, groups `1000 0` |
-| the verdict | `cpp gate — 59 target(s) built · 218 case(s) passed · 147 unit(s) analysed in 4 worker(s) in 766 s · 4 finding(s)` |
+| the verdict | `cpp gate — 59 target(s) built · 215 case(s) passed · 147 unit(s) analysed in 4 worker(s) in 727 s · 0 finding(s)` |
 | the tools it printed | `g++ (GCC) 16.2.0` / `Debian clang version 23.1.6` / `Debian LLVM version 23.1.6` |
 | the services the cases used | PostgreSQL 17.12 (server and client, installed in the root phase), Docker 28.5.1 through the mounted socket, `pgschema` 1.13.4 for every `api_*_e2e` schema apply |
 | skips | the Catch2 live-database cases, printed by name on the verdict line as `(CMSLEAN_TEST_DSN is not set)` |
-| the gate's exit | 1 — because of the four findings below, not because of the image |
+| the gate's exit | 0 with that verdict; the unmodified run of the same tree was 1 (see below) |
 
-The four findings the analysis reported, all in `generator/`:
+The verdict above is the run in which the two page cases were left out — the recipe's diagnostic, not
+the contract's run — because at `df63a7a` the unmodified gate stops before the analysis:
 
-| File:line | Rule |
-|---|---|
-| `generator/src/certify_checks.cpp:147` | `performance-unnecessary-value-param` |
-| `generator/src/certify_checks.cpp:149` | `performance-move-const-arg` |
-| `generator/src/certify.cpp:789` | `performance-unnecessary-value-param` |
-| `generator/src/certify.cpp:791` | `performance-move-const-arg` |
+`cpp gate — 59 target(s) built · 215 case(s) passed · static analysis did not run — no unit was analysed,
+so the finding count says nothing (ctest failed: api_settings_route_e2e, api_model_admin_e2e) · 0 finding(s)`
 
-The same analyser on a developer machine reports the same four, so they belong to the tree and not to
-the container: `check:cpp`'s static half had never been run inside the image before this run — the
-earlier record stopped at the end-to-end cases — and the first time it ran it reported them.
+Those two cases assert facts of the settings and model-record pages and were red on every host at that
+commit, so the analysis behind them is the only way to see whether the C++ half is clean. It is: 147
+units, 0 findings. The first run of the recipe (at `d01f0ae`) reported four findings in `generator/` —
+`certify_checks.cpp:147` and `certify.cpp:789` `performance-unnecessary-value-param`,
+`certify_checks.cpp:149` and `certify.cpp:791` `performance-move-const-arg` — the same four the
+analyser reported natively, which is how the static half came to be run inside the image at all.
 
 ## What a write outside the named paths does
 
