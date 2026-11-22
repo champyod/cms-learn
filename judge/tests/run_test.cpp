@@ -81,6 +81,20 @@ TEST_CASE("a clean run with no readable peak memory is a refusal, never a pass")
   CHECK(unreadable.error().message.find("cannot read") != std::string::npos);
 }
 
+TEST_CASE("a clean exit without a status line is a clean run, as the real sandbox reports it") {
+  auto clean = outcome("");
+  clean.meta["exitcode"] = "0";
+  CHECK(!sandbox_of(clean).has_value());
+
+  auto failed = outcome("");
+  failed.meta["exitcode"] = "1";
+  CHECK(sandbox_of(failed) == SubmissionVerdict::runtime_error);
+
+  auto killed = outcome("");
+  killed.meta["killed"] = "1";
+  CHECK(sandbox_of(killed) == SubmissionVerdict::time_limit_exceeded);
+}
+
 TEST_CASE("a sandbox that failed is a refusal, not a verdict") {
   CHECK(!cms::judge::sandbox_verdict(outcome("XX")).has_value());
   CHECK(!cms::judge::sandbox_verdict(outcome("")).has_value());

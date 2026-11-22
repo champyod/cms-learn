@@ -137,5 +137,18 @@ else
   bad "the wrong-answer row names its reason" "verdict_detail is empty"
 fi
 
+# The stub is the gate's guard, not only its sandbox: it must refuse a redirect path that is not a name
+# inside the box, because that is exactly the mistake a host path makes and the stub used to hide it.
+refusal_box="$(mktemp -d)"
+refusal="$( sh "$isolate_source" --box-id 9 --meta meta.txt --stdin "$refusal_box/host.in" \
+  --stdout out.txt --stderr err.txt --run -- /bin/true 2>&1 )"
+refusal_status=$?
+if [ "$refusal_status" -ne 0 ] && printf '%s' "$refusal" | grep -q 'takes a path inside the sandbox'; then
+  ok "a host path is refused by the stub the way isolate misses it"
+else
+  bad "a host path is refused by the stub the way isolate misses it" "exit $refusal_status: $refusal"
+fi
+rm -rf "$refusal_box"
+
 printf '\n%s assertion(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

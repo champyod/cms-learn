@@ -19,7 +19,8 @@ auto stub_named(std::string_view name) -> std::string {
 /// wrote cannot be read by the next.
 auto scratch_box(std::string_view name) -> std::filesystem::path {
   const auto directory = std::filesystem::temp_directory_path() / ("cms-judge-box-" + std::string{name});
-  std::filesystem::create_directories(directory);
+  // isolate creates the sandbox root; the stub writes its report inside it, so a test box carries one too.
+  std::filesystem::create_directories(directory / "box");
   return directory;
 }
 
@@ -41,14 +42,14 @@ TEST_CASE("the isolate command line is the one the v2.7 manual documents", "[sup
   const auto expected = std::vector<std::string>{
       "--box-id",    "3",
       "--meta",      "/var/lib/isolate/3/box/meta.txt",
-      "--stdin",     "/var/lib/isolate/3/box/input.txt",
-      "--stdout",    "/var/lib/isolate/3/box/output.txt",
-      "--stderr",    "/var/lib/isolate/3/box/error.txt",
+      "--stdin",     "/box/input.txt",
+      "--stdout",    "/box/output.txt",
+      "--stderr",    "/box/error.txt",
       "--time",      "1.000",
       "--wall-time", "10.000",
       "--mem",       "262144",
-      "--processes", "1",
-      "--dir",       "box=/var/lib/isolate/3/box",
+      "--processes=1",
+      "--env",       "PATH=/usr/local/bin:/usr/bin:/bin",
   };
   CHECK(arguments == expected);
 }

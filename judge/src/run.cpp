@@ -2,6 +2,7 @@
 
 #include <array>
 #include <charconv>
+#include <cstdlib>
 #include <cstddef>
 #include <filesystem>
 #include <fstream>
@@ -10,6 +11,8 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+
+#include <unistd.h>
 
 namespace cms::judge {
 namespace {
@@ -69,12 +72,40 @@ auto first_line(std::string_view text) -> std::string {
   return {};
 }
 
+/// The sandbox has no PATH to search with, so a compiler named by name is resolved here, where the
+/// runner's own environment answers.
+auto resolve_program(std::string_view name) -> std::string {
+  if (name.find('/') != std::string_view::npos) {
+    return std::string{name};
+  }
+  const auto* path = std::getenv("PATH");
+  if (path == nullptr) {
+    return std::string{name};
+  }
+  const auto directories = std::string_view{path};
+  auto start = std::size_t{0};
+  while (start <= directories.size()) {
+    const auto end = directories.find(':', start);
+    const auto directory = directories.substr(start, end == std::string_view::npos ? std::string_view::npos
+                                                                                 : end - start);
+    const auto candidate = std::filesystem::path{directory} / std::string{name};
+    if (::access(candidate.c_str(), X_OK) == 0) {
+      return candidate.string();
+    }
+    if (end == std::string_view::npos) {
+      break;
+    }
+    start = end + 1;
+  }
+  return std::string{name};
+}
+
 auto compile_run(const RunSettings& settings, const TaskRun& task,
                  const std::filesystem::path& box) -> RunSpec {
   auto spec = RunSpec{};
   spec.box_id = settings.box_id;
   spec.box_dir = box;
-  spec.program = settings.compiler;
+  spec.program = resolve_program(settings.compiler);
   spec.arguments = {"-std=" + task.cpp_standard, "-O2", "-pipe", "-o", std::string{PROGRAM},
                     std::string{SOURCE}};
   spec.time_limit_ms = settings.compile_time_limit_ms;
@@ -150,9 +181,35 @@ auto submission_verdict_name(SubmissionVerdict verdict) -> std::string_view {
   return "failed";
 }
 
-auto sandbox_verdict(const RunOutcome& outcome) -> Result<std::optional<SubmissionVerdict>> {
+/// Whether the run finished the way isolate reports a clean exit: `status: OK` from the supervisor's own
+/// tests, or — as the real sandbox does — no status line at all, because it omits one when the program
+/// exits zero, and an `exitcode: 0` instead.
+auto sandbox_succeeded(const RunOutcome& outcome) -> bool {
+  if (outcome.is_killed) {
+    return false;
+  }
   if (outcome.status == "OK") {
+    return true;
+  }
+  if (!outcome.status.empty()) {
+    return false;
+  }
+  const auto exitcode = outcome.meta.find("exitcode");
+  return exitcode != outcome.meta.end() && exitcode->second == "0";
+}
+
+auto sandbox_verdict(const RunOutcome& outcome) -> Result<std::optional<SubmissionVerdict>> {
+  if (sandbox_succeeded(outcome)) {
     return std::optional<SubmissionVerdict>{};
+  }
+  if (outcome.status.empty()) {
+    const auto exitcode = outcome.meta.find("exitcode");
+    if (exitcode != outcome.meta.end()) {
+      return SubmissionVerdict::runtime_error;
+    }
+    if (outcome.meta.contains("killed")) {
+      return SubmissionVerdict::time_limit_exceeded;
+    }
   }
   if (outcome.status == "TO") {
     return SubmissionVerdict::time_limit_exceeded;
@@ -212,7 +269,7 @@ auto memory_verdict(const RunOutcome& outcome, std::int64_t used_limit_kb, std::
 }
 
 auto compile_verdict(const RunOutcome& outcome) -> std::optional<SubmissionVerdict> {
-  if (outcome.status == "OK" && !outcome.is_killed) {
+  if (sandbox_succeeded(outcome)) {
     return std::nullopt;
   }
   return SubmissionVerdict::compile_error;
@@ -238,8 +295,11 @@ auto checker_verdict(Verdict verdict) -> SubmissionVerdict {
 
 auto judge_in_box(const RunSettings& settings, const TaskRun& task, std::string_view source,
                   const std::filesystem::path& box) -> Result<Judgement> {
-  if (!write_text(box / std::string{SOURCE}, source) ||
-      !write_text(box / std::string{COMPILE_INPUT}, "")) {
+  // The program's own files sit in the box directory the supervisor maps to /box; the streams isolate
+  // redirects live inside the box root isolate creates, which is where it opens them by name.
+  const auto sandbox_root = box / "box";
+  if (!write_text(sandbox_root / std::string{SOURCE}, source) ||
+      !write_text(sandbox_root / std::string{COMPILE_INPUT}, "")) {
     return std::unexpected(
         Error::make(ErrorCode::unavailable, "cannot stage the submission in the box"));
   }
@@ -249,27 +309,27 @@ auto judge_in_box(const RunSettings& settings, const TaskRun& task, std::string_
     return std::unexpected(compiled.error());
   }
   if (const auto verdict = compile_verdict(*compiled)) {
-    const auto reason = first_line(read_text(box / std::string{COMPILE_ERROR}));
+    const auto reason = first_line(read_text(sandbox_root / std::string{COMPILE_ERROR}));
     auto detail = std::string{submission_verdict_name(*verdict)};
     if (!reason.empty()) {
       detail += ": " + reason;
     }
     return Judgement{.verdict = *verdict, .detail = std::move(detail)};
   }
-  if (!std::filesystem::exists(box / std::string{PROGRAM})) {
+  if (!std::filesystem::exists(sandbox_root / std::string{PROGRAM})) {
     return Judgement{.verdict = SubmissionVerdict::compile_error,
                      .detail = "the compiler reported success but wrote no solution"};
   }
 
-  const auto input_path = box / "input.txt";
-  const auto answer_path = box / "answer.txt";
+  const auto input_path = sandbox_root / "input.txt";
+  const auto answer_path = sandbox_root / "answer.txt";
   std::error_code discarded;
   for (const auto& one : task.cases) {
     if (!write_text(input_path, one.input) || !write_text(answer_path, one.expected_output)) {
       return std::unexpected(
           Error::make(ErrorCode::unavailable, "cannot stage a case in the box"));
     }
-    std::filesystem::remove(box / "output.txt", discarded);
+    std::filesystem::remove(sandbox_root / "output.txt", discarded);
 
     const auto ran = run_sandboxed(case_run(settings, task, box), settings.isolate);
     if (!ran) {
@@ -293,7 +353,7 @@ auto judge_in_box(const RunSettings& settings, const TaskRun& task, std::string_
     }
 
     const auto checked = run_checker(task.checker, input_path.string(),
-                                     (box / "output.txt").string(), answer_path.string());
+                                     (sandbox_root / "output.txt").string(), answer_path.string());
     if (!checked) {
       return Judgement{.verdict = SubmissionVerdict::checker_failed,
                        .detail = "the checker produced no verdict: " + checked.error().message};

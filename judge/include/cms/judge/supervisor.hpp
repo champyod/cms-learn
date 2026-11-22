@@ -29,11 +29,12 @@ struct RunSpec {
   std::int64_t memory_reserved_limit_kb{262144};
   /// Processes the program may create. One unless the task needs otherwise.
   int process_limit{1};
-  /// Files isolate redirects the program's streams to, relative to the box directory.
+  /// Files isolate redirects the program's streams to. Names, not paths: isolate opens them inside the
+  /// box root it creates (`<box_dir>/box`), so a host path would be looked up inside the sandbox and missed.
   std::string input{"input.txt"};
   std::string output{"output.txt"};
   std::string error{"error.txt"};
-  /// Where isolate writes its report.
+  /// Where isolate writes its report, named the same way.
   std::string meta{"meta.txt"};
 };
 

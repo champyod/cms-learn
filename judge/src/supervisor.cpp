@@ -15,6 +15,10 @@
 namespace cms::judge {
 namespace {
 
+/// Where the box directory appears inside the sandbox; the manual's default directory rule binds it
+/// read-write, which is what lets the program and its redirects share one place.
+constexpr std::string_view SANDBOX_BOX = "/box/";
+
 constexpr int TERMINATION_GRACE_MILLISECONDS = 200;
 constexpr std::size_t CAPTURE_BYTES = 8 * 1024;
 
@@ -132,18 +136,21 @@ auto seconds_text(std::int64_t milliseconds) -> std::string {
 }
 
 auto isolate_arguments(const RunSpec& spec) -> std::vector<std::string> {
-  const auto box = spec.box_dir.string();
+  // isolate opens the redirect files inside the sandbox, where the box directory is /box: their paths are
+  // the sandbox's, not the caller's. The meta report is the one file the sandbox manager writes outside.
   return {
       "--box-id",    spec.box_id,
       "--meta",      (spec.box_dir / spec.meta).string(),
-      "--stdin",     (spec.box_dir / spec.input).string(),
-      "--stdout",    (spec.box_dir / spec.output).string(),
-      "--stderr",    (spec.box_dir / spec.error).string(),
+      "--stdin",     std::string{SANDBOX_BOX} + spec.input,
+      "--stdout",    std::string{SANDBOX_BOX} + spec.output,
+      "--stderr",    std::string{SANDBOX_BOX} + spec.error,
       "--time",      seconds_text(spec.time_limit_ms),
       "--wall-time", seconds_text(spec.wall_limit_ms),
       "--mem",       std::to_string(spec.memory_reserved_limit_kb),
-      "--processes", std::to_string(spec.process_limit),
-      "--dir",       "box=" + box,
+      // --processes' value is optional, so getopt only takes it attached; a separate word becomes the program.
+      "--processes=" + std::to_string(spec.process_limit),
+      // The sandbox starts with no environment: the compiler is named by name, so it needs a PATH to be found.
+      "--env",       "PATH=/usr/local/bin:/usr/bin:/bin",
   };
 }
 
@@ -215,7 +222,11 @@ auto run_sandboxed(const RunSpec& spec, const std::string& isolate_path) -> Resu
   outcome.meta = meta;
   const auto status = meta.find("status");
   outcome.status = status == meta.end() ? std::string{} : std::string{trimmed(status->second)};
-  if (outcome.status.empty() && !outcome.is_killed) {
+  // A clean exit carries no status line in isolate's report; it carries `exitcode: 0` instead. Only a
+  // report with nothing to read in it is refused here, and it is refused by name.
+  const auto reported = outcome.status.empty() && !outcome.is_killed &&
+                        !meta.contains("exitcode") && !meta.contains("killed");
+  if (reported) {
     return std::unexpected(
         Error::make(ErrorCode::unavailable, "the sandbox wrote no status; the run did not happen"));
   }
