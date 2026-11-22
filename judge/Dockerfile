@@ -14,12 +14,18 @@ ARG VCPKG_BASELINE=ab9a05e70421507222d83861ac1a31be7e4272d4
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      cmake ninja-build git curl ca-certificates zip unzip tar pkg-config \
+      cmake make git curl ca-certificates zip unzip tar pkg-config \
  && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --filter=blob:none https://github.com/microsoft/vcpkg /vcpkg \
  && git -C /vcpkg checkout "${VCPKG_BASELINE}" \
  && /vcpkg/bootstrap-vcpkg.sh -disableMetrics
+
+# libpq's build asks for the parser generator by name; without it vcpkg stops at "Could not find bison".
+# libpq asks for the parser generator, libsodium for autotools; both are named by the port, not by us.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends bison flex autoconf autoconf-archive automake libtool \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /src
 COPY . .

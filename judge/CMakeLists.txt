@@ -69,9 +69,9 @@ endif()
 # The checkers are separate executables because that is how they run: one process per case, arguments
 # (input, output, answer), verdict on standard error.
 add_executable(cms_checker_token checkers/token.cpp)
-target_include_directories(cms_checker_token PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
 # testlib is a third-party header under a licence this project does not own; its warnings are not ours to
-# fix, so it is included as a system header.
+# fix, so it is included as a system header — once, as a system one: a second plain -I would win over the
+# -isystem and put its warnings back under -Werror.
 target_include_directories(cms_checker_token SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
 cms_apply_warnings(cms_checker_token PRIVATE)
 cms_apply_hardening(cms_checker_token)
