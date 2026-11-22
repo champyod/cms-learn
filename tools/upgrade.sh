@@ -77,7 +77,11 @@ rollback() {
   local reason="$1"
   [ -f "$previous_file" ] || die "$reason, and there is no previous release to restore"
   printf 'upgrade: restoring the previous release\n' >&2
-  docker compose -f "$previous_file" up -d --wait \
+  docker compose -f "$previous_file" up -d \
+    || die "the previous release did not start; the stack needs attention"
+  local previous_wait
+  previous_wait="$(docker compose -f "$previous_file" config --services | grep -vxE 'backup|schema' | tr '\n' ' ')"
+  docker compose -f "$previous_file" up -d --wait $previous_wait \
     || die "the previous release did not start; the stack needs attention"
   die "$reason; the previous release was restored"
 }
@@ -95,7 +99,12 @@ main() {
   pull
   migrate
   step "switch"
-  compose up -d --wait || rollback "the new release did not come up"
+  compose up -d || rollback "the new release did not start"
+  # The backup sidecar is started but not waited for: a fresh deployment has no archive to report yet
+  # (health.sh says so and exits healthy), and a sidecar that is still waiting for its first window is
+  # not a failed switch. The wait covers what the release serves.
+  wait_for="$(compose config --services | grep -vxE 'backup|schema' | tr '\n' ' ')"
+  compose up -d --wait $wait_for || rollback "the new release did not come up"
   step "health"
   healthy "$host" || rollback "the new release failed its health check"
   cp "$compose_file" "$deployed_file"

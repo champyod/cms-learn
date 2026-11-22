@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # Health signal for the backup sidecar.
 #
 # "The container is running" is not the question — a sidecar that has silently stopped taking dumps

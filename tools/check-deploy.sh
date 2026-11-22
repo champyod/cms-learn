@@ -24,6 +24,8 @@
 #      exec failure
 #  14. every image release.toml calls built has a service with a build section naming its context, and
 #      compose actually builds one — a built image with no build block is silently never made
+#  15. the upgrade's switch waits for the release's services, not for the backup sidecar, whose first
+#      dump has not happened yet on a fresh deployment
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -272,6 +274,25 @@ compose build schema >/dev/null || fail "compose build schema failed"
 docker image inspect "${schema_ref}:test" >/dev/null 2>&1 \
   || fail "compose build schema produced no image at ${schema_ref}:test"
 note "compose build schema produced ${schema_ref}:test"
+
+# 15: a first deployment must finish its wait. The backup sidecar has no archive to report until its
+# first window, so the switch waits for the services it serves and not for that one.
+grep -qE 'compose up -d --wait \$wait_for' "$repo/tools/upgrade.sh" \
+  || fail "the switch does not wait on the services it names"
+grep -qE 'grep -vxE .backup\|schema.' "$repo/tools/upgrade.sh" \
+  || fail "the wait does not exclude the backup sidecar"
+if grep -qE 'up -d --wait(\s*\\|\s*\|\||\s*$)' "$repo/tools/upgrade.sh"; then
+  fail "the switch still waits on every service, including one with nothing to report yet"
+fi
+note "the upgrade wait excludes the backup sidecar"
+
+# The image's HEALTHCHECK is exec-form. A script without a shebang cannot be exec'd at all, so the
+# service is unhealthy forever — on every deployment, with nothing to report and no way to say so.
+head -1 "$deploy/backup/health.sh" | grep -q '^#!' \
+  || fail "deploy/backup/health.sh has no shebang; the exec-form healthcheck fails with exec format error"
+grep -q 'CMD \["/usr/local/bin/health.sh"\]' "$deploy/backup/Dockerfile" \
+  || fail "the backup healthcheck no longer execs health.sh; the gate's contract moved"
+note "the backup healthcheck is an executable script with a fresh-install answer"
 
 # 13: a file capability is not in the container's bounding set once every capability is dropped, and the
 # kernel refuses to exec a binary carrying one outside it. The proxy's job needs no capability, so the
