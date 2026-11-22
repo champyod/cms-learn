@@ -22,7 +22,7 @@ WORKDIR /src
 COPY . .
 
 ENV VCPKG_ROOT=/vcpkg
-RUN cmake --preset release \
+RUN cmake --preset release -DVCPKG_BUILD_TYPE=release \
  && cmake --build --preset release --target cms_api --parallel
 
 FROM debian:trixie-slim AS runtime

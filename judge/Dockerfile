@@ -31,7 +31,11 @@ WORKDIR /src
 COPY . .
 
 ENV VCPKG_ROOT=/vcpkg
-RUN cmake --preset release \
+# The runner's image needs one configuration; a debug build of the same 38 packages doubles the build
+# and is what a memory-tight runner cannot finish.
+RUN printf 'set(VCPKG_TARGET_ARCHITECTURE x64)\nset(VCPKG_CRT_LINKAGE dynamic)\nset(VCPKG_LIBRARY_LINKAGE dynamic)\nset(VCPKG_BUILD_TYPE release)\n' \
+      > /vcpkg/triplets/x64-linux-release.cmake
+RUN cmake --preset release -DVCPKG_TARGET_TRIPLET=x64-linux-release \
  && cmake --build --preset release --target cms_judge_run cms_checker_token --parallel
 
 FROM debian:trixie-slim AS runtime
