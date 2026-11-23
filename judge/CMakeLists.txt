@@ -75,8 +75,9 @@ add_executable(cms_checker_token checkers/token.cpp)
 target_include_directories(cms_checker_token SYSTEM PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/third_party")
 cms_apply_warnings(cms_checker_token PRIVATE)
 # gcc 16.2.0 reports a maybe-uninitialized warning from testlib.h itself, and testlib is not ours to fix;
-# the checker keeps every other warning as an error.
-target_compile_options(cms_checker_token PRIVATE -Wno-error=maybe-uninitialized)
+# the checker keeps every other warning as an error. The option is gcc-only: clang spells the same warning
+# differently, and the analysis pass (clang-tidy) must not be handed an option it cannot parse.
+target_compile_options(cms_checker_token PRIVATE "$<$<CXX_COMPILER_ID:GNU>:-Wno-error=maybe-uninitialized>")
 cms_apply_hardening(cms_checker_token)
 cms_apply_sanitizers(cms_checker_token)
 

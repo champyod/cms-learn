@@ -45,15 +45,18 @@ int main() {
 
 /// A generator that ignores its seed: it must be refused by the determinism check only if it varies, so this one is
 /// deterministic and admissible; the non-deterministic one below is the refusal.
-constexpr std::string_view CLOCK_GENERATOR = R"(#include <iostream>
-#include <unistd.h>
+constexpr std::string_view CLOCK_GENERATOR = R"(#include <chrono>
+#include <iostream>
 int main() {
   long long seed = 0;
   long long n = 0;
   std::cin >> seed >> n;
   std::cout << n << "\n";
   for (long long index = 0; index < n; ++index) {
-    std::cout << (index == 0 ? static_cast<long long>(getpid() % 7) : 3) << (index + 1 == n ? '\n' : ' ');
+    std::cout << (index == 0
+                      ? static_cast<long long>(std::chrono::steady_clock::now().time_since_epoch().count())
+                      : 3)
+              << (index + 1 == n ? '\n' : ' ');
   }
   return 0;
 }
