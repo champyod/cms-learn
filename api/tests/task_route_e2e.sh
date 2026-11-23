@@ -62,6 +62,11 @@ psql_db() { psql -X -h "$work" -p "$port" -U postgres -d "$database" -tAq "$@"; 
 pg_cluster_prepare "$work" || { echo "  [!!] the cluster cannot be handed to the postgres user"; exit 1; }
 pg_cluster_init "$work" >"$work/initdb.log" 2>&1 || { echo "  [!!] initdb failed"; exit 1; }
 pg_cluster_start "$work" "$port" "$work/pg.log" >/dev/null 2>&1 || { echo "  [!!] pg_ctl failed"; exit 1; }
+
+# The scratch cluster is built the way the deployment builds one: the plan's owner role exists before
+# apply-plan runs, so a role the schema references is never missing.
+pg_cluster_create_owner "$repo" "$work" "$port" \
+  || { echo "  [!!] the deployment owner role cannot be created"; exit 1; }
 psql -X -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 -f "$repo/deploy/roles.sql" >/dev/null 2>&1
 psql -X -h "$work" -p "$port" -U postgres -q -c "CREATE DATABASE $database" >/dev/null 2>&1
 PGHOST="$work" PGPORT="$port" PGDATABASE="$database" PGUSER=postgres \

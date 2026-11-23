@@ -59,6 +59,7 @@ seed_cluster() {
   pg_cluster_prepare "$work"
   pg_cluster_init "$work" >/dev/null 2>&1
   pg_cluster_start "$work" "$port" "$work/pg.log" >/dev/null 2>&1
+  pg_cluster_create_owner "$repo" "$work" "$port" || return 1
   psql -X -h "$work" -p "$port" -U postgres -q -f "$repo/deploy/roles.sql" >/dev/null 2>&1
   createdb -h "$work" -p "$port" -U postgres objectprobe
   PGHOST="$work" PGPORT="$port" PGDATABASE=objectprobe PGUSER=postgres \

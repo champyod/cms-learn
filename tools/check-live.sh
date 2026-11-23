@@ -54,6 +54,23 @@ dsn_for() { printf 'host=%s port=%s dbname=%s user=postgres' "$work" "$port" "$1
 pg_cluster_prepare "$work" || { echo "  [!!] the cluster cannot be handed to the postgres user"; exit 1; }
 pg_cluster_init "$work" >"$work/initdb.log" 2>&1 || { echo "  [!!] initdb failed"; exit 1; }
 pg_cluster_start "$work" "$port" "$work/pg.log" >/dev/null 2>&1 || { echo "  [!!] pg_ctl failed"; exit 1; }
+
+# The scratch cluster is built the way the deployment builds one: the plan's owner role exists before
+# apply-plan runs, so a role the schema references is never missing.
+pg_cluster_create_owner "$repo" "$work" "$port" \
+  || { echo "  [!!] the deployment owner role cannot be created"; exit 1; }
+
+# A cluster that lacks the plan's owner must fail with a sentence, not an apply trace: this is the case
+# that proves the harness catches the shape that stranded twelve e2e tests.
+if pg_cluster_require_owner "$work" "$port" cmslearn_absent_probe 2>"$work/owner-probe.err"; then
+  bad "a missing owner role is named, not left to apply-plan" "a role that does not exist was reported present"
+else
+  if grep -q "the deployment owner role cmslearn_absent_probe is missing" "$work/owner-probe.err"; then
+    ok "a missing owner role is named, not left to apply-plan"
+  else
+    bad "a missing owner role is named, not left to apply-plan" "$(head -1 "$work/owner-probe.err")"
+  fi
+fi
 psql -X -h "$work" -p "$port" -U postgres -q -v ON_ERROR_STOP=1 -f "$repo/deploy/roles.sql" >/dev/null 2>&1 \
   || { echo "  [!!] deploy/roles.sql failed"; exit 1; }
 
