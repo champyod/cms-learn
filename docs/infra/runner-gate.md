@@ -120,7 +120,7 @@ from the tree at `a9738df`:
 |---|---|
 | the command | `bun run check:cpp` → `tools/gate-lock.sh` → `tools/cpp/gate.ts` |
 | the user the gate ran as | `runner`, uid 1000, gid 1000, groups `1000 0` |
-| the verdict | `cpp gate — 59 target(s) built · 217 case(s) passed · 147 unit(s) analysed in 4 worker(s) in 724 s · 0 finding(s)` |
+| the verdict | `cpp gate — 59 target(s) built · 220 case(s) passed · 147 unit(s) analysed in 4 worker(s) in 683 s · 0 finding(s)` — re-run at `327d0f9` after the analyser stopped being handed a GCC-only flag; the live-database cases are listed as skipped and named, and the store proof runs against its own S3 |
 | the tools it printed | `g++ (GCC) 16.2.0` / `Debian clang version 23.1.6` / `Debian LLVM version 23.1.6` |
 | the services the cases used | PostgreSQL 17.12 (server and client, installed in the root phase), Docker 28.5.1 through the mounted socket, `pgschema` 1.13.4 for every `api_*_e2e` schema apply |
 | skips | the Catch2 live-database cases, printed by name on the verdict line as `(CMSLEAN_TEST_DSN is not set)` |
