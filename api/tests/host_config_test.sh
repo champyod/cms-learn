@@ -78,8 +78,23 @@ write_host_file "$short_key_file" \
   'CMSLEARN_ADMIN_UID=1000' \
   'CMSLEARN_TEMPLATE_ROOT=/srv/cmslearn/templates' \
   'CMSLEARN_STATIC_ROOT=/srv/cmslearn/public'
-expect_failure_naming "a short seal key is refused" "shorter than 32 bytes" \
+expect_failure_naming "a short seal key is refused" "must be exactly 32 characters" \
   CMSLEARN_HOST_FILE="$short_key_file"
+
+long_key_file="$work/long-key.env"
+write_host_file "$long_key_file" \
+  'CMSLEARN_LISTEN_ADDRESS=127.0.0.1' \
+  'CMSLEARN_LISTEN_PORT=8080' \
+  'CMSLEARN_DATABASE_URL=postgresql://cmslearn@database/cmslearn' \
+  'CMSLEARN_SEAL_KEY=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=' \
+  'CMSLEARN_BOOTSTRAP_ADMIN=operator@example.org' \
+  'CMSLEARN_TLS_MODE=proxy' \
+  'CMSLEARN_ADMIN_SOCKET=/run/cmslearn/admin.sock' \
+  'CMSLEARN_ADMIN_UID=1000' \
+  'CMSLEARN_TEMPLATE_ROOT=/srv/cmslearn/templates' \
+  'CMSLEARN_STATIC_ROOT=/srv/cmslearn/public'
+expect_failure_naming "the 44-character base64 key is refused" "must be exactly 32 characters" \
+  CMSLEARN_HOST_FILE="$long_key_file"
 
 bad_url_file="$work/bad-url.env"
 write_host_file "$bad_url_file" \

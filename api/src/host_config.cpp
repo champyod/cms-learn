@@ -152,8 +152,11 @@ auto check(const entry_map& entries, std::vector<std::string>& problems) -> void
   }
   validate("CMSLEARN_DATABASE_URL", looks_like_connection(value_of(entries, "CMSLEARN_DATABASE_URL")),
            "CMSLEARN_DATABASE_URL is neither a postgresql:// URL nor a libpq connection string");
-  validate("CMSLEARN_SEAL_KEY", value_of(entries, "CMSLEARN_SEAL_KEY").size() >= SEAL_KEY_BYTES,
-           "CMSLEARN_SEAL_KEY is shorter than 32 bytes");
+  // The rule is one integer: the seal uses the value's 32 bytes as its key, so a longer value is not a
+  // longer key, it is a value the seal cannot use. Base64 of 32 random bytes is 44 characters and is
+  // refused here rather than one layer lower.
+  validate("CMSLEARN_SEAL_KEY", value_of(entries, "CMSLEARN_SEAL_KEY").size() == SEAL_KEY_BYTES,
+           "CMSLEARN_SEAL_KEY must be exactly 32 characters");
   validate("CMSLEARN_BOOTSTRAP_ADMIN",
            value_of(entries, "CMSLEARN_BOOTSTRAP_ADMIN").find('@') != std::string_view::npos,
            "CMSLEARN_BOOTSTRAP_ADMIN is not an email address");

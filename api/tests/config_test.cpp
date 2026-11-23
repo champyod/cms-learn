@@ -98,6 +98,32 @@ TEST_CASE("a refused host file never repeats a value", "[host-config]") {
 
   const auto config = cms::api::load_host_config(file.path());
   REQUIRE(!config.has_value());
-  CHECK(config.error().message.find("shorter than 32 bytes") != std::string::npos);
+  CHECK(config.error().message.find("must be exactly 32 characters") != std::string::npos);
   CHECK(config.error().message.find("distinctive-secret-value") == std::string::npos);
+}
+
+TEST_CASE("a seal key longer than 32 characters is refused, not truncated", "[host-config]") {
+  // The deployment used to document `openssl rand -base64 32`, which is 44 characters. The seal uses
+  // the value's 32 bytes as its key, so that value is refused by name rather than silently cut.
+  auto text = std::string{COMPLETE_FILE};
+  const auto from = text.find("CMSLEARN_SEAL_KEY=0123456789abcdef0123456789abcdef");
+  REQUIRE(from != std::string::npos);
+  text.replace(from + 18, 32, "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
+  const auto file = ScratchFile{text};
+
+  const auto config = cms::api::load_host_config(file.path());
+  REQUIRE(!config.has_value());
+  CHECK(config.error().message.find("must be exactly 32 characters") != std::string::npos);
+}
+
+TEST_CASE("exactly 32 characters is the whole rule", "[host-config]") {
+  auto text = std::string{COMPLETE_FILE};
+  const auto from = text.find("CMSLEARN_SEAL_KEY=0123456789abcdef0123456789abcdef");
+  REQUIRE(from != std::string::npos);
+  text.replace(from + 18, 32, "0123456789abcdef0123456789abcde");  // one character short
+  const auto file = ScratchFile{text};
+
+  const auto config = cms::api::load_host_config(file.path());
+  REQUIRE(!config.has_value());
+  CHECK(config.error().message.find("must be exactly 32 characters") != std::string::npos);
 }

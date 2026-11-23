@@ -98,8 +98,12 @@ cp deploy/host.env.example deploy/host.env
 chmod 600 deploy/.env deploy/host.env
 ```
 
-`host.env` is gitignored: it carries the seal key and belongs to this server only. The backup key is
-generated on your machine, never here (`age-keygen -o cms-learn-backup.key`); its public half is
+`host.env` is gitignored: it carries the seal key and belongs to this server only. The seal key is
+exactly 32 characters — the seal uses those 32 bytes as its key — and `openssl rand -base64 24`
+produces exactly that. The earlier documented `openssl rand -base64 32` produced 44 characters: the
+shipped images refused it because their exact-32 rule was right, and both this documentation and the
+host config's "at least 32" check were the places that disagreed with it. The backup key is generated
+on your machine, never here (`age-keygen -o cms-learn-backup.key`); its public half is
 `AGE_PUBLIC_KEY`.
 
 Everything else is generated once and recorded where its reader is: role passwords in
