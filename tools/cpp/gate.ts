@@ -110,11 +110,14 @@ export function analyseTidy(root: string, units: string[], workers: number): Tid
   const database = join(root, "build", TIDY_PRESET);
   const config = join(root, ".clang-tidy");
   const started = Date.now();
+  // The compile database is written by the compiler that builds the tree, so it can carry an option
+  // only that compiler knows; clang refuses an unknown -W option and would fail a unit it understands.
+  const flags = ["-p", database, "--config-file", config, "-extra-arg=-Wno-unknown-warning-option"];
   // Each worker is a subshell of its own: without the parentheses the `&` would background only the
   // status write and the workers would run one after another.
   const commands = slices.map(
     (slice, index) =>
-      `( ${["clang-tidy", "-p", database, "--config-file", config, ...slice].map(shellQuote).join(" ")} > ${shellQuote(join(scratch, `worker-${index}.out`))} 2>&1; printf '%s' $? > ${shellQuote(join(scratch, `worker-${index}.status`))} )`,
+      `( ${["clang-tidy", ...flags, ...slice].map(shellQuote).join(" ")} > ${shellQuote(join(scratch, `worker-${index}.out`))} 2>&1; printf '%s' $? > ${shellQuote(join(scratch, `worker-${index}.status`))} )`,
   );
   const launched = spawnSync("bash", ["-c", `${commands.join(" & ")} & wait`], {
     cwd: root,
