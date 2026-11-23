@@ -1,3 +1,5 @@
+#include <atomic>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -77,6 +79,22 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
       },
       {drogon::Get});
 
+  // A page that violates the policy the edge sets is a defect the browser reports and nothing else
+  // records, so the count is the one durable trace an operator can alert on without storing the report
+  // itself — which would let any client fill the database by rendering a broken page.
+  static std::atomic<std::uint64_t> csp_reports{0};
+
+  app.registerHandler(
+      "/csp-report",
+      [](const drogon::HttpRequestPtr&,
+         std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
+        ++csp_reports;
+        auto response = drogon::HttpResponse::newHttpResponse();
+        response->setStatusCode(drogon::k204NoContent);
+        callback(response);
+      },
+      {drogon::Post});
+
   app.registerHandler(
       "/metrics",
       [store](const drogon::HttpRequestPtr&,
@@ -85,6 +103,9 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
         body += "# HELP cms_learn_settings_version The settings row version this process holds.\n";
         body += "# TYPE cms_learn_settings_version gauge\n";
         body += "cms_learn_settings_version " + std::to_string(store->version()) + "\n";
+        body += "# HELP cms_learn_csp_reports_total Reports the browser sent for a page that broke the policy.\n";
+        body += "# TYPE cms_learn_csp_reports_total counter\n";
+        body += "cms_learn_csp_reports_total " + std::to_string(csp_reports.load()) + "\n";
         callback(text_response(std::move(body)));
       },
       {drogon::Get});

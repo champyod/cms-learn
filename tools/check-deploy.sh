@@ -377,6 +377,28 @@ docker run --rm --entrypoint caddy \
   validate --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null 2>"$work/caddy.err" \
   || { cat "$work/caddy.err" >&2; fail "Caddyfile is not valid"; }
 
+note "the edge enforces a content policy, and the report path exists"
+python3 - "$deploy/Caddyfile" "$repo/api/src/main.cpp" <<'POLICY' || exit 1
+import re, sys
+
+edge = open(sys.argv[1]).read()
+api = open(sys.argv[2]).read()
+header = re.search(r'Content-Security-Policy "([^"]+)"', edge)
+if header is None:
+    sys.exit("the edge sets no Content-Security-Policy")
+policy = header.group(1)
+required = ["default-src 'self'", "script-src 'self'", "frame-ancestors 'none'",
+            "base-uri 'none'", "object-src 'none'", "report-uri /csp-report"]
+missing = [directive for directive in required if directive not in policy]
+if missing:
+    sys.exit("the policy does not carry: " + ", ".join(missing))
+if "Content-Security-Policy-Report-Only" in edge:
+    sys.exit("the edge reports violations without blocking them")
+if '"/csp-report"' not in api:
+    sys.exit("the edge sends reports to /csp-report and no service registers that path")
+print("  policy enforces and reports to a path the api serves")
+POLICY
+
 note "the panel route is asserted, not merely valid"
 docker run --rm --entrypoint caddy \
   -e DOMAIN=learn.example.com -e ACME_EMAIL=ops@example.com -e CROWDSEC_API_KEY=gate-only-key \
