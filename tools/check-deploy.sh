@@ -605,6 +605,36 @@ print("  no service carries a password in an environment or a URL")
 print("  every credential job reads a mounted file; the owner credential is the schema (DDL) and the backup (full dump)")
 PY
 
+# ── 12b. the health signal and the drill use the database the deployment uses ────────────────────────
+# A server that accepts connections is not a database the schema can use: pg_isready passed on a clean
+# volume whose application database the init never created, and the migrate then failed on a stack the
+# health check called ready.
+python3 - "$work/config.json" "$deploy/.env.example" <<'PY' || exit 1
+import json, sys
+services = json.load(open(sys.argv[1]))["services"]
+example = open(sys.argv[2]).read()
+db = "cmslearn"
+for line in example.splitlines():
+    if line.startswith("POSTGRES_DB="):
+        db = line.split("=", 1)[1].strip() or db
+test = " ".join(str(part) for part in (services["database"].get("healthcheck") or {}).get("test") or [])
+if "pg_isready" in test:
+    raise SystemExit(
+        "deploy gate FAILED: the database health check probes the server (pg_isready), not the "
+        f"application database {db}; a stack with no {db} database would report healthy"
+    )
+if "psql" not in test or db not in test:
+    raise SystemExit(
+        f"deploy gate FAILED: the database health check does not query {db} as the application role"
+    )
+print(f"  the database health check queries the application database {db}")
+PY
+grep -q '/run/secrets/owner_db_password' "$repo/deploy/backup/restore-drill.sh" \
+  || fail "the restore drill does not install the owner credential file; the documented command cannot authenticate"
+grep -q 'PGPASSFILE' "$repo/deploy/backup/restore-drill.sh" \
+  || fail "the restore drill does not name the password file its client reads"
+note "the restore drill installs the owner credential file itself"
+
 attempt() {  # role, password, SQL: prints the role beside the outcome, then the outcome alone
   local role="$1" password="$2" sql="$3" outcome
   if PGPASSWORD="$password" PGHOST="$cluster" PGPORT="$port" PGDATABASE=cmslearn_roles PGUSER="$role"             psql -X -q -tA -c "$sql" >/dev/null 2>"$work/attempt.err"; then

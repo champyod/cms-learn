@@ -193,7 +193,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-cmslearn}
       POSTGRES_USER: ${POSTGRES_USER:-cmslearn}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer"
+      # The image creates its superuser and the application database during init over the local socket, as
+      # the postgres OS user. Forcing peer for local connections breaks that step for every superuser but
+      # postgres, which is how a clean volume came up healthy with no database at all. Local connections stay
+      # inside this container; the host mapping below is TCP with scram.
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -218,7 +222,9 @@ services:
           memory: 2g
           pids: 256
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cmslearn} -d ${POSTGRES_DB:-cmslearn}"]
+      # A server that accepts connections is not a database the schema can use: the application database
+      # must answer as the application role, or the migrate fails on a stack the health check called ready.
+      test: ["CMD-SHELL", "psql -U ${POSTGRES_USER:-cmslearn} -d ${POSTGRES_DB:-cmslearn} -tAc 'SELECT 1' >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 6

@@ -201,7 +201,9 @@ ensure_secrets() {
   # may carry the password in the environment. It is the operator's existing POSTGRES_PASSWORD, written as a
   # file instead of exported.
   if [ ! -f "$(secret_of owner)" ]; then
-    printf 'database:5432:%s:%s:%s\n' "$(env_or "$env_file" POSTGRES_DB cmslearn)" \
+    # A wildcard database field: the owner connects to the application database, and the restore drill
+    # also opens a connection to `postgres` to create its scratch database. One file serves both.
+    printf 'database:5432:*:%s:%s\n' \
       "$(env_or "$env_file" POSTGRES_USER cmslearn)" "$(env_value "$env_file" POSTGRES_PASSWORD)" \
       >"$(secret_of owner)"
     chmod 600 "$(secret_of owner)"

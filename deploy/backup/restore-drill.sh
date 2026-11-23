@@ -5,10 +5,23 @@
 # restores the newest archive into a scratch database, reports what came back, and drops the scratch
 # database again. It never touches the live database: the restore target name must differ from the
 # one in DATABASE_URL, and that is enforced rather than trusted.
+#
+# Operator's command (deploy/README.md):
+#   docker compose run --rm -v /path:/keys:ro -e AGE_KEY_FILE=/keys/<key> \
+#     --entrypoint /usr/local/bin/restore-drill.sh backup
 set -euo pipefail
 
 : "${DATABASE_URL:?DATABASE_URL is required (points at the live database — used only for the server address)}"
 : "${AGE_KEY_FILE:?AGE_KEY_FILE is required — path to the age private key}"
+
+# The connection carries no password: libpq reads it from a file, and the file the deployment mounts is
+# the owner's (it names the same role as DATABASE_URL). The documented command overrides the service's
+# entrypoint, so this script installs the file itself instead of relying on that wrapper.
+if [ -r /run/secrets/owner_db_password ]; then
+  PGPASSFILE="${PGPASSFILE:-/tmp/owner.pgpass}"
+  install -m 600 /run/secrets/owner_db_password "$PGPASSFILE"
+  export PGPASSFILE
+fi
 
 ARCHIVE="${1:-}"
 SCRATCH_DB="${SCRATCH_DB:-cms_learn_restore_check}"
