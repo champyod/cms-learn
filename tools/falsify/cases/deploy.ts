@@ -228,5 +228,31 @@ export const DEPLOY_GATE: Gate = {
       ],
       expect: red("the image must carry what it renders"),
     },
+    {
+      // The shape that failed in t16: a world-readable password file, which libpq refuses. The gate must
+      // say so rather than pass a stack that can only authenticate with an environment password.
+      name: "pgpass-world-readable",
+      plant: [
+        {
+          kind: "patch",
+          path: "deploy/docker-compose.yml",
+          find: "        install -m 600 /run/secrets/judge_db_password /tmp/judge.pgpass",
+          replace: "        install -m 644 /run/secrets/judge_db_password /tmp/judge.pgpass",
+        },
+      ],
+      expect: red("a 0444 secret is ignored by libpq"),
+    },
+    {
+      name: "pgpass-in-the-environment",
+      plant: [
+        {
+          kind: "patch",
+          path: "deploy/docker-compose.yml",
+          find: "      PGPASSFILE: /tmp/api.pgpass",
+          replace: "      PGPASSFILE: /tmp/api.pgpass\n      PGPASSWORD: leaked",
+        },
+      ],
+      expect: red("carries its database password in the environment"),
+    },
   ],
 };

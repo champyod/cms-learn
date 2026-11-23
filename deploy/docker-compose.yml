@@ -88,8 +88,13 @@ services:
       # The service takes every fact from the file this names — addresses, ports, the database URL, the
       # seal key, the socket. NOTHING else configures it, and a missing file stops it.
       CMSLEARN_HOST_FILE: /run/cms-learn/host.env
-      # The password is in the mounted file, not in this environment: libpq reads it from here.
-      PGPASSFILE: /run/secrets/api.pgpass
+      # The password is in the mounted file, not in this environment: libpq reads it from here. The file is
+      # created by the entrypoint below from the secret, because a secret mount is 0444 (readable by the
+      # sandbox's other users) and libpq ignores a password file with a world-readable mode.
+      PGPASSFILE: /tmp/api.pgpass
+    # install writes the secret as the service user with the one mode libpq accepts. /tmp is the service's
+    # tmpfs, so the copy never touches the image.
+    entrypoint: ["/bin/sh", "-c", "install -m 600 /run/secrets/api_db_password /tmp/api.pgpass && exec /usr/local/bin/cms_api"]
       # Everything else the service decides at runtime comes from settings rows: registration,
       # approval, the domain allowlist, session lifetimes and the log level are all operator-editable
       # from the CLI and the panel, and none of them is a reason to recreate this container.
@@ -124,7 +129,9 @@ services:
       # reads CMSLEARN_DATABASE_URL; DATABASE_URL was never its variable and named a connection nothing
       # opened.
       CMSLEARN_DATABASE_URL: postgres://cmslearn_judge_user@database:5432/${POSTGRES_DB:-cmslearn}
-      PGPASSFILE: /run/secrets/judge.pgpass
+      # The file the runner reads, written from the secret by the entrypoint below: a secret mount is
+      # 0444 (0777 on a runner whose daemon does not apply the mode), and libpq ignores both.
+      PGPASSFILE: /tmp/judge.pgpass
       ISOLATE_CGROUP_PATH: ${ISOLATE_CGROUP_PATH:-/sys/fs/cgroup/cms-learn-isolate}
     # isolate creates namespaces, mounts the box and /proc, raises its loopback and switches to the box user,
     # so it is the one service that needs capabilities back. Each one below was removed in turn and isolate
@@ -155,6 +162,14 @@ services:
       - /tmp:rw,noexec,nosuid,nodev,size=256m
       - /var/lib/isolate:rw,exec,nosuid,nodev,size=512m
       - /run/isolate:rw,noexec,nosuid,nodev,size=64m
+    # The same shape as the api: copy the secret to a file the client accepts, then run the runner. The loop
+    # is the image's entrypoint, repeated here because an entrypoint that installs the file replaces it.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        install -m 600 /run/secrets/judge_db_password /tmp/judge.pgpass &&
+        exec /bin/sh -c 'while :; do /usr/local/bin/cms_judge_run --isolate /usr/bin/isolate --checker /usr/local/bin/cms_checker_token --worker "$(hostname)" || sleep 2; done'
     secrets:
       - judge_db_password
     networks: [internal]          # no gateway: a submission cannot reach the internet

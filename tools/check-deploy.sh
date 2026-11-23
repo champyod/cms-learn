@@ -563,13 +563,28 @@ role_of(
     "cmslearn_judge_user",
 )
 
-for name in ("api", "judge"):
+for name, secret_name in (("api", "api_db_password"), ("judge", "judge_db_password")):
     environment = services[name].get("environment") or {}
-    if not environment.get("PGPASSFILE"):
+    if "PGPASSWORD" in environment:
+        raise SystemExit(f"deploy gate FAILED: {name} carries its database password in the environment")
+    passfile = environment.get("PGPASSFILE") or ""
+    if not passfile:
         raise SystemExit(f"deploy gate FAILED: {name} does not name the file its password comes from")
-    if not services[name].get("secrets"):
+    entries = services[name].get("secrets") or []
+    if not entries:
         raise SystemExit(f"deploy gate FAILED: {name} mounts no secret")
-print("  every service names its own role, and its password file is the only place the credential lives")
+    if entries[0].get("source") != secret_name:
+        raise SystemExit(f"deploy gate FAILED: {name} does not mount {secret_name}")
+    # A secret mount is 0444 (0777 on a daemon that does not apply the mode), and libpq ignores a password
+    # file any other user can read. The entrypoint must install it as the service's own user with mode 600.
+    entrypoint = " ".join(str(part) for part in (services[name].get("entrypoint") or []))
+    expected = f"install -m 600 /run/secrets/{secret_name} {passfile}"
+    if expected not in entrypoint:
+        raise SystemExit(
+            f"deploy gate FAILED: {name} does not install its secret as {passfile} with mode 600; "
+            "a 0444 secret is ignored by libpq"
+        )
+print("  every service reads its password from a file its client accepts, and none from the environment")
 PY
 
 attempt() {  # role, password, SQL: prints the role beside the outcome, then the outcome alone
