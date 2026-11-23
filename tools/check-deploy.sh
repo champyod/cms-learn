@@ -378,8 +378,8 @@ docker run --rm --entrypoint caddy \
   || { cat "$work/caddy.err" >&2; fail "Caddyfile is not valid"; }
 
 note "the edge enforces a content policy, and the report path exists"
-python3 - "$deploy/Caddyfile" "$repo/api/src/main.cpp" <<'POLICY' || exit 1
-import re, sys
+python3 - "$deploy/Caddyfile" "$repo/api/src/main.cpp" "$repo/api/templates" <<'POLICY' || exit 1
+import glob, os, re, sys
 
 edge = open(sys.argv[1]).read()
 api = open(sys.argv[2]).read()
@@ -396,7 +396,12 @@ if "Content-Security-Policy-Report-Only" in edge:
     sys.exit("the edge reports violations without blocking them")
 if '"/csp-report"' not in api:
     sys.exit("the edge sends reports to /csp-report and no service registers that path")
-print("  policy enforces and reports to a path the api serves")
+templates = sorted(glob.glob(sys.argv[3] + "/*.html"))
+inline = [os.path.basename(path) for path in templates
+          if re.search(r"<script(?![^>]*\bsrc=)[^>]*>", open(path).read())]
+if inline:
+    sys.exit("these templates carry an inline script the policy would block: " + ", ".join(inline))
+print(f"  policy enforces, reports to a path the api serves, and {len(templates)} template(s) carry no inline script")
 POLICY
 
 note "the panel route is asserted, not merely valid"
