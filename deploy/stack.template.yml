@@ -41,6 +41,10 @@ secrets:
   certifier_db_password: { file: ./secrets/certifier.pgpass }
   judge_db_password:     { file: ./secrets/judge.pgpass }
   bank_db_password:      { file: ./secrets/bank.pgpass }
+  # The deployment owner's own credential. Two jobs legitimately need it and nothing else does: the schema
+  # step applies DDL as the owner, and a full logical dump reads every table, which no service role is
+  # granted. It is delivered exactly like the role files: a mounted file, copied to a mode libpq accepts.
+  owner_db_password:     { file: ./secrets/owner.pgpass }
 
 services:
   proxy:
@@ -328,10 +332,15 @@ services:
       context: ./backup
     image: {{image:backup}}
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}
+      # No password in the URL or the environment: the owner's file is mounted and copied where libpq reads it.
+      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}@database:5432/${POSTGRES_DB:-cmslearn}
+      PGPASSFILE: /tmp/owner.pgpass
       AGE_PUBLIC_KEY: ${AGE_PUBLIC_KEY:?set AGE_PUBLIC_KEY in .env}
       BACKUP_REMOTE: ${BACKUP_REMOTE:-}
       BACKUP_RETAIN_DAYS: ${BACKUP_RETAIN_DAYS:-7}
+    entrypoint: ["/bin/sh", "-c", "install -m 600 /run/secrets/owner_db_password /tmp/owner.pgpass && exec /usr/local/bin/run.sh"]
+    secrets:
+      - owner_db_password
     volumes:
       - backups:/backups
     tmpfs:
@@ -364,7 +373,10 @@ services:
       PGPORT: "5432"
       PGDATABASE: ${POSTGRES_DB:-cmslearn}
       PGUSER: ${POSTGRES_USER:-cmslearn}
-      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      PGPASSFILE: /tmp/owner.pgpass
+    entrypoint: ["/bin/sh", "-c", "install -m 600 /run/secrets/owner_db_password /tmp/owner.pgpass && exec bash /app/tools/apply-plan.sh"]
+    secrets:
+      - owner_db_password
     volumes:
       - ../deploy/plan:/app/deploy/plan:ro
       - ../tools:/app/tools:ro

@@ -540,7 +540,7 @@ note "the migrate applies desired state, and the plan and the gate both use $own
 # attempts use each service's own credentials, and every line names the role that made it, so a refusal for the web cannot
 # be mistaken for a refusal from a superuser.
 python3 - "$work/config.json" "$deploy/host.env.example" <<'PY' || exit 1
-import json, sys
+import json, re, sys
 services = json.load(open(sys.argv[1]))["services"]
 example = open(sys.argv[2]).read()
 
@@ -563,28 +563,46 @@ role_of(
     "cmslearn_judge_user",
 )
 
-for name, secret_name in (("api", "api_db_password"), ("judge", "judge_db_password")):
-    environment = services[name].get("environment") or {}
+# No service anywhere carries a password in its environment or in a connection URL: an environment is
+# readable from docker inspect and the process list, which is what the mounted files exist to avoid.
+credential_url = re.compile(r"://[^/@\s:]+:[^/@\s]+@")
+for name, service in services.items():
+    environment = service.get("environment") or {}
     if "PGPASSWORD" in environment:
-        raise SystemExit(f"deploy gate FAILED: {name} carries its database password in the environment")
+        raise SystemExit(f"deploy gate FAILED: {name} carries a database password in the environment")
+    for key, value in environment.items():
+        if isinstance(value, str) and credential_url.search(value):
+            raise SystemExit(f"deploy gate FAILED: {name}'s {key} carries a password in a connection URL")
+
+# Every job that needs a database credential reads it from a mounted file the client accepts.
+credential_jobs = {
+    "api": ("api_db_password", "its own role"),
+    "judge": ("judge_db_password", "its own role"),
+    "schema": ("owner_db_password", "the owner, because the DDL is applied as the owner"),
+    "backup": ("owner_db_password", "the owner, because a full dump reads every table"),
+}
+for name, (secret_name, why) in credential_jobs.items():
+    service = services[name]
+    environment = service.get("environment") or {}
     passfile = environment.get("PGPASSFILE") or ""
     if not passfile:
         raise SystemExit(f"deploy gate FAILED: {name} does not name the file its password comes from")
-    entries = services[name].get("secrets") or []
+    entries = service.get("secrets") or []
     if not entries:
         raise SystemExit(f"deploy gate FAILED: {name} mounts no secret")
     if entries[0].get("source") != secret_name:
         raise SystemExit(f"deploy gate FAILED: {name} does not mount {secret_name}")
     # A secret mount is 0444 (0777 on a daemon that does not apply the mode), and libpq ignores a password
-    # file any other user can read. The entrypoint must install it as the service's own user with mode 600.
-    entrypoint = " ".join(str(part) for part in (services[name].get("entrypoint") or []))
+    # file any other user can read. The entrypoint must install it as the job's own user with mode 600.
+    entrypoint = " ".join(str(part) for part in (service.get("entrypoint") or []))
     expected = f"install -m 600 /run/secrets/{secret_name} {passfile}"
     if expected not in entrypoint:
         raise SystemExit(
             f"deploy gate FAILED: {name} does not install its secret as {passfile} with mode 600; "
             "a 0444 secret is ignored by libpq"
         )
-print("  every service reads its password from a file its client accepts, and none from the environment")
+print("  no service carries a password in an environment or a URL")
+print("  every credential job reads a mounted file; the owner credential is the schema (DDL) and the backup (full dump)")
 PY
 
 attempt() {  # role, password, SQL: prints the role beside the outcome, then the outcome alone

@@ -252,7 +252,21 @@ export const DEPLOY_GATE: Gate = {
           replace: "      PGPASSFILE: /tmp/api.pgpass\n      PGPASSWORD: leaked",
         },
       ],
-      expect: red("carries its database password in the environment"),
+      expect: red("carries a database password in the environment"),
+    },
+    {
+      // The shape t30 removed: the owner password back inside the backup's connection URL.
+      name: "password-in-a-connection-url",
+      plant: [
+        {
+          kind: "patch",
+          path: "deploy/docker-compose.yml",
+          find: "      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}@database:5432/${POSTGRES_DB:-cmslearn}",
+          replace:
+            "      DATABASE_URL: postgres://${POSTGRES_USER:-cmslearn}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@database:5432/${POSTGRES_DB:-cmslearn}",
+        },
+      ],
+      expect: red("carries a password in a connection URL"),
     },
   ],
 };

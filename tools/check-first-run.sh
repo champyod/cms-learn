@@ -234,8 +234,10 @@ expect_order "the plan is applied before crowdsec" "run --rm -T schema" "up -d -
 expect_order "the appsec rules are installed before the bouncer" "appsec-rules install" "bouncers add caddy-proxy"
 expect_order "the bouncer exists before the health check" "bouncers add caddy-proxy" "curl -fsS"
 expect_order "the images are handled before the database starts" " build" "up -d --wait database"
+# Six service roles, plus the owner's own file: the schema applies DDL as the owner and the backup reads
+# every table, and neither may carry the password in the environment.
 secret_count="$(find "$happy/deploy/secrets" -name '*.pgpass' 2>/dev/null | wc -l)"
-[ "$secret_count" -eq 6 ] && behaved "six role secret files are written" || broken "six role secret files are written" "found $secret_count"
+[ "$secret_count" -eq 7 ] && behaved "six role secret files and the owner's file are written" || broken "six role secret files and the owner's file are written" "found $secret_count"
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
     skipped "the role secret files are mode 600" "$(uname -s) cannot represent POSIX modes"

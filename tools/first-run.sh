@@ -197,6 +197,16 @@ ensure_secrets() {
     chmod 600 "$(secret_of "$service")"
     step "generated $(secret_of "$service")"
   done
+  # The owner's own file: the schema applies DDL as the owner and the backup reads every table, and neither
+  # may carry the password in the environment. It is the operator's existing POSTGRES_PASSWORD, written as a
+  # file instead of exported.
+  if [ ! -f "$(secret_of owner)" ]; then
+    printf 'database:5432:%s:%s:%s\n' "$(env_or "$env_file" POSTGRES_DB cmslearn)" \
+      "$(env_or "$env_file" POSTGRES_USER cmslearn)" "$(env_value "$env_file" POSTGRES_PASSWORD)" \
+      >"$(secret_of owner)"
+    chmod 600 "$(secret_of owner)"
+    step "generated $(secret_of owner)"
+  fi
 }
 
 apply_roles() {
