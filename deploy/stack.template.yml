@@ -349,6 +349,10 @@ services:
       - owner_db_password
     volumes:
       - backups:/backups
+      # The drill runs in this container and must recreate the roles a restored dump names, with the same
+      # passwords the services already use; it reads them from their own files and roles.sql.
+      - ./secrets:/run/cms-learn/secrets:ro
+      - ./roles.sql:/run/cms-learn/roles.sql:ro
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=128m
     networks: [internal, edge]    # edge for the offsite sync, never for inbound

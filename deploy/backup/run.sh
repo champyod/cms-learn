@@ -32,7 +32,9 @@ take_backup() {
 
   # pg_dump | age: pipefail makes a dump failure (or a full disk) fail the whole pipeline instead of
   # leaving a plausible-looking partial file.
-  if ! pg_dump --format=custom --no-owner --no-privileges --compress=9 "$DATABASE_URL" \
+  # Privileges travel with the dump: the restore drill recreates the roles first, so the ACLs and the
+  # policies that name them apply instead of leaving a database nobody can read.
+  if ! pg_dump --format=custom --no-owner --compress=9 "$DATABASE_URL" \
         | age --recipient "$AGE_PUBLIC_KEY" --output "$tmp"; then
     rm -f "$tmp"
     log "FAILED: pg_dump or encryption returned non-zero"

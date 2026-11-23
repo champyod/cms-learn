@@ -635,6 +635,44 @@ grep -q 'PGPASSFILE' "$repo/deploy/backup/restore-drill.sh" \
   || fail "the restore drill does not name the password file its client reads"
 note "the restore drill installs the owner credential file itself"
 
+python3 - "$work/config.json" <<'PY' || exit 1
+import json, sys
+services = json.load(open(sys.argv[1]))["services"]
+targets = {v.get("target") for v in services["backup"].get("volumes") or [] if isinstance(v, dict)}
+for want in ("/run/cms-learn/secrets", "/run/cms-learn/roles.sql"):
+    if want not in targets:
+        raise SystemExit(
+            f"deploy gate FAILED: the backup service does not mount {want}; "
+            "the restore drill cannot recreate the roles a dump names"
+        )
+print("  the backup service carries the role material the drill needs")
+PY
+
+# ── 12c. a restore brings the platform back, not just the rows ──────────────────────────────────────
+# On a destroyed volume the dump's CREATE POLICY and GRANT statements name roles that no longer exist,
+# and a --no-privileges restore leaves the api unable to read what it restored. The drill must recreate
+# the roles before it restores, keep the dump's privileges, and prove the api role can read.
+restore_shape() {
+  local file="$1" roles_line restore_line
+  grep -q -- '--no-privileges' "$repo/deploy/backup/run.sh" && { echo "the dump drops privileges"; return 1; }
+  grep -q 'roles.sql' "$file" || { echo "the drill does not recreate the roles"; return 1; }
+  roles_line="$(grep -n 'ensure_roles ||' "$file" | head -1 | cut -d: -f1)"
+  restore_line="$(grep -n 'pg_restore' "$file" | head -1 | cut -d: -f1)"
+  [ -n "$roles_line" ] && [ -n "$restore_line" ] && [ "$roles_line" -lt "$restore_line" ] \
+    || { echo "the roles are not recreated before the restore"; return 1; }
+  grep -q -- '--no-privileges' "$file" && { echo "the restore drops privileges"; return 1; }
+  grep -q 'SET ROLE cmslearn_api_user' "$file" || { echo "the drill does not prove the api role can read"; return 1; }
+  return 0
+}
+restore_shape "$deploy/backup/restore-drill.sh" \
+  || fail "the restore drill does not bring the platform back: $(restore_shape "$deploy/backup/restore-drill.sh")"
+# The case: the same check must reject the shape t3 met, a restore that leaves the platform unable to serve.
+sed 's/SET ROLE cmslearn_api_user/SET ROLE nobody_reads_this/' "$deploy/backup/restore-drill.sh" >"$work/drill-broken.sh"
+if restore_shape "$work/drill-broken.sh"; then
+  fail "the gate accepted a restore that leaves the platform unable to serve"
+fi
+note "the drill recreates the roles before the restore, restores the privileges, and proves the api role reads"
+
 attempt() {  # role, password, SQL: prints the role beside the outcome, then the outcome alone
   local role="$1" password="$2" sql="$3" outcome
   if PGPASSWORD="$password" PGHOST="$cluster" PGPORT="$port" PGDATABASE=cmslearn_roles PGUSER="$role"             psql -X -q -tA -c "$sql" >/dev/null 2>"$work/attempt.err"; then
