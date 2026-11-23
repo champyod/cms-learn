@@ -3,7 +3,7 @@
 Every feature the project promises, with its real state and the artifact that proves it.
 
 **Legend:** ● shipped · ◐ partial (code exists, gate or coverage missing) · ○ planned (decided, no
-code)
+code; the row says what would start it, so a reader can tell a plan from a wish)
 
 **Class:** `A` — belongs in the proposal, because a reader's decision or a promise to students
 depends on it. `C` — internal engineering, deployment or tooling detail; real, but not something the
@@ -37,7 +37,7 @@ Counts at last update: **52 shipped · 5 partial · 7 planned** (64 features).
 | F-012 | Brute-force differential verifier | A | ● | `generator/src/solution_proof.cpp` (`check_solutions` compares through `cms::tokens_equal`, ADR 0042), `core/include/cms/tokens.hpp` (the one token rule, cross-checked against the judge's checker inside the gate), `generator/src/sampler.cpp` + the typed subtask constraint (the sampled inputs follow the subtask's own kind); live cases in `generator/tests/solution_test.cpp` |
 | F-013 | Limit measurement (time/memory with margin) | A | ● | `generator/src/oracle.cpp` (`measure_program` samples the program's own peak resident memory after exec, so a forking parent cannot inflate it), `generator/src/certify_checks.cpp` (the reference must stay at or below half the declared time and memory, ADR 0048); refusals named by file and both halves in `generator/tests/certify_test.cpp` |
 | F-014 | Per-account unseen-task serving (topic × difficulty × band, audience-filtered) | C | ● | `bank/src/next_task.cpp` (audience set, topic set, one band widening), `tools/check-unseen-task.sh` |
-| F-015 | Copy/plagiarism detection between classmates | C | ○ | — |
+| F-015 | Copy/plagiarism detection between classmates | C | ○ | not started: no similarity method chosen, and nothing reads two submissions together |
 | F-016 | Task visibility: one encoded principal column; a task with no visibility row is hidden and `content:read` reveals it (ADR 0010) | A | ● | `bank/include/cms/bank/visibility.hpp`, `docs/decisions/0010-task-visibility.md`, `tools/check-visibility.sh` + `tools/falsify/cases/visibility.ts` |
 | F-017 | The statement step writes a task's title and statement in each locale it ships: six fixed sections in the order ADR 0031 names, and the worked example taken from the stored brute-force program (ADR 0034) | A | ● | `generator/src/statement.cpp` (prompt, answer parse, sinks), `generator/tests/statement_test.cpp` (order, refusal by name, oracle bytes, identical runs) |
 | F-018 | Two leak checks refuse a title or statement that repeats the teacher's request (eight English words, thirty-two Thai characters) or names the intended approach by id, label or acronym, reading a temporary copy the caller removes (ADR 0035, 0037) | A | ● | `tools/check-brief-leak.sh`, `tools/check-algo-leak.sh`, `generator/src/statement_leak.cpp`, `tools/falsify/cases/brief_leak.ts`, `tools/falsify/cases/algo_leak.ts` |
@@ -49,10 +49,10 @@ Counts at last update: **52 shipped · 5 partial · 7 planned** (64 features).
 | F-020 | `isolate` sandbox in a container with delegated cgroup v2 | A | ● | `judge/isolation/Dockerfile`, `deploy/docker-compose.yml` (`cgroup: host`, internal network with no gateway); the fork-bomb case `judge/tests/supervisor_test.cpp` skips on a host without `isolate` |
 | F-021 | C++ judge core with `testlib` checkers | A | ● | `judge/checkers/token.cpp`, vendored testlib 0.9.41 at `judge/third_party/testlib.h` with its licence and digest in `judge/third_party/README.md` |
 | F-022 | Language runtimes: C++ only, one baseline standard (`c++17`); a run can be pointed at another with `--standard`, but a task has no per-task choice | A | ◐ | `judge/include/cms/judge/run.hpp` (`DEFAULT_CPP_STANDARD`), `judge/src/run.cpp`; several standard versions are not shipped |
-| F-023 | Interactive problem protocol: the pipeline generates a testlib interactor per task | C | ○ | task schema has `checker.kind: interactive`; testlib documents `registerInteraction` |
+| F-023 | Interactive problem protocol: the pipeline generates a testlib interactor per task | C | ○ | not started: the schema already reserves `checker.kind: interactive`; a task still needs its interactor produced and a supervisor handshake |
 | F-024 | Submission queue with per-submission status | A | ● | `judge/src/worker.cpp` (claim + lease), `judge/src/run.cpp` (compile → run → check → one verdict), `tools/check-judge.sh`; the status is `submissions.verdict`/`judged_at` |
 | F-025 | Abuse controls: egress disabled, fork bomb, output cap, wall-clock kill | A | ● | `judge/src/supervisor.cpp` (memory/process limits, `CAPTURE_BYTES`, SIGTERM→SIGKILL escalation), `deploy/docker-compose.yml` judge on the gateway-less `internal` network (asserted by `tools/check-deploy.sh`), fork-bomb case in `judge/tests/supervisor_test.cpp` |
-| F-026 | Function-style submission: a generated harness wraps the contestant's function, chosen per task | C | ○ | — |
+| F-026 | Function-style submission: a generated harness wraps the contestant's function, chosen per task | C | ○ | not started: no harness field exists yet, so a task cannot declare one; it needs the artefact and the judge step that wraps a function |
 
 ## Web
 
@@ -82,14 +82,14 @@ Counts at last update: **52 shipped · 5 partial · 7 planned** (64 features).
 | ID | Feature | Class | State | Evidence |
 |---|---|---|---|---|
 | F-050 | Self-signup, open to anyone, gated by admin approval before the account becomes active | A | ● | `api/src/auth_routes.cpp` (`/signup`, `/verify`, `/signin`, `/signout`), `api/src/accounts.cpp` (`sign_up`, `verify_email`, `create_session` refuses a non-active account), `api/tests/auth_e2e.sh` |
-| F-051 | Organisation recorded at signup; an account outside a known organisation is marked external rather than refused | A | ○ | ADR 0002 §2 |
+| F-051 | Organisation recorded at signup; an account outside a known organisation is marked external rather than refused | A | ○ | not started: decided in ADR 0002 §2; needs an organisations table and the signup field that records one |
 | F-052 | Admin approval before an account becomes active | A | ● | the rule: `api/src/accounts.cpp` (`approve_account` requires a verified address; `create_session` refuses a non-active one). The surface: `api/src/admin_actions.cpp` (`approve_learner`) reached from `cmsctl account approve` over the socket; `api/tests/admin_actions_lifecycle_test.cpp` |
 | F-053 | Account state machine recorded in an audit trail | A | ● | `api/src/audit.cpp` + `api/src/accounts.cpp` (`account.signup`, `account.verify`, `account.approve`, `session.create` rows), asserted by `api/tests/auth_e2e.sh` |
 | F-054 | Rate limiting and lockout | A | ◐ | edge limits shipped in `deploy/Caddyfile` (auth 20/min, submissions 60/min per IP); per-account lockout is app-side and not built |
 | F-056 | One action layer both administrator surfaces call: every action checks its capability, and the acting account is passed in, never read from a request (ADR 0019) | C | ● | `api/include/cms/api/admin_actions.hpp`, `api/src/admin_actions.cpp`, `api/tests/admin_actions_creation_test.cpp` |
 | F-057 | Learner, administrator and system are separate account tables, with a kind beside every recorded actor (ADR 0016, 0020) | A | ● | `deploy/schema/authority.sql`, `deploy/schema/settings.sql`, `docs/decisions/0020-one-actor-pattern.md`, `bun run check:schema` |
 | F-058 | Administrator panel on its own listener: roster and five actions, per-session CSRF token compared before any work, the actor taken from the session | A | ● | `api/src/admin_routes.cpp`, `api/src/csrf.cpp`, `api/tests/admin_panel_e2e.sh` (21 assertions), `bun run check:templates` |
-| F-055 | PII minimisation and retention policy (minors) | A | ○ | ADR 0002 §2 |
+| F-055 | PII minimisation and retention policy (minors) | A | ○ | not started: decided in ADR 0002 §2; needs a retention window per field and the job that enforces it |
 
 ## Operations
 
@@ -101,9 +101,9 @@ Counts at last update: **52 shipped · 5 partial · 7 planned** (64 features).
 | F-063 | Backups with a restore drill | A | ● | `deploy/backup/run.sh`, `deploy/backup/restore-drill.sh` — verified end to end against Postgres 18.6 (250 users / 1000 submissions restored, live DB untouched) |
 | F-064 | Observability: judge queue depth, submission latency, error rate | C | ◐ | `/metrics` exists on the api only (`api/src/main.cpp`); the judge has none, and queue depth/latency/error-rate are not exposed |
 | F-065 | Image and dependency CVE scanning | C | ● | `tools/security-scan.sh` — Trivy 0.66.0 for secrets, fixable CVEs and deployment hardening; `tools/falsify/cases/security.ts` catches 3 planted defects and keeps a clean file green |
-| F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | C | ○ | ADR 0001 §1 |
+| F-066 | Judge host provisioned operator-manual (KVM not required with `isolate`) | C | ○ | not started: decided in ADR 0001 §1; it is operator work, so it lands as a runbook section rather than as code |
 | F-067 | Discord failure notification from CI (secret set by the operator) | C | ◐ | `.github/workflows/ci.yml` — the job exists and is exercised through `simulate_failure`. **Blocked on the operator**: `DISCORD_WEBHOOK_URL` is not in the repository secrets, and no code change can set it |
-| F-068 | Deploy job, gated on a tag rather than on every push | C | ○ | needs the three service images; CI reports "no target yet" |
+| F-068 | Deploy job, gated on a tag rather than on every push | C | ○ | not started: needs the service images published to a registry; until then a tag job has nothing to deploy |
 | F-069 | Single-server exposure contract: only the proxy is public, db/dashboards loopback, judge has no egress | A | ● | `tools/check-deploy.sh` + `tools/falsify/cases/deploy.ts` — 7/7 broken stacks rejected |
 | F-070 | WAF + IP reputation at the edge, CRS evaluated **in-band** so the attack itself gets 403 | C | ● | `deploy/crowdsec/` — verified `Loaded 1 inband rules`, `Appsec listening on 0.0.0.0:7422` |
 | F-071 | Encrypted offsite backups whose private key never touches the server | A | ● | `deploy/backup/run.sh` — `age` recipient only; refuses to run without a public key |
