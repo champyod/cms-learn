@@ -162,3 +162,25 @@ prints every skip by name on the verdict line, and never for the store proof: if
 A run with `CMSLEAN_TEST_DSN` unset therefore ends with its live-database cases listed as
 `skipped: <name> (CMSLEAN_TEST_DSN is not set)` — visible, and not counted as a pass. Setting it needs
 a server with the plan applied; that is the deployment's job (`deploy/`), not this recipe's.
+
+## Rebuilding the volumes from scratch
+
+A runner that lost its volumes — a prune, a reset, a fresh machine — needs four things restored
+before the gate can judge anything, and each one fails in a way that names something else.
+
+- **The credential helper.** `docker build` and `docker pull` fail over ssh with
+  `error getting credentials … A specified logon session does not exist`, from the Windows
+  credential store rather than from the registry. Point the CLI at an empty configuration with
+  `--config %TEMP%\dc-empty`; the pulls then run unauthenticated and succeed.
+- **The vcpkg checkout.** `VCPKG_ROOT` must name a checkout, not a binary and its installed tree.
+  Clone it inside the volume and check it out at the baseline `docs/dependencies.md` records, and
+  copy the **whole** checkout: `.vcpkg-root` and `LICENSE.txt` are consulted by the first port and
+  their absence fails as `vcpkg-cmake BUILD_FAILED`, two levels away from the missing file.
+- **`make`.** The image carries the compiler and the analyser and not the build program, so a
+  preset that names Unix Makefiles dies with `CMAKE_MAKE_PROGRAM is not set` after the dependency
+  install has already succeeded.
+- **The schema tool.** Rebuild the tools volume with the digest check above; without it the
+  live-database cases fail on apply-plan and the message points at `docs/dependencies.md`.
+
+A from-scratch dependency build is hours on a four-core runner, and `openssl` is the long pole, so
+leave the volumes in place between runs: the second run reuses them and the gate takes minutes.
