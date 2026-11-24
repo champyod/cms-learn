@@ -66,7 +66,7 @@ struct PanelHome {
 [[nodiscard]] nlohmann::json panel_model(const Locale& locale, std::string_view site_name,
                                          const PanelHome& home);
 
-/// @brief The five actions the panel's forms can post.
+/// @brief The actions the panel's forms can post.
 enum class PanelAction : std::uint8_t {
   create_learner,
   create_admin,
@@ -75,6 +75,7 @@ enum class PanelAction : std::uint8_t {
   issue_verification,
   grant_role,
   save_task_draft,
+  create_generation_job,
 };
 
 /// @brief Runs @p action as @p actor, reading only that action's own fields from @p body.

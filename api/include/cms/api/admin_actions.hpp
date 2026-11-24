@@ -47,6 +47,23 @@ struct CreateAdminRequest {
                                                    const ActingAccount& actor,
                                                    const CreateLearnerRequest& request);
 
+/// @brief What a teacher asked to have drafted: the task it belongs to, and the brief in their own words.
+struct CreateGenerationJobRequest {
+  std::string task_id;
+  std::int64_t task_version{0};
+  std::string brief;
+};
+
+/// @brief Writes a generation job in the only state a row may be created in, for an account allowed to generate.
+///
+/// @param database The connection; the caller owns the transaction.
+/// @param actor The account acting, produced by the surface.
+/// @param request The task the draft belongs to and the brief.
+/// @return The new job's id and one line a caller may show.
+[[nodiscard]] Result<ActionOutcome> create_generation_job(db::connection& database,
+                                                          const ActingAccount& actor,
+                                                          const CreateGenerationJobRequest& request);
+
 /// @brief Creates an active administrator account and grants the roles the actor holds.
 ///
 /// @param database The connection; the caller owns the transaction.

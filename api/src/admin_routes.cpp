@@ -88,6 +88,8 @@ auto done_code(PanelAction action) -> std::string_view {
       return "draft-saved";
     case PanelAction::grant_role:
       return "role-granted";
+    case PanelAction::create_generation_job:
+      return "job-queued";
   }
   return {};
 }
@@ -635,6 +637,7 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
         {drogon::Post});
   };
   post("/admin/create-learner", PanelAction::create_learner);
+  post("/admin/generate", PanelAction::create_generation_job);
   post("/admin/create-admin", PanelAction::create_admin);
   post("/admin/approve", PanelAction::approve);
   post("/admin/revoke-admin", PanelAction::revoke_admin);

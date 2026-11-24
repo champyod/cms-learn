@@ -28,11 +28,22 @@ constexpr std::string_view ADMIN_STATUS_REVOKED = "revoked";
 
 constexpr std::string_view REQUIRES_EMAIL_KEY = "site.registration_requires_email";
 
+constexpr std::string_view STATE_QUEUED = "queued";
+
+SQLPP_CREATE_NAME_TAG(job_id);
+using new_job_row = ::sqlpp::result_row_t<::sqlpp::field_spec_t<job_id_t::_sqlpp_name_tag, ::sqlpp::integral>>;
+
+/// The identity is generated, so the id comes back from the insert rather than being chosen by the caller.
+constexpr std::string_view INSERT_JOB = R"(
+INSERT INTO generation_jobs (task_id, task_version, brief) VALUES ($1, $2, $3) RETURNING id AS job_id
+)";
+
 constexpr std::string_view ACTION_CREATE_LEARNER = "account.create_learner";
 constexpr std::string_view ACTION_CREATE_ADMIN = "account.create_admin";
 constexpr std::string_view ACTION_ISSUE_VERIFICATION = "account.issue_verification";
 constexpr std::string_view ACTION_REVOKE_ADMIN = "account.revoke_admin";
 constexpr std::string_view ACTION_GRANT_ROLE = "account.grant_role";
+constexpr std::string_view ACTION_CREATE_GENERATION_JOB = "generation.create_job";
 
 auto insert_learner(db::connection& database, const std::string& learner_id,
                     const CreateLearnerRequest& request) -> void {
@@ -101,6 +112,45 @@ auto create_learner(db::connection& database, const SettingsSnapshot& settings,
   }
   return ActionOutcome{.subject = learner_id,
                        .detail = "created the learner account " + request.handle};
+}
+
+auto create_generation_job(db::connection& database, const ActingAccount& actor,
+                           const CreateGenerationJobRequest& request) -> Result<ActionOutcome> {
+  if (const auto refused = detail::unknown_actor(actor)) {
+    return std::unexpected(*refused);
+  }
+  const auto allowed = authorize(database, actor.kind, actor.id, Capability::generation_write);
+  if (!allowed) {
+    return std::unexpected(allowed.error());
+  }
+  if (request.task_id.empty()) {
+    return std::unexpected(
+        Error::make(ErrorCode::invalid_argument, "a generation job needs the task it drafts"));
+  }
+  if (request.brief.empty()) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument,
+        "a generation job needs a brief: the leak checks compare the statement against what was asked for"));
+  }
+  if (request.task_version < 1) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "a generation job needs a task version of one or more"));
+  }
+  try {
+    auto job = std::string{};
+    for (const auto& row : ::sqlpp::result_t<db::result, new_job_row>{database.query_text(
+             std::string{INSERT_JOB}, {request.task_id, request.task_version, request.brief})}) {
+      job = std::to_string(row.job_id);
+    }
+    if (job.empty()) {
+      return std::unexpected(Error::make(ErrorCode::unavailable,
+                                         "the job was written and its id could not be read back"));
+    }
+    record_audit(database, actor.kind, actor.id, INVOKED_BY, ACTION_CREATE_GENERATION_JOB, job);
+    return ActionOutcome{.subject = job, .detail = "queued generation job " + job};
+  } catch (const std::exception& failure) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, failure.what()));
+  }
 }
 
 auto create_admin(db::connection& database, const SettingsSnapshot& settings,

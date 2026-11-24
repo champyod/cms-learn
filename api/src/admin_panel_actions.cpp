@@ -1,5 +1,7 @@
 #include <cms/api/admin_routes.hpp>
 
+#include <charconv>
+#include <cstdint>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -7,6 +9,22 @@
 #include <cms/api/form_body.hpp>
 #include <cms/api/task_plan.hpp>
 #include <cms/error.hpp>
+
+namespace {
+
+/// A form carries text; an action that needs a number refuses zero, which no valid version is.
+auto integer_field(std::string_view body, std::string_view name) -> std::int64_t {
+  const auto text = cms::api::form_field(body, name);
+  auto value = std::int64_t{0};
+  const auto parsed = std::from_chars(text.data(), text.data() + text.size(), value);
+  if (parsed.ec != std::errc{} || parsed.ptr != text.data() + text.size()) {
+    return 0;
+  }
+  return value;
+}
+
+}  // namespace
+
 
 namespace cms::api {
 namespace {
@@ -53,6 +71,12 @@ auto perform_panel_action(db::connection& database, const SettingsSnapshot& sett
     case PanelAction::grant_role:
       return grant_role(database, actor, GrantRoleRequest{.admin_id = form_field(body, "admin_id"),
                                                           .role_id = form_field(body, "role_id")});
+    case PanelAction::create_generation_job:
+      return create_generation_job(
+          database, actor,
+          CreateGenerationJobRequest{.task_id = form_field(body, "task_id"),
+                                     .task_version = integer_field(body, "task_version"),
+                                     .brief = form_field(body, "brief")});
     case PanelAction::save_task_draft: {
       const auto saved = save_task_draft(database, actor, body);
       if (!saved) {
