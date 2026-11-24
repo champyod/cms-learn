@@ -5,6 +5,24 @@ commit on their own. Nothing above a step is dispatched to anyone.
 
 Every step ships a gate and a falsification case; a step with neither is not done.
 
+## Where the build stands
+
+| Epic | State | What proves it |
+|---|---|---|
+| E1 one schema source, one stack, one upgrade command | **built** | `check:schema` renders, applies and upgrades; `check:deploy` asserts the apply mode |
+| E2 api skeleton | **built** | `check:live` 148 of 148 |
+| E3 identity and authority | **built** | the authority cases in `check:deploy` and the live suites |
+| E4 content and serving | **built** | `validate`, `check:visibility`, `check:unseen` |
+| E5 judge | **built** | a submission judged inside the real sandbox, accepted and wrong-answer |
+| E6 web | **built** | the page cases, and the template gate that refuses drift |
+| E7 generation pipeline | **built** | a job driven to `done` through a certificate the certifier wrote |
+| E8 continuous integration | **partly built** | `.github/workflows/ci.yml` runs both tiers; the tag-gated deploy is not written (F-068) |
+
+The numbers this plan quotes are the ones measured when it was written. The gate today reports
+**220 case(s) passed** and **147 unit(s) analysed** in **683 s** inside the pinned image; the falsification
+harness measured 3374 s on a reused tree. A reader comparing an older number here with the gate's line
+should trust the gate.
+
 ## E1 — one schema source, one stack, one upgrade command
 
 **Deliverable:** the schema, the container stack and the running version each derive from one file,
