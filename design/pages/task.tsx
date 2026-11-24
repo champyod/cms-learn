@@ -6,14 +6,7 @@ import { Layout } from "./layout.tsx";
 // island upgrades the textarea when JavaScript arrives, and when it does not the same field posts anyway.
 // The fallback is not a separate code path — removing the island must leave a working form.
 
-const STREAM_SCRIPT = `(() => {
-  const panel = document.getElementById("verdict-panel");
-  if (!panel || !window.EventSource) return;
-  const events = new EventSource(panel.dataset.stream);
-  events.addEventListener("verdict", (event) => {
-    panel.innerHTML = event.data;
-  });
-})();`;
+
 
 export function Task({ mode, data }: { mode: Mode; data: TaskFixture }) {
   return (
@@ -86,7 +79,7 @@ export function Task({ mode, data }: { mode: Mode; data: TaskFixture }) {
               <p className="opacity-70">{slot(mode, "verdict_pending", data.verdict_pending)}</p>
             </section>
           </div>
-          <script dangerouslySetInnerHTML={{ __html: STREAM_SCRIPT }} />
+          <script src="/static/verdict.js" defer />
         </>
       }
     />
