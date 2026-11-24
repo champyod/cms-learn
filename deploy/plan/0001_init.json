@@ -33,7 +33,7 @@
           "path": "public.audit_operation"
         },
         {
-          "sql": "CREATE TYPE capability AS ENUM (\n    'content:read',\n    'content:write',\n    'content:publish',\n    'submission:read',\n    'submission:grade',\n    'user:read',\n    'user:write',\n    'user:approve',\n    'settings:read',\n    'settings:write',\n    'settings:secret_write',\n    'infra:read',\n    'infra:write',\n    'audit:read',\n    'schema:apply'\n);",
+          "sql": "CREATE TYPE capability AS ENUM (\n    'content:read',\n    'content:write',\n    'content:publish',\n    'submission:read',\n    'submission:grade',\n    'user:read',\n    'user:write',\n    'user:approve',\n    'settings:read',\n    'settings:write',\n    'settings:secret_write',\n    'infra:read',\n    'infra:write',\n    'audit:read',\n    'schema:apply',\n    'generation:write'\n);",
           "type": "type",
           "operation": "create",
           "path": "public.capability"

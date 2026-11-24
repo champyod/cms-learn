@@ -29,9 +29,10 @@ enum class Capability : std::uint8_t {
   infra_write,
   audit_read,
   schema_apply,
+  generation_write,
 };
 
-inline constexpr std::size_t k_capability_count = 15;
+inline constexpr std::size_t k_capability_count = 16;
 static_assert(k_capability_count <= 64U, "a std::uint64_t mask cannot hold this many capabilities");
 
 /// @brief A capability paired with the string every other surface spells it with.
@@ -62,6 +63,7 @@ inline constexpr std::array<CapabilityName, k_capability_count> k_capability_nam
     {Capability::infra_write, "infra:write"},
     {Capability::audit_read, "audit:read"},
     {Capability::schema_apply, "schema:apply"},
+    {Capability::generation_write, "generation:write"},
 }};
 
 /// @brief The registered name of a capability.

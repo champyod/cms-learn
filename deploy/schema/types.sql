@@ -31,7 +31,8 @@ CREATE TYPE capability AS ENUM (
   'infra:read',
   'infra:write',
   'audit:read',
-  'schema:apply'
+  'schema:apply',
+  'generation:write'
 );
 
 -- What an emailed token is for. Kept separate from the principal status so one table can serve both

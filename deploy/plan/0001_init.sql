@@ -32,7 +32,8 @@ CREATE TYPE capability AS ENUM (
     'infra:read',
     'infra:write',
     'audit:read',
-    'schema:apply'
+    'schema:apply',
+    'generation:write'
 );
 
 CREATE TYPE generation_state AS ENUM (
