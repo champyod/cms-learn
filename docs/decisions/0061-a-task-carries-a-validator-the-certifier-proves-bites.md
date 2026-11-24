@@ -57,6 +57,9 @@ graph and string tasks in the model, it stores inputs nobody has checked.
   the checker.
 - Step 6 gains a validator prompt; step 7 gains the acceptance run and the mutation set.
 - A task whose validator cannot be compiled, or accepts nothing, or refuses a generated case, fails
-  the job with the step and the reason — the same refusal shape the other steps use.
+  the job with the step and the reason — the same refusal shape the other steps use. There is no
+  regeneration: a validator that failed its own proof ends the run, because a second program that
+  passes proves the second program and not the first, and a reader of the certificate could no longer
+  tell which one the task ships.
 - The judge may run the validator before a submission; that is a separate decision and is not taken
   here.
