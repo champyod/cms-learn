@@ -485,7 +485,8 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
   }
 
   // Step 6 wrote both programs and one case set per subtask.
-  for (const auto role : {std::string_view{"generator"}, std::string_view{"checker"}}) {
+  for (const auto role :
+       {std::string_view{"generator"}, std::string_view{"checker"}, std::string_view{"validator"}}) {
     const auto found = std::any_of(evidence.programs.begin(), evidence.programs.end(),
                                    [role](const auto& entry) { return entry.first == role; });
     if (!found) {
@@ -558,6 +559,10 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
   if (!checker_source) {
     return std::unexpected(checker_source.error());
   }
+  const auto validator_source = read_back(artefact_of(evidence.programs, "validator"), "step 6's validator");
+  if (!validator_source) {
+    return std::unexpected(validator_source.error());
+  }
   for (const auto& entry : evidence.cases) {
     const auto cited = read_back(entry.artefact, "the cases for subtask " + std::to_string(entry.position));
     if (!cited) {
@@ -580,6 +585,7 @@ auto certify_job(cms::db::connection& database, const cms::store::ObjectStore& s
   auto re_run = ReRunEvidence{.specification = *specification,
                               .generator_source = *generator_source,
                               .checker_source = *checker_source,
+                              .validator_source = *validator_source,
                               .oracle_source = *oracle_source,
                               .reference_source = *reference_source,
                               .partial_sources = std::move(partial_sources),

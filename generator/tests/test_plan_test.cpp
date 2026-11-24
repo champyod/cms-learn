@@ -112,6 +112,23 @@ int main(int argc, char** argv) {
 }
 )";
 
+constexpr std::string_view BOUNDS_VALIDATOR = R"(#include "testlib.h"
+int main(int argc, char** argv) {
+  registerValidation(argc, argv);
+  int n = inf.readInt(1, 200000, "n");
+  inf.readEoln();
+  for (int index = 0; index < n; ++index) {
+    inf.readInt(3, 3, "value");
+    if (index + 1 < n) {
+      inf.readSpace();
+    }
+  }
+  inf.readEoln();
+  inf.readEof();
+  return 0;
+}
+)";
+
 auto specification() -> Specification {
   return Specification{.input = "n, then n integers",
                        .output = "their sum",
@@ -126,11 +143,12 @@ auto call(std::int32_t index) -> ModelCall {
   return ModelCall{.model_id = "tests", .prompt_version = "tests-v1", .seed = 9, .call_index = index};
 }
 
-auto answer_with(std::string_view generator = CONSTANT_GENERATOR, std::string_view checker = TOKEN_CHECKER)
-    -> cms::generate::Step6Answer {
+auto answer_with(std::string_view generator = CONSTANT_GENERATOR, std::string_view checker = TOKEN_CHECKER,
+                 std::string_view validator = BOUNDS_VALIDATOR) -> cms::generate::Step6Answer {
   return cms::generate::Step6Answer{
       .generator = {.role = "generator", .source = std::string{generator}, .call = call(0)},
       .checker = {.role = "checker", .source = std::string{checker}, .call = call(1)},
+      .validator = {.role = "validator", .source = std::string{validator}, .call = call(2)},
       .cases = {}};
 }
 
@@ -291,9 +309,10 @@ TEST_CASE("a subtask whose narrowing leaves the task's bounds is refused by name
   CHECK(cases.error().message.find("300000") != std::string::npos);
 }
 
-TEST_CASE("two calls: one for the generator, one for the checker", "[generate]") {
+TEST_CASE("three calls: the generator, the checker and the validator", "[generate]") {
   auto client = cms::generate::RecordedClient{"tests", "tests-v1", 9, {std::string{CONSTANT_GENERATOR},
-                                                                      std::string{TOKEN_CHECKER}}};
+                                                                      std::string{TOKEN_CHECKER},
+                                                                      std::string{BOUNDS_VALIDATOR}}};
 
   const auto written =
       cms::generate::write_test_plan(client, specification(), SUM_REFERENCE, SUM_REFERENCE, partials(), 1000);
@@ -302,16 +321,18 @@ TEST_CASE("two calls: one for the generator, one for the checker", "[generate]")
     FAIL("write_test_plan refused: " + written.error().message);
   }
   REQUIRE(written.has_value());
-  CHECK(client.prompts().size() == 2);
+  CHECK(client.prompts().size() == 3);
   CHECK(client.prompts()[0].find("seed and n") != std::string::npos);
   CHECK(client.prompts()[1].find("exits 0 when") != std::string::npos);
+  CHECK(client.prompts()[2].find("registerValidation") != std::string::npos);
   CHECK(written->answer.generator.source == CONSTANT_GENERATOR);
   CHECK(written->answer.checker.source == TOKEN_CHECKER);
+  CHECK(written->answer.validator.source == BOUNDS_VALIDATOR);
   CHECK(!written->answer.cases.empty());
   CHECK(!written->scores.empty());
 }
 
-TEST_CASE("step 6 records two program rows and one case row per subtask", "[generate][live]") {
+TEST_CASE("step 6 records three program rows and one case row per subtask", "[generate][live]") {
   if (!cms::generate::test::has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
   }
@@ -329,17 +350,17 @@ TEST_CASE("step 6 records two program rows and one case row per subtask", "[gene
   const auto written = sink.record(job, answer, {});
 
   REQUIRE(written.has_value());
-  CHECK(*written == 4);
+  CHECK(*written == 5);
 
   auto programs = 0;
   for (const auto& row : database(sqlpp::select(cms::db::generationPrograms.role)
                                       .from(cms::db::generationPrograms)
                                       .where(cms::db::generationPrograms.jobId == job))) {
     const auto role = std::string{row.role};
-    CHECK((role == "generator" || role == "checker"));
+    CHECK((role == "generator" || role == "checker" || role == "validator"));
     ++programs;
   }
-  CHECK(programs == 2);
+  CHECK(programs == 3);
 
   auto case_rows = 0;
   for (const auto& row : database(sqlpp::select(cms::db::generationCases.caseCount)

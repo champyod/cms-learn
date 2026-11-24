@@ -232,6 +232,20 @@ auto write_test_plan(ModelClient& client, const Specification& specification, st
   }
   answer.checker = *checker_program;
 
+  const auto validator_request = validator_prompt(specification);
+  if (!validator_request) {
+    return std::unexpected(validator_request.error());
+  }
+  const auto validator = client.complete(*validator_request);
+  if (!validator) {
+    return std::unexpected(validator.error());
+  }
+  const auto validator_program = parse_test_program(validator->text, "validator", validator->call);
+  if (!validator_program) {
+    return std::unexpected(validator_program.error());
+  }
+  answer.validator = *validator_program;
+
   const auto cases = build_cases(specification, answer.generator.source, oracle, time_limit_ms);
   if (!cases) {
     return std::unexpected(cases.error());
@@ -249,7 +263,7 @@ auto MemoryTestPlanSink::record(std::int64_t job_id, const Step6Answer& answer, 
   (void)scores;
   job_id_ = job_id;
   answer_ = answer;
-  return answer_.cases.size() + 2;
+  return answer_.cases.size() + 3;
 }
 
 }  // namespace cms::generate

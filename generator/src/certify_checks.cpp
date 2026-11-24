@@ -75,6 +75,7 @@ auto reference_pass(const std::vector<GeneratedCase>& cases, const ReRunEvidence
   const auto answer =
       Step6Answer{.generator = TestProgram{.role = "generator", .source = evidence.generator_source, .call = {}},
                   .checker = TestProgram{.role = "checker", .source = evidence.checker_source, .call = {}},
+                  .validator = TestProgram{.role = "validator", .source = evidence.validator_source, .call = {}},
                   .cases = cases};
   const auto scores =
       score_solutions(answer, evidence.reference_source, evidence.partial_sources, evidence.time_limit_ms);

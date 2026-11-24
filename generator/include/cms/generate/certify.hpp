@@ -40,6 +40,7 @@ struct ReRunEvidence {
   Specification specification;
   std::string generator_source;
   std::string checker_source;
+  std::string validator_source;
   std::string oracle_source;
   std::string reference_source;
   std::vector<std::pair<std::int32_t, std::string>> partial_sources;

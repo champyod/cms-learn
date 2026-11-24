@@ -19,7 +19,8 @@ class ObjectStore;
 
 namespace cms::generate {
 
-/// @brief One program step 6 wrote: the generator (seeded) or the checker (the comparison rule).
+/// @brief One program step 6 wrote: the generator (seeded), the checker (the comparison rule) or the validator
+/// (what an admissible input is).
 struct TestProgram {
   std::string role;
   std::string source;
@@ -35,10 +36,11 @@ struct GeneratedCase {
   std::string expected;
 };
 
-/// @brief What step 6 produces: the two programs and the cases each subtask needs.
+/// @brief What step 6 produces: the three programs and the cases each subtask needs.
 struct Step6Answer {
   TestProgram generator;
   TestProgram checker;
+  TestProgram validator;
   std::vector<GeneratedCase> cases;
 };
 
@@ -59,6 +61,9 @@ struct Score {
 
 /// @brief The prompt that asks for the checker: the comparison rule, spelled out.
 [[nodiscard]] auto checker_prompt(const Specification& specification) -> Result<std::string>;
+
+/// @brief The prompt that asks for the validator: the input shape and the bounds it must refuse outside.
+[[nodiscard]] auto validator_prompt(const Specification& specification) -> Result<std::string>;
 
 /// @brief The validator: refuses a generated input that is not the declared shape within the declared bounds.
 ///
@@ -100,7 +105,7 @@ struct TestPlanResult {
   std::vector<Score> scores;
 };
 
-/// @brief Runs step 6: two calls, the cases built from the generator, and both proofs.
+/// @brief Runs step 6: three calls, the cases built from the generator, and both proofs.
 [[nodiscard]] auto write_test_plan(ModelClient& client, const Specification& specification,
                                    std::string_view oracle, std::string_view reference,
                                    const std::vector<std::pair<std::int32_t, std::string>>& partials,

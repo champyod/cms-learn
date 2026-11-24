@@ -84,13 +84,14 @@ SqlTestPlanSink::SqlTestPlanSink(::drogon::orm::DbClient& client, cms::store::Ob
 auto SqlTestPlanSink::record(std::int64_t job_id, const Step6Answer& answer,
                              const std::vector<Score>& scores) -> Result<std::size_t> {
   (void)scores;
-  if (answer.generator.source.empty() || answer.checker.source.empty()) {
+  if (answer.generator.source.empty() || answer.checker.source.empty() || answer.validator.source.empty()) {
     return std::unexpected(Error::make(ErrorCode::invalid_argument,
-                                       "step 6 recorded no generator or no checker"));
+                                       "step 6 recorded no generator, no checker or no validator"));
   }
   auto written = std::size_t{0};
   const auto generator_key = "generation/" + std::to_string(job_id) + "/step-6/generator.cpp";
   const auto checker_key = "generation/" + std::to_string(job_id) + "/step-6/checker.cpp";
+  const auto validator_key = "generation/" + std::to_string(job_id) + "/step-6/validator.cpp";
   const auto generator_digest = store_.write(generator_key, answer.generator.source);
   if (!generator_digest) {
     return std::unexpected(generator_digest.error());
@@ -98,6 +99,10 @@ auto SqlTestPlanSink::record(std::int64_t job_id, const Step6Answer& answer,
   const auto checker_digest = store_.write(checker_key, answer.checker.source);
   if (!checker_digest) {
     return std::unexpected(checker_digest.error());
+  }
+  const auto validator_digest = store_.write(validator_key, answer.validator.source);
+  if (!validator_digest) {
+    return std::unexpected(validator_digest.error());
   }
   auto positions = std::vector<std::int32_t>{};
   for (const auto& sample : answer.cases) {
@@ -128,6 +133,12 @@ auto SqlTestPlanSink::record(std::int64_t job_id, const Step6Answer& answer,
     database.execute_text(std::string{RECORD_PROGRAM},
                           {job_id, "checker", checker_id,
                            "accepts the expected answer and rejects a planted wrong one"});
+    ++written;
+    const auto validator_id =
+        insert_artefact(database, job_id, validator_key, *validator_digest, "validator", answer.validator.call);
+    database.execute_text(std::string{RECORD_PROGRAM},
+                          {job_id, "validator", validator_id,
+                           "accepts every generated case and refuses a case outside the declared shape"});
     ++written;
     for (const auto& [position, digest] : case_digests) {
       const auto count = std::count_if(answer.cases.begin(), answer.cases.end(), [&](const GeneratedCase& sample) {

@@ -21,6 +21,7 @@ namespace {
 
 constexpr std::string_view GENERATOR_ROLE = "generator";
 constexpr std::string_view CHECKER_ROLE = "checker";
+constexpr std::string_view VALIDATOR_ROLE = "validator";
 constexpr std::int64_t CHECKER_WALL_SECONDS = 10;
 
 auto refuse(std::string_view message) -> Error {
@@ -96,6 +97,28 @@ auto generator_prompt(const Specification& specification) -> Result<std::string>
          "that reads two integers from standard input, a seed and n, and prints one case of exactly n integers in\n"
          "the declared bounds. The same seed and n must always print the same bytes.\n\n" +
          *bounds + "\n\nAnswer with the program and nothing else.\n";
+}
+
+auto validator_prompt(const Specification& specification) -> Result<std::string> {
+  const auto input = frame_data(ModelData{.label = "the input shape", .text = specification.input});
+  const auto bounds = frame_data(ModelData{.label = "the bounds",
+                                           .text = "n from " + std::to_string(specification.bounds.min_n) + " to " +
+                                                   std::to_string(specification.bounds.max_n) + ", values " +
+                                                   std::to_string(specification.bounds.value_min) + ".." +
+                                                   std::to_string(specification.bounds.value_max)});
+  if (!input) {
+    return std::unexpected(input.error());
+  }
+  if (!bounds) {
+    return std::unexpected(bounds.error());
+  }
+  return "You are step 6 of a task-generation pipeline. Write the validator: a complete C++17 program built\n"
+         "against testlib that reads one case from standard input and refuses it when it does not have the\n"
+         "declared shape or leaves the declared bounds. Call registerValidation, read the case from inf, and on\n"
+         "every violation quitf(_fail, ...) with a message naming the value and the rule it broke. It must accept\n"
+         "every case the generator prints, and it must refuse a case that is one value short, one value over, or\n"
+         "empty: a validator that accepts everything proves nothing about the inputs stored later.\n\n" +
+         *input + "\n\n" + *bounds + "\n\nAnswer with the program and nothing else.\n";
 }
 
 auto checker_prompt(const Specification& specification) -> Result<std::string> {
