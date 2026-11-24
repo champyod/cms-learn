@@ -157,7 +157,8 @@ holds in the judge. That is the one place this stack loosens a default, and the 
 | Deploy a version | `make upgrade` — see above |
 | Roll back | automatic when the switch or the probe fails; to return to an older release on purpose, `git revert` the commit that changed `release.toml`, `bun run tools/render-stack.ts`, then `make upgrade` |
 | Manual backup before a migration | `docker compose run --rm -e BACKUP_ONCE=1 backup` |
-| Restore drill (needs the private key mounted) | `docker compose run --rm -v /path:/keys:ro -e AGE_KEY_FILE=/keys/cms-learn-backup.key --entrypoint /usr/local/bin/restore-drill.sh backup` |
+| Restore drill, scratch database (needs the private key mounted) | `docker compose run --rm -v /path:/keys:ro -e AGE_KEY_FILE=/keys/cms-learn-backup.key --entrypoint /usr/local/bin/restore-drill.sh backup` — proves the archive restores, then drops the scratch database; it never touches the live one |
+| Restore drill, live database (the case it exists for: the data volume is gone) | the same command with `-e RECOVER=1` — recreates the six service roles, restores the archive with its privileges, and refuses to report a pass until the api role can read from `settings` |
 | Administrator panel | `https://$DOMAIN/admin` — proxied to the api's panel listener (8081), never published itself |
 | Grafana | `ssh -L 3001:127.0.0.1:3001 <host>` then `http://127.0.0.1:3001` |
 | Database shell | `ssh -L 5432:127.0.0.1:5432 <host>` then `psql 'postgres://…@127.0.0.1:5432/cmslearn'` |

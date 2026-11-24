@@ -32,10 +32,15 @@ is what `tools/compare-plan.ts` does.
 
 ### Why applying goes through a wrapper
 
-pgschema does not verify the plan it executes. A step edited to declare `text` where the source
-declared an enum was accepted by `apply --plan` and failed only when PostgreSQL rejected the resulting
-foreign key (`SQLSTATE 42804`); an edit that stays valid SQL — a weakened grant, a dropped constraint,
-a renamed index — would apply silently. `source_fingerprint` is recorded in the plan and never checked.
+pgschema does not verify the plan it executes, and the apply is no longer bound to a stored plan: it is
+desired state (`pgschema apply --file deploy/plan/0001_init.sql`), so a database is brought to what the
+source declares. A plan rendered for one database could not be re-run and could not upgrade an existing
+one, which is why the mode changed ([0063](decisions/0063-the-schema-is-applied-as-desired-state.md)).
+
+The wrapper matters for the same reason it always did. A step edited to declare `text` where the source
+declared an enum failed only when PostgreSQL rejected the resulting foreign key (`SQLSTATE 42804`); an
+edit that stays valid SQL — a weakened grant, a dropped constraint, a renamed index — would have applied
+silently.
 
 `tools/apply-plan.sh` recomputes the digests against `deploy/plan/CHECKSUMS` and refuses before
 connecting if they disagree. Every apply path calls it — the schema container, `make upgrade`, and a
