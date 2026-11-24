@@ -114,6 +114,19 @@ struct OracleCheck {
 [[nodiscard]] auto run_program(std::string_view source, std::string_view input, std::int64_t time_limit_ms)
     -> Result<std::string>;
 
+/// @brief One run of a program that was compiled once: whether it finished, and its output or the reason it stopped.
+struct ProgramRun {
+  bool is_ok{false};
+  std::string output;
+};
+
+/// @brief Compiles @p source once and runs it for every input, in order, so proving many cases costs one compile.
+///
+/// An error is returned only when the program does not compile: a run that fails is a result, because a caller
+/// proving that a validator refuses bad input expects most of these runs to fail.
+[[nodiscard]] auto run_program_over(std::string_view source, const std::vector<std::string>& inputs,
+                                    std::int64_t time_limit_ms) -> Result<std::vector<ProgramRun>>;
+
 /// @brief Compiles @p source and runs it on @p smallest_input, refusing a program that does not build or answer.
 [[nodiscard]] auto check_oracle(std::string_view source, std::string_view smallest_input,
                                 std::int64_t time_limit_ms) -> Result<OracleCheck>;

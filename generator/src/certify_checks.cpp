@@ -22,6 +22,7 @@ constexpr std::string_view CASES = "the test cases the generator prints";
 constexpr std::string_view REFERENCE_PASS = "the reference and the subtask solutions through the checker";
 constexpr std::string_view DIFFERENTIAL = "the brute-force differential";
 constexpr std::string_view LIMITS = "the reference inside half the declared limits";
+constexpr std::string_view VALIDATOR = "the validator on every case and on the mutations";
 constexpr std::string_view NOT_REBUILT = "the test cases could not be re-built";
 
 auto failed(std::string_view subject, std::string_view reason) -> ReRunResult {
@@ -69,6 +70,63 @@ auto cases_rebuilt(const std::vector<GeneratedCase>& cases, const ReRunEvidence&
   }
   return held(CASES, std::to_string(cases.size()) + " case(s) (" + sizes_of(cases) +
                          "), the count step 6 recorded");
+}
+
+auto without_last_token(const std::string& input) -> std::string {
+  auto end = input.find_last_not_of(" \t\r\n");
+  if (end == std::string::npos) {
+    return {};
+  }
+  const auto space = input.find_last_of(" \t\r\n", end);
+  return space == std::string::npos ? std::string{} : input.substr(0, space + 1);
+}
+
+/// A validator that accepts a truncated case, or a value outside the bounds, or nothing at all, proves nothing
+/// about the inputs stored later, so every one of these must be refused by name.
+auto mutations_of(const std::string& input, std::int64_t value_max) -> std::vector<std::pair<std::string, std::string>> {
+  auto mutations = std::vector<std::pair<std::string, std::string>>{};
+  mutations.emplace_back("empty", std::string{});
+  mutations.emplace_back("one token short", without_last_token(input));
+  mutations.emplace_back("one value over the bound", input + " " + std::to_string(value_max + 1) + "\n");
+  return mutations;
+}
+
+auto validator_bites(const std::vector<GeneratedCase>& cases, const ReRunEvidence& evidence) -> ReRunResult {
+  if (cases.empty()) {
+    return failed(VALIDATOR, "there is no case for it to accept");
+  }
+  auto inputs = std::vector<std::string>{};
+  inputs.reserve(cases.size());
+  for (const auto& sample : cases) {
+    inputs.push_back(sample.input);
+  }
+  const auto accepted = run_program_over(evidence.validator_source, inputs, evidence.time_limit_ms);
+  if (!accepted) {
+    return failed(VALIDATOR, accepted.error().message);
+  }
+  for (std::size_t index = 0; index < accepted->size(); ++index) {
+    if (!(*accepted)[index].is_ok) {
+      return failed(VALIDATOR, "it refused a case the generator printed, for seed " +
+                                   std::to_string(cases[index].seed));
+    }
+  }
+  const auto mutations = mutations_of(cases.front().input, evidence.specification.bounds.value_max);
+  auto changed = std::vector<std::string>{};
+  changed.reserve(mutations.size());
+  for (const auto& [kind, text] : mutations) {
+    changed.push_back(text);
+  }
+  const auto refused = run_program_over(evidence.validator_source, changed, evidence.time_limit_ms);
+  if (!refused) {
+    return failed(VALIDATOR, refused.error().message);
+  }
+  for (std::size_t index = 0; index < refused->size(); ++index) {
+    if ((*refused)[index].is_ok) {
+      return failed(VALIDATOR, "it accepted the " + mutations[index].first + " mutation");
+    }
+  }
+  return held(VALIDATOR, std::to_string(accepted->size()) + " case(s) accepted, " +
+                             std::to_string(mutations.size()) + " mutation(s) refused");
 }
 
 auto reference_pass(const std::vector<GeneratedCase>& cases, const ReRunEvidence& evidence) -> ReRunResult {
@@ -187,12 +245,14 @@ auto re_run_methods(const ReRunEvidence& evidence) -> std::vector<ReRunResult> {
                                  evidence.time_limit_ms);
   if (!cases) {
     results.push_back(failed(CASES, cases.error().message));
+    results.push_back(not_run(VALIDATOR));
     results.push_back(not_run(REFERENCE_PASS));
     results.push_back(not_run(DIFFERENTIAL));
     results.push_back(not_run(LIMITS));
     return results;
   }
   results.push_back(cases_rebuilt(*cases, evidence));
+  results.push_back(validator_bites(*cases, evidence));
   results.push_back(reference_pass(*cases, evidence));
   results.push_back(differential(*cases, evidence));
   results.push_back(limits(*cases, evidence));

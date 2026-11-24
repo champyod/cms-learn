@@ -250,6 +250,56 @@ auto run_program(std::string_view source, std::string_view input, std::int64_t t
   return run_program_measured(source, input, time_limit_ms, nullptr);
 }
 
+auto run_program_over(std::string_view source, const std::vector<std::string>& inputs,
+                      std::int64_t time_limit_ms) -> Result<std::vector<ProgramRun>> {
+  if (source.find("int main") == std::string_view::npos) {
+    return std::unexpected(Error::make(ErrorCode::invalid_argument,
+                                       "the program is not a complete program: it has no int main"));
+  }
+  const auto directory = scratch_directory();
+  struct Cleanup {
+    const std::filesystem::path& path;
+    ~Cleanup() {
+      auto ignored = std::error_code{};
+      std::filesystem::remove_all(path, ignored);
+    }
+  } cleanup_guard{directory};
+  auto cleanup = std::error_code{};
+  std::filesystem::create_directories(directory, cleanup);
+  if (cleanup) {
+    return std::unexpected(
+        Error::make(ErrorCode::unavailable, "no scratch directory for the program: " + cleanup.message()));
+  }
+  if (!write_text(directory / SOURCE, source)) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, "the program's scratch file could not be written"));
+  }
+  const auto compile = run_child({std::string{COMPILER}, "-std=c++17", "-O2", "-pipe", "-o",
+                                  std::string{PROGRAM}, std::string{SOURCE}},
+                                 directory, "/dev/null", directory / COMPILE_ERROR, COMPILE_WALL_SECONDS, nullptr);
+  if (compile != 0) {
+    return std::unexpected(Error::make(
+        ErrorCode::invalid_argument,
+        "does not compile: " + first_line(read_text(directory / COMPILE_ERROR))));
+  }
+  const auto wall = std::max<std::int64_t>(FLOOR_WALL_SECONDS,
+                                           time_limit_ms / MILLISECONDS_PER_SECOND + GRACE_SECONDS);
+  auto runs = std::vector<ProgramRun>{};
+  runs.reserve(inputs.size());
+  for (const auto& input : inputs) {
+    if (!write_text(directory / CASE_IN, input)) {
+      return std::unexpected(Error::make(ErrorCode::unavailable, "the case could not be written"));
+    }
+    const auto code = run_child({"./" + std::string{PROGRAM}}, directory, directory / CASE_IN,
+                                directory / CASE_OUT, static_cast<int>(wall), nullptr, PROGRAM);
+    if (code != 0) {
+      runs.push_back(ProgramRun{.is_ok = false, .output = {}});
+      continue;
+    }
+    runs.push_back(ProgramRun{.is_ok = true, .output = read_text(directory / CASE_OUT)});
+  }
+  return runs;
+}
+
 /// @brief What a run cost: the wall time, and the peak used and reserved memory of the program itself.
 ///
 /// The two memory numbers are the program's own, read from `/proc/<pid>/status:VmHWM` (touched pages) and `:VmPeak`

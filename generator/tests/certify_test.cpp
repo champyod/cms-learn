@@ -512,6 +512,64 @@ TEST_CASE("a stored subtask bound that is not an integer is refused by name", "[
   CHECK(read.error().message.find("not an integer") != std::string::npos);
 }
 
+TEST_CASE("a validator that accepts a mutation is failed by name", "[certify]") {
+  const auto generator = R"(#include <iostream>
+int main() {
+  long long seed = 0;
+  long long n = 0;
+  std::cin >> seed >> n;
+  std::cout << n << "\n";
+  for (long long index = 0; index < n; ++index) {
+    std::cout << 3 << (index + 1 == n ? '\n' : ' ');
+  }
+  return 0;
+}
+)";
+  const auto oracle = R"(#include <iostream>
+int main() {
+  long long n = 0;
+  std::cin >> n;
+  long long total = 0;
+  for (long long index = 0; index < n; ++index) {
+    long long value = 0;
+    std::cin >> value;
+    total += value;
+  }
+  std::cout << total << "\n";
+  return 0;
+}
+)";
+  const auto evidence = [&](std::string validator) {
+    return cms::generate::ReRunEvidence{
+        .specification = cms::generate::Specification{.input = "n, then n integers",
+                                                      .output = "their sum",
+                                                      .bounds = {.min_n = 1,
+                                                                 .max_n = 4,
+                                                                 .value_min = 3,
+                                                                 .value_max = 3},
+                                                      .subtasks = {}},
+        .generator_source = generator,
+        .checker_source = "",
+        .validator_source = std::move(validator),
+        .oracle_source = oracle,
+        .reference_source = "",
+        .partial_sources = {},
+        .recorded_case_counts = {},
+        .time_limit_ms = 1000,
+        .memory_used_limit_mb = 256,
+        .memory_reserved_limit_mb = 256};
+  };
+  const auto accepts_everything = "int main() { return 0; }";
+  const auto methods = cms::generate::re_run_methods(evidence(accepts_everything));
+
+  const auto named = std::find_if(methods.begin(), methods.end(), [](const auto& method) {
+    return method.sentence.find("the validator on every case") != std::string::npos;
+  });
+  REQUIRE(named != methods.end());
+  CHECK(!named->is_passed);
+  CHECK(named->sentence.find("mutation") != std::string::npos);
+}
+
 TEST_CASE("a complete job is certified and the certificate names every method it re-ran", "[certify][live]") {
   if (!cms::generate::test::has_live_database()) {
     SKIP("CMSLEAN_TEST_DSN is not set");
