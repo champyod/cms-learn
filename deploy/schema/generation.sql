@@ -20,6 +20,9 @@ CREATE TABLE generation_jobs (
   -- When the claim runs out. A worker that dies holds the row only until this moment: the next claim takes a
   -- running job whose lease expired, which is what keeps one dead worker from parking a job forever.
   lease_expires_at timestamptz,
+  -- Why the job stopped, in the words of the step that refused it (ADR 0062 §3). Empty while a job runs and
+  -- after one is certified; a failed job that cannot say why would make a teacher read a worker log.
+  refusal text NOT NULL DEFAULT '' CHECK (refusal = btrim(refusal)),
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT generation_jobs_task_fkey FOREIGN KEY (task_id, task_version)
