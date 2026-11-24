@@ -654,7 +654,7 @@ CREATE TABLE IF NOT EXISTS generation_programs (
     CONSTRAINT generation_programs_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),
     CONSTRAINT generation_programs_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,
     CONSTRAINT generation_programs_proof_check CHECK (length(btrim(proof)) > 0),
-    CONSTRAINT generation_programs_role_check CHECK (role IN ('generator'::text, 'checker'::text))
+    CONSTRAINT generation_programs_role_check CHECK (role IN ('generator'::text, 'checker'::text, 'validator'::text))
 );
 
 CREATE TABLE IF NOT EXISTS generation_solutions (

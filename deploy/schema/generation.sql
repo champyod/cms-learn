@@ -247,11 +247,12 @@ CREATE TABLE generation_solutions (
   PRIMARY KEY (job_id, position)
 );
 
--- Step 6's record: the two programs it wrote and the cases each subtask needs (ADR 0015, step 6). A row cites the
--- artefact that holds the bytes, so a proof cannot point at a program that was never stored.
+-- Step 6's record: the programs it wrote and the cases each subtask needs (ADR 0015, step 6; ADR 0061 adds the
+-- validator). A row cites the artefact that holds the bytes, so a proof cannot point at a program that was never
+-- stored.
 CREATE TABLE generation_programs (
   job_id bigint NOT NULL REFERENCES generation_jobs (id) ON DELETE CASCADE,
-  role text NOT NULL CHECK (role IN ('generator', 'checker')),
+  role text NOT NULL CHECK (role IN ('generator', 'checker', 'validator')),
   artefact_id bigint NOT NULL REFERENCES generation_artefacts (id) ON DELETE NO ACTION,
   proof text NOT NULL CHECK (length(btrim(proof)) > 0),
   created_at timestamptz NOT NULL DEFAULT now(),

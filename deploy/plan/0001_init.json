@@ -405,7 +405,7 @@
           "path": "public.generation_certificates.generation_certificates_task_idx"
         },
         {
-          "sql": "CREATE TABLE IF NOT EXISTS generation_programs (\n    job_id bigint,\n    role text,\n    artefact_id bigint NOT NULL,\n    proof text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_programs_pkey PRIMARY KEY (job_id, role),\n    CONSTRAINT generation_programs_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_programs_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_programs_proof_check CHECK (length(btrim(proof)) > 0),\n    CONSTRAINT generation_programs_role_check CHECK (role IN ('generator'::text, 'checker'::text))\n);",
+          "sql": "CREATE TABLE IF NOT EXISTS generation_programs (\n    job_id bigint,\n    role text,\n    artefact_id bigint NOT NULL,\n    proof text NOT NULL,\n    created_at timestamptz DEFAULT now() NOT NULL,\n    CONSTRAINT generation_programs_pkey PRIMARY KEY (job_id, role),\n    CONSTRAINT generation_programs_artefact_id_fkey FOREIGN KEY (artefact_id) REFERENCES generation_artefacts (id),\n    CONSTRAINT generation_programs_job_id_fkey FOREIGN KEY (job_id) REFERENCES generation_jobs (id) ON DELETE CASCADE,\n    CONSTRAINT generation_programs_proof_check CHECK (length(btrim(proof)) > 0),\n    CONSTRAINT generation_programs_role_check CHECK (role IN ('generator'::text, 'checker'::text, 'validator'::text))\n);",
           "type": "table",
           "operation": "create",
           "path": "public.generation_programs"
