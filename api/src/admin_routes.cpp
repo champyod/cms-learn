@@ -1,5 +1,7 @@
 #include <cms/api/admin_routes.hpp>
 
+#include <cms/api/generation_page.hpp>
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -531,6 +533,44 @@ auto models_model(const Locale& locale, std::string_view site_name, const std::v
   return data;
 }
 
+auto handle_generation(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
+                      Callback&& callback) -> void {
+  if (!is_panel_listener(request, panel->panel_port)) {
+    callback(text_response(std::string{NO_PAGE_BODY}, drogon::k404NotFound));
+    return;
+  }
+  auto database = db::connection{panel->database_config};
+  const auto session_id = request->getCookie(std::string{SESSION_COOKIE});
+  const auto account = account_of_session(database, session_id);
+  if (!account) {
+    callback(text_response(account.error().message, drogon::k500InternalServerError));
+    return;
+  }
+  if (account->empty()) {
+    callback(redirect(SIGN_IN_PATH));
+    return;
+  }
+  if (account->kind != ADMIN_KIND) {
+    callback(text_response(std::string{ADMIN_ONLY_BODY}, drogon::k403Forbidden));
+    return;
+  }
+  const auto permitted = authorize(database, account->kind, account->id, Capability::generation_write);
+  if (!permitted) {
+    callback(text_response(permitted.error().message, status_of(permitted.error().code)));
+    return;
+  }
+  const auto locale = choose_locale(request->getParameter("lang"), request->getHeader("accept-language"));
+  const auto page = render_page(panel->template_root, "admin_generate.html",
+                                generation_model(locale, site_name_of(*panel->store),
+                                                 read_generation_jobs(database, 20),
+                                                 panel->tokens->token_for(session_id)));
+  if (!page) {
+    callback(text_response(std::string{INTERNAL_ERROR_BODY}, drogon::k500InternalServerError));
+    return;
+  }
+  callback(html_response(*page));
+}
+
 auto handle_models(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
                    Callback&& callback) -> void {
   if (!is_panel_listener(request, panel->panel_port)) {
@@ -644,6 +684,12 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
   post("/admin/issue-verification", PanelAction::issue_verification);
   post("/admin/grant-role", PanelAction::grant_role);
   post("/admin/tasks/new", PanelAction::save_task_draft);
+  app.registerHandler(
+      "/admin/generate",
+      [panel](const drogon::HttpRequestPtr& request, Callback&& callback) {
+        handle_generation(panel, request, std::move(callback));
+      },
+      {drogon::Get});
   app.registerHandler(
       std::string{MODELS_PATH},
       [panel](const drogon::HttpRequestPtr& request, Callback&& callback) {
