@@ -34,6 +34,13 @@ if(Catch2_FOUND)
   cms_apply_sanitizers(cms_api_admin_actions_lifecycle_tests)
   catch_discover_tests(cms_api_admin_actions_lifecycle_tests)
 
+  add_executable(cms_api_generation_tests generation_action_test.cpp)
+  target_link_libraries(cms_api_generation_tests PRIVATE cms::api_authority cms::api_web Catch2::Catch2WithMain)
+  cms_apply_warnings(cms_api_generation_tests PRIVATE)
+  cms_apply_hardening(cms_api_generation_tests)
+  cms_apply_sanitizers(cms_api_generation_tests)
+  catch_discover_tests(cms_api_generation_tests)
+
   add_executable(cms_api_elevation_tests elevation_test.cpp)
   target_link_libraries(cms_api_elevation_tests PRIVATE cms::api_authority Catch2::Catch2WithMain)
   cms_apply_warnings(cms_api_elevation_tests PRIVATE)

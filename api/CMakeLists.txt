@@ -65,7 +65,7 @@ add_library(cms_api_authority STATIC src/accounts.cpp src/admin_actions.cpp src/
                                       src/submissions.cpp
                                       src/settings_view.cpp src/settings_write.cpp
                                       src/settings_plan.cpp src/settings_route.cpp
-                                      src/task_view.cpp)
+                                      src/task_view.cpp src/generation_page.cpp)
 add_library(cms::api_authority ALIAS cms_api_authority)
 target_include_directories(cms_api_authority PUBLIC
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>")
@@ -75,7 +75,7 @@ cms_apply_warnings(cms_api_authority PUBLIC)
 cms_apply_hardening(cms_api_authority)
 cms_apply_sanitizers(cms_api_authority)
 
-add_executable(cms_api src/admin_page.cpp src/admin_panel_actions.cpp src/admin_routes.cpp src/generation_page.cpp
+add_executable(cms_api src/admin_page.cpp src/admin_panel_actions.cpp src/admin_routes.cpp
                        src/auth_routes.cpp src/csrf.cpp src/http.cpp src/main.cpp
                        src/page_routes.cpp src/progress_routes.cpp src/progress_view.cpp
                        src/settings_source.cpp src/settings_watcher.cpp
