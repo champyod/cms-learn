@@ -44,6 +44,13 @@ struct JudgeQueue {
 };
 
 /// @brief Reads the backlog. One row of two aggregates, so a scrape costs one query.
-[[nodiscard]] auto judge_queue(db::connection& database) -> JudgeQueue;
+///
+/// @param config The pool every handler already holds, by the same smart pointer the routes pass around.
+///               The pointer is the parameter rather than a reference because a handler holds this value
+///               and a smart pointer does not convert, and because a null config is exactly the case a
+///               scrape must survive: it is reported as unreadable, not dereferenced.
+/// @return The backlog, or the reason it could not be read: a metrics endpoint that reports this queue
+///         renders the gauges as unknown rather than failing the whole scrape.
+[[nodiscard]] auto judge_queue(const std::shared_ptr<const db::connection_config>& config) -> Result<JudgeQueue>;
 
 }  // namespace cms::api

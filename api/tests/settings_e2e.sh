@@ -163,5 +163,50 @@ else
   bad "the listener propagated the change without a restart" "still: $health"
 fi
 
+
+# This case carries its own learner and task: the file seeds neither elsewhere, and a submission needs both.
+psql_db -c "INSERT INTO tasks (id, version, status, title_en, title_th, difficulty, time_limit_ms, memory_used_limit_mb, memory_reserved_limit_mb, checker, origin, verification, solution, content_hash) VALUES ('metrics-probe', 1, 'draft', 'Metrics probe', 'ตัววัด', 900, 1000, 256, 512, 'token', 'original', 'pending', '', '')"
+psql_db -c "INSERT INTO learner_accounts (id, handle, status) VALUES ('e0000001-1111-4111-8111-000000000001', 'metrics_probe', 'active')"
+psql_db -c "INSERT INTO submissions (account_id, task_id, task_version, source, submitted_at) VALUES ('e0000001-1111-4111-8111-000000000001', 'metrics-probe', 1, 'print(1)', now() - interval '30 seconds')"
+psql_db -c "INSERT INTO submissions (account_id, task_id, task_version, source, verdict, judged_at) VALUES ('e0000001-1111-4111-8111-000000000001', 'metrics-probe', 1, 'print(2)', 'ok', now())"
+
+metrics="$(curl -fsS --max-time 20 "http://127.0.0.1:$listen_port/metrics" 2>&1)"
+depth="$(sed -n 's/^cms_learn_judge_queue_depth //p' <<<"$metrics")"
+oldest="$(sed -n 's/^cms_learn_judge_oldest_waiting_seconds //p' <<<"$metrics")"
+if [ "$depth" = "1" ]; then
+  ok "/metrics counts the waiting submissions"
+else
+  bad "/metrics counts the waiting submissions" "got: ${depth:-missing}"
+fi
+case "$oldest" in
+  29|30|31|32|33) ok "/metrics ages the oldest waiting submission (${oldest}s)" ;;
+  *) bad "/metrics ages the oldest waiting submission" "got: ${oldest:-missing}" ;;
+esac
+
+# A scrape target answers when a subsystem it reports on cannot be read: hide the table the queue
+# aggregates, so exactly that read fails while the rest of the database and the service stay up.
+psql_db -c "ALTER TABLE submissions RENAME TO submissions_metrics_probe" >/dev/null 2>&1 \
+  || { echo "  [!!] the queue table could not be hidden"; exit 1; }
+status="$(curl -s -o "$work/metrics-down" -w '%{http_code}' --max-time 20 "http://127.0.0.1:$listen_port/metrics")"
+down="$(cat "$work/metrics-down" 2>/dev/null || true)"
+if [ "$status" = "200" ]; then
+  ok "/metrics answers when the queue cannot be read"
+else
+  bad "/metrics answers when the queue cannot be read" "got HTTP $status"
+fi
+case "$down" in
+  *"cms_learn_judge_queue_depth NaN"*) ok "/metrics reports the queue depth as NaN" ;;
+  *) bad "/metrics reports the queue depth as NaN" "got: ${down:-nothing}" ;;
+esac
+case "$down" in
+  *"cms_learn_judge_oldest_waiting_seconds NaN"*) ok "/metrics reports the oldest wait as NaN" ;;
+  *) bad "/metrics reports the oldest wait as NaN" "got: ${down:-nothing}" ;;
+esac
+case "$down" in
+  *"cms_learn_settings_version $after_version"*) ok "the other gauges survive the failed read" ;;
+  *) bad "the other gauges survive the failed read" "got: ${down:-nothing}" ;;
+esac
+psql_db -c "ALTER TABLE submissions_metrics_probe RENAME TO submissions" >/dev/null 2>&1 || true
+
 printf '\n%s assertion(s) behaved, %s did not\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

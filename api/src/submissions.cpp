@@ -168,16 +168,23 @@ using queue_row = ::sqlpp::result_row_t<::sqlpp::field_spec_t<pending_t::_sqlpp_
 
 /// A verdict and the moment it was reached travel together, so an absent verdict is exactly "still waiting".
 constexpr std::string_view QUEUE_SQL = R"(
-SELECT count(*) AS pending,
-       coalesce(extract(epoch FROM now() - min(submitted_at)) FILTER (WHERE verdict IS NULL), 0)::bigint AS oldest_seconds
+SELECT count(*) FILTER (WHERE verdict IS NULL) AS pending,
+       coalesce(extract(epoch FROM now() - min(submitted_at) FILTER (WHERE verdict IS NULL)), 0)::bigint
+         AS oldest_seconds
 FROM submissions
 )";
 
 }  // namespace
 
-auto judge_queue(db::connection& database) -> JudgeQueue {
-  for (const auto& row : ::sqlpp::result_t<db::result, queue_row>{database.query_text(std::string{QUEUE_SQL}, {})}) {
-    return JudgeQueue{.pending = row.pending, .oldest_waiting_seconds = row.oldest_seconds};
+auto judge_queue(const std::shared_ptr<const db::connection_config>& config) -> Result<JudgeQueue> {
+  try {
+    auto database = db::connection{config};
+    for (const auto& row :
+         ::sqlpp::result_t<db::result, queue_row>{database.query_text(std::string{QUEUE_SQL}, {})}) {
+      return JudgeQueue{.pending = row.pending, .oldest_waiting_seconds = row.oldest_seconds};
+    }
+  } catch (const std::exception& error) {
+    return std::unexpected(Error::make(ErrorCode::unavailable, error.what()));
   }
   return JudgeQueue{};
 }

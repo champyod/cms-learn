@@ -104,17 +104,17 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
         body += "# HELP cms_learn_settings_version The settings row version this process holds.\n";
         body += "# TYPE cms_learn_settings_version gauge\n";
         body += "cms_learn_settings_version " + std::to_string(store->version()) + "\n";
-        auto queue = cms::api::JudgeQueue{};
-        {
-          auto database = cms::db::connection{database_config};
-          queue = cms::api::judge_queue(database);
-        }
+        // A scrape target answers even when a subsystem it reports on cannot be read: an unreadable
+        // queue is an unknown value (NaN), not a failed scrape that hides the outage.
+        const auto queue = cms::api::judge_queue(database_config);
+        const auto depth = queue ? std::to_string(queue->pending) : std::string{"NaN"};
+        const auto oldest = queue ? std::to_string(queue->oldest_waiting_seconds) : std::string{"NaN"};
         body += "# HELP cms_learn_judge_queue_depth Submissions waiting for a verdict.\n";
         body += "# TYPE cms_learn_judge_queue_depth gauge\n";
-        body += "cms_learn_judge_queue_depth " + std::to_string(queue.pending) + "\n";
+        body += "cms_learn_judge_queue_depth " + depth + "\n";
         body += "# HELP cms_learn_judge_oldest_waiting_seconds How long the oldest waiting submission has waited.\n";
         body += "# TYPE cms_learn_judge_oldest_waiting_seconds gauge\n";
-        body += "cms_learn_judge_oldest_waiting_seconds " + std::to_string(queue.oldest_waiting_seconds) + "\n";
+        body += "cms_learn_judge_oldest_waiting_seconds " + oldest + "\n";
         body += "# HELP cms_learn_csp_reports_total Reports the browser sent for a page that broke the policy.\n";
         body += "# TYPE cms_learn_csp_reports_total counter\n";
         body += "cms_learn_csp_reports_total " + std::to_string(csp_reports.load()) + "\n";

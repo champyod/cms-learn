@@ -119,7 +119,7 @@ auto read_generation_jobs(db::connection& database, std::size_t limit) -> std::v
   auto done_by_job = std::map<std::string, std::set<int>>{};
   for (const auto& row : ::sqlpp::result_t<db::result, steps_row>{database.query_text(
            std::string{STEPS_SQL_HEAD} + id_list + ") AND kind <> 'refusal' GROUP BY job_id", {})}) {
-    done_by_job[std::to_string(row.job_id)] = steps_of(std::string{row.steps});
+    done_by_job[std::to_string(row.job_id)] = steps_of(row.steps);
   }
   for (const auto& row : ::sqlpp::result_t<db::result, refusal_row>{database.query_text(
            std::string{REFUSALS_SQL_HEAD} + id_list + ") AND kind = 'refusal' ORDER BY job_id, id DESC", {})}) {
