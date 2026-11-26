@@ -175,6 +175,25 @@ int main(int argc, char** argv) {
 }
 )";
 
+/// A validator implementing the contract: stdin is a case, exit 0 when it is inside the declared bounds. It must
+/// accept what the generator prints and refuse an empty case, a short one and a value over the bound, because those
+/// are the mutations the certification re-runs it against.
+constexpr std::string_view VALIDATOR = R"(#include <cstdio>
+int main() {
+  long long n = 0;
+  if (std::scanf("%lld", &n) != 1) return 1;
+  if (n < 1 || n > 5000000) return 1;
+  for (long long index = 0; index < n; ++index) {
+    long long value = 0;
+    if (std::scanf("%lld", &value) != 1) return 1;
+    if (value < -1000000000 || value > 1000000000) return 1;
+  }
+  long long extra = 0;
+  if (std::scanf("%lld", &extra) == 1) return 1;
+  return 0;
+}
+)";
+
 /// @return @p text as the body of a JSON string, so a program's newlines do not break the answer.
 auto json_string(std::string_view text) -> std::string {
   auto out = std::string{"\""};
@@ -238,7 +257,7 @@ auto whole_job_answers(std::string_view reference = SUM_REFERENCE) -> std::vecto
   return {planner_answer("prefix sums"), planner_answer("segment tree"), planner_answer("sqrt decomposition"),
           planner_answer("sparse table"), judge_answer(), specification_answer(), statement_answer("en"),
           std::string{reference}, std::string{FIRST_PARTIAL}, std::string{SECOND_PARTIAL}, std::string{GENERATOR},
-          std::string{CHECKER}};
+          std::string{CHECKER}, std::string{VALIDATOR}};
 }
 
 auto whole_job_recording(std::string_view reference = SUM_REFERENCE) -> cms::generate::RecordedClient {
@@ -644,8 +663,8 @@ TEST_CASE("a queued job runs every step and ends done on a verified certificate"
   CHECK(report->job_id == job);
   CHECK(report->state == "done");
   CHECK(report->steps.size() == 7);
-  // Four shards, the decision, the specification, the statement, the reference, two partials, two test programs.
-  CHECK(client.prompts().size() == 12);
+  // Four shards, the decision, the specification, the statement, the reference, two partials, three test programs.
+  CHECK(client.prompts().size() == 13);
 
   const auto [state, holder, attempts] = job_row(database, job);
   CHECK(state == "done");

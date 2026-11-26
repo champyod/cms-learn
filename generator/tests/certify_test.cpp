@@ -177,6 +177,25 @@ int main() {
 }
 )";
 
+/// A validator implementing the contract: stdin is a case, exit 0 when it is inside the declared bounds.
+/// It must accept what the generator prints and refuse an empty case, a short one and a value over the bound,
+/// because those are the three mutations the certification re-runs it against.
+constexpr std::string_view VALIDATOR_SOURCE = R"(#include <cstdio>
+int main() {
+  long long n = 0;
+  if (std::scanf("%lld", &n) != 1) return 1;
+  if (n < 1 || n > 30) return 1;
+  for (long long index = 0; index < n; ++index) {
+    long long value = 0;
+    if (std::scanf("%lld", &value) != 1) return 1;
+    if (value < 0 || value > 9) return 1;
+  }
+  long long extra = 0;
+  if (std::scanf("%lld", &extra) == 1) return 1;
+  return 0;
+}
+)";
+
 /// A checker implementing the contract: argv expected, answer; exit 0 when the tokens agree.
 constexpr std::string_view CHECKER_SOURCE = R"(#include <fstream>
 #include <string>
@@ -342,6 +361,7 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
   const auto second_key = key_for("subtask-2.cpp");
   const auto generator_key = key_for("generator.cpp");
   const auto checker_key = key_for("checker.cpp");
+  const auto validator_key = key_for("validator.cpp");
   const auto cases_key = key_for("cases.json");
 
   const auto oracle = insert_artefact(database, job, 3, "oracle", oracle_key, write(oracle_key, ORACLE_SOURCE));
@@ -354,6 +374,8 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
   const auto generator =
       insert_artefact(database, job, 6, "generator", generator_key, write(generator_key, GENERATOR_SOURCE));
   const auto checker = insert_artefact(database, job, 6, "checker", checker_key, write(checker_key, sources.checker));
+  const auto validator =
+      insert_artefact(database, job, 6, "validator", validator_key, write(validator_key, VALIDATOR_SOURCE));
   const auto cases = insert_artefact(
       database, job, 6, "cases", cases_key, write(cases_key, R"([{"seed":1,"n":1},{"seed":2,"n":10}])"));
 
@@ -364,8 +386,9 @@ auto build_job(cms::db::connection& database, cms::generate::test::MemoryStore& 
       {job, reference_artefact, first, second});
   database.execute_text(
       "INSERT INTO generation_programs (job_id, role, artefact_id, proof) VALUES "
-      "($1, 'generator', $2, 'deterministic'), ($1, 'checker', $3, 'planted wrong answer refused')",
-      {job, generator, checker});
+      "($1, 'generator', $2, 'deterministic'), ($1, 'checker', $3, 'planted wrong answer refused'), "
+      "($1, 'validator', $4, 'planted mutations refused')",
+      {job, generator, checker, validator});
   database.execute_text(
       "INSERT INTO generation_cases (job_id, subtask_position, artefact_id, case_count, proof) "
       "VALUES ($1, 1, $2, 2, 'two cases'), ($1, 2, $2, 2, 'two cases')",
@@ -651,6 +674,8 @@ TEST_CASE("a complete job is certified and the certificate names every method it
       UNSCOPED_INFO("a method said: " + check);
     }
   }
+  const auto certificate_error = certificate ? std::string{} : certificate.error().message;
+  INFO(certificate_error);
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::verified);
   CHECK(certificate->commit_id == std::string{COMMIT});
@@ -684,7 +709,9 @@ TEST_CASE("a certificate whose artefact moved after the run no longer certifies"
     auto& connection = holder->connection();
     job = job_of(connection, "certify-moved");
     const auto certificate = cms::generate::certify_job(connection, store, job, COMMIT);
-    REQUIRE(certificate.has_value());
+    const auto certificate_error = certificate ? std::string{} : certificate.error().message;
+  INFO(certificate_error);
+  REQUIRE(certificate.has_value());
     CHECK(certificate->outcome == cms::generate::VerificationOutcome::verified);
     holder->commit();
   }
@@ -747,6 +774,8 @@ TEST_CASE("a case count the generator's seeds do not reproduce is failed", "[cer
   const auto certificate =
       cms::generate::certify_job(connection, store, job_of(connection, "certify-count"), COMMIT);
 
+  const auto certificate_error = certificate ? std::string{} : certificate.error().message;
+  INFO(certificate_error);
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
   CHECK(mentions(certificate->checks, "step 6 recorded 3 case(s) for subtask 1"));
@@ -847,6 +876,8 @@ TEST_CASE("a reference right only on the smallest case is failed, naming the cas
   const auto certificate =
       cms::generate::certify_job(connection, store, job_of(connection, "certify-disagree"), COMMIT);
 
+  const auto certificate_error = certificate ? std::string{} : certificate.error().message;
+  INFO(certificate_error);
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
   CHECK(mentions(certificate->checks, "the brute-force differential"));
@@ -875,6 +906,8 @@ TEST_CASE("a checker that accepts a planted wrong answer is failed by name", "[c
   const auto certificate =
       cms::generate::certify_job(connection, store, job_of(connection, "certify-checker"), COMMIT);
 
+  const auto certificate_error = certificate ? std::string{} : certificate.error().message;
+  INFO(certificate_error);
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
   CHECK(mentions(certificate->checks, "the reference and the subtask solutions through the checker"));
@@ -922,6 +955,8 @@ TEST_CASE("a reference above half the memory limit is failed, naming the value, 
   const auto certificate =
       cms::generate::certify_job(connection, store, job_of(connection, "certify-bloated"), COMMIT);
 
+  const auto certificate_error = certificate ? std::string{} : certificate.error().message;
+  INFO(certificate_error);
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
   CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
@@ -948,6 +983,8 @@ TEST_CASE("a reference above half the limit on its slowest case is failed", "[ce
   const auto certificate =
       cms::generate::certify_job(connection, store, job_of(connection, "certify-slow"), COMMIT);
 
+  const auto certificate_error = certificate ? std::string{} : certificate.error().message;
+  INFO(certificate_error);
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::failed);
   CHECK(mentions(certificate->checks, "the reference inside half the declared limits"));
@@ -1062,6 +1099,8 @@ TEST_CASE("a hand-written task is certified by the checks it can carry", "[certi
   if (!certificate) {
     UNSCOPED_INFO(certificate.error().message);
   }
+  const auto certificate_error = certificate ? std::string{} : certificate.error().message;
+  INFO(certificate_error);
   REQUIRE(certificate.has_value());
   CHECK(certificate->outcome == cms::generate::VerificationOutcome::verified);
   CHECK(certificate->job_id == 0);
