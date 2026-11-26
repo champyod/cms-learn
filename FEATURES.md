@@ -89,7 +89,7 @@ Counts at last update: **53 shipped · 6 partial · 8 planned** (67 features).
 | F-056 | One action layer both administrator surfaces call: every action checks its capability, and the acting account is passed in, never read from a request (ADR 0019) | C | ● | `api/include/cms/api/admin_actions.hpp`, `api/src/admin_actions.cpp`, `api/tests/admin_actions_creation_test.cpp` |
 | F-057 | Learner, administrator and system are separate account tables, with a kind beside every recorded actor (ADR 0016, 0020) | A | ● | `deploy/schema/authority.sql`, `deploy/schema/settings.sql`, `docs/decisions/0020-one-actor-pattern.md`, `bun run check:schema` |
 | F-058 | Administrator panel on its own listener: roster and five actions, per-session CSRF token compared before any work, the actor taken from the session | A | ● | `api/src/admin_routes.cpp`, `api/src/csrf.cpp`, `api/tests/admin_panel_e2e.sh` (21 assertions), `bun run check:templates` |
-| F-055 | PII minimisation and retention policy (minors) | A | ○ | not started: decided in ADR 0002 §2; needs a retention window per field and the job that enforces it |
+| F-055 | PII minimisation and retention policy (minors) | A | ○ | decided in ADR 0064: retention is fixed as the account's lifetime, with account deletion as the erasure mechanism and the schema's cascade as its enforcement; what is not built is the administrator deletion path, the notice in the settings catalogue, a case proving the cascade deletes submissions, and the store and backup side of the promise |
 
 ## Operations
 
