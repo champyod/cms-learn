@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdint>
 #include <span>
 #include <string>
 #include <string_view>
@@ -33,5 +34,16 @@ struct Submission {
                                                  std::string_view task_id,
                                                  std::string_view source,
                                                  std::span<const std::int64_t> audience);
+
+/// @brief The judge's backlog, as two numbers an operator can alert on.
+struct JudgeQueue {
+  /// Submissions waiting for a verdict.
+  std::int64_t pending{0};
+  /// How long the oldest of them has waited, in seconds; zero when nothing waits.
+  std::int64_t oldest_waiting_seconds{0};
+};
+
+/// @brief Reads the backlog. One row of two aggregates, so a scrape costs one query.
+[[nodiscard]] auto judge_queue(db::connection& database) -> JudgeQueue;
 
 }  // namespace cms::api

@@ -16,6 +16,7 @@
 #include <cms/api/admin_routes.hpp>
 #include <cms/api/admin_socket.hpp>
 #include <cms/api/auth_routes.hpp>
+#include <cms/api/submissions.hpp>
 #include <cms/api/authorize.hpp>
 #include <cms/api/form_body.hpp>
 #include <cms/api/host_config.hpp>
@@ -97,12 +98,23 @@ auto register_routes(const std::shared_ptr<cms::SettingsStore>& store,
 
   app.registerHandler(
       "/metrics",
-      [store](const drogon::HttpRequestPtr&,
+      [store, database_config](const drogon::HttpRequestPtr&,
               std::function<void(const drogon::HttpResponsePtr&)>&& callback) {
         auto body = std::string{};
         body += "# HELP cms_learn_settings_version The settings row version this process holds.\n";
         body += "# TYPE cms_learn_settings_version gauge\n";
         body += "cms_learn_settings_version " + std::to_string(store->version()) + "\n";
+        auto queue = cms::api::JudgeQueue{};
+        {
+          auto database = cms::db::connection{database_config};
+          queue = cms::api::judge_queue(database);
+        }
+        body += "# HELP cms_learn_judge_queue_depth Submissions waiting for a verdict.\n";
+        body += "# TYPE cms_learn_judge_queue_depth gauge\n";
+        body += "cms_learn_judge_queue_depth " + std::to_string(queue.pending) + "\n";
+        body += "# HELP cms_learn_judge_oldest_waiting_seconds How long the oldest waiting submission has waited.\n";
+        body += "# TYPE cms_learn_judge_oldest_waiting_seconds gauge\n";
+        body += "cms_learn_judge_oldest_waiting_seconds " + std::to_string(queue.oldest_waiting_seconds) + "\n";
         body += "# HELP cms_learn_csp_reports_total Reports the browser sent for a page that broke the policy.\n";
         body += "# TYPE cms_learn_csp_reports_total counter\n";
         body += "cms_learn_csp_reports_total " + std::to_string(csp_reports.load()) + "\n";

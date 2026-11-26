@@ -158,4 +158,28 @@ auto submit_solution(db::connection& database, std::string_view session_id, std:
   }
 }
 
+namespace {
+
+SQLPP_CREATE_NAME_TAG(pending);
+SQLPP_CREATE_NAME_TAG(oldest_seconds);
+
+using queue_row = ::sqlpp::result_row_t<::sqlpp::field_spec_t<pending_t::_sqlpp_name_tag, ::sqlpp::integral>,
+                                        ::sqlpp::field_spec_t<oldest_seconds_t::_sqlpp_name_tag, ::sqlpp::integral>>;
+
+/// A verdict and the moment it was reached travel together, so an absent verdict is exactly "still waiting".
+constexpr std::string_view QUEUE_SQL = R"(
+SELECT count(*) AS pending,
+       coalesce(extract(epoch FROM now() - min(submitted_at)) FILTER (WHERE verdict IS NULL), 0)::bigint AS oldest_seconds
+FROM submissions
+)";
+
+}  // namespace
+
+auto judge_queue(db::connection& database) -> JudgeQueue {
+  for (const auto& row : ::sqlpp::result_t<db::result, queue_row>{database.query_text(std::string{QUEUE_SQL}, {})}) {
+    return JudgeQueue{.pending = row.pending, .oldest_waiting_seconds = row.oldest_seconds};
+  }
+  return JudgeQueue{};
+}
+
 }  // namespace cms::api
