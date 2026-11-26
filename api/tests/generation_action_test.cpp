@@ -91,6 +91,23 @@ auto prepare(cms::db::connection& database) -> void {
 
 }  // namespace
 
+TEST_CASE("the stream event carries the step line the page prints", "[generation]") {
+  const auto job = cms::api::GenerationJobView{.id = "7",
+                                               .task_id = std::string{TASK_ID},
+                                               .state = "running",
+                                               .refusal = {},
+                                               .steps_line = "1 2 . - - - -",
+                                               .steps_done = "2/7",
+                                               .has_refusal = false};
+  const auto payload = cms::api::generation_stream_payload(job);
+
+  CHECK(payload.rfind("event: state\n", 0) == 0);
+  CHECK(payload.find("\"steps_done\":\"2/7\"") != std::string::npos);
+  CHECK(payload.find("\"steps_line\":\"1 2 . - - - -\"") != std::string::npos);
+  CHECK(payload.find("\"has_refusal\":false") != std::string::npos);
+  CHECK(payload.ends_with("\n\n"));
+}
+
 TEST_CASE("an account without generation:write is refused by the capability it lacks", "[generation][live]") {
   skip_without_database();
   auto database = cms::test::live_database();

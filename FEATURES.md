@@ -15,7 +15,7 @@ an agent can be held to; marking one ● without evidence is the failure this fi
 IDs are allocated by area and never reused, so gaps are reserved, not lost: `F-001–019` content,
 `F-020–029` judge, `F-030–049` web, `F-050–059` accounts and security, `F-060–079` operations.
 
-Counts at last update: **53 shipped · 5 partial · 9 planned** (67 features).
+Counts at last update: **53 shipped · 6 partial · 8 planned** (67 features).
 
 ---
 
@@ -100,7 +100,7 @@ Counts at last update: **53 shipped · 5 partial · 9 planned** (67 features).
 | F-062 | Ingress and TLS | C | ● | `deploy/Caddyfile` + `deploy/proxy/Dockerfile` — Caddy 2.11.7, auto-ACME, HSTS, per-IP rate limits; `caddy validate` run inside the built image |
 | F-063 | Backups with a restore drill | A | ● | `deploy/backup/run.sh`, `deploy/backup/restore-drill.sh` — verified end to end against Postgres 18.6 (250 users / 1000 submissions restored, live DB untouched) |
 | F-064 | Observability: judge queue depth, submission latency, error rate | C | ◐ | `/metrics` exists on the api only (`api/src/main.cpp`); the judge has none, and queue depth/latency/error-rate are not exposed |
-| F-071 | A generation screen: a job is created from a brief, and the seven steps are watched as they advance, each marked from the artefacts the worker wrote | A | ○ | partly built: ADR 0062; the capability, the create route, the page and the loader are proven live — 18 assertions over three cases, an account without the capability refused by name, an empty brief writing no row, and a job read back queued at 0/7 — and the stream endpoint answers one event per connection while the page does not yet open it |
+| F-071 | A generation screen: a job is created from a brief, and the seven steps are watched as they advance, each marked from the artefacts the worker wrote | A | ◐ | ADR 0062; proven live: 18 assertions over three cases (an account without the capability refused by name, an empty brief writing no row, a job read back queued at 0/7), and the stream's event body proven by a case without a database — `api/src/generation_page.cpp`, `api/tests/generation_action_test.cpp`, `web/public/generation.js`; what no gate covers is a browser opening the stream, so the page's live behaviour rests on the markup and the script agreeing |
 | F-070 | A generated task carries a testlib validator, and the certifier proves it accepts every generated case and refuses each mutated one | A | ○ | not started: decided in ADR 0061; needs the `validator` role in `generation_programs`, a step 6 prompt, and the acceptance plus mutation set in step 7 |
 | F-069 | Content policy at the edge: no inline script or style is allowed to run, and a page that breaks it is counted rather than silently allowed | C | ● | `deploy/Caddyfile` (the enforcing policy and its report path), `api/src/main.cpp` (`/csp-report` and the counter `/metrics` exposes), `tools/check-deploy.sh` (refuses a report-only policy or a report path no service serves) |
 | F-065 | Image and dependency CVE scanning | C | ● | `tools/security-scan.sh` — Trivy 0.66.0 for secrets, fixable CVEs and deployment hardening; `tools/falsify/cases/security.ts` catches 3 planted defects and keeps a clean file green |

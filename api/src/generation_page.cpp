@@ -176,6 +176,14 @@ auto generation_model(const Locale& locale, std::string_view site_name, const st
   data["action"] = "/admin/generate";
   data["csrf_token"] = std::string{csrf_token};
   data["has_jobs"] = !jobs.empty();
+  // One stream per page: the newest running job is the one a reader is watching. When none runs there is
+  // nothing to push, so the page carries no panel rather than a panel that never updates.
+  const auto running = std::find_if(jobs.begin(), jobs.end(),
+                                    [](const auto& job) { return job.state == std::string{RUNNING}; });
+  data["has_live"] = running != jobs.end();
+  data["live_stream"] = running == jobs.end() ? std::string{}
+                                              : "/admin/generate/" + running->id + "/stream";
+  data["live_hint"] = "กำลังอ่านความคืบหน้าของงานล่าสุด";
   data["jobs"] = nlohmann::json::array();
   for (const auto& job : jobs) {
     data["jobs"].push_back({{"id", job.id},

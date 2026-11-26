@@ -22,6 +22,9 @@ export interface GenerateFixture {
   empty_label: string;
   refusal_label: string;
   has_jobs: boolean;
+  has_live: boolean;
+  live_stream: string;
+  live_hint: string;
   csrf_token: string;
   action: string;
   jobs: GenerationJobRow[];
@@ -40,6 +43,9 @@ export const generateFixture: GenerateFixture = {
   empty_label: "ยังไม่มีงาน",
   refusal_label: "เหตุผลที่หยุด",
   has_jobs: true,
+  has_live: true,
+  live_stream: "/admin/generate/12/stream",
+  live_hint: "กำลังอ่านความคืบหน้าของงานล่าสุด",
   csrf_token: "csrf",
   action: "/admin/generate",
   jobs: [
@@ -115,6 +121,11 @@ function Body({ mode, data }: { mode: Mode; data: GenerateFixture }) {
 
       <section className="mt-10">
         <h2 className="text-xl font-semibold">{slot(mode, "jobs_heading", data.jobs_heading)}</h2>
+        {when(mode, "has_live")}
+        <p className="mt-4 text-sm opacity-70" id="generation-live" data-stream={slot(mode, "live_stream", data.live_stream)}>
+          {slot(mode, "live_hint", data.live_hint)}
+        </p>
+        {endWhen(mode)}
         {when(mode, "has_jobs")}
         <RepeatList
           mode={mode}
@@ -148,6 +159,7 @@ function Body({ mode, data }: { mode: Mode; data: GenerateFixture }) {
         <p className="mt-4 opacity-70">{slot(mode, "empty_label", data.empty_label)}</p>
         {endWhen(mode)}
       </section>
+      <script src="/static/generation.js" defer />
     </>
   );
 }
