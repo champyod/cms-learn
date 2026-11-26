@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -27,6 +28,13 @@ struct GenerationJobView {
 /// Nothing here writes: a job's progress is the set of steps `generation_artefacts` holds for it, and its
 /// refusal is the artefact of kind `refusal` that the step wrote before it ended the claim (ADR 0062 §3).
 [[nodiscard]] auto read_generation_jobs(db::connection& database, std::size_t limit) -> std::vector<GenerationJobView>;
+
+/// @brief One job by id, or nothing when it is not there: the stream reads this once per connection.
+[[nodiscard]] auto read_generation_job(db::connection& database, std::string_view job_id)
+    -> std::optional<GenerationJobView>;
+
+/// @brief The server-sent event that carries one job's progress, as the page's script reads it.
+[[nodiscard]] auto generation_stream_payload(const GenerationJobView& job) -> std::string;
 
 /// @brief The template model for the generation screen.
 [[nodiscard]] auto generation_model(const Locale& locale, std::string_view site_name,

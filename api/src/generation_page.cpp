@@ -138,6 +138,28 @@ auto read_generation_jobs(db::connection& database, std::size_t limit) -> std::v
   return jobs;
 }
 
+auto read_generation_job(db::connection& database, std::string_view job_id) -> std::optional<GenerationJobView> {
+  const auto jobs = read_generation_jobs(database, 200);
+  const auto found = std::find_if(jobs.begin(), jobs.end(), [job_id](const auto& job) { return job.id == job_id; });
+  if (found == jobs.end()) {
+    return std::nullopt;
+  }
+  return *found;
+}
+
+auto generation_stream_payload(const GenerationJobView& job) -> std::string {
+  auto payload = std::string{"event: state\n"};
+  const auto body = nlohmann::json{{"id", job.id},
+                                   {"state", job.state},
+                                   {"steps_done", job.steps_done},
+                                   {"steps_line", job.steps_line},
+                                   {"refusal", job.refusal},
+                                   {"has_refusal", job.has_refusal}}
+                        .dump();
+  payload += "data: " + body + "\n\n";
+  return payload;
+}
+
 auto generation_model(const Locale& locale, std::string_view site_name, const std::vector<GenerationJobView>& jobs,
                       std::string_view csrf_token) -> nlohmann::json {
   auto data = shell_model(locale, site_name, LevelView{});

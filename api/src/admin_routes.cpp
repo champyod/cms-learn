@@ -533,6 +533,49 @@ auto models_model(const Locale& locale, std::string_view site_name, const std::v
   return data;
 }
 
+auto handle_generation_stream(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
+                             Callback&& callback, const std::string& job_id) -> void {
+  if (!is_panel_listener(request, panel->panel_port)) {
+    callback(text_response(std::string{NO_PAGE_BODY}, drogon::k404NotFound));
+    return;
+  }
+  auto database = db::connection{panel->database_config};
+  const auto session_id = request->getCookie(std::string{SESSION_COOKIE});
+  const auto account = account_of_session(database, session_id);
+  if (!account) {
+    callback(text_response(account.error().message, drogon::k500InternalServerError));
+    return;
+  }
+  if (account->empty() || account->kind != ADMIN_KIND) {
+    callback(text_response(std::string{ADMIN_ONLY_BODY}, drogon::k403Forbidden));
+    return;
+  }
+  const auto permitted = authorize(database, account->kind, account->id, Capability::generation_write);
+  if (!permitted) {
+    callback(text_response(permitted.error().message, status_of(permitted.error().code)));
+    return;
+  }
+  const auto job = read_generation_job(database, job_id);
+  if (!job) {
+    callback(text_response("no job " + job_id, drogon::k404NotFound));
+    return;
+  }
+  const auto payload = generation_stream_payload(*job);
+  auto response = drogon::HttpResponse::newAsyncStreamResponse(
+      [payload](drogon::ResponseStreamPtr stream) {
+        if (!stream) {
+          return;
+        }
+        stream->send(payload);
+        stream->close();
+      },
+      true);
+  response->addHeader("Content-Type", "text/event-stream");
+  response->addHeader("Cache-Control", "no-cache");
+  response->addHeader("X-Accel-Buffering", "no");
+  callback(response);
+}
+
 auto handle_generation(const std::shared_ptr<Panel>& panel, const drogon::HttpRequestPtr& request,
                       Callback&& callback) -> void {
   if (!is_panel_listener(request, panel->panel_port)) {
@@ -688,6 +731,12 @@ auto register_admin_routes(const std::shared_ptr<const db::connection_config>& d
       "/admin/generate",
       [panel](const drogon::HttpRequestPtr& request, Callback&& callback) {
         handle_generation(panel, request, std::move(callback));
+      },
+      {drogon::Get});
+  app.registerHandler(
+      "/admin/generate/{}/stream",
+      [panel](const drogon::HttpRequestPtr& request, Callback&& callback, const std::string& job_id) {
+        handle_generation_stream(panel, request, std::move(callback), job_id);
       },
       {drogon::Get});
   app.registerHandler(
