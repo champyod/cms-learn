@@ -33,6 +33,12 @@ of truth for it would eventually disagree with the artefacts.
 its step marks; it closes after twenty seconds and the browser reopens it, and a session may hold two at
 once — the same shape the verdict panel uses, because two live mechanisms in one product is one too many.
 
+The generation stream needs **no listener**: a verdict arrives from the judge on another connection, which
+is why that panel subscribes to a notification, while a job's progress is a set of rows this service can
+read. So one connection reads the job, writes one event, and closes — the browser reopening it is what
+makes it live. That keeps the rule the same and removes a thread, a registry of subscribers and a class of
+bug where a dropped notification leaves a page showing an old step forever.
+
 ## Rejected
 
 **Reload the page to see progress.** Cheapest to build, and it shows a teacher stale state for exactly the
